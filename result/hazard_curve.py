@@ -1,0 +1,3182 @@
+# -*- coding: utf-8 -*-
+"""
+Blueprint for classes representing hazard results of both OpenQuake and CRISIS
+"""
+
+# pylint: disable=W0142, W0312, C0103, R0913
+
+### imports
+import os, sys
+import numpy
+
+from scipy.stats import scoreatpercentile
+import pylab
+
+from ..nrml import ns
+import stats.percentiles
+
+from ..nrml.common import *
+from ..site import PSHASite
+from plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram
+from ..utils import interpolate, logrange
+
+
+# TODO: use PSHASites instead of sites and site_names separately.
+
+common_plot_docstring = """
+			fig_filespec: full path to ouptut image. If None, graph will be plotted on screen
+				(default: None)
+			title: title to appear above the graph (default: "")
+			want_recurrence: boolean indicating whether or not to plot recurrence interval
+				instead of exceedance rate in the Y axis (default: False)
+			want_poe: boolean indicating whether or not to plot probability of exceedance
+				instead of exceedance rate in the Y axis (default: False)
+			interpol_rp: return period for which to interpolate intensity
+				(one value or a list of values for each dataset). Will be plotted
+				with a dashed line for each dataset (default: 0, i.e. no interpolation)
+			interpol_prob: exceedance probability for which to interpolate intensity
+				(one value or list of values for each dataset). Will be plotted
+				with a dashed line for each dataset  (default: 0, i.e. no interpolation)
+			interpol_rp_range: return period range for which to interpolate intensity
+				([min return period, max return period] list). Will be plotted
+				with a grey area for first dataset only (default: None, i.e. no interpolation)
+			amax: maximum intensity to plot in X axis (default: None)
+			rp_max: maximum return period to plot in Y axis (default: 1E+07)
+			legend_location: location of legend (matplotlib location code) (default=0):
+				"best" 	0
+				"upper right" 	1
+				"upper left" 	2
+				"lower left" 	3
+				"lower right" 	4
+				"right" 	5
+				"center left" 	6
+				"center right" 	7
+				"lower center" 	8
+				"upper center" 	9
+				"center" 	10
+			lang: language to use for labels: en=English, nl=Dutch (default: en)
+"""
+
+
+def Poisson(life_time=None, return_period=None, prob=None):
+	"""
+	Compute return period, life time or probability of exceedance from any
+		combination of two of the other parameters for a Poisson distribution
+	Parameters:
+		life_time: life time (default: None)
+		return_period: return period (default: None)
+		prob: probability (default: None)
+	Two parameters need to be specified, the value will be computed for the remaining
+		parameters
+	"""
+	if life_time != None and prob != None:
+		return -life_time / numpy.log(1.0 - prob)
+	elif return_period != None and prob != None:
+		return -return_period * numpy.log(1.0 - prob)
+	elif life_time != None and return_period != None:
+		return 1.0 - numpy.exp(-life_time / return_period)
+	else:
+		raise TypeError("Need to specify 2 parameters")
+
+
+def interpolate(xin, yin, xout):
+	"""
+	Wrapper for linear interpolation function
+	"""
+	## Scipy and numpy interpolation don't work as exceedance rates
+	## are in decreasing order
+	#if numpy.all(numpy.diff(xin) < 0):
+	#	xin, yin = xin[::-1], yin[::-1]
+	## SciPy
+	#interpolator = interp1d(xin, yin, bounds_error=False)
+	#yout = interpolator(xout)
+
+	## Numpy
+	#yout = numpy.interp(xout, xin, yin)
+
+	## CWP intlin
+	yout = intlin(xin, yin, xout)
+	return yout
+
+
+def as_array(values):
+	"""
+	Convert values to array if it is not None or already a numpy array
+	"""
+	if values in ([], None) or values[0] == None:
+		values = None
+	else:
+		values = {True: values, False: numpy.array(values, dtype='d')}[isinstance(values, numpy.ndarray)]
+	return values
+
+
+class HazardResult:
+	"""
+	Generic class providing common methods related to poE's, exceedance rates,
+	and return periods
+	Arguments:
+		timespan: time span for probabilities of exceedance (default: 50)
+		poes: list or array with probabilities of exceedance (default: None)
+		exceedance_rates: list or array with exceedance rates (default: None)
+		return_periods: list or array with return periods (default: None)
+	"""
+	def __init__(self, timespan=50, poes=None, exceedance_rates=None, return_periods=None, IMT="PGA", intensities=None, intensity_unit="g"):
+		self.timespan = float(timespan)
+		self._poes = as_array(poes)
+		self._exceedance_rates = as_array(exceedance_rates)
+		self._return_periods = as_array(return_periods)
+		self.IMT = IMT
+		self.intensities = as_array(intensities)
+		self.intensity_unit = intensity_unit
+		self._validate()
+
+	def _validate(self):
+		"""
+		Do not override this method
+		"""
+		if self._poes is None and self._exceedance_rates is None and self.return_periods is None:
+			raise Exception("Either poE's, exceedance rates or return periods must be defined!")
+
+	@property
+	def num_intensities(self):
+		return self.intensities.shape[-1]
+
+	@property
+	def exceedance_rates(self):
+		"""
+		Return property exceedance_rates or compute from poes and timespan
+		"""
+		if self._exceedance_rates is None:
+			if self._return_periods is None:
+				exceedance_rates = 1. / Poisson(prob=self._poes, life_time=self.timespan)
+			else:
+				exceedance_rates = 1. / self._return_periods
+		else:
+			exceedance_rates = self._exceedance_rates
+		return exceedance_rates
+
+	@property
+	def return_periods(self):
+		"""
+		Return property return_periods or compute from poes and timespan
+		"""
+		if self._return_periods is None:
+			if self._exceedance_rates is None:
+				return_periods = Poisson(prob=self._poes, life_time=self.timespan)
+			else:
+				return_periods = 1. / self._exceedance_rates
+		else:
+			return_periods = self._return_periods
+		return return_periods
+
+	@property
+	def poes(self):
+		"""
+		Return property poes or compute from exceedance rates and timespan
+		"""
+		if self._poes is None:
+			if self.timespan:
+				if self._return_periods is None:
+					poes = Poisson(return_period=1./self._exceedance_rates, life_time=self.timespan)
+				else:
+					poes = Poisson(return_period=self._return_periods, life_time=self.timespan)
+			else:
+				raise AttributeError("timespan must be defined to compute probability of exceedance")
+		else:
+			poes = self._poes
+		return poes
+
+
+class HazardSpectrum:
+	"""
+	Generic class providing common methods related to periods
+	"""
+	def __init__(self, periods):
+		self.periods = as_array(periods)
+
+	def __len__(self):
+		return len(self.periods)
+
+	def period_index(self, period_spec):
+		if isinstance(period_spec, int):
+			period_index = period_spec
+		elif isinstance(period_spec, (float, numpy.floating)):
+			if len(self.periods) > 1:
+				min_diff = abs(self.periods[1:] - self.periods[:-1]).min()
+				min_diff = min(min_diff, 1E-3)
+			else:
+				min_diff = 1E-3
+			period_index = numpy.where(numpy.abs(self.periods - period_spec) < min_diff)[0][0]
+		else:
+			raise Exception("Invalid period specification: %s" % period_spec)
+		return period_index
+
+	@property
+	def num_periods(self):
+		return len(self.periods)
+
+
+class HazardField:
+	"""
+	Generic class providing common methods related to sites
+	"""
+	def __init__(self, sites, site_names=None):
+		self.sites = sites
+		if site_names in ([], None):
+			site_names = map(str, sites)
+		self.site_names = site_names
+
+	def __len__(self):
+		return self.num_sites
+
+	@property
+	def num_sites(self):
+		return len(self.sites)
+
+	@property
+	def longitudes(self):
+		"""
+		Return array with longitudes of all sites
+		"""
+		return numpy.array([site[0] for site in self.sites])
+
+	@property
+	def latitudes(self):
+		"""
+		Return array with latitudes of all sites
+		"""
+		return numpy.array([site[1] for site in self.sites])
+
+	def lonmin(self):
+		"""
+		Return minimum longitude
+		"""
+		return self.longitudes.min()
+
+	def lonmax(self):
+		"""
+		Return maximum longitude
+		"""
+		return self.longitudes.max()
+
+	def latmin(self):
+		"""
+		Return minimum latitude
+		"""
+		return self.latitudes.min()
+
+	def latmax(self):
+		"""
+		Return maximum latitude
+		"""
+		return self.latitudes.max()
+
+	@property
+	def grid_longitudes(self):
+		"""
+		Return ordered array of unique longitudes
+		"""
+		unique_lons = list(set(self.longitudes))
+		unique_lons.sort()
+		return unique_lons
+
+	def meshgrid(self):
+		"""
+		Return longitude and latitude matrices of the grid
+		"""
+		return numpy.meshgrid(self.grid_longitudes, self.grid_latitudes)
+
+	@property
+	def grid_latitudes(self):
+		"""
+		Return ordered array of unique latitudes
+		"""
+		unique_lats = list(set(self.latitudes))
+		unique_lats.sort()
+		return unique_lats
+
+	@property
+	def grid_shape(self):
+		"""
+		Return two-tuple with grid dimensions
+		"""
+		return(len(self.grid_latitudes), len(self.grid_longitudes))
+
+	@property
+	def grid_properties(self):
+		"""
+		Return nested tuple with grid extent and spacing in both dimensions:
+		((lonmin, lonmax, dlon), (latmin, latmax, dlat))
+		"""
+		grid_longitudes = self.grid_longitudes
+		grid_latitudes = self.grid_latitudes
+		dlon = grid_longitudes[1] - grid_longitudes[0]
+		dlat = grid_latitudes[1] - grid_latitudes[0]
+		lonmin, lonmax = grid_longitudes[0], grid_longitudes[-1]
+		latmin, latmax = grid_latitudes[0], grid_latitudes[-1]
+		return ((lonmin, lonmax, dlon), (latmin, latmax, dlat))
+
+	def site_index(self, site_spec):
+		"""
+		Return index of given site
+		"""
+		if isinstance(site_spec, int):
+			site_index = site_spec
+		elif isinstance(site_spec, (str, unicode)):
+			site_index = self.site_names.index(site_spec)
+		elif isinstance(site_spec, (list, tuple, PSHASite)) and len(site_spec) >= 2:
+			site_index = self.sites.index(site_spec)
+		else:
+			raise Exception("Invalid site specification: %s" % site_spec)
+		return site_index
+
+	def grid_index(self, site):
+		"""
+		Return grid index (row, col) for given site
+		"""
+		lon, lat = site
+		(lonmin, lonmax, dlon), (latmin, latmax, dlat) = self.grid_properties
+		col = int(round((lon - lonmin) / dlon))
+		row = int(round((lat - latmin) / dlat))
+		return row, col
+
+	@property
+	def grid_indexes(self):
+		"""
+		Return two arrays with row and column indexes of all sites
+		"""
+		rows = numpy.zeros(len(self.sites), dtype='i')
+		cols = numpy.zeros(len(self.sites), dtype='i')
+		(lonmin, lonmax, dlon), (latmin, latmax, dlat) = self.grid_properties
+		for i, site in enumerate(self.sites):
+			lon, lat = site
+			cols[i] = int(round((lon - lonmin) / dlon))
+			rows[i] = int(round((lat - latmin) / dlat))
+		return rows, cols
+
+
+class HazardTree(HazardResult):
+	"""
+	Generic class providing common methods related to logic-tree results.
+	Inherits from HazardResult
+	"""
+	def __init__(self, branch_names, weights=None, timespan=50, poes=None, exceedance_rates=None, return_periods=None, IMT="PGA", intensities=None, intensity_unit="g", mean=None, percentile_levels=None, percentiles=None):
+		HazardResult.__init__(self, timespan=timespan, poes=poes, exceedance_rates=exceedance_rates, return_periods=return_periods, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+		self.branch_names = branch_names
+		if weights in ([], None):
+			weights = numpy.ones(len(branch_names), 'd') / len(branch_names)
+		self.weights = as_array(weights)
+		self.set_mean(mean)
+		self.set_percentiles(percentiles, percentile_levels)
+
+	def __len__(self):
+		return self.num_branches
+
+	@property
+	def num_branches(self):
+		return self.exceedance_rates.shape[1]
+
+	num_models = num_branches
+
+	@property
+	def num_percentiles(self):
+		try:
+			return self.percentiles.shape[-1]
+		except AttributeError:
+			return 0
+
+	def branch_index(self, branch_spec):
+		if isinstance(branch_spec, int):
+			branch_index = branch_spec
+		elif isinstance(branch_spec, (str, unicode)):
+			branch_index =  self.branch_names.index(branch_spec)
+		else:
+			raise Exception("Invalid branch specification: %s" % branch_spec)
+		return branch_index
+
+	def set_mean(self, mean):
+		"""
+		Set logic-tree mean, making sure poes are converted to exceedance rates
+		"""
+		if mean in ([], None):
+			self.mean = None
+		else:
+			if self._poes is None:
+				self.mean = as_array(mean)
+			else:
+				self.mean = 1. / Poisson(prob=mean, life_time=self.timespan)
+
+	def set_percentiles(self, percentiles, percentile_levels):
+		"""
+		Set logic-tree percentiles, making sure poes are converted to exceedance rates
+		"""
+		self.percentile_levels = as_array(percentile_levels)
+		if percentiles in ([], None):
+			self.percentiles = None
+		else:
+			if self._poes is None:
+				self.percentiles = as_array(percentiles)
+			else:
+				self.percentiles = 1. / Poisson(prob=percentiles, life_time=self.timespan)
+
+	def weight_sum(self):
+		"""
+		Return total weight of all branches
+		"""
+		return numpy.add.reduce(self.weights)
+
+	def normalize_weights(self):
+		"""
+		Normalize branch weights
+		"""
+		self.weights /= self.weight_sum()
+
+	def slice_by_branch_names(self, branch_names, slice_name, normalize_weights=True, strict=True, verbose=False):
+		"""
+		Return a subset (slice) of the logic tree based on branch names
+		Parameters:
+			branch_names: list of branch names
+			slice_name: name of this slice
+			normalize_weights: boolean indicating whether or not branch weights
+				should be renormalized to 1 (default: True)
+			strict: boolean indicating whether branch names should be matched
+				strictly or only partly (default: True)
+			verbose: boolean indicating whether or not to print extra information
+				(default: False)
+		Return value:
+			An object of the same class as the parent object
+		"""
+		if strict:
+			branch_indexes = [self.branch_index(branch_name) for branch_name in branch_names]
+		else:
+			branch_indexes = []
+			for branch_name in branch_names:
+				for j, tree_branch_name in enumerate(self.branch_names):
+					if branch_name in tree_branch_name:
+						branch_indexes.append(j)
+		if verbose:
+			print("Sliced %d branches" % len(branch_indexes))
+		return self.slice_by_branch_indexes(branch_indexes, slice_name, normalize_weights=normalize_weights)
+
+	def split_by_branch_name(self, branch_names, normalize_weights=True):
+		"""
+		Split logic tree in different subsets based on branch names
+		Parameters:
+			branch_names: list of partial branch names that are unique to each subset
+			normalize_weights: boolean indicating whether or not branch weights
+				should be renormalized to 1 (default: True)
+		Return value:
+			A list of objects of the same class as the parent object
+		"""
+		subsets = []
+		for branch_name in branch_names:
+			subset = self.slice_by_branch_names([branch_name], branch_name, normalize_weights=normalize_weights, strict=False)
+			subsets.append(subset)
+		return subsets
+
+	def slice_by_branch_indexes(self, branch_indexes, slice_name, normalize_weights=True):
+		"""
+		This method needs to be overriden in descendant classes
+		"""
+		pass
+
+
+class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
+	"""
+	Class representing a spectral hazard curve field tree, i.e. a number of
+	logic-tree branches, each representing a spectral hazard curve field.
+	Corresponds to a set of CRISIS .GRA files defining (part of) a logic tree
+
+	Parameters:
+		model_name: name of this logic-tree model
+		branch_names: 1-D list [j] of model names of each branch
+		filespecs: list with full paths to files containing hazard curves
+			(1 file for each branch)
+		weights: 1-D list or array [j] with branch weights
+		sites: 1-D list [i] with (lon, lat) tuples of site for which hazard curves
+			were computed
+		periods: 1-D array [k] of spectral periods
+		IMT: intensity measure type (PGA, SA, PGV or PGD)
+		intensities: 2-D array [k,l] of intensity measure levels (ground-motion values)
+			for each spectral period for which exceedance rate or probability of
+			exceedance was computed
+		intensity_unit: unit in which intensity measure levels are expressed:
+			PGA and SA: "g", "mg", "ms2", "gal"
+			PGV: "cms"
+			PGD: "cm"
+			default: "g"
+		timespan: period related to the probability of exceedance (aka life time)
+			(default: 50)
+		poes: 4-D array [i,j,k,l] with probabilities of exceedance computed for each
+			intensity measure level [k,l] at each site [i] in each branch [j].
+			If None, exceedance_rates must be specified
+			(default: None)
+		exceedance_rates: 4-D array [i,j,k,l] with exceedance rates computed for each
+			intensity measure level [k,l] at each site in each branch [j].
+			If None, poes must be specified
+			(default: None)
+		variances: 4-D array [i,j,k,l] with variance of exceedance rate or probability of exceedance
+			(default: None)
+		mean: 3-D array [i,k,l] with mean exceedance rate or probability of exceedance
+			(default: None)
+		percentile_levels: 1-D list or array [p] with percentile levels (default: None)
+		percentiles: 4-D array [i,k,l,p] with percentiles of exceedance rate or
+			probability of exceedance (default: None)
+		site_names: list of site names (default: None)
+
+	Provides iteration and indexing over sites
+	"""
+	def __init__(self, model_name, branch_names, filespecs, weights, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, poes=None, exceedance_rates=None, variances=None, mean=None, percentile_levels=None, percentiles=None, site_names=None):
+		HazardTree.__init__(self, branch_names, weights=weights, timespan=timespan, poes=poes, exceedance_rates=exceedance_rates, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit, mean=mean, percentile_levels=percentile_levels, percentiles=percentiles)
+		HazardField.__init__(self, sites, site_names=site_names)
+		HazardSpectrum.__init__(self, periods)
+		self.model_name = model_name
+		self.filespecs = filespecs
+		self.variances = as_array(variances)
+		self.validate()
+
+	def __iter__(self):
+		self._current_index = 0
+		return self
+
+	def next(self):
+		"""
+		Loop over logic-tree branches
+		"""
+		try:
+			branch_name = self.branch_names[self._current_index]
+		except:
+			raise StopIteration
+		else:
+			self._current_index += 1
+			return self.getSpectralHazardCurveField(self._current_index-1)
+
+	def __getitem__(self, branch_spec):
+		return self.getSpectralHazardCurveField(branch_spec)
+
+	def validate(self):
+		"""
+		Check if arrays have correct dimensions
+		"""
+		if not (len(self.filespecs) == len(self.branch_names)):
+			raise Exception("Number of filespecs not in agreement with number of branch names")
+		num_models, num_sites, num_periods = self.num_models, self.num_sites, self.num_periods
+		if len(self.intensities.shape) != 2:
+			raise Exception("intensities array has wrong dimension")
+		num_intensities = self.num_intensities
+		if self.intensities.shape[0] != num_periods:
+			raise Exception("intensities array has wrong shape")
+		if len(self.exceedance_rates.shape) != 4:
+			raise Exception("exceedance_rates or poes array has wrong dimension")
+		if self.exceedance_rates.shape != (num_sites, num_models, num_periods, num_intensities):
+			raise Exception("exceedance_rates or poes array has wrong shape")
+		if self.variances != None:
+			if len(self.variances.shape) != 4:
+				raise Exception("variances array has wrong dimension")
+			if self.variances.shape != (num_sites, num_models, num_periods, num_intensities):
+				raise Exception("variances array has wrong shape")
+
+	@classmethod
+	def from_branches(self, shcf_list, model_name, branch_names=None, weights=None, mean=None, percentile_levels=None, percentiles=None):
+		"""
+		Construct SpectralHazardCurveFieldTree from list of SpectralHazardCurveField objects
+			mean: mean shcf
+			percentiles: list with shcf's corresponding to percentiles
+			percentile_levels
+		"""
+		shcf0 = shcf_list[0]
+		num_models = len(shcf_list)
+		num_sites = shcf0.num_sites
+		num_periods = shcf0.num_periods
+		num_intensities = shcf0.num_intensities
+
+		if shcf0._exceedance_rates != None:
+			all_exceedance_rates = numpy.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
+			all_exceedance_rates[:,0,:,:] = shcf0._exceedance_rates
+			all_poes = None
+		else:
+			all_exceedance_rates = None
+			all_poes = numpy.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
+			all_poes[:,0,:,:] = shcf0._poes
+		if shcf0.variances != None:
+			all_variances = numpy.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
+			all_variances[:,0,:,:] = shcf0.variances
+		else:
+			all_variances = None
+
+		filespecs = [shcf.filespecs[0] for shcf in shcf_list]
+		if branch_names in (None, []):
+			branch_names = [shcf.model_name for shcf in shcf_list]
+		if weights in (None, []):
+			weights = numpy.ones(num_models, 'f') / num_models
+
+		shcft = SpectralHazardCurveFieldTree(model_name, branch_names, filespecs, weights, shcf0.sites, shcf0.periods, shcf0.IMT, shcf0.intensities, shcf0.intensity_unit, shcf0.timespan, poes=all_poes, exceedance_rates=all_exceedance_rates, variances=all_variances, site_names=shcf0.site_names)
+
+		for j, shcf in enumerate(shcf_list[1:]):
+			shcft.check_shcf_compatibility(shcf)
+			if shcf._exceedance_rates != None:
+				shcft._exceedance_rates[:,j+1] = shcf._exceedance_rates
+			else:
+				shcft._poes[:,j+1] = shcf._poes
+			if shcft.variances != None:
+				shcft.variances[:,j+1] = shcf.variances
+
+		if mean != None:
+			shcft.check_shcf_compatibility(mean)
+			if mean._exceedance_rates != None:
+				shcft.set_mean(mean._exceedance_rates)
+			else:
+				shcft.set_mean(mean._poes)
+
+		if percentiles != None:
+			num_percentiles = len(percentiles)
+			perc_array = numpy.zeros((num_sites, num_periods, num_intensities, num_percentiles), 'd')
+			for p in range(num_percentiles):
+				shcf = percentiles[p]
+				shcft.check_shcf_compatibility(shcf)
+				if shcf._exceedance_rates != None:
+					perc_array[:,:,:,p] = shcf._exceedance_rates
+				else:
+					perc_array[:,:,:,p] = shcf._poes
+				shcft.set_percentiles(perc_array, percentile_levels)
+
+		return shcft
+
+	def check_shcf_compatibility(self, shcf):
+		"""
+		Check the compatibility of a candidate branch (SpectralHazardCurveField object)
+		"""
+		if self.sites != shcf.sites:
+			raise Exception("Sites do not correspond!")
+		if (self.periods != shcf.periods).any():
+			raise Exception("Spectral periods do not correspond!")
+		if self.IMT != shcf.IMT:
+			raise Exception("IMT does not correspond!")
+		if (self.intensities != shcf.intensities).any():
+			raise Exception("Intensities do not correspond!")
+		if self.intensity_unit != shcf.intensity_unit:
+			raise Exception("Intensity unit does not correspond!")
+		if self.timespan != shcf.timespan:
+			raise Exception("Time span does not correspond!")
+
+	def append_branch(self, shcf, branch_name="", weight=1.0):
+		"""
+		Append a new branch
+		Parameters:
+			shcf: SpectralHazardCurveField object
+			branch_name: name of branch. If not specified, shcf.model_name
+				will be used as the branch name (default: "")
+			weight:
+				branch weight (default: 1.0)
+		Notes:
+			Branch weights are not renormalized to avoid rounding errors.
+				This should be done after all branches have been appended.
+			Mean and percentiles can be appended with the set_mean() and
+				set_percentiles() methods.
+		"""
+		self.check_shcf_compatibility(shcf)
+		if not branch_name:
+			branch_name = shcf.model_name
+		self.branch_names.append(branch_name)
+		self.filespecs.append(shcf.filespecs[0])
+		## Do not recompute weights, assume they are correct
+		self.weights = numpy.concatenate([self.weights, [weight]])
+		shape = (self.num_sites, 1, self.num_periods, self.num_intensities)
+		if self._exceedance_rates != None:
+			self._exceedance_rates = numpy.concatenate([self._exceedance_rates, shcf.exceedance_rates.reshape(shape)], axis=1)
+		if self._poes != None:
+			self._poes = numpy.concatenate([self._poes, shcf.poes.reshape(shape)], axis=1)
+		if self.variances != None:
+			## Note: this is only correct if both shcft and shcf are of the same type
+			## (exceedance rates or probabilities of exceedance)
+			self.variances = numpy.concatenate([self.variances, shcf.variances.reshape(shape)], axis=1)
+
+	def getSpectralHazardCurveField(self, branch_spec=0):
+		"""
+		Return spectral hazard curve field for a particular branch
+		Parameters:
+			branch_spec: branch specification (index or branch name) (default: 0)
+		Return value:
+			SpectralHazardCurveField object
+		"""
+		branch_index = self.branch_index(branch_spec)
+		try:
+			branch_name = self.branch_names[branch_index]
+		except:
+			raise IndexError("Branch index %s out of range" % branch_index)
+		else:
+			branch_name = self.branch_names[branch_index]
+			filespec = self.filespecs[branch_index]
+			if self._exceedance_rates != None:
+				exceedance_rates = self._exceedance_rates[:,branch_index,:,:]
+				poes = None
+			else:
+				exceedance_rates = None
+				poes = self._poes[:,branch_index,:,:]
+			if self.variances != None:
+				variances = self.variances[:,branch_index,:,:]
+			else:
+				variances = None
+			return SpectralHazardCurveField(branch_name, [filespec]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, poes=poes, exceedance_rates=exceedance_rates, variances=variances, site_names=self.site_names)
+
+	def getSpectralHazardCurve(self, branch_spec=0, site_spec=0):
+		"""
+		Return spectral hazard curve for a particular branch and site
+		Parameters:
+			branch_spec: branch specification (index or branch name) (default: 0)
+			site_spec: site specification (site index, (lon, lat) tuple or site name)
+				(default: 0)
+		Return value:
+			SpectralHazardCurveField object
+		"""
+		site_index = self.site_index(site_spec)
+		try:
+			site = self.sites[site_index]
+		except:
+			raise IndexError("Site index %s out of range" % site_index)
+		else:
+			site_name = self.site_names[site_index]
+
+		branch_index = self.branch_index(branch_spec)
+		try:
+			branch_name = self.branch_names[branch_index]
+		except:
+			raise IndexError("Branch index %s out of range" % branch_index)
+		intensities = self.intensities
+		if self._exceedance_rates != None:
+			exceedance_rates = self._exceedance_rates[site_index, branch_index]
+			poes = None
+		else:
+			exceedance_rates = None
+			poes = self._poes[site_index, branch_index]
+		if self.variances != None:
+			variances = self.variances[site_index, branch_index]
+		else:
+			variances = None
+		return SpectralHazardCurve(branch_name, self.filespecs[branch_index], site, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, poes=poes, exceedance_rates=exceedance_rates, variances=variances, site_name=site_name)
+
+	def min(self):
+		# TODO: does this make sense? Makes more sense with 1 period and 1 site
+		return self.exceedance_rates.min(axis=1)
+
+	def max(self):
+		return self.exceedance_rates.max(axis=1)
+
+	def calc_mean(self, weighted=True):
+		"""
+		Compute mean exceedance rates
+		Parameters:
+			weighted: boolean indicating whether or not branch weights should be
+				taken into account (default: True)
+		Return value:
+			mean exceedance rates: 3-D array [i,k,l]
+		"""
+		if weighted:
+			return numpy.average(self.exceedance_rates, weights=self.weights, axis=1)
+		else:
+			return numpy.mean(self.exceedance_rates, axis=1)
+
+	def calc_variance_of_mean(self, weighted=True):
+		"""
+		Compute variance of mean exceedance rate
+		Parameters:
+			weighted: boolean indicating whether or not branch weights should be
+				taken into account (default: True)
+		Return value:
+			variance of mean exceedance rate: 3-D array [i,k,l]
+		"""
+		if weighted and not self.weights in ([], None):
+			# TODO: this needs to be checked
+			mean = self.calc_mean(weighted=True)
+			weights = numpy.array(self.weights)
+			weights_column = weights.reshape((self.num_branches, 1))
+			variance_of_mean = numpy.zeros((self.num_sites, self.num_periods, self.num_intensities), 'd')
+			for i in range(self.num_sites):
+				for k in range(self.num_periods):
+					variance_of_mean[i,k] = numpy.add.reduce(weights_column * (self.exceedance_rates[i,:,k] - mean[i,k])**2, axis=0)
+		else:
+			 variance_of_mean = numpy.var(self.exceedance_rates, axis=1)
+		return variance_of_mean
+
+	def calc_mean_variance(self, weighted=True):
+		"""
+		Compute mean variance of exceedance rate
+		Parameters:
+			weighted: boolean indicating whether or not branch weights should be
+				taken into account (default: True)
+		Return value:
+			mean variance of exceedance rate: 3-D array [i,k,l]
+		"""
+		if self.variances != None:
+			if weighted:
+				mean_variance = numpy.average(self.variances, weights=self.weights, axis=1)
+			else:
+				mean_variance = numpy.mean(self.variances, axis=1)
+		else:
+			mean_variance = None
+		return mean_variance
+
+	def calc_percentiles_epistemic(self, percentile_levels=[], weighted=True):
+		"""
+		Compute percentiles of exceedance rate (epistemic uncertainty)
+		Parameters:
+			percentile_levels: list or array of percentile levels. Percentiles
+				may be specified as integers between 0 and 100 or as floats
+				between 0 and 1
+			weighted: boolean indicating whether or not branch weights should be
+				taken into account (default: True)
+		Return value:
+			percentiles of exceedance rate: 4-D array [i,k,l,p]
+		"""
+		if percentile_levels in ([], None):
+			percentile_levels = [5, 16, 50, 84, 95]
+		num_sites, num_periods, num_intensities = self.num_sites, self.num_periods, self.num_intensities
+		num_percentiles = len(percentile_levels)
+		percentiles = numpy.zeros((num_sites, num_periods, num_intensities, num_percentiles))
+		for i in range(num_sites):
+			for k in range(num_periods):
+				for l in range(num_intensities):
+					if weighted:
+						percentiles[i,k,l,:] = stats.percentiles.weighted_percentiles(self.exceedance_rates[i,:,k,l], percentile_levels, weights=self.weights, resolution=self.num_branches)
+					else:
+						for p, per in enumerate(percentile_levels):
+							percentiles[i,k,l,p] = scoreatpercentile(self.exceedance_rates[i,:,k,l], per)
+		return percentiles
+
+	def calc_percentiles_combined(self, percentile_levels, weighted=True):
+		"""
+		Compute percentiles of exceedance rate (combined uncertainty)
+		Can only be computed if variances (aleatory uncertainty) is known
+		Parameters:
+			percentile_levels: list or array of percentile levels. Percentiles
+				may be specified as integers between 0 and 100 or as floats
+				between 0 and 1
+			weighted: boolean indicating whether or not branch weights should be
+				taken into account (default: True)
+		Return value:
+			percentiles of exceedance rate: 4-D array [i,k,l,p]
+		"""
+		if self.variances is None:
+			raise Exception("Combined uncertainties can only be computed if aleatory uncertainties are stored as variances")
+		else:
+			# TODO !
+			return self.calc_percentiles_epistemic(percentile_levels, weighted=weighted)
+
+	def calc_percentiles(self, percentile_levels, weighted=True):
+		"""
+		Wrapper function to compute percentiles of exceedance rate
+		(combined uncertainty if variances is defined, epistemic otherwise)
+		Parameters:
+			percentile_levels: list or array of percentile levels. Percentiles
+				may be specified as integers between 0 and 100 or as floats
+				between 0 and 1
+			weighted: boolean indicating whether or not branch weights should be
+				taken into account (default: True)
+		Return value:
+			percentiles of exceedance rate: 4-D array [i,k,l,p]
+		"""
+		if self.variances is None:
+			print("Epistemic")
+			return self.calc_percentiles_epistemic(percentile_levels, weighted=weighted)
+		else:
+			print("Combined")
+			return self.calc_percentiles_combined(percentile_levels, weighted=weighted)
+
+	def getMeanSpectralHazardCurveField(self, recalc=False, weighted=True):
+		"""
+		Return mean spectral hazard curve field
+		Parameters:
+			recalc: boolean indicating whether or not to recompute. If mean is
+				None, computation will be performed anyway (default: False)
+			weighted: boolean indicating whether or not branch weights should be
+				taken into account. Only applies if recomputed (default: True)
+		Return value:
+			SpectralHazardCurveField object
+		"""
+		if recalc or self.mean is None:
+			mean = self.calc_mean(weighted=weighted)
+		else:
+			mean = self.mean
+		variances = self.calc_variance_of_mean()
+		return SpectralHazardCurveField("mean", [""]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, exceedance_rates=mean, variances=variances, site_names=self.site_names)
+
+	def import_stats_from_AGR(self, agr_filespec, percentile_levels=None):
+		"""
+		Import logic-tree statistics from a CRISIS .AGR file
+		Parameters:
+			agr_filespec: full path to .AGR file
+			percentile_levels: list or array of percentile levels to import
+				(default: None)
+		"""
+		# TODO: need to take care with intensity_unit
+		from ..crisis import IO
+		shcft = IO.readCRISIS_GRA(agr_filespec)
+		if shcft.intensities != self.intensities:
+			raise Exception("Intensities do not match with those of current object!")
+		self.mean = shcft.mean
+		if percentile_levels is None:
+			self.percentile_levels = shcft.percentile_levels
+			self.percentiles = shcft.percentiles
+		else:
+			perc_indexes = []
+			for perc in percentile_levels:
+				try:
+					perc_index = numpy.where(shcft.percentile_levels == perc)[0][0]
+				except:
+					raise Exception("Percentile level %s not found in file %s!" % (perc, agr_filespec))
+				perc_indexes.append(perc_index)
+			self.percentile_levels = percentiles
+			self.percentiles = shcft.percentiles[:,:,:,perc_indexes]
+
+	def export_stats_AGR(self, out_filespec, weighted=True):
+		"""
+		Export logic-tree statistics to a CRISIS .AGR file
+		Parameters:
+			out_filespec: full path to output .AGR file
+			weighted: boolean indicating whether or not branch weights should be
+				taken into account (default: True)
+		"""
+		if self.mean in (None, []):
+			mean = self.calc_mean(weighted=weighted)
+		else:
+			mean = self.mean
+		variance_of_mean = self.calc_variance_of_mean(weighted=weighted)
+		if self.percentiles in (None, []):
+			if self.percentile_levels in (None, []):
+				percentile_levels = [5, 16, 50, 84, 95]
+			else:
+				percentile_levels = self.percentile_levels
+			percentiles = self.calc_percentiles(percentile_levels, weighted=weighted)
+		else:
+			percentiles = self.percentiles
+			percentile_levels = self.percentile_levels
+
+		f = open(out_filespec, "w")
+		f.write("************************************************************\n")
+		f.write("Logic-tree statistics: mean, variance, percentiles (%s)" % ", ".join(["%d" % p for p in percentile_levels]))
+		f.write("\n")
+		f.write("Calculated using ROB python routines\n")
+		f.write("NumSites, NumPeriods, NumIntensities: %d, %d, %d\n" % (self.num_sites, self.num_periods, self.num_intensities))
+		f.write("************************************************************\n")
+		f.write("\n\n")
+		for i in range(self.num_sites):
+			f.write("    %s      %s\n" % self.sites[i])
+			for k in range(self.num_periods):
+				f.write("INTENSITY %d T=%s\n" % (k+1, self.periods[k]))
+				for l in range(self.num_intensities):
+					values = [self.intensities[k,l]] + [mean[i,k,l]] + [variance_of_mean[i,k,l]] + list(percentiles[i,k,l,:])
+					str = "  ".join(["%.5E" % val for val in values])
+					f.write("%s\n" % str)
+		f.close()
+
+	def slice_by_branch_indexes(self, branch_indexes, slice_name, normalize_weights=True):
+		"""
+		Return a subset (slice) of the logic tree based on branch indexes
+		Parameters:
+			branch_indexes: list or array of branch indexes
+			slice_name: name of this slice
+			normalize_weights: boolean indicating whether or not branch weights
+				should be renormalized to 1 (default: True)
+		Return value:
+			SpectralHazardCurveFieldTree object
+		"""
+		model_name = slice_name
+		branch_names, filespecs = [], []
+		for index in branch_indexes:
+			branch_names.append(self.branch_names[index])
+			filespecs.append(self.filespecs[index])
+		weights = self.weights[branch_indexes]
+		## Recompute branch weights
+		if normalize_weights:
+			weight_sum = numpy.add.reduce(weights)
+			weights /= weight_sum
+		sites = self.sites
+		periods = self.periods
+		IMT = self.IMT
+		intensities = self.intensities
+		intensity_unit = self.intensity_unit
+		timespan = self.timespan
+		if self._exceedance_rates != None:
+			exceedance_rates = self._exceedance_rates[:,branch_indexes,:,:]
+			poes = None
+		else:
+			exceedance_rates = None
+			poes = self._poes[:,branch_indexes,:,:]
+		if self.variances != None:
+			variances = self.variances[:,branch_indexes,:,:]
+		else:
+			variances = None
+		return SpectralHazardCurveFieldTree(model_name, branch_names, filespecs, weights, sites, periods, IMT, intensities, intensity_unit, timespan, poes=poes, exceedance_rates=exceedance_rates, variances=variances, site_names=self.site_names)
+
+	def interpolate_return_period(self, return_period):
+		"""
+		Interpolate intensity measure levels for given return period
+		Parameters:
+			return_period: lreturn period
+		Return value:
+			UHSFieldTree object
+		"""
+		num_sites, num_periods, num_models = self.num_sites, self.num_periods, self.num_models
+		rp_intensities = numpy.zeros((num_sites, num_models, num_periods), dtype='d')
+		if self.mean not in (None, []):
+			rp_mean = numpy.zeros((num_sites, num_periods), dtype='d')
+		else:
+			rp_mean = None
+		if self.percentiles not in (None, []):
+			rp_percentiles = numpy.zeros((num_sites, num_periods, self.num_percentiles), dtype='d')
+		else:
+			rp_percentiles = None
+		interpol_exceedance = 1. / return_period
+		for i in range(num_sites):
+			for k in range(num_periods):
+				for j in range(num_models):
+					rp_intensities[i,j,k] = interpolate(self.exceedance_rates[i,j,k], self.intensities[k], [interpol_exceedance])[0]
+				if self.mean not in (None, []):
+					rp_mean[i,k] = interpolate(self.mean[i,k], self.intensities[k], [interpol_exceedance])[0]
+				if self.percentiles not in (None, []):
+					for p in self.num_percentiles:
+						rp_percentiles[i,k,p] = interpolate(self.percentiles[i,k,:,p], self.intensities[k], [interpol_exceedance])[0]
+		return UHSFieldTree(self.model_name, self.branch_names, self.filespecs, self.weights, self.sites, self.periods, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_period=return_period, mean=rp_mean, percentile_levels=self.percentile_levels, percentiles=rp_percentiles, site_names=self.site_names)
+
+	def interpolate_periods(self, out_periods):
+		"""
+		Interpolate intensity measure levels at different spectral periods
+		Parameters:
+			out_periods: list or array of output spectral periods
+		Return value:
+			SpectralHazardCurveFieldTree object
+		"""
+		num_sites, num_branches, num_intensities = self.num_sites, self.num_branches, self.num_intensities
+		if self._exceedance_rates != None:
+			out_exceedance_rates = numpy.zeros((num_sites, num_branches, len(out_periods), num_intensities), dtype='d')
+			out_poes = None
+		else:
+			out_exceedance_rates = None
+			out_poes = numpy.zeros((num_sites, num_branches, len(out_periods), num_intensities), dtype='d')
+		if self.variances != None:
+			out_variances = numpy.zeros((num_sites, num_branches, len(out_periods), num_intensities), dtype='d')
+		else:
+			out_variances = None
+		if self.mean != None:
+			out_mean = numpy.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
+		else:
+			out_mean = None
+		if self.percentiles != None:
+			num_percentiles = self.num_percentiles
+			out_percentiles = numpy.zeros((num_sites, len(out_periods), num_intensities, num_percentiles), dtype='d')
+
+		for i in range(num_sites):
+			for j in range(num_branches):
+				shc = self.getSpectralHazardCurve(site_spec=i, branch_spec=j)
+				shc_out = shc.interpolate_periods(out_periods)
+				if self._exceedance_rates != None:
+					out_exceedance_rates[i,j] = shc_out._exceedance_rates
+				else:
+					out_poes[i,j] = shc_out._poes
+				if self.variances != None:
+					out_variances[i,j] = shc_out.variances
+			if self.mean != None:
+				shc = SpectralHazardCurve("mean", "", self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, exceedance_rates=self.mean[i])
+				shc_out = shc.interpolate_periods(out_periods)
+				out_mean[i] = shc_out.exceedance_rates
+			if self.percentiles != None:
+				for p in num_percentiles:
+					shc = SpectralHazardCurve("mean", "", self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, exceedance_rates=self.percentiles[i,:,:,p])
+					shc_out = shc.interpolate_periods(out_periods)
+					out_percentiles[i,:,:,p] = shc_out.exceedance_rates
+		intensities = shc_out.intensities
+		return SpectralHazardCurveFieldTree(self.model_name, self.branch_names, self.filespecs, self.weights, self.sites, out_periods, self.IMT, intensities, self.intensity_unit, self.timespan, poes=out_poes, exceedance_rates=out_exceedance_rates, variances=out_variances, site_names=self.site_names)
+
+	def plot(self, site_spec=0, period_spec=0, branch_specs=[], fig_filespec=None, title="", want_recurrence=False, want_poe=False, interpol_rp=0, interpol_prob=0, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+		"""
+		Plot hazard curves (individual branches, mean, and percentiles) for a
+			particular site and spectral period.
+		Parameters:
+			site_spec: site specification (index, (lon,lat) tuple or site name)
+				of site to be plotted (default: 0)
+			period_spec: period specification (integer period indexe or float
+				spectral period) (default: 0)
+			branch_specs: list of branch specifications (indexes or branch names)
+				to be plotted (default: [] will plot all branches)
+		"""
+		site_index = self.site_index(site_spec)
+		period_index = self.period_index(period_spec)
+		if branch_specs in ([], None):
+			branch_indexes = range(self.num_branches)
+		else:
+			branch_indexes = [self.branch_index(branch_spec) for branch_spec in branch_specs]
+		x = self.intensities[period_index]
+		datasets, labels, colors, linewidths, linestyles = [], [], [], [], []
+
+		## Plot individual models
+		exceedance_rates = self.exceedance_rates
+		for branch_index in branch_indexes:
+			y = exceedance_rates[site_index, branch_index, period_index]
+			datasets.append((x, y))
+			labels.append("_nolegend_")
+			colors.append((0.5, 0.5, 0.5))
+			linewidths.append(1)
+			linestyles.append('-')
+
+		## Plot overall mean
+		if self.mean is None:
+			y = self.calc_mean()[site_index, period_index]
+		else:
+			y = self.mean[site_index, period_index]
+		datasets.append((x, y))
+		labels.append("_nolegend_")
+		colors.append('w')
+		linewidths.append(5)
+		linestyles.append('-')
+		datasets.append((x, y))
+		labels.append({"en": "Overall Mean", "nl": "Algemeen gemiddelde"}[lang])
+		colors.append('r')
+		linewidths.append(3)
+		linestyles.append('-')
+
+		## Plot percentiles
+		if self.percentiles is None:
+			if self.percentile_levels is None:
+				percentile_levels = [5, 16, 50, 84, 95]
+			else:
+				percentile_levels = self.percentile_levels
+			percentiles = self.calc_percentiles(percentile_levels)
+		else:
+			percentiles = self.percentiles
+			percentile_levels = self.percentile_levels
+		percentiles = percentiles[site_index, period_index]
+		## Manage percentile labels and colors
+		perc_labels, perc_colors = {}, {}
+		p = 0
+		for perc in percentile_levels:
+			if not perc_labels.has_key(perc):
+				if not perc_labels.has_key(100 - perc):
+					perc_labels[perc] = "P%02d" % perc
+					perc_colors[perc] = ["b", "g", "r", "c", "m", "k"][p%6]
+					p += 1
+				else:
+					perc_labels[100 - perc] += ", P%02d" % perc
+					perc_labels[perc] = "_nolegend_"
+					perc_colors[perc] = perc_colors[100 - perc]
+		for p, perc in enumerate(percentile_levels):
+			labels.append(perc_labels[perc])
+			colors.append(perc_colors[perc])
+			linewidths.append(2)
+			linestyles.append('--')
+			datasets.append((x, percentiles[:,p]))
+		fixed_life_time = {True: self.timespan, False: None}[want_poe]
+		intensity_unit = self.intensity_unit
+		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=rp_max, legend_location=legend_location, lang=lang)
+
+	plot.__doc__ += common_plot_docstring
+
+	def plot_subsets(self, subset_label_patterns, site_spec=0, period_spec=0, labels=[], agr_filespecs=[], percentile_levels=[84], combined_uncertainty=True, fig_filespec=None, title="", want_recurrence=False, want_poe=False, interpol_rp=0, interpol_prob=0, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+		"""
+		Plot mean and percentiles of different subsets
+		Parameters:
+			subset_label_patterns: list of strings that are unique to the branch
+				 labels of each subset
+			site_spec: site specification (index, (lon,lat) tuple or site name)
+				of site to be plotted (default: 0)
+			period_spec: period specification (integer period indexe or float
+				spectral period) (default: 0)
+			labels: subset labels (default: [])
+			agr_filespecs: list of .AGR filespecs containing statistics for each
+				subset. If empty, mean and percentiles will be computed
+			percentile_levels: list of exceedance-rate percentiles to plot in addition
+				 to the mean (default: [84])
+			combined_uncertainty: boolean. If True, percentiles are calculated for combined
+				(epistemic + aleatory) uncertainty. If False, percentiles are calculated for
+				epistemic uncertainty only. This setting does not apply if agr_filespec is
+				set. Note that this setting does not influence the mean value.
+				(default: True)
+		"""
+		subsets = self.split_by_branch_name(subset_specs)
+		site_index = self.site_index(site_spec)
+		period_index = self.period_index(period_spec)
+
+		dataset_colors = ["r", "g", "b", "c", "m", "k"]
+		if not labels:
+			dataset_labels = ["Subset %d" % (i+1) for i in range(len(subsets))]
+		else:
+			dataset_labels = labels
+
+		## Manage percentile labels and linestyles
+		perc_labels, perc_linestyles = {}, {}
+		p = 0
+		for perc in percentile_levels:
+			if not perc_labels.has_key(perc):
+				if not perc_labels.has_key(100 - perc):
+					perc_labels[perc] = "P%02d" % perc
+					perc_linestyles[perc] = ["--", ":", "-:"][p%3]
+					p += 1
+				else:
+					perc_labels[100 - perc] += ", P%02d" % perc
+					perc_labels[perc] = "_nolegend_"
+					perc_linestyles[perc] = perc_colors[100 - perc]
+
+		x = self.intensities[period_index]
+
+		datasets, labels, colors, linewidths, linestyles = [], [], [], [], []
+		for i, subset in enumerate(subsets):
+			## Load or calculate statistics
+			if not agr_filespecs:
+				mean = subset.calc_mean()
+				if combined_uncertainty:
+					percentiles = subset.calc_percentiles_combined(percentile_levels)
+				else:
+					percentiles = subset.calc_percentiles_epistemic(percentile_levels)
+			else:
+				shcft = import_stats_from_AGR(agr_filespecs[i], percentile_levels)
+				mean = shcft.mean
+				percentiles = shcft.percentiles
+
+			## Plot subset mean
+			label = dataset_labels[i]
+			label += {"en": " (mean)", "nl": " (gemiddelde)"}[lang]
+			labels.append(label)
+			colors.append(dataset_colors[i%len(dataset_colors)])
+			linewidths.append(2)
+			linestyles.append('-')
+			datasets.append((x, mean[site_index,period_index]))
+
+			## Plot percentiles
+			for p, perc in enumerate(percentile_levels):
+				perc_label = perc_labels[perc]
+				labels.append(dataset_labels[i] + " (%s)" % perc_label)
+				colors.append(dataset_colors[i%len(dataset_colors)])
+				linewidths.append(2)
+				linestyles.append(perc_linestyles[perc])
+				datasets.append((x, percentiles[site_index,period_index,:,p]))
+
+		if amax is None:
+			amax = max(self.intensities[period_index])
+
+		## Interpolate
+		if interpol_rp:
+			interpol_rp = [interpol_rp] + [0] * len(percentile_levels)
+			interpol_rp *= len(subsets)
+		if interpol_prob:
+			interpol_prob = [interpol_prob] + [0] * len(percentile_levels)
+			interpol_prob *= len(subsets)
+
+		## Call plot function
+		fixed_life_time = {True: self.timespan, False: None}[want_poe]
+		intensity_unit = self.intensity_unit
+		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, amax=amax, tr_max=rp_max, legend_location=legend_location, lang=lang)
+
+	plot_subsets.__doc__ += common_plot_docstring
+
+	def create_xml_element(self, encoding='latin1'):
+		"""
+		Create xml element (NRML SpectralHazardCurveField element)
+		Arguments:
+			encoding: unicode encoding (default: 'latin1')
+		"""
+		# TODO: add names to nrml namespace
+		shcft_elem = etree.Element(ns.SPECTRAL_HAZARD_CURVE_FIELD_TREE)
+		shcft_elem.set(ns.NAME, self.model_name)
+		shcft_elem.set(ns.IMT, self.IMT)
+		for j, branch_name in enumerate(self.branch_names):
+			shcf_elem = etree.SubElement(shcft_elem, ns.SPECTRAL_HAZARD_CURVE_FIELD)
+			shcf_elem.set(ns.NAME, branch_name)
+			for k, period in enumerate(self.periods):
+				hcf_elem = etree.SubElement(shcf_elem, ns.HAZARD_CURVE_FIELD)
+				hcf_elem.set(ns.PERIOD, str(period))
+				imls_elem = etree.SubElement(hcf_elem, ns.IMLS)
+				imls_elem.text = " ".join(map(str, self.intensities[k,:]))
+				for i, site in enumerate(self.sites):
+					hazard_curve_elem = etree.SubElement(hcf_elem, ns.HAZARD_CURVE)
+					point_elem = etree.SubElement(hazard_curve_elem, ns.POINT)
+					position_elem = etree.SubElement(point_elem, ns.POSITION)
+					position_elem.text = "%s %s" % (site[0], site[1])
+					poes_elem = etree.SubElement(hazard_curve_elem, ns.POES)
+					poes_elem.text = " ".join(map(str, self.poes[i,j,k,:]))
+		return shcf_elem
+
+	def write_nrml(self, filespec, encoding='latin1', pretty_print=True):
+		"""
+		Write spectral hazard curve field tree to XML file
+		Arguments:
+			filespec: full path to XML output file
+			encoding: unicode encoding (default: 'utf-8')
+			pretty_print: boolean indicating whether or not to indent each
+				element (default: True)
+		"""
+		tree = create_nrml_root(self, encoding=encoding)
+		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+
+
+class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
+	"""
+	Class representing a hazard curve field for different spectral periods.
+	Corresponds to 1 CRISIS .GRA file.
+	Parameters:
+		model_name: name of this hazard-curve model
+		filespecs: list with full paths to files containing hazard curves
+			(1 file for each spectral period)
+		sites: 1-D list [i] with (lon, lat) tuples of site for which hazard curves
+			were computed
+		periods: 1-D array [k] of spectral periods
+		IMT: intensity measure type (PGA, SA, PGV or PGD)
+		intensities: 2-D array [k,l] of intensity measure levels (ground-motion values)
+			for each spectral period for which exceedance rate or probability of
+			exceedance was computed
+		intensity_unit: unit in which intensity measure levels are expressed:
+			PGA and SA: "g", "mg", "ms2", "gal"
+			PGV: "cms"
+			PGD: "cm"
+			default: "g"
+		timespan: period related to the probability of exceedance (aka life time)
+			(default: 50)
+		poes: 3-D array [i,k,l] with probabilities of exceedance computed for each
+			intensity measure level [k,l] at each site [i].
+			If None, exceedance_rates must be specified
+			(default: None)
+		exceedance_rates: 3-D array [i,k,l] with exceedance rates computed for each
+			intensity measure level [k,l] at each site.
+			If None, poes must be specified
+			(default: None)
+		variances: 3-D array [i,k,l] with variance of exceedance rate or probability of exceedance
+			(default: None)
+		site_names: list of site names (default: None)
+	"""
+	def __init__(self, model_name, filespecs, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, poes=None, exceedance_rates=None, variances=None, site_names=None):
+		HazardResult.__init__(self, timespan=timespan, poes=poes, exceedance_rates=exceedance_rates, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+		HazardField.__init__(self, sites, site_names=site_names)
+		HazardSpectrum.__init__(self, periods)
+		self.model_name = model_name
+		self.filespecs = filespecs
+		self.variances = as_array(variances)
+		self.validate()
+
+	def __iter__(self):
+		self._current_index = 0
+		return self
+
+	def next(self):
+		"""
+		Loop over sites
+		"""
+		try:
+			site = self.sites[self._current_index]
+		except:
+			raise StopIteration
+		else:
+			self._current_index += 1
+			return self.getSpectralHazardCurve(self._current_index-1)
+
+	def __getitem__(self, site_spec):
+		return self.getSpectralHazardCurve(site_spec)
+
+	def validate(self):
+		"""
+		Check if arrays have correct dimensions
+		"""
+		num_sites, num_periods, num_intensities = self.num_sites, self.num_periods, self.num_intensities
+		if len(self.intensities.shape) != 2:
+			raise Exception("intensities array has wrong dimension")
+		if self.intensities.shape[0] != num_periods:
+			raise Exception("intensities array has wrong shape")
+		if len(self.exceedance_rates.shape) != 3:
+			raise Exception("exceedance_rates or poes array has wrong dimension")
+		if self.exceedance_rates.shape != (num_sites, num_periods, num_intensities):
+			raise Exception("exceedance_rates or poes array has wrong shape")
+		if self.variances != None:
+			if len(self.variances.shape) != 3:
+				raise Exception("variances array has wrong dimension")
+			if self.variances.shape != (num_sites, num_periods, num_intensities):
+				raise Exception("variances array has wrong shape")
+
+	def getSpectralHazardCurve(self, site_spec=0):
+		"""
+		Return spectral hazard curve for a particular site
+		Parameters:
+			site_spec: site specification (site index, (lon, lat) tuple or site name)
+				(default: 0)
+		Return value:
+			SpectralHazardCurve object
+		"""
+		site_index = self.site_index(site_spec)
+		try:
+			site = self.sites[site_index]
+		except:
+			raise IndexError("Site index %s out of range" % site_index)
+
+		site_name = self.site_names[site_index]
+		filespec = self.filespecs[0]
+		intensities = self.intensities
+		if self._exceedance_rates != None:
+			exceedance_rates = self._exceedance_rates[site_index]
+			poes = None
+		else:
+			exceedance_rates = None
+			poes = self._poes[site_index]
+		if self.variances != None:
+			variances = self.variances[site_index]
+		else:
+			variances = None
+		return SpectralHazardCurve(self.model_name, filespec, site, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, poes=poes, exceedance_rates=exceedance_rates, variances=variances, site_name=site_name)
+
+	def getHazardCurve(self, site_spec=0, period_spec=0):
+		"""
+		Return hazard curve for a particular site and a particular period
+		Parameters:
+			site_spec: site specification (site index, (lon, lat) tuple or site name)
+				(default: 0)
+			period_spec: period specification (period index if integer, period if float)
+				(default: 0)
+		Return value:
+			HazardCurve object
+		"""
+		site_index = self.site_index(site_spec)
+		try:
+			site = self.sites[site_index]
+		except:
+			raise IndexError("Site index %s out of range" % site_index)
+		else:
+			site_name = self.site_names[site_index]
+
+		period_index = self.period_index(period_spec)
+		try:
+			period = self.periods[period_index]
+		except:
+			raise IndexError("Period index %s out of range" % period_index)
+
+		filespec = self.filespecs[period_index]
+		intensities = self.intensities[period_index]
+		if self._exceedance_rates != None:
+			exceedance_rates = self._exceedance_rates[site_index, period_index]
+			poes = None
+		else:
+			exceedance_rates = None
+			poes = self._poes[site_index, period_index]
+		if self.variances != None:
+			variances = self.variances[site_index, period_index]
+		else:
+			variances = None
+		return HazardCurve(self.model_name, filespec, site, period, self.IMT, intensities, self.intensity_unit, self.timespan, poes=poes, exceedance_rates=exceedance_rates, variances=variances, site_name=site_name)
+
+	def toTree(self):
+		"""
+		Promote to a SpectralazardCurveFieldTree object (multiple spectral periods,
+			multiple sites, multiple logic-tree branches)
+		"""
+		intensities = self.intensities
+		if self._exceedance_rates != None:
+			exceedance_rates = self._exceedance_rates.reshape((self.num_sites, 1, self.num_periods, self.num_intensities))
+			poes = None
+		else:
+			exceedance_rates = None
+			poes = self._poes.reshape((self.num_sites, 1, self.num_periods, self.num_intensities))
+		if self.variances != None:
+			variances = self.variances.reshape((self.num_sites, 1, self.num_periods, self.num_intensities))
+		else:
+			variances = None
+		branch_names = [self.model_name]
+		filespecs = [self.filespecs[0]]
+		weights = numpy.array([1.], 'd')
+		return SpectralHazardCurveFieldTree(self.model_name, branch_names, filespecs, weights, self.sites, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, exceedance_rates=exceedance_rates, poes=poes, variances=variances, site_names=self.site_names)
+
+	def interpolate_return_periods(self, return_periods):
+		"""
+		Interpolate intensity measure levels for given return periods
+		Parameters:
+			return_periods: list or array with return periods
+		Return value:
+			UHSFieldSet object
+		"""
+		filespecs = [self.filespecs[0]] * len(return_periods)
+		return_periods = numpy.array(return_periods)
+		num_sites, num_periods = self.num_sites, self.num_periods
+		rp_intensities = numpy.zeros((len(return_periods), num_sites, num_periods))
+		interpol_exceedances = 1. / return_periods
+		for i in range(num_sites):
+			for k in range(num_periods):
+				rp_intensities[:,i,k] = interpolate(self.exceedance_rates[i,k], self.intensities[k], interpol_exceedances)
+		return UHSFieldSet(self.model_name, filespecs, self.sites, self.periods, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_periods=return_periods, site_names=self.site_names)
+
+	def interpolate_periods(self, out_periods):
+		"""
+		Interpolate intensity measure levels at different spectral periods
+		Parameters:
+			out_periods: list or array of output spectral periods
+		Return value:
+			SpectralHazardCurveField object
+		"""
+		num_sites, num_intensities = self.num_sites, self.num_intensities
+		if self._exceedance_rates != None:
+			out_exceedance_rates = numpy.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
+			out_poes = None
+		else:
+			out_exceedance_rates = None
+			out_poes = numpy.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
+		if self.variances != None:
+			out_variances = numpy.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
+		else:
+			out_variances = None
+
+		for i in range(num_sites):
+			shc = self.getSpectralHazardCurve(site_spec=i)
+			shc_out = shc.interpolate_periods(out_periods)
+			if self._exceedance_rates != None:
+				out_exceedance_rates[i] = shc_out._exceedance_rates
+			else:
+				out_poes[i] = shc_out._poes
+			if self.variances != None:
+				out_variances[i] = shc_out.variances
+		intensities = shc_out.intensities
+		return SpectralHazardCurveField(self.model_name, self.filespecs, self.sites, out_periods, self.IMT, intensities, self.intensity_unit, self.timespan, poes=poes, exceedance_rates=out_exceedance_rates, variances=out_variances, site_names=self.site_names)
+
+	def plot(self, site_specs=[], period_specs=[], labels=None, colors=None, linestyles=None, linewidth=2, fig_filespec=None, title="", want_recurrence=False, want_poe=False, interpol_rp=0, interpol_prob=0, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+		"""
+		Plot hazard curves for some sites and/or some spectral periods.
+		Parameters:
+			site_specs: list with site specs (indexes, (lon,lat) tuples or site names)
+				of sites to be plotted (default: [] will plot all sites)
+			period_specs: list with period specs (integer period indexes or float
+				spectral periods) (default: [] will plot all periods)
+			colors: list with curve colors for each site or period (default: None)
+			linestyles: list with line styles for each site or period (default: None)
+			linewidth: line width (default: 2)
+		"""
+		## Title
+		if not title:
+			title = self.model_name
+		## Determine sites and periods
+		if site_specs in (None, []):
+			site_indexes = range(self.num_sites)
+		else:
+			site_indexes = [self.site_index(site_spec) for site_spec in site_specs]
+		sites = [self.sites[site_index] for site_index in site_indexes]
+		if period_specs in (None, []):
+			period_indexes = range(self.num_periods)
+		else:
+			period_indexes = [self.period_index(period_spec) for period_spec in period_specs]
+		periods = [self.periods[period_index] for period_index in period_indexes]
+
+		## Labels
+		if labels in (None, []):
+			if len(sites) == 1:
+				labels = ["T = %s s" % period for period in periods]
+			elif len(periods) == 1:
+				labels = [self.site_names[site_index] for site_index in site_indexes]
+			else:
+				labels = []
+				for i, site in enumerate(sites):
+					site_name = self.site_names[site_indexes[i]]
+					for period in periods:
+						labels.append("Site: %s, T=%s s" % (site_name, period))
+
+		## Colors and linestyles
+		if colors in (None, []):
+			if len(sites) >= len(periods):
+				colors = [["r", "g", "b", "c", "m", "k"][i%6:i%6+1] * len(periods) for i in range(len(sites))]
+			else:
+				colors = [["r", "g", "b", "c", "m", "k"][i%6:i%6+1] * len(sites) for i in range(len(periods))]
+			## Hack to flatten nested list
+			colors = sum(colors, [])
+
+		## Linestyles
+		if linestyles in (None, []):
+			if len(sites) >= len(periods):
+				linestyles = [['-', '--', ':', '-.'][i%4:i%4+1] * len(sites) for i in range(len(periods))]
+			else:
+				linestyles = [['-', '--', ':', '-.'][i%4:i%4+1] * len(periods) for i in range(len(sites))]
+			linestyles = sum(linestyles, [])
+
+		linewidths = [linewidth] * len(sites) * len(periods)
+
+		## Data
+		datasets = []
+		exceedance_rates = self.exceedance_rates
+		for site in sites:
+			site_index = self.site_index(site)
+			for period in periods:
+				period_index = self.period_index(period)
+				x = self.intensities[period_index]
+				y = exceedance_rates[site_index, period_index]
+				datasets.append((x, y))
+
+		fixed_life_time = {True: self.timespan, False: None}[want_poe]
+		intensity_unit = self.intensity_unit
+		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=rp_max, legend_location=legend_location, lang=lang)
+
+	plot.__doc__ += common_plot_docstring
+
+	def export_GRA(self, out_filespec):
+		"""
+		Write spectral hazard curve field to CRISIS .GRA format
+		Parameters:
+			out_filespec: full path to output file
+		"""
+		f = open(out_filespec, "w")
+		f.write("************************************************************\n")
+		f.write("Generic exceedance-rate results\n")
+		f.write("Calculated outside CRISIS\n")
+		f.write("NumSites, NumPeriods, NumIntensities: %d, %d, %d\n" % (self.num_sites, self.num_periods, self.num_intensities))
+		f.write("************************************************************\n")
+		f.write("\n\n")
+		for i in range(self.num_sites):
+			f.write("    %s      %s\n" % self.sites[i])
+			for k in range(self.num_periods):
+				f.write("INTENSITY %d T=%s\n" % (k+1, self.periods[k]))
+				for l in range(self.num_intensities):
+					f.write("%.5E  %.5E" % (self.intensities[k,l], self.exceedance_rates[i,k,l]))
+					if self.variances != None:
+						f.write("  %.5E" % self.variances[i,k,l])
+					f.write("\n")
+		f.close()
+
+	def create_xml_element(self, encoding='latin1'):
+		"""
+		Create xml element (NRML SpectralHazardCurveField element)
+		Arguments:
+			encoding: unicode encoding (default: 'latin1')
+		"""
+		# TODO: add names to nrml namespace
+		shcf_elem = etree.Element(ns.SPECTRAL_HAZARD_CURVE_FIELD)
+		shcf_elem.set(ns.NAME, self.model_name)
+		shcf_elem.set(ns.IMT, self.IMT)
+		for k, period in enumerate(self.periods):
+			hcf_elem = etree.SubElement(shcf_elem, ns.HAZARD_CURVE_FIELD)
+			hcf_elem.set(ns.PERIOD, str(period))
+			imls_elem = etree.SubElement(hcf_elem, ns.IMLS)
+			imls_elem.text = " ".join(map(str, self.intensities[k,:]))
+			for i, site in enumerate(self.sites):
+				hazard_curve_elem = etree.SubElement(hcf_elem, ns.HAZARD_CURVE)
+				point_elem = etree.SubElement(hazard_curve_elem, ns.POINT)
+				position_elem = etree.SubElement(point_elem, ns.POSITION)
+				position_elem.text = "%s %s" % (site[0], site[1])
+				poes_elem = etree.SubElement(hazard_curve_elem, ns.POES)
+				poes_elem.text = " ".join(map(str, self.poes[i,k,:]))
+		return shcf_elem
+
+	def write_nrml(self, filespec, encoding='latin1', pretty_print=True):
+		"""
+		Write spectral hazard curve field to XML file
+		Arguments:
+			filespec: full path to XML output file
+			encoding: unicode encoding (default: 'utf-8')
+			pretty_print: boolean indicating whether or not to indent each
+				element (default: True)
+		"""
+		tree = create_nrml_root(self, encoding=encoding)
+		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+
+
+class SpectralHazardCurve(HazardResult, HazardSpectrum):
+	"""
+	Class representing hazard curves at 1 site for different spectral periods
+	Parameters:
+		model_name: name of this hazard-curve model
+		filespec: full path to file containing hazard curves
+		site: (lon, lat) tuple of site for which hazard curve was computed
+		periods: 1-D array [k] of spectral periods
+		IMT: intensity measure type (PGA, SA, PGV or PGD)
+		intensities: 2-D array [k,l] of intensity measure levels (ground-motion values)
+			for each spectral period for which exceedance rate or probability of
+			exceedance was computed
+		intensity_unit: unit in which intensity measure levels are expressed:
+			PGA and SA: "g", "mg", "ms2", "gal"
+			PGV: "cms"
+			PGD: "cm"
+			default: "g"
+		timespan: period related to the probability of exceedance (aka life time)
+			(default: 50)
+		poes: 2-D array [k,l] with probabilities of exceedance computed for each
+			intensity measure level [k,l]. If None, exceedance_rates must be specified
+			(default: None)
+		exceedance_rates: 2-D array [k,l] with exceedance rates computed for each
+			intensity measure level [k,l. If None, poes must be specified
+			(default: None)
+		variances: 2-D array [k,l] with variance of exceedance rate or probability of exceedance
+			(default: None)
+		site_name: site name (default: "")
+	"""
+	def __init__(self, model_name, filespec, site, periods, IMT, intensities, intensity_unit="g", timespan=50, poes=None, exceedance_rates=None, variances=None, site_name=""):
+		HazardResult.__init__(self, timespan=timespan, poes=poes, exceedance_rates=exceedance_rates, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+		HazardSpectrum.__init__(self, periods)
+		self.model_name = model_name
+		self.filespec = filespec
+		self.site = site
+		self.variances = as_array(variances)
+		if not site_name:
+			site_name = str(site)
+		self.site_name = site_name
+
+	def __iter__(self):
+		self._current_index = 0
+		return self
+
+	def next(self):
+		"""
+		Loop over spectral periods
+		"""
+		try:
+			period = self.periods[self._current_index]
+		except:
+			raise StopIteration
+		else:
+			self._current_index += 1
+			return self.getHazardCurve(self._current_index-1)
+
+	def __getitem__(self, period_spec):
+		return self.getHazardCurve(period_spec)
+
+	def min(self):
+		pass
+
+	def max(self):
+		pass
+
+	def getHazardCurve(self, period_spec=0):
+		"""
+		Return hazard curve for a particular spectral period
+		Parameters:
+			period_spec: period specification (period index if integer, period if float)
+				(default: 0)
+		"""
+		period_index = self.period_index(period_spec)
+		try:
+			period = self.periods[period_index]
+		except:
+			raise IndexError("Period index %s out of range" % period_index)
+		intensities = self.intensities[period_index]
+		if self._exceedance_rates != None:
+			exceedance_rates = self._exceedance_rates[period_index]
+			poes = None
+		else:
+			exceedance_rates = None
+			poes = self._poes[period_index]
+		if self.variances != None:
+			variances = self.variances[period_index]
+		else:
+			variances = None
+		return HazardCurve(self.model_name, self.filespec, self.site, period, self.IMT, intensities, self.intensity_unit, self.timespan, poes=poes, exceedance_rates=exceedance_rates, variances=variances, site_name=self.site_name)
+
+	def interpolate_return_period(self, return_period):
+		"""
+		Interpolate intensity measure levels for given return period
+		Parameters:
+			return_period: return period
+		Return value:
+			UHS object
+		"""
+		num_periods = self.num_periods
+		rp_intensities = numpy.zeros(num_periods)
+		interpol_exceedance_rate = 1. / return_period
+		for k in range(num_periods):
+			rp_intensities[k] = interpolate(self.exceedance_rates[k], self.intensities[k], [interpol_exceedance_rate])[0]
+		return UHS(self.model_name, self.filespec, self.site, self.periods, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_period=return_period, site_name=self.site_name)
+
+	def interpolate_periods(self, out_periods):
+		"""
+		Interpolate intensity measure levels at different spectral periods
+		Parameters:
+			out_periods: list or array of output spectral periods
+		Return value:
+			a SpectralHazardCurve object
+		"""
+		if out_periods in ([], None):
+			return self
+		else:
+			in_periods = self.periods
+			num_intensities = self.num_intensities
+			if self._exceedance_rates != None:
+				out_exceedance_rates = numpy.zeros((len(out_periods), num_intensities), dtype='d')
+				out_poes = None
+			else:
+				out_exceedance_rates = None
+				out_poes = numpy.zeros((len(out_periods), num_intensities), dtype='d')
+			if self.variances != None:
+				out_variances = numpy.zeros((len(out_periods), num_intensities), dtype='d')
+			else:
+				out_variances = None
+			out_period_intensities = numpy.zeros((len(out_periods), num_intensities), dtype='d')
+
+			for k in range(len(out_periods)):
+				## if k is close to an in_period, take over the corresponding intensities,
+				## else, define new range of intensities for that period,
+				## interpolate corresponding exceedances,
+				## and then interpolate at the wanted period
+				threshold = 1E-6
+				try:
+					id = numpy.where(abs(in_periods - out_periods[k]) < threshold)[0][0]
+				except IndexError:
+					id1 = numpy.where(in_periods < out_periods[k])[0][-1]
+					id2 = numpy.where(in_periods > out_periods[k])[0][0]
+					Imin = min(self.intensities[id1][0], self.intensities[id2][0])
+					Imax = min(self.intensities[id1][-1], self.intensities[id2][-1])
+					#Imin, Imax = self.intensities[id1][0], self.intensities[id1][-1]
+					out_period_intensities[k] = logrange(Imin, Imax, num_intensities)
+					## Interpolate exceedances of adjacent periods to out_period_intensities
+					if self._exceedance_rates != None:
+						exceedance_rates1 = interpolate(self.intensities[id1], self._exceedance_rates[id1], out_period_intensities[k])
+						exceedance_rates2 = interpolate(self.intensities[id2], self._exceedance_rates[id2], out_period_intensities[k])
+					else:
+						poes1 = interpolate(self.intensities[id1], self._poes[id1], out_period_intensities[k])
+						poes2 = interpolate(self.intensities[id2], self._poes[id2], out_period_intensities[k])
+					if self.variances != None:
+						variances1 = interpolate(self.intensities[id1], self.variances[id1], out_period_intensities[k])
+						variances2 = interpolate(self.intensities[id2], self.variances[id2], out_period_intensities[k])
+					for l in range(num_intensities):
+						if self._exceedance_rates != None:
+							out_exceedance_rates[k,l] = interpolate([in_periods[id1], in_periods[id2]], [exceedance_rates1[l], exceedance_rates2[l]], [out_periods[k]])[0]
+						else:
+							out_poes[k,l] = interpolate([in_periods[id1], in_periods[id2]], [poes1[l], poes2[l]], [out_periods[k]])[0]
+						if self.variances != None:
+							out_variances[k,l] = interpolate([in_periods[id1], in_periods[id2]], [variances1[l], variances2[l]], [out_periods[k]])[0]
+				else:
+					out_period_intensities[k] = self.intensities[id]
+					if self._exceedance_rates != None:
+						out_exceedance_rates[k] = self._exceedance_rates[id]
+					else:
+						out_poes[k] = self._poes[id]
+					if self.variances != None:
+						out_variances[k] = self.variances[id]
+			return SpectralHazardCurve(self.model_name, self.filespec, self.site, out_periods, self.IMT, out_period_intensities, self.intensity_unit, self.timespan, poes=out_poes, exceedance_rates=out_exceedance_rates, variances=out_variances, site_name=self.site_name)
+
+	def toField(self):
+		"""
+		Promote to a SpectralazardCurveField object (multiple spectral periods, multiple sites)
+		"""
+		intensities = self.intensities
+		if self._exceedance_rates != None:
+			exceedance_rates = self._exceedance_rates.reshape((1, self.num_periods, self.num_intensities))
+			poes = None
+		else:
+			exceedance_rates = None
+			poes = self._poes.reshape((1, self.num_periods, self.num_intensities))
+		if self.variances != None:
+			variances = self.variances.reshape((1, self.num_periods, self.num_intensities))
+		else:
+			variances = None
+		return SpectralHazardCurveField(self.model_name, [self.filespec], [self.site], self.period, self.IMT, intensities, self.intensity_unit, self.timespan, poes=poes, exceedance_rates=exceedance_rates, variances=variances, site_names=[self.site_name])
+
+	def plot(self, colors=[], linestyle="-", linewidth=2, fig_filespec=None, title="", want_recurrence=False, want_poe=False, interpol_rp=0, interpol_prob=0, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+		"""
+		Plot hazard curves for all spectral periods
+		Parameters:
+			colors: list with curve colors for each site (default: None)
+			linestyle: line style (default: "-")
+			linewidth: line width (default: 2)
+		"""
+		if not title:
+			title = "Site: %s" % self.site_name
+		datasets = [(self.intensities[k], self.exceedance_rates[k]) for k in range(self.num_periods)]
+		labels = ["T = %s s" % period for period in self.periods]
+		fixed_life_time = {True: self.timespan, False: None}[want_poe]
+		intensity_unit = self.intensity_unit
+		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=[linestyle], linewidths=[linewidth], fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=rp_max, legend_location=legend_location, lang=lang)
+
+	plot.__doc__ += common_plot_docstring
+
+	def export_csv(self, csv_filespec=None):
+		pass
+
+
+# TODO: make HazardCurveFieldTree?
+
+
+class HazardCurveField(HazardResult, HazardField):
+	"""
+	Class representing a hazard curve field for a single spectral period.
+	Corresponds to 1 OpenQuake hazardcurve file.
+	Parameters:
+		model_name: name of this hazard-curve model
+		filespec: full path to file containing hazard curve
+		sites: 1-D list [i] of (lon, lat) tuples of sites for which hazard curves
+			were computed
+		period: spectral period
+		IMT: intensity measure type (PGA, SA, PGV or PGD)
+		intensities: 1-D array [l] of intensity measure levels (ground-motion values)
+			for which exceedance rate or probability of exceedance was computed
+		intensity_unit: unit in which intensity measure levels are expressed:
+			PGA and SA: "g", "mg", "ms2", "gal"
+			PGV: "cms"
+			PGD: "cm"
+			default: "g"
+		timespan: period related to the probability of exceedance (aka life time)
+			(default: 50)
+		poes: 2-D array [i,l] with probabilities of exceedance computed for each
+			intensity measure level [l] at each site [i].
+			If None, exceedance_rates must be specified (default: None)
+		exceedance_rates: 2-D array [i,l] with exceedance rates computed for each
+			intensity measure level [l] at each site [i].
+			If None, poes must be specified	(default: None)
+		variances: 2-D array [i,l] with variance of exceedance rate or probability of exceedance
+			(default: None)
+		site_names: list of site names (default: None)
+	"""
+	def __init__(self, model_name, filespec, sites, period, IMT, intensities, intensity_unit="g", timespan=50, poes=None, exceedance_rates=None, variances=None, site_names=None):
+		HazardResult.__init__(self, timespan=timespan, poes=poes, exceedance_rates=exceedance_rates, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+		HazardField.__init__(self, sites, site_names=site_names)
+		self.model_name = model_name
+		self.filespec = filespec
+		self.period = period
+		self.variances = as_array(variances)
+
+	def __iter__(self):
+		self._current_index = 0
+		return self
+
+	def next(self):
+		"""
+		Loop over sites
+		"""
+		try:
+			site = self.sites[self._current_index]
+		except:
+			raise StopIteration
+		else:
+			self._current_index += 1
+			return self.getHazardCurve(self._current_index-1)
+
+	def __getitem__(self, site_spec):
+		return self.getHazardCurve(site_spec)
+
+	def intensity_index(self, intensity):
+		"""
+		Return index corresponding to a particular intensity measure level
+		Parameters:
+			return_period: return period
+		Return value:
+			intensity index (integer)
+		"""
+		intensity_index = interpolate(self.intensities, range(self.num_intensities), [intensity])[0]
+		return int(round(intensity_index))
+
+	def argmin(self, intensity=None, return_period=None):
+		"""
+		Return index of site with minimum hazard for a particular intensity or
+		return period.
+		Parameters:
+			intensity: intensity measure level. If None, return_period must be specified
+				(default: None)
+			return_period: return period. If None, intensity must be specified
+				(default: None)
+		Return value:
+			site index (int)
+		"""
+		if intensity is not None:
+			intensity_index = self.intensity_index(intensity)
+			site_index = self.exceedance_rates[:,intensity_index].argmin()
+		elif return_period is not None:
+			hazardmapset = self.interpolate_return_periods([return_period])
+			hazardmap = hazardmapset[0]
+			site_index = hazardmap.argmin()
+		else:
+			raise Exception("Need to specify either intensity or return_period")
+		return site_index
+
+	def argmax(self, intensity=None, return_period=None):
+		"""
+		Return index of site with maximum hazard for a particular intensity or
+		return period.
+		Parameters:
+			intensity: intensity measure level. If None, return_period must be specified
+				(default: None)
+			return_period: return period. If None, intensity must be specified
+				(default: None)
+		Return value:
+			site index (int)
+		"""
+		if intensity is not None:
+			intensity_index = self.intensity_index(intensity)
+			site_index = self.exceedance_rates[:,intensity_index].argmax()
+		elif return_period is not None:
+			hazardmapset = self.interpolate_return_periods([return_period])
+			hazardmap = hazardmapset[0]
+			site_index = hazardmap.argmax()
+		else:
+			raise Exception("Need to specify either intensity or return_period")
+		return site_index
+
+	def min(self, intensity=None, return_period=None):
+		"""
+		Return minimum hazard for a particular intensity or return period
+		Parameters:
+			intensity: intensity measure level. If None, return_period must be specified
+				(default: None)
+			return_period: return period. If None, intensity must be specified
+				(default: None)
+		Return value:
+			minimum exceedance rate (if intensity was specified) or minimum intensity
+			(if return period was specified)
+		"""
+		if intensity is not None:
+			intensity_index = self.intensity_index(intensity)
+			return self.exceedance_rates[:,intensity_index].min()
+		elif return_period is not None:
+			hazardmapset = self.interpolate_return_periods([return_period])
+			hazardmap = hazardmapset[0]
+			return hazardmap.min()
+		else:
+			raise Exception("Need to specify either intensity or return_period")
+
+	def max(self, intensity=None, return_period=None):
+		"""
+		Return maximum hazard curve for a particular intensity or return period
+		Parameters:
+			intensity: intensity measure level. If None, return_period must be specified
+				(default: None)
+			return_period: return period. If None, intensity must be specified
+				(default: None)
+		Return value:
+		Return value:
+			maximum exceedance rate (if intensity was specified) or maximum intensity
+			(if return period was specified)
+		"""
+		if intensity is not None:
+			intensity_index = self.intensity_index(intensity)
+			return self.exceedance_rates[:,intensity_index].max()
+		elif return_period is not None:
+			hazardmapset = self.interpolate_return_periods([return_period])
+			hazardmap = hazardmapset[0]
+			return hazardmap.max()
+		else:
+			raise Exception("Need to specify either intensity or return_period")
+
+	def getHazardCurve(self, site_spec=0):
+		"""
+		Return hazard curve for a particular site
+		Parameters:
+			site_spec: site specification (site index, (lon, lat) tuple or site name)
+				(default: 0)
+		Return value:
+			HazardCurve object
+		"""
+		site_index = self.site_index(site_spec)
+		try:
+			site = self.sites[site_index]
+		except:
+			raise IndexError("Site index %s out of range" % site_index)
+
+		site_name = self.site_names[site_index]
+		intensities = self.intensities
+		exceedance_rates = self.exceedance_rates[site_index]
+		if self.variances != None:
+			variances = self.variances[site_index]
+		else:
+			variances = None
+		return HazardCurve(self.model_name, self.filespec, site, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, exceedance_rates=exceedance_rates, variances=variances, site_name=site_name)
+
+	def interpolate_return_periods(self, return_periods):
+		"""
+		Interpolate intensity measure levels for given return periods.
+		Parameters:
+			return_periods: list or array of return periods
+		Return value:
+			HazardMapSet object
+		"""
+		filespecs = [self.filespec] * len(return_periods)
+		return_periods = numpy.array(return_periods)
+		rp_intensities = numpy.zeros((len(return_periods), self.num_sites))
+		interpol_exceedances = 1. / return_periods
+		for i in range(num_sites):
+				rp_intensities[:,i] = interpolate(self.exceedance_rates[i], self.intensities, interpol_exceedances)
+		return HazardMapSet(self.model_name, filespecs, self.sites, self.period, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_periods=return_periods, site_names=self.site_names)
+
+	def toSpectral(self):
+		"""
+		Promote to a SpectralHazardCurveField object (multiple sites, multiple spectral periods)
+		"""
+		intensities = self.intensities.reshape((1, self.num_intensities))
+		if self._exceedance_rates != None:
+			exceedance_rates = self._exceedance_rates.reshape((self.num_sites, 1, self.num_intensities))
+			poes = None
+		else:
+			exceedance_rates = None
+			poes = self._poes.reshape((self.num_sites, 1, self.num_intensities))
+		if self.variances != None:
+			variances = self.variances.reshape((self.num_sites, 1, self.num_intensities))
+		else:
+			variances = None
+		return SpectralHazardCurveField(self.model_name, [self.filespec], self.sites, [self.period], self.IMT, intensities, self.intensity_unit, self.timespan, poes=poes, exceedance_rates=exceedance_rates, variances=variances, site_names=self.site_names)
+
+	def plot(self, site_specs=[], labels=None, colors=None, linestyles=None, linewidth=2, fig_filespec=None, title="", want_recurrence=False, want_poe=False, interpol_rp=0, interpol_prob=0, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+		"""
+		Plot hazard curves for one or more sites.
+		Parameters:
+			site_specs: list with site specs (indexes, (lon,lat) tuples or site names)
+				of sites to be plotted (default: [] will plot all sites)
+			colors: list with curve colors for each site (default: None)
+			linestyles: list with line styles for each site (default: None)
+			linewidth: line width (default: 2)
+		"""
+		## Determine sites
+		if site_specs in (None, []):
+			site_indexes = range(self.num_sites)
+		else:
+			site_indexes = [self.site_index(site_spec) for site_spec in site_specs]
+		sites = [self.sites[site_index] for site_index in site_indexes]
+
+		## Labels
+		if labels in (None, []):
+			labels = [self.site_names[site_index] for site_index in site_indexes]
+
+		## Colors and linestyles
+		if colors in (None, []):
+			colors = [["r", "g", "b", "c", "m", "k"][i%6] for i in range(len(sites))]
+
+		## Linestyles
+		if linestyles in (None, []):
+			linestyles = [['-', '--', ':', '-.'][i//len(colors)%4] for i in range(len(sites))]
+
+		linewidths = [linewidth] * len(sites)
+
+		## Data
+		datasets = []
+		exceedance_rates = self.exceedance_rates
+		for site in sites:
+			site_index = self.site_index(site)
+			x = self.intensities
+			y = exceedance_rates[site_index]
+			datasets.append((x, y))
+
+		fixed_life_time = {True: self.timespan, False: None}[want_poe]
+		intensity_unit = self.intensity_unit
+		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=rp_max, legend_location=legend_location, lang=lang)
+
+	plot.__doc__ += common_plot_docstring
+
+	def create_xml_element(self, encoding='latin1'):
+		"""
+		Create xml element (NRML HazardCurveField element)
+		Arguments:
+			encoding: unicode encoding (default: 'latin1')
+		"""
+		# TODO: use names from nrml namespace
+		hcf_elem = etree.Element('hazardCurveField')
+		hcf_elem.set('imt', self.IMT)
+		hcf_elem.set('period', str(self.period))
+		hcf_elem.set('imls', ''.join(map(str, self.intensities)))
+
+		for i, site in enumerate(self.sites):
+			site_elem = etree.SubElement(hcf_elem, 'site')
+			site_elem.set('lon_lat', ''.join(map(str, site)))
+			site_elem.set('exceedance_rates', ''.join(map(str, self.exceedance_rates[i])))
+
+		return hcf_elem
+
+	def write_nrml(self, filespec, encoding='latin1', pretty_print=True):
+		"""
+		Write hazard curve field to XML file
+		Arguments:
+			filespec: full path to XML output file
+			encoding: unicode encoding (default: 'utf-8')
+			pretty_print: boolean indicating whether or not to indent each
+				element (default: True)
+		"""
+		tree = create_nrml_root(self, encoding=encoding)
+		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+
+
+class HazardCurve(HazardResult):
+	"""
+	Class representing a hazard curve for a single site and a single spectral period
+	Parameters:
+		model_name: name of this hazard-curve model
+		filespec: full path to file containing hazard curve
+		site: (lon, lat) tuple of site for which hazard curve was computed
+		period: spectral period
+		IMT: intensity measure type (PGA, SA, PGV or PGD)
+		intensities: 1-D array [l] of intensity measure levels (ground-motion values)
+			for which exceedance rate or probability of exceedance was computed
+		intensity_unit: unit in which intensity measure levels are expressed:
+			PGA and SA: "g", "mg", "ms2", "gal"
+			PGV: "cms"
+			PGD: "cm"
+			default: "g"
+		timespan: period related to the probability of exceedance (aka life time)
+			(default: 50)
+		poes: 1-D array [l] with probabilities of exceedance computed for each
+			intensity measure level [l]. If None, exceedance_rates must be specified
+			(default: None)
+		exceedance_rates: 1-D array [l] with exceedance rates computed for each
+			intensity measure level [l]. If None, poes must be specified
+			(default: None)
+		variances: 1-D array [l] with variance of exceedance rate or probability of exceedance
+			(default: None)
+		site_name: name of site (default: "")
+	"""
+	def __init__(self, model_name, filespec, site, period, IMT, intensities, intensity_unit="g", timespan=50, poes=None, exceedance_rates=None, variances=None, site_name=""):
+		HazardResult.__init__(self, timespan=timespan, poes=poes, exceedance_rates=exceedance_rates, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+		self.model_name = model_name
+		self.filespec = filespec
+		self.site = site
+		self.period = period
+		self.variances = as_array(variances)
+		if not site_name:
+			site_name = str(site)
+		self.site_name = site_name
+
+	def __len__(self):
+		"""
+		Return length of hazard curve (= number of intensity measure levels)
+		"""
+		return self.num_intensities
+
+	def interpolate_return_periods(self, return_periods):
+		"""
+		Interpolate intensity measure levels for given return periods.
+		Parameters:
+			return_periods: list or array of return periods
+		Return value:
+			1-D array of intensity measure levels
+		"""
+		return_periods = numpy.array(return_periods, 'd')
+		interpol_exceedance_rates = 1. / return_periods
+		rp_intensities = interpolate(self.exceedance_rates, self.intensities, interpol_exceedance_rates)
+		return rp_intensities
+
+	def toSpectral(self):
+		"""
+		Promote to a SpectralHazardCurve object (1 site, multiple spectral periods)
+		"""
+		intensities = self.intensities.reshape((1, self.num_intensities))
+		if self._exceedance_rates != None:
+			exceedance_rates = self._exceedance_rates.reshape((1, self.num_intensities))
+			poes = None
+		else:
+			exceedance_rates = None
+			poes = self._poes.reshape((1, self.num_intensities))
+		if self.variances != None:
+			variances = self.variances.reshape((1, self.num_intensities))
+		else:
+			variances = None
+		return SpectralHazardCurve(self.model_name, self.filespec, self.site, [self.period], self.IMT, intensities, self.intensity_unit, self.timespan, poes=poes, exceedance_rates=exceedance_rates, variances=variances, site_name=self.site_name)
+
+	def toField(self):
+		"""
+		Promote to a HazardCurveField object (1 spectral period, multiple sites)
+		"""
+		intensities = self.intensities
+		if self._exceedance_rates != None:
+			exceedance_rates = self._exceedance_rates.reshape((1, self.num_intensities))
+			poes = None
+		else:
+			exceedance_rates = None
+			poes = self._poes.reshape((1, self.num_intensities))
+		if self.variances != None:
+			variances = self.variances.reshape((1, self.num_intensities))
+		else:
+			variances = None
+		return HazardCurveField(self.model_name, self.filespec, [self.site], self.period, self.IMT, intensities, self.intensity_unit, self.timespan, poes=poes, exceedance_rates=exceedance_rates, variances=variances, site_names=[self.site_name])
+
+	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title="", want_recurrence=False, want_poe=False, interpol_rp=0, interpol_prob=0, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+		"""
+		Plot hazard curve
+		Parameters:
+			color: curve color (default: 'k')
+			linestyle: line style (default: "-")
+			linewidth: line width (default: 2)
+		"""
+		if not title:
+			title = "Site: %s" % self.site_name
+		datasets = [(self.intensities, self.exceedance_rates)]
+		labels = [self.model_name]
+		fixed_life_time = {True: self.timespan, False: None}[want_poe]
+		intensity_unit = self.intensity_unit
+		plot_hazard_curve(datasets, labels=labels, colors=[color], linestyles=[linestyle], linewidths=[linewidth], fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=rp_max, legend_location=legend_location, lang=lang)
+
+	plot.__doc__ += common_plot_docstring
+
+	def export_csv(self, csv_filespec=None):
+		"""
+		Export hazard curve to a csv file
+		Parameters:
+			csv_filespec: full path to output file. If None, output is written
+				to standard output (default: None)
+		"""
+		if csv_filespec:
+			f = open(csv_filespec, "w")
+		else:
+			f = sys.stdout
+		f.write("%s (%s), Exceedance rate (1/yr)\n" % (self.IMT, self.intensity_unit))
+		for intensity, exceedance in zip(self.intensities, self.exceedance_rates):
+			f.write("%.3E, %.3E\n" % (intensity, exceedance))
+		f.close()
+
+
+class HazardCurveCollection:
+	"""
+	Container for an arbitrary set of hazard curves.
+	Useful for plotting.
+	Parameters:
+		hazard_curves: list of HazardCurve objects
+		colors: list of colors for each hazard curve (default: [])
+		linestyles: list of line styles for each hazard curve (default: [])
+		linewidths: list of line widhts for each hazard curve (default: [])
+		labels: list of labels for each hazard curve (default: [])
+	"""
+	def __init__(self, hazard_curves, colors=[], linestyles=[], linewidths=[], labels=[]):
+		self.hazard_curves = hazard_curves
+		self.colors = colors
+		self.linestyles = linestyles
+		self.linewidths = linewidths
+		if not labels:
+			labels = [hc.model_name for hc in self.hazard_curves]
+		self.labels = labels
+
+	def __len__(self):
+		return len(self.hazard_curves)
+
+	def append(self, hc, color=None, linestyle=None, linewidth=None, label=None):
+		self.hazard_curves.append(hc)
+		if not label:
+			label = hc.model_name
+			self.labels.append(label)
+
+	@property
+	def intensity_unit(self):
+		return self.hazard_curves[0].intensity_unit
+
+	def plot(self, fig_filespec=None, title="", want_recurrence=False, want_poe=False, interpol_rp=0, interpol_prob=0, interpol_rp_range=None, amax=None, tr_max=1E+07, legend_location=0, lang="en"):
+		datasets = [(hc.intensities, hc.exceedance_rates) for hc in self.hazard_curves]
+		hc0 = self.hazard_curves[0]
+		fixed_life_time = {True: hc0.timespan, False: None}[want_poe]
+		intensity_unit = hc0.intensity_unit
+		plot_hazard_curve(datasets, labels=self.labels, colors=self.colors, linestyles=self.linestyles, linewidths=self.linewidths, fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=tr_max, legend_location=legend_location, lang=lang)
+
+	plot.__doc__ = common_plot_docstring
+
+
+class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
+	def __init__(self, model_name, branch_names, filespecs, weights, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, poe=None, return_period=None, mean=None, percentile_levels=None, percentiles=None, site_names=None):
+		HazardTree.__init__(self, branch_names, weights=weights, timespan=timespan, poes=[poe], return_periods=[return_period], IMT=IMT, intensities=intensities, intensity_unit=intensity_unit, mean=mean, percentile_levels=percentile_levels, percentiles=percentiles)
+		HazardField.__init__(self, sites, site_names=site_names)
+		HazardSpectrum.__init__(self, periods)
+		self.model_name = model_name
+		self.filespecs = filespecs
+
+	def __iter__(self):
+		self._current_index = 0
+		return self
+
+	def next(self):
+		try:
+			branch_name = self.branch_names[self._current_index]
+		except:
+			raise StopIteration
+		else:
+			self._current_index += 1
+			return self.getUHSField(self._current_index-1)
+
+	def __getitem__(self, branch_spec):
+		return self.getUHSField(branch_spec)
+
+	def getUHSField(self, branch_spec):
+		branch_index = self.branch_index(branch_spec)
+		try:
+			branch_name = self.branch_names[branch_index]
+		except:
+			raise IndexError("Branch index %s out of range" % branch_index)
+		else:
+			branch_name = self.branch_names[branch_index]
+			filespec = self.filespecs[branch_index]
+
+			intensities = self.exceedance_rates[:,branch_index,:]
+			return UHSField(branch_name, filespec, self.sites, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=self.return_period, site_names=self.site_names)
+
+	@property
+	def poe(self):
+		return self.poes[0]
+
+	@property
+	def return_period(self):
+		return self.return_periods[0]
+
+	@property
+	def exceedance_rate(self):
+		return self.exceedance_rates[0]
+
+	def min(self):
+		# TODO: not really useful
+		return self.intensities.min(axis=1)
+
+	def max(self):
+		return self.intensities.max(axis=1)
+
+	def calc_mean(self, weighted=True):
+		"""
+		This is not exactly the same as computing the mean spectral hazard curve,
+		and then interpolating at a particular return period
+		"""
+		if weighted:
+			return numpy.average(self.intensities, weights=self.weights, axis=1)
+		else:
+			return numpy.mean(self.intensities, axis=1)
+
+	def calc_variance_of_mean(self, weighted=True):
+		if weighted and not self.weights in ([], None):
+			mean = self.calc_mean(weighted=True)
+			weights = numpy.array(self.weights)
+			weights_column = weights.reshape((self.num_branches, 1))
+			variance_of_mean = numpy.zeros((self.num_sites, self.num_periods), 'd')
+			for i in range(self.num_sites):
+				for k in range(self.num_periods):
+					variance_of_mean[i,k] = numpy.add.reduce(weights_column * (self.intensities[i,:,k] - mean[i,k])**2, axis=0)
+		else:
+			 variance_of_mean = numpy.var(self.intensities, axis=1)
+		return variance_of_mean
+
+	def calc_percentiles(self, percentile_levels, weighted=True):
+		if percentile_levels in ([], None):
+			percentile_levels = [5, 16, 50, 84, 95]
+		num_sites, num_periods = self.num_sites, self.num_periods
+		num_percentiles = len(percentile_levels)
+		percentiles = numpy.zeros((num_sites, num_periods, num_percentiles))
+		for i in range(num_sites):
+			for k in range(num_periods):
+				if weighted:
+					percentiles[i,k,:] = stats.percentiles.weighted_percentiles(self.intensities[i,:,k], percentile_levels, weights=self.weights, resolution=self.num_branches)
+				else:
+					for p, per in enumerate(percentile_levels):
+						percentiles[i,k,p] = scoreatpercentile(self.intensities[i,:,k], per)
+		return percentiles
+
+	def export_stats_csv(self, csv_filespec=None, site_index=0, weighted=True):
+		if self.mean in (None, []):
+			mean = self.calc_mean(weighted=weighted)
+		else:
+			mean = self.mean
+		if self.percentiles in (None, []):
+			if self.percentile_levels in (None, []):
+				percentile_levels = [5, 16, 50, 84, 95]
+			else:
+				percentile_levels = self.percentile_levels
+			percentiles = self.calc_percentiles(percentile_levels, weighted=weighted)
+		else:
+			percentiles = self.percentiles
+			percentile_levels = self.percentile_levels
+
+		if csv_filespec:
+			f = open(csv_filespec, "w")
+		else:
+			f = sys.stdout
+		f.write("Period (s), Mean")
+		f.write(", ".join(["P%02d" % p for p in percentile_levels]))
+		f.write("\n")
+		i = site_index
+		for k, period in enumerate(self.periods):
+			f.write("%.3E, %.3E" % (period, mean[i,k]))
+			f.write(", ".join(["%.3E" % percentiles[i,k,p] for p in percentile_levels]))
+			f.write("\n")
+		f.close()
+
+	def slice_by_branch_indexes(self, branch_indexes, slice_name, normalize_weights=True):
+		pass
+
+	def plot(self, site_spec=0, branch_indexes=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, legend_location=0, lang="en"):
+		site_index = self.site_index(site_spec)
+		if branch_specs in ([], None):
+			branch_indexes = range(self.num_branches)
+		else:
+			branch_indexes = [self.branch_index(branch_spec) for branch_spec in branch_specs]
+		x = self.periods
+		datasets, labels, colors, linewidths, linestyles = [], [], [], [], []
+
+		## Plot individual models
+		for branch_index in branch_indexes:
+			y = self.intensities[site_index, branch_index]
+			datasets.append((x, y))
+			labels.append("_nolegend_")
+			colors.append((0.5, 0.5, 0.5))
+			linewidths.append(1)
+			linestyles.append('-')
+
+		## Plot overall mean
+		if self.mean is None:
+			y = self.calc_mean()[site_index]
+		else:
+			y = self.mean[site_index]
+		datasets.append((x, y))
+		labels.append("_nolegend_")
+		colors.append('w')
+		linewidths.append(5)
+		linestyles.append('-')
+		datasets.append((x, y))
+		labels.append({"en": "Overall Mean", "nl": "Algemeen gemiddelde"}[lang])
+		colors.append('r')
+		linewidths.append(3)
+		linestyles.append('-')
+
+		## Plot percentiles
+		if self.percentiles is None:
+			if self.percentile_levels is None:
+				percentile_levels = [5, 16, 50, 84, 95]
+			else:
+				percentile_levels = self.percentile_levels
+			percentiles = self.calc_percentiles_epistemic(percentile_levels)
+		else:
+			percentiles = self.percentiles
+		percentiles = percentiles[site_index]
+		## Manage percentile labels and colors
+		perc_labels, perc_colors = {}, {}
+		p = 0
+		for perc in percentile_levels:
+			if not perc_labels.has_key(perc):
+				if not perc_labels.has_key(100 - perc):
+					perc_labels[perc] = "P%02d" % perc
+					perc_colors[perc] = ["b", "g", "r", "c", "m", "k"][p%6]
+					p += 1
+				else:
+					perc_labels[100 - perc] += ", P%02d" % perc
+					perc_labels[perc] = "_nolegend_"
+					perc_colors[perc] = perc_colors[100 - perc]
+		for p, perc in enumerate(percentile_levels):
+			label = perc_labels[perc]
+			labels.append(perc_labels[perc])
+			colors.append(perc_colors[perc])
+			linewidths.append(2)
+			linestyles.append('--')
+			datasets.append((x, percentiles[:,p]))
+		fixed_life_time = {True: self.timespan, False: None}[want_poe]
+		intensity_unit = self.intensity_unit
+		plot_hazard_spectrum(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
+
+	def plot_histogram(self, site_index=0, period_index=0, fig_filespec=None, title="", bar_color='g', amax=0, da=0.005, lang="en"):
+		if not title:
+			title = "Site: %s / Period: %s s\n" % (self.sites[site_index], self.periods[period_index])
+			title += "Return period: %.3G yr" % self.return_period
+		intensity_unit = self.intensity_unit
+		plot_histogram(self.intensities[site_index,:,period_index], weights=self.weights, fig_filespec=fig_filespec, title=title, bar_color=bar_color, amax=amax, da=da, intensity_unit=intensity_unit, lang=lang)
+
+
+class UHSField(HazardResult, HazardField, HazardSpectrum):
+	"""
+	UHS Field (UHS at a number of sites for a single return period)
+	sites: 1-D list [i] with (lon, lat) tuples of all sites
+	IMT
+	periods: 1-D array [k] with structural periods
+	intensities: 2-D array [i, k] with interpolated intensity values at one
+		return period
+	timespan:
+	poe: probability of exceedance
+	or
+	return_period: return period
+	"""
+	def __init__(self, model_name, filespec, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, poe=None, return_period=None, site_names=None):
+		HazardResult.__init__(self, timespan=timespan, poes=[poe], return_periods=[return_period], IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+		HazardField.__init__(self, sites)
+		HazardSpectrum.__init__(self, periods)
+		self.model_name = model_name
+		self.filespec = filespec
+		if site_names in ([], None):
+			site_names = map(str, sites)
+		self.site_names = site_names
+
+	def __iter__(self):
+		self._current_index = 0
+		return self
+
+	def next(self):
+		try:
+			site = self.sites[self._current_index]
+		except:
+			raise StopIteration
+		else:
+			self._current_index += 1
+			return self.getUHS(self._current_index-1)
+
+	def __getitem__(self, site_spec):
+		return self.getUHS(site_spec)
+
+	def getUHS(self, site_spec=0):
+		site_index = self.site_index(site_spec)
+		try:
+			site = self.sites[site_index]
+		except:
+			raise IndexError("Site index %s out of range" % site_index)
+		else:
+			site_name = self.site_names[site_index]
+			return UHS(self.model_name, self.filespec, site, self.periods, self.IMT, self.intensities[site_index], self.intensity_unit, self.timespan, return_period=self.return_period, site_name=site_name)
+
+	@property
+	def poe(self):
+		return self.poes[0]
+
+	@property
+	def return_period(self):
+		return self.return_periods[0]
+
+	@property
+	def exceedance_rate(self):
+		return self.exceedance_rates[0]
+
+	def min(self):
+		return self.intensities.min(axis=0)
+
+	def max(self):
+		return self.intensities.max(axis=0)
+
+	def plot(self, site_specs=None, colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, legend_location=0, lang="en"):
+		if site_specs in (None, []):
+			site_indexes = range(self.num_sites)
+		else:
+			site_indexes = [self.site_index(site_spec) for site_spec in site_specs]
+		sites = [self.sites[site_index] for site_index in site_indexes]
+
+		if not title:
+			title = "Model: %s\n" % self.model_name
+			title += "UHS for return period %.3G yr" % self.return_period
+		datasets, labels = [], []
+		x = self.periods
+		for site_index in site_indexes:
+			y = self.intensities[site_index]
+			datasets.append((x, y))
+			labels.append(self.site_names[site_index])
+		intensity_unit = self.intensity_unit
+		plot_hazard_spectrum(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
+
+
+class UHS(HazardResult, HazardSpectrum):
+	"""
+	Uniform Hazard Spectrum
+	"""
+	def __init__(self, model_name, filespec, site, periods, IMT, intensities, intensity_unit="g", timespan=50, poe=None, return_period=None, site_name=""):
+		HazardResult.__init__(self, timespan=timespan, poes=[poe], return_periods=[return_period], IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+		HazardSpectrum.__init__(self, periods)
+		self.model_name = model_name
+		self.filespec = filespec
+		self.site = site
+		if not site_name:
+			site_name = str(site)
+		self.site_name = site_name
+
+	def __getitem__(self, period_spec):
+		period_index = self.period_index(period_spec)
+		try:
+			intensity = self.intensities[period_index]
+		except IndexError:
+			raise IndexError("Period index %s out of range" % period_index)
+		else:
+			return intensity
+
+	@property
+	def poe(self):
+		return self.poes[0]
+
+	@property
+	def return_period(self):
+		return self.return_periods[0]
+
+	@property
+	def exceedance_rate(self):
+		return self.exceedance_rates[0]
+
+	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title="", plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, legend_location=0, lang="en"):
+		if not title:
+			title = "Site: %s" % self.site_name
+		datasets = [(self.periods, self.intensities)]
+		labels = [self.model_name]
+		intensity_unit = self.intensity_unit
+		plot_hazard_spectrum(datasets, labels=labels, colors=[color], linestyles=[linestyle], linewidths=[linewidth], fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
+
+	def export_csv(self, csv_filespec=None):
+		if csv_filespec:
+			f = open(csv_filespec, "w")
+		else:
+			f = sys.stdout
+		f.write("Period (s), %s (%s)\n" % (self.IMT, self.intensity_unit))
+		for period, intensity in zip(self.periods, self.intensities):
+			f.write("%.3E, %.3E\n" % (period, intensity))
+		f.close()
+
+
+class UHSFieldSet(HazardResult, HazardField, HazardSpectrum):
+	"""
+	UHS fields for different return periods
+	sites: 1-D list [i] with (lon, lat) tuples of all sites
+	IMT
+	periods: 1-D array [k] with structural periods
+	intensities: 3-D array [p, i, k] with interpolated intensity values at
+		different poE's or return periods [p]
+	timespan:
+	poes: 1-D array or probabilities of exceedance [p]
+	or
+	return_periods: 1-D [p] array of return periods
+	"""
+	def __init__(self, model_name, filespecs, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, poes=None, return_periods=None, site_names=None):
+		HazardResult.__init__(self, timespan=timespan, poes=poes, return_periods=return_periods, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+		HazardField.__init__(self, sites, site_names=site_names)
+		HazardSpectrum.__init__(self, periods)
+		self.model_name = model_name
+		if len(filespecs) == 1:
+			filespecs *= len(self.return_periods)
+		self.filespecs = filespecs
+
+	def __iter__(self):
+		self._current_index = 0
+		return self
+
+	def next(self):
+		try:
+			return_period = self.return_periods[self._current_index]
+		except:
+			raise StopIteration
+		else:
+			self._current_index += 1
+			return self.getUHSField(index=self._current_index-1)
+
+	def __getitem__(self, index):
+		return self.getUHSField(index=index)
+
+	def __len__(self):
+		return len(self.return_periods)
+
+	def getUHSField(self, index=None, poe=None, return_period=None):
+		if index is None:
+			if poe is not None:
+				index = numpy.where(numpy.abs(self.poes - poe) < 1E-12)[0]
+				if len(index) == 0:
+					raise ValueError("No UHS field for poE=%s" % poe)
+			elif return_period is not None:
+				index = numpy.where(numpy.abs(self.return_periods - return_period) < 1E-12)[0]
+				if len(index) == 0:
+					raise ValueError("No UHS field for return period=%s" % return_period)
+
+		try:
+			return_period = self.return_periods[index]
+		except:
+			raise IndexError("Index %s out of range" % index)
+		else:
+			filespec = self.filespecs[index]
+			intensities = self.intensities[index]
+			return UHSField(self.model_name, filespec, self.sites, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, site_names=self.site_names)
+
+	def interpolate_period(self, period):
+		"""
+		Should yield a HazardMapSet
+		"""
+		num_sites, num_rp = self.num_sites, len(self.return_periods)
+		period_intensities = numpy.zeros((num_rp, num_sites))
+		for i in range(num_sites):
+			for p in range(num_rp):
+				period_intensities[p,i] = interpolate(self.periods, self.intensities[p,i], [period])
+		return HazardMapSet(self.model_name, self.filespecs, self.sites, period, self.IMT, period_intensities, self.intensity_unit, self.timespan, return_periods=self.return_periods, site_names=self.site_names)
+
+	def plot(self, sites=None, return_periods=None):
+		"""
+		method to plot hazard spectrum
+		arguments:
+			sites | default="All"
+		"""
+		if sites is None:
+			sites = self.sites
+		if return_periods is None:
+			return_periods = self.return_periods
+		x = self.periods
+		datasets, labels = [], []
+		for i, site in enumerate(sites):
+			for p, rp in enumerate(return_periods):
+				y = self.intensities[p,i]
+				datasets.append((x, y))
+				labels.append("%s, %s - %s" % (site[0], site[1], rp))
+		plot_hazard_spectrum(datasets, labels, plot_freq=True)
+
+
+class UHSCollection:
+	"""
+	Container for an arbitrary set of Uniform Hazard Spectra
+	"""
+	def __init__(self, UHSlist, colors=[], linestyles=[], linewidths=[], labels=[]):
+		self.UHSlist = UHSlist
+		self.colors = colors
+		self.linestyles = linestyles
+		self.linewidths = linewidths
+		if not labels:
+			labels = [uhs.model_name for uhs in self.UHSlist]
+		self.labels = labels
+
+	def validate(self):
+		# intensity unit, IMT should be the same
+		pass
+
+	def __len__(self):
+		return len(self.UHSlist)
+
+	@property
+	def intensity_unit(self):
+		return self.UHSlist[0].intensity_unit
+
+	def plot(self, fig_filespec=None, title="", plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, legend_location=0, lang="en"):
+		datasets = [(uhs.periods, uhs.intensities) for uhs in self.UHSlist]
+		intensity_unit = self.intensity_unit
+		plot_hazard_spectrum(datasets, labels=self.labels, colors=self.colors, linestyles=self.linestyles, linewidths=self.linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
+
+
+class HazardMap(HazardResult, HazardField):
+	"""
+	Class representing a hazard map or a ground-motion field
+	One hazard map, corresponds to 1 OQ file
+	sites: 1-D list [i] with (lon, lat) tuples of all sites
+	intensities: 1-D array [i]
+	"""
+	def __init__(self, model_name, filespec, sites, period, IMT, intensities, intensity_unit="g", timespan=50, poe=None, return_period=None, site_names=None, vs30s=None):
+		HazardResult.__init__(self, timespan=timespan, poes=[poe], return_periods=[return_period], IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+		HazardField.__init__(self, sites, site_names=site_names)
+		self.model_name = model_name
+		self.filespec = filespec
+		self.period = period
+		self.vs30s = as_array(vs30s)
+
+	def __repr__(self):
+		return "<HazardMap: %d sites, %d intensities, period=%s s>" % (self.num_sites, self.num_intensities, self.period)
+
+	def __iter__(self):
+		self._current_index = 0
+		return self
+
+	def next(self):
+		try:
+			site = self.sites[self._current_index]
+		except:
+			raise StopIteration
+		else:
+			self._current_index += 1
+			return self.getHazardValue(self._current_index-1)
+
+	def __getitem__(self, site_spec):
+		return self.getHazardValue(site_spec)
+
+	def getHazardValue(self, site_spec=0):
+		site_index = self.site_index(site_spec)
+		try:
+			site = self.sites[site_index]
+		except:
+			raise IndexError("Site index %s out of range" % site_index)
+		else:
+			return self.intensities[site_index]
+
+	def min(self):
+		"""
+		Return minimum intensity
+		"""
+		return self.intensities.min()
+
+	def max(self):
+		"""
+		Return maximum intensity
+		"""
+		return self.intensities.max()
+
+	def argmin(self):
+		"""
+		Return site index corresponding to minimum intensity value
+		"""
+		return self.intensities.argmin()
+
+	def argmax(self):
+		"""
+		Return site index corresponding to maximum intensity value
+		"""
+		return self.intensities.argmax()
+
+	@property
+	def poe(self):
+		return self.poes[0]
+
+	@property
+	def return_period(self):
+		return self.return_periods[0]
+
+	@property
+	def exceedance_rate(self):
+		return self.exceedance_rates[0]
+
+	def trim(self, lonmin=None, lonmax=None, latmin=None, latmax=None):
+		if lonmin is None:
+			lonmin = self.lonmin()
+		if lonmax is None:
+			lonmax = self.lonmax()
+		if latmin is None:
+			latmin = self.latmin()
+		if latmax is None:
+			latmax = self.latmax()
+		site_indexes, sites, site_names, vs30s = [], [], [], []
+		longitudes, latitudes = self.longitudes, self.latitudes
+		for i in range(self.num_sites):
+			if lonmin <= longitudes[i] <= lonmax and latmin <= latitudes[i] <= latmax:
+				site_indexes.append(i)
+				sites.append(self.sites[i])
+				site_names.append(self.site_names[i])
+				if self.vs30s != None:
+					vs30s.append(self.vs30s[i])
+
+		model_name = self.model_name
+		filespec = self.filespec
+		period = self.period
+		IMT = self.IMT
+		intensities = self.intensities[site_indexes]
+		intensity_unit = self.intensity_unit
+		timespan = self.timespan
+		poe = self.poe
+		return_period = self.return_period
+
+		hm = HazardMap(model_name, filespec, sites, period, IMT, intensities, intensity_unit, timespan, poe, return_period, site_names, vs30s)
+		return hm
+
+	def create_grid(self):
+		"""
+		Convert intensities to a spatial grid (2-D array)
+		"""
+		intensity_grid = numpy.zeros(self.grid_shape, dtype='d')
+		row_indexes, col_indexes = self.grid_indexes
+		for row, col, intensity in zip(row_indexes, col_indexes, self.intensities):
+			intensity_grid[row,col] = intensity
+		return intensity_grid
+
+	def export_VM(self, base_filespec):
+		"""
+		Export hazard map to a Vertical Mapper grid
+		"""
+		import mapping.VMPython as vm
+		if self.IMT in ("PGA", "PGV", "PGV"):
+			imt_label = self.IMT
+		else:
+			imt_label = "T=%.3fs" % self.period
+		rp_label = "%.3Gyr" % self.return_period
+		grd_filespec = os.path.splitext(base_filespec)[0] + "_%s_%s" % (imt_label, rp_label)
+
+		(lonmin, lonmax, dlon), (latmin, latmax, dlat) = self.grid_properties
+		assert abs(dlon - dlat) < 1E-12
+		cell_size = dlon
+		zmin, zmax = self.min(), self.max()
+		vmgrd = vm.CreateNumericGrid(grd_filespec, lonmin, lonmax, latmin, latmax, cell_size, zmin, zmax, Zdescription=self.intensity_unit)
+		print("Created VM grid %s" % grd_filespec)
+
+		intensity_grid = self.create_grid()
+		nrows = intensity_grid.shape[0]
+		for rownr, row in enumerate(intensity_grid):
+			vmgrd.WriteRow(row, (nrows-1)-rownr)
+		vmgrd.Close()
+
+	def plot(self, fig_filespec=None, cmap=pylab.cm.jet, contour_interval=0.02, meridian_interval=1., parallel_interval=1., hide_sea=False, amax=None, want_basemap=True):
+		"""
+		Plot hazard map
+		"""
+		longitudes, latitudes = self.longitudes, self.latitudes
+		x, y = self.meshgrid()
+		intensity_grid = self.create_grid()
+		if not amax:
+			amax = self.max()
+		if contour_interval:
+			levels = numpy.arange(0, amax+contour_interval, contour_interval)
+		else:
+			levels = 100
+		try:
+			from mpl_toolkits.basemap import Basemap
+		except:
+			want_basemap = False
+
+		if want_basemap:
+			llcrnrlon, llcrnrlat = min(longitudes), min(latitudes)
+			urcrnrlon, urcrnrlat = max(longitudes), max(latitudes)
+			lon_0 = (llcrnrlon + urcrnrlon) / 2.
+			lat_0 = (llcrnrlat + urcrnrlat) / 2.
+			## Contouring does not seem to work for other projections...
+			map = Basemap(projection="cyl", resolution="i", llcrnrlon=llcrnrlon, llcrnrlat=llcrnrlat, urcrnrlon=urcrnrlon, urcrnrlat=urcrnrlat, lon_0=lon_0, lat_0=lat_0)
+			if hide_sea:
+				rgba_land, rgba_ocean = (255, 255, 255, 0), (255, 255, 255, 255)
+				map.drawlsmask(rgba_land, rgba_ocean)
+			cs = map.contourf(x, y, intensity_grid, levels=levels, cmap=cmap)
+			map.contour(x, y, intensity_grid, levels=levels, colors='k', linewidths=1)
+			cbar = map.colorbar(cs, location='bottom', pad="10%")
+			map.drawcoastlines()
+			map.drawcountries()
+			first_meridian = numpy.ceil(llcrnrlon / meridian_interval) * meridian_interval
+			last_meridian = numpy.floor(urcrnrlon / meridian_interval) * meridian_interval + meridian_interval
+			meridians = numpy.arange(first_meridian, last_meridian, meridian_interval)
+			map.drawmeridians(meridians, labels=[0,1,0,1])
+			first_parallel = numpy.ceil(llcrnrlat / parallel_interval) * parallel_interval
+			last_parallel = numpy.floor(urcrnrlat / parallel_interval) * parallel_interval + parallel_interval
+			parallels = numpy.arange(first_parallel, last_parallel, parallel_interval)
+			map.drawparallels(parallels, labels=[0,1,0,1])
+			map.drawmapboundary()
+		else:
+			map = pylab.Figure()
+			cs = pylab.contourf(x, y, intensity_grid, levels=levels, cmap=cmap)
+			pylab.contour(x, y, intensity_grid, levels=levels, colors='k', linewidths=1)
+			cbar = pylab.colorbar(mappable=cs, cax=None, orientation='horizontal', pad=0.1)
+
+		if self.IMT == "SA":
+			period_label = "%s (%s s)" % (self.IMT, self.period)
+		else:
+			period_label = self.IMT
+		pylab.title("%s\n%s - %.4G yr return period" % (self.model_name, period_label, self.return_period))
+		cbar.set_label('%s (%s)' % (self.IMT, self.intensity_unit))
+
+		if fig_filespec:
+			pylab.savefig(fig_filespec, dpi=300)
+			pylab.clf()
+		else:
+			pylab.show()
+
+
+class HazardMapSet(HazardResult, HazardField):
+	"""
+	Class representing a set of hazard maps or ground-motion fields for different
+	return periods.
+	Corresponds to 1 CRISIS MAP file containing 1 spectral period.
+	sites: 1-D list [i] with (lon, lat) tuples of all sites
+	intensities: 2-D array [p, i]
+	"""
+	def __init__(self, model_name, filespecs, sites, period, IMT, intensities, intensity_unit="g", timespan=50, poes=None, return_periods=None, site_names=None, vs30s=None):
+		HazardResult.__init__(self, timespan=timespan, poes=poes, return_periods=return_periods, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+		HazardField.__init__(self, sites, site_names=site_names)
+		self.model_name = model_name
+		if len(filespecs) == 1:
+			filespecs *= len(return_periods)
+		self.filespecs = filespecs
+		self.period = period
+		self.vs30s = as_array(vs30s)
+
+	def __iter__(self):
+		self._current_index = 0
+		return self
+
+	def next(self):
+		try:
+			return_period = self.return_periods[self._current_index]
+		except:
+			raise StopIteration
+		else:
+			self._current_index += 1
+			return self.getHazardMap(index=self._current_index-1)
+
+	def __getitem__(self, index):
+		return self.getHazardMap(index=index)
+
+	def __len__(self):
+		return len(self.return_periods)
+
+	def getHazardMap(self, index=None, poe=None, return_period=None):
+		"""
+		Return a particular hazard map
+		Parameters:
+			index: index of hazard map in set (default: None)
+			poe: probability of exceedance of hazard map (default: None)
+			return_period: return period of hazard map (default: None)
+		Return value:
+			HazardMap object
+		Notes:
+			One of index, poe or return_period must be specified.
+		"""
+		if (index, poe, return_period) == (None, None, None):
+			raise Exception("One of index, poe or return_period must be specified!")
+		if index is None:
+			if poe is not None:
+				index = numpy.where(numpy.abs(self.poes - poe) < 1E-6)[0]
+				if len(index) == 0:
+					raise ValueError("No hazard map for poE=%s" % poe)
+			elif return_period is not None:
+				index = numpy.where(numpy.abs(self.return_periods - return_period) < 1)[0]
+				if len(index) == 0:
+					raise ValueError("No hazard map for return period=%s" % return_period)
+
+		try:
+			return_period = self.return_periods[index]
+		except:
+			raise IndexError("Index %s out of range" % index)
+		else:
+			filespec = self.filespecs[index]
+			intensities = self.intensities[index]
+			return HazardMap(self.model_name, filespec, self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, site_names=self.site_names, vs30s=self.vs30s)
+
+	def export_VM(self, base_filespec):
+		for hazardmap in self:
+			hazardmap.export_VM(self, base_filespec)
+
+
+## Aliases
+GroundMotionField = HazardMap
+HazardCurveFieldTree = SpectralHazardCurveFieldTree
+
+
+
+if __name__ == "__main__":
+	import rhlib.crisis.IO as IO
+
+	## Convert CRISIS .MAP file to HazardMapSet
+	#filespec = r"Test files\CRISIS\VG_Ambr95DD_Leynaud_EC8.MAP"
+	filespec = r"D:\PSHA\LNE\CRISIS\VG_Ambr95DD_Leynaud_EC8.MAP"
+	hazardmapset = IO.readCRISIS_MAP(filespec, model_name="VG_Ambr95DD_Leynaud_EC8", convert_to_g=True, IMT="PGA", verbose=True)
+	print hazardmapset.longitudes
+	for hazardmap in hazardmapset:
+		print hazardmap.intensities.shape
+		print hazardmap.return_period
+	hazardmap = hazardmapset[0]
+	intensity_grid = hazardmap.create_grid()
+	print intensity_grid.shape
+	print hazardmap.min(), hazardmap.max()
+	print hazardmap.poe
+	#hazardmap.export_VM(r"C:\Temp\hazardmap.grd")
+	hazardmap.plot(parallel_interval=0.5, hide_sea=True, want_basemap=False)
+	print
+
+
+	## Convert CRISIS .GRA file to SpectralHazardCurveField
+	"""
+	#filespec = r"Test files\CRISIS\MC000.GRA"
+	#filespec = r"D:\PSHA\NIRAS\LogicTree\PGA\Seismotectonic\BergeThierry2003\3sigma\Mmax+0_00\MC000.GRA"
+	#filespec = r"D:\PSHA\NIRAS\LogicTree\Spectral\Seismotectonic\BergeThierry2003\3sigma\Mmax+0_00\MC000.GRA"
+	filespec = r"D:\PSHA\NIRAS\LogicTree\Spectral\Spectral_BT2003.AGR"
+	#filespec = r"D:\PSHA\LNE\CRISIS\VG_Ambr95DD_Leynaud_EC8.gra"
+	shcf = IO.readCRISIS_GRA(filespec, verbose=True)
+	print shcf.intensities.shape, shcf.exceedance_rates.shape
+	print shcf.mean.shape
+	print shcf.percentiles.shape
+	print shcf.percentile_levels
+	print shcf.periods
+	print shcf.sites
+	shc = shcf[0]
+	hc = shc[0]
+	print hc.interpolate_return_periods([1E+3, 1E+4, 1E+5])
+	#hc.plot(want_poe=False)
+	UHSfieldset = shcf.interpolate_return_periods([10000])
+	UHSfield = UHSfieldset[0]
+	#UHSfield.plot()
+	uhs = UHSfield[0]
+	print uhs.periods, uhs.intensities
+	print uhs[1./34]
+	uhs.export_csv()
+	uhs.plot(linestyle='x', Tmin=1./40, Tmax=1./30, amin=0, color='r')
+	print UHSfieldset.return_periods
+	print UHSfieldset.intensities
+	print UHSfieldset.poes
+	hazardmapset = UHSfieldset.interpolate_period(1./34)
+	print hazardmapset.return_periods
+	print hazardmapset.poes
+	hazardmap = hazardmapset[-1]
+	print hazardmap.poe
+	"""
+
+
+	## CRISIS --> HazardCurveFieldTree
+	"""
+	import hazard.psha.BEST_IRE.LogicTree as LogicTree
+	GRA_filespecs = LogicTree.slice_logictree()
+	hcft = IO.readCRISIS_GRA_multi(GRA_filespecs, model_name="Test")
+	hcft.plot()
+	#hcft.write_statistics_AGR(r"C:\Temp\Test.AGR", weighted=False)
+	#hcft2 = hcft.slice_by_branch_indexes(range(50), "Subset")
+	hcft2 = hcft.slice_by_branch_names(["BergeThierry"], "BergeThierry", strict=False)
+	print len(hcft2)
+	import numpy.random
+	hcft2.weights = numpy.random.rand(len(hcft2))
+	uhsft = hcft2.interpolate_return_period(10000)
+	uhsft.plot_histogram()
+	#hcft.plot()
+	hcft.plot_subsets(["BergeThierry", "Ambraseys"], labels=["BergeThierry", "Ambraseys"], percentile_levels=[84,95])
+	hcf = hcft[0]
+	print hcf.periods
+	hcf.plot()
+	#hcf2 = hcf.interpolate_periods([0.05, 0.275, 1, 2, 10])
+	shc = hcf.getSpectralHazardCurve(0)
+	#shc.plot()
+	uhs = shc.interpolate_return_period(1E4)
+	#uhs.plot(plot_freq=True)
+	"""
