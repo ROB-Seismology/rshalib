@@ -20,7 +20,7 @@ from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from ..utils import interpolate, logrange
 
 import openquake.hazardlib as nhlib
-from nhlib.imt import PGD, PGV, PGA, SA
+from openquake.hazardlib.imt import PGD, PGV, PGA, SA
 
 
 def sd2psa(sd, T):

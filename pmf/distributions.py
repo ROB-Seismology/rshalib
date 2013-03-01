@@ -9,6 +9,7 @@ as well as to generate input files for OpenQuake.
 """
 
 from lxml import etree
+import decimal
 from decimal import Decimal
 
 import numpy as np
@@ -18,6 +19,7 @@ import openquake.hazardlib as nhlib
 
 from ..nrml import ns
 from ..nrml.common import *
+
 
 
 class NodalPlaneDistribution(nhlib.pmf.PMF):
@@ -274,16 +276,20 @@ def get_uniform_weights(num_weights):
 	:return:
 		Numpy array (length equal to num_weights) of equal weights summing up to 1.0.
 	"""
+	# set precision for weights calculation
+	#decimal.getcontext().prec = 4
+
 	# TODO: Better this way?
-	weights = np.ones((num_weights))
-	weights = weights/num_weights
+	weights = np.ones(num_weights, dtype='f') / num_weights
+	weights = map(str, weights)
 	weights = map(Decimal, weights)
 #	weight = Decimal(1.0) / Decimal(num_weights)
 #	weights = np.array([weight])
 #	weights = np.repeat(weights, num_weights)
-#	if np.sum(weights) != Decimal(1.):
-#		print 'yes'
-#		weights[-1] = Decimal(1.0) - Decimal(np.sum(weights[:-1]))
+	print sum(weights), np.sum(weights)
+	if sum(weights) != 1.0:
+		print 'yes'
+		weights[-1] = Decimal(1.0) - Decimal(np.sum(weights[:-1]))
 #	weights = map(float, weights)
 	return weights
 

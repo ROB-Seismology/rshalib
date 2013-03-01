@@ -86,13 +86,17 @@ OQparams['mean_hazard_curves'] = True
 ### Create source model
 
 ## Nodal-plane distribution
-strikes, strike_weights = rshalib.pmf.get_uniform_distribution(0, 90, 90)
-#rakes, rake_weights = rshalib.pmf.get_uniform_distribution(-90, 90, 90)
-rakes, rake_weights = rshalib.pmf.get_uniform_distribution(-90, 90, 0)
+dip = 45.
+strikes, strike_weights = rshalib.pmf.get_uniform_distribution(0, 270, 90)
+print strikes, strike_weights
+rakes, rake_weights = rshalib.pmf.get_uniform_distribution(-90, 90, 90)
+#rakes, rake_weights = rshalib.pmf.get_uniform_distribution(-90, 90, 0)
+print rakes, rake_weights
+print sum(rake_weights)
 nodal_planes, nodal_plane_weights = [], []
 for strike, strike_weight in zip(strikes, strike_weights):
 	for rake, rake_weight in zip(rakes, rake_weights):
-		nodal_planes.append(rshalib.geo.NodalPlane(strike, 45., rake))
+		nodal_planes.append(rshalib.geo.NodalPlane(strike, dip, rake))
 		nodal_plane_weights.append(strike_weight * rake_weight)
 npd = rshalib.pmf.NodalPlaneDistribution(nodal_planes, nodal_plane_weights)
 
@@ -170,16 +174,16 @@ if __name__ == '__main__':
 	import time
 
 	## nhlib
-	"""
 	psha_model = create_psha_model("nhlib")
 	start_time = time.time()
 	shcfs = psha_model.run_nhlib_shcf(write=True)
 	end_time = time.time()
 	print end_time - start_time
 	shcfs['PGA'].plot()
-	"""
+
 
 	## nhlib deaggregation
+	"""
 	psha_model = create_psha_model("nhlib")
 	#import jsonpickle
 	#json = jsonpickle.encode(psha_model)
@@ -198,7 +202,7 @@ if __name__ == '__main__':
 	print deagg_result.trt_bins
 	print deagg_result.matrix.max()
 	deagg_result.plot_mag_dist_pmf()
-
+	"""
 
 	## OpenQuake
 	#psha_model = create_psha_model("openquake")

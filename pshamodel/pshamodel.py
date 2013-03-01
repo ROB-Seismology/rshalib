@@ -12,10 +12,7 @@ from collections import OrderedDict
 from random import choice
 
 import openquake.hazardlib as nhlib
-from nhlib.calc import hazard_curves_poissonian, disaggregation
-from nhlib.calc.filters import source_site_distance_filter
-from nhlib.calc.filters import rupture_site_distance_filter
-from nhlib.imt import PGA, SA, PGV, PGD, MMI
+from openquake.hazardlib.imt import PGA, SA, PGV, PGD, MMI
 
 from ..geo import *
 from ..site import *
@@ -186,8 +183,8 @@ class PSHAModelBase(object):
 		nhlib_params = {}
 		nhlib_params['site_model'] = self._get_nhlib_site_model()
 		nhlib_params['imts'] = self._get_nhlib_imts()
-		nhlib_params['ssdf'] = source_site_distance_filter(self.integration_distance)
-		nhlib_params['rsdf'] = rupture_site_distance_filter(self.integration_distance)
+		nhlib_params['ssdf'] = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
+		nhlib_params['rsdf'] = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
 		return nhlib_params
 
 	def _get_nhlib_site_model(self):
@@ -423,7 +420,7 @@ class PSHAModel(PSHAModelBase):
 		if not nhlib_params:
 			nhlib_params = self._get_nhlib_params()
 		num_sites = len(nhlib_params['site_model'])
-		hazard_curves = hazard_curves_poissonian(self.source_model, nhlib_params['site_model'], nhlib_params['imts'], self.time_span, self._get_nhlib_trts_gsims_map(), self.truncation_level, nhlib_params['ssdf'], nhlib_params['rsdf'])
+		hazard_curves = nhlib.calc.hazard_curves_poissonian(self.source_model, nhlib_params['site_model'], nhlib_params['imts'], self.time_span, self._get_nhlib_trts_gsims_map(), self.truncation_level, nhlib_params['ssdf'], nhlib_params['rsdf'])
 		hazard_result = {}
 		for imt, periods in self.imt_periods.items():
 			if len(periods) > 1:
@@ -473,11 +470,11 @@ class PSHAModel(PSHAModelBase):
 		site = self._get_sites()[site_index]
 		nhlib_site = nhlib.site.Site(Point(*site), *self.ref_site_params)
 		#imt = self._get_nhlib_imts()
-		ssdf = source_site_distance_filter(self.integration_distance)
-		rsdf = rupture_site_distance_filter(self.integration_distance)
+		ssdf = nhlib.filters.source_site_distance_filter(self.integration_distance)
+		rsdf = nhlib.filters.rupture_site_distance_filter(self.integration_distance)
 
 		tom = nhlib.tom.PoissonTOM(self.time_span)
-		bin_edges, deagg_matrix = disaggregation(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), tom, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
+		bin_edges, deagg_matrix = nhlib.calc.disaggregation(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), tom, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
 		return DeaggregationResult(bin_edges, deagg_matrix, site, imt, iml, self.time_span)
 
 	def write_openquake(self, user_params=None):

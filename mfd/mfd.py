@@ -916,7 +916,7 @@ def split_mfd_fault_bg(aValue, bValue, Mmin, Mmin_fault, Mmax, bin_width=0.1):
 		and mfd_fault is an instance of nhlib.mfd.TruncatedGRMFD
 	"""
 	## Construct summed MFD
-	mfd_summed = nhlib_nrml.TruncatedGRMFD(Mmin, Mmax, bin_width, aValue, bValue)
+	mfd_summed = TruncatedGRMFD(Mmin, Mmax, bin_width, aValue, bValue)
 	## Note: get_annual_occurrence_rates() returns non-cumulative rates !
 	hist = mfd_summed.get_annual_occurrence_rates()
 	print hist
@@ -929,15 +929,15 @@ def split_mfd_fault_bg(aValue, bValue, Mmin, Mmin_fault, Mmax, bin_width=0.1):
 	index = np.where(Mbins > Mmin_fault)[0][0]
 
 	## Construct MFD's
-	mfd_fault = nhlib_nrml.TruncatedGRMFD(Mmin_fault, Mmax, bin_width, aValue, bValue)
+	mfd_fault = TruncatedGRMFD(Mmin_fault, Mmax, bin_width, aValue, bValue)
 
 	rates_bg = rates_summed.copy()
 	#rates_bg = rates_bg[:index] - rates_bg[index]
 	rates_bg = rates_bg[:index]
-	mfd_bg = nhlib_nrml.EvenlyDiscretizedMFD(Mbins[0], bin_width, list(rates_bg))
+	mfd_bg = EvenlyDiscretizedMFD(Mbins[0], bin_width, list(rates_bg))
 
 	## Note that this is equivalent to
-	# mfd_bg = nhlib_nrml.TruncatedGRMFD(Mmin, Mmin_fault, bin_width, aValue, bValue)
+	# mfd_bg = TruncatedGRMFD(Mmin, Mmin_fault, bin_width, aValue, bValue)
 
 	## Check that 2 MFD's sum up to overall MFD
 	hist = mfd_fault.get_annual_occurrence_rates()
@@ -980,7 +980,7 @@ def divide_mfd_fault_bg(aValue, bValue, Mmin, Mmin_fault, Mmax_fault, Mmax, bin_
 		nhlib.mfd.EvenlyDiscretizedMFD
 	"""
 	## Construct summed MFD
-	mfd_summed = nhlib_nrml.TruncatedGRMFD(Mmin, Mmax, bin_width, aValue, bValue)
+	mfd_summed = TruncatedGRMFD(Mmin, Mmax, bin_width, aValue, bValue)
 	hist = mfd_summed.get_annual_occurrence_rates()
 	Mbins, rates_summed = zip(*hist)
 	Mbins, rates_summed = np.array(Mbins), np.array(rates_summed)
@@ -998,8 +998,8 @@ def divide_mfd_fault_bg(aValue, bValue, Mmin, Mmin_fault, Mmax_fault, Mmax, bin_
 	rates_bg[start_index : end_index] *= 0.
 	#rates_bg[:start_index] -= rates_fault[0]
 
-	mfd_bg = nhlib_nrml.EvenlyDiscretizedMFD(Mbins[0], bin_width, list(rates_bg))
-	mfd_fault = nhlib_nrml.EvenlyDiscretizedMFD(Mbins[start_index], bin_width, list(rates_fault))
+	mfd_bg = EvenlyDiscretizedMFD(Mbins[0], bin_width, list(rates_bg))
+	mfd_fault = EvenlyDiscretizedMFD(Mbins[start_index], bin_width, list(rates_fault))
 
 	## Check that 2 MFD's sum up to overall MFD
 	# TODO: try with bin values instead of cumulative values
@@ -1058,7 +1058,7 @@ def divide_mfd_faults(aValue, bValue, Mmin, Mmax_catalog, Mmax_faults, Mmax_rate
 		Mbins = np.concatenate((Mbins1, Mbins2)) + (bin_width / 2)
 		#print Mbins
 		#print rates
-		mfd = nhlib_nrml.EvenlyDiscretizedMFD(Mmin + (bin_width / 2), bin_width, list(rates))
+		mfd = EvenlyDiscretizedMFD(Mmin + (bin_width / 2), bin_width, list(rates))
 		mfd_list.append(mfd)
 
 	return mfd_list
