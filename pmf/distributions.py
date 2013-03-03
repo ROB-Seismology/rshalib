@@ -238,9 +238,10 @@ def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2):
 	bin_edges = np.linspace(min, max, num_bins+1)
 	weights = stats.distributions.norm.pdf(bin_edges, loc=mean, scale=sigma)
 	weights /= sum(weights)
+	weights = np.array([Decimal(w) for w in weights])
 	## Check if and set sum == 1
-	if sum(weights) != Decimal(1.0):
-		weights[-1] = 1.0-(sum(weights[:-1]))
+	if sum(weights) != 1.0:
+		weights[-1] = 1 - sum(weights[:-1])
 	return bin_edges, weights
 
 
@@ -276,21 +277,13 @@ def get_uniform_weights(num_weights):
 	:return:
 		Numpy array (length equal to num_weights) of equal weights summing up to 1.0.
 	"""
-	# set precision for weights calculation
-	#decimal.getcontext().prec = 4
+	weights = np.array([Decimal(1) for i in range(num_weights)])
+	weights /= Decimal(num_weights)
 
-	# TODO: Better this way?
-	weights = np.ones(num_weights, dtype='f') / num_weights
-	weights = map(str, weights)
-	weights = map(Decimal, weights)
-#	weight = Decimal(1.0) / Decimal(num_weights)
-#	weights = np.array([weight])
-#	weights = np.repeat(weights, num_weights)
-	print sum(weights), np.sum(weights)
+	## Kludge, because it is simply not possible to generate uniform weights
+	## for 3 items that sum up to 1.0 ...
 	if sum(weights) != 1.0:
-		print 'yes'
-		weights[-1] = Decimal(1.0) - Decimal(np.sum(weights[:-1]))
-#	weights = map(float, weights)
+		weights[-1] = 1 - sum(weights[:-1])
 	return weights
 
 
