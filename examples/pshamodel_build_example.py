@@ -77,10 +77,6 @@ OQparams['area_source_discretization'] = area_discretization
 OQparams['width_of_mfd_bin'] = mfd_bin_width
 OQparams['export_dir'] = 'output'
 OQparams['mean_hazard_curves'] = True
-# The following lines are only needed for logic trees
-#OQparams['random_seed'] = 42
-#OQparams['number_of_logic_tree_samples'] = 1
-#OQparams['quantile_hazard_curves'] = [0.05, 0.16, 0.50, 0.84, 0.95]
 
 
 ### Create source model
@@ -92,7 +88,6 @@ print strikes, strike_weights
 rakes, rake_weights = rshalib.pmf.get_uniform_distribution(-90, 90, 90)
 #rakes, rake_weights = rshalib.pmf.get_uniform_distribution(-90, 90, 0)
 print rakes, rake_weights
-print sum(rake_weights)
 nodal_planes, nodal_plane_weights = [], []
 for strike, strike_weight in zip(strikes, strike_weights):
 	for rake, rake_weight in zip(rakes, rake_weights):
@@ -103,6 +98,7 @@ npd = rshalib.pmf.NodalPlaneDistribution(nodal_planes, nodal_plane_weights)
 ## Hypocentral depth distribution
 #hypo_depths, hypo_weights = rshalib.pmf.get_normal_distribution(5., 15., 3)
 hypo_depths, hypo_weights = rshalib.pmf.get_normal_distribution(10., 10., 0)
+print hypo_depths, hypo_weights
 hdd = rshalib.pmf.HypocentralDepthDistribution(hypo_depths, hypo_weights)
 
 ## Read from GIS tables
@@ -131,9 +127,11 @@ upper_seismogenic_depth, lower_seismogenic_depth = 0., 20.
 source = rshalib.source.AreaSource('bg', 'background', trt, mfd, rupture_mesh_spacing, WC1994(), rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth, npd, hdd, polygon, area_discretization)
 source_model = rshalib.source.SourceModel('Borssele_source_model1', [source])
 
+### Test export to/import from json
 #source_model = SourceModel.from_json(source_model.to_json())
 #print source_model.sources[0].hypocenter_distribution.hypo_depths
 #print source_model.sources[0].hypocenter_distribution.data
+
 
 ### Construct ground-motion model
 #ground_motion_model = rshalib.gsim.GroundMotionModel('SCR_BA2008', {trt: 'BooreAtkinson2008'})

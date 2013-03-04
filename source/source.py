@@ -537,12 +537,17 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 		max_mag = wc.get_median_mag(self.get_area(), self.rake)
 		return max_mag
 
-	def get_MFD_characteristic(self, bin_width=None):
+	def get_MFD_characteristic(self, bin_width=None, M_sigma=0.03, num_sigma=0):
 		"""
 		Construct MFD corresponding to a characteristic Mmax
 		:param bin_width:
 			Float, Magnitude interval for evenly discretized magnitude frequency
 			distribution (default: None, take bin_width from current MFD.
+		:param M_sigma:
+			Float, standard deviation on magnitude (default: 0.3)
+		:param num_sigma:
+			Float, number of standard deviations to spread occurrence rates over
+			(default: 0)
 
 		:return:
 			instance of :class:`EvenlyDiscretizedMFD`
@@ -552,7 +557,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 
 		max_mag = self.max_mag - bin_width
 		return_period = self.get_Mmax_return_period()
-		MFD = CharacteristicMFD(max_mag, return_period, bin_width, Mtype=self.mfd.Mtype)
+		MFD = CharacteristicMFD(max_mag, return_period, bin_width, Mtype=self.mfd.Mtype, M_sigma=M_sigma, num_sigma=num_sigma)
 		return MFD
 
 	def get_MFD_Anderson_Luco(self, min_mag=None, max_mag=None, bin_width=None, b_val=None, aseismic_coef=0., moment_scaling=None, strain_drop=None, mu=3E+10, arbitrary_surface=False):

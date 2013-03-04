@@ -361,10 +361,28 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		Float, return period of characteristic earthquake in year
 	:param bin_width:
 		Float, magnitude bin width
+	:param M_sigma:
+		Float, standard deviation on magnitude (default: 0.3)
+	:param num_sigma:
+		Float, number of standard deviations to spread occurrence rates over
+		(default: 0)
 	"""
 	# TODO: sigma, num_sigma
-	def __init__(self, M, return_period, bin_width, Mtype="MW", sigma=0, num_sigma=0):
-		EvenlyDiscretizedMFD.__init__(self, M+bin_width/2, bin_width, [1./return_period], Mtype=Mtype)
+	def __init__(self, M, return_period, bin_width, Mtype="MW", M_sigma=0.3, num_sigma=0):
+		from matplotlib import mlab
+		if M_sigma and num_sigma:
+			Mmin = M - M_sigma * num_sigma
+			Mmax = M + M_sigma * num_sigma
+			Mmin = np.floor(Mmin / bin_width) * bin_width
+			Mmax = np.ceil(Mmax / bin_width) * bin_width
+			magnitudes = np.arange(Mmin, Mmax + bin_width, bin_width)
+			probs = mlab.normpdf(magnitudes, M, M_sigma)
+			probs /= np.sum(probs)
+			occurrence_rates = (1./return_period) * probs
+		else:
+			Mmin = M
+			occurrence_rates = [1./return_period]
+		EvenlyDiscretizedMFD.__init__(self, Mmin+bin_width/2, bin_width, occurrence_rates, Mtype=Mtype)
 
 
 class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):

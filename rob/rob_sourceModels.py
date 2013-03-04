@@ -15,7 +15,7 @@ import mapping.MIPython as MI
 from eqcatalog.source_models import rob_source_models_dict
 
 from ..mfd import TruncatedGRMFD, EvenlyDiscretizedMFD
-from ..geo import Point, Line, Polygon, NodalPlane
+from ..geo import Point, Line, Polygon, NodalPlane, mean_angle
 from ..pmf.distributions import *
 from ..source import AreaSource, SimpleFaultSource, SourceModel
 
