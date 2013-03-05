@@ -19,6 +19,7 @@ from ..nrml import ns
 from ..nrml.common import *
 from ..mfd import *
 from ..geo.angle import *
+from ..geo import Point, Line, Polygon
 
 
 class PointSource(nhlib.source.PointSource):
@@ -523,7 +524,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 			lon, lat = nhlib.geo.geodetic.point_at(pt[0], pt[1], perpendicular_direction, width)
 			bottom_edge.append(Point(lon, lat, z1))
 		bottom_edge.reverse()
-		return Polygon (top_edge + bottom_edge)
+		return Polygon(top_edge + bottom_edge)
 
 	def calc_Mmax_Wells_Coppersmith(self):
 		"""

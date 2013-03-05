@@ -161,7 +161,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		Boolean, whether or not to overwrite existing input files (default: False)
 	"""
 	from ..mfd import alphabetalambda
-	from ..gsim.gmpe import CRISIS_DistanceMetrics
+	from ..gsim import gmpe as att
 	from shapely.geometry.polygon import LinearRing
 
 	if intensities:
@@ -295,7 +295,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 
 	## Integration parameters, return periods, and distance metric for deaggregation
 	min_triangle_size, min_dist_triangle_ratio = source_discretization
-	deagg_dist_metric = CRISIS_DistanceMetrics[deagg_dist_metric]
+	deagg_dist_metric = att.CRISIS_DistanceMetrics[deagg_dist_metric]
 	of.write("%s,%s,%s,%s,%s,%s,%s,%s,%d\n" % ((integration_distance, min_dist_triangle_ratio, min_triangle_size) + tuple(return_periods[:5]) + (deagg_dist_metric,)))
 
 	## Grid or sites where to compute hazard
@@ -359,7 +359,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		#if hasattr(source, 'rake'):
 		if isinstance(source, (SimpleFaultSource, ComplexFaultSource)):
 			num_rakes = 1
-			rake_weights, rakes = np.array([1.]), [source.rake]
+			rake_weights, rakes = np.array([1.]), np.array([source.rake])
 		else:
 			num_rakes = source.nodal_plane_distribution.get_num_rakes()
 			rakes, rake_weights = source.nodal_plane_distribution.get_rake_weights()
@@ -368,6 +368,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 				num_rakes = 1
 				rake_weights[:] = [np.sum(rake_weights), 0., 0.]
 		non_zero_rake_indexes = np.where(rake_weights > 0)[0]
+
 
 		if isinstance(source, (SimpleFaultSource, ComplexFaultSource)):
 			num_depths = 1
@@ -382,6 +383,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 			except TypeError:
 				rake = rakes[non_zero_rake_indexes]
 				rake_weight = rake_weights[non_zero_rake_indexes]
+
 			if -135 <= rake < -45:
 				sof = "normal"
 				rake_index = 1
@@ -397,13 +399,16 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 				if isinstance(source, (AreaSource, PointSource)):
 					hypo_depth = source.hypocenter_distribution.hypo_depths[d]
 					depth_weight = source.hypocenter_distribution.weights[d]
+				else:
+					depth_weight = 1.0
 
 				## Name
 				name = source.source_id
-				if num_rakes > 0:
-					name += "_%s" % sof
-				if num_depths > 0:
-					name += "_%dkm" % hypo_depth
+				if isinstance(source, (AreaSource, PointSource)):
+					if num_rakes > 0:
+						name += "_%s" % sof
+					if num_depths > 0:
+						name += "_%dkm" % hypo_depth
 				of.write("%s\n" % name)
 
 				## Main rake
@@ -477,9 +482,12 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					of.write("%s,%s,%.1f\n" % (point.longitude, point.latitude, hypo_depth))
 
 				## MFD
-				#print rake_weight * depth_weight
+				#print rake_weight, depth_weight
 				mfd = source.mfd * (rake_weight * depth_weight)
-				a, b = mfd.a_val, mfd.b_val
+				try:
+					a, b = mfd.a_val, mfd.b_val
+				except:
+					raise Exception("CRISIS does not support EvenlyDiscretizedMFD !")
 				Mmin = mfd.min_mag
 				abl = alphabetalambda(a, b, Mmin)
 				beta = abl[1]
