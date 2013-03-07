@@ -8,6 +8,7 @@ except ImportError:
 
 from logictree import LogicTreeBranch, LogicTreeBranchSet, LogicTreeBranchingLevel, LogicTree
 from configobj import ConfigObj
+from ..pmf import get_uniform_weights
 
 
 class SeismicSourceSystem_v1(LogicTree):

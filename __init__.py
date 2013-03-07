@@ -50,12 +50,12 @@ reload(logictree)
 import pshamodel
 reload(pshamodel)
 
+import rob
+reload(rob)
+
 import crisis
 reload(crisis)
 
 import openquake
-reload(openquake)
-
-import rob
-reload(rob)
+#reload(openquake)
 

@@ -19,7 +19,7 @@ from ..site import *
 from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, DeaggregationResult
 from ..logictree import GroundMotionSystem, create_basic_seismicSourceSystem
 from ..crisis.IO import writeCRISIS2007
-from ..openquake.config import *
+from ..openquake.config import OQ_Params
 
 
 

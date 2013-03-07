@@ -305,6 +305,19 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		else:
 			raise Exception("Characteristic magnitude should be multiple of bin width!")
 
+	def create_xml_element(self, encoding='latin1'):
+		"""
+		Create xml element (NRML evenlyDiscretizedIncrementalMFD element)
+
+		:param encoding:
+			String, unicode encoding (default: 'latin1')
+		"""
+		edi_elem = etree.Element(ns.EVENLY_DISCRETIZED_INCREMENTAL_MFD)
+		edi_elem.set(ns.MINIMUM_MAGNITUDE, str(self.min_mag))
+		edi_elem.set(ns.BIN_WIDTH, str(self.bin_width))
+		edi_elem.set(ns.OCCURRENCE_RATES, " ".join(map(str, self.occurrence_rates)))
+		return edi_elem
+
 	def plot(self, color='k', style="o", label="", discrete=True, cumul_or_inc="both", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, fig_width=0, dpi=300):
 		"""
 		Plot magnitude-frequency distribution
@@ -594,19 +607,6 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		tgr_elem.set(ns.MAXIMUM_MAGNITUDE, str(self.max_mag))
 
 		return tgr_elem
-
-	def create_xml_element(self, encoding='latin1'):
-		"""
-		Create xml element (NRML evenlyDiscretizedIncrementalMFD element)
-
-		:param encoding:
-			String, unicode encoding (default: 'latin1')
-		"""
-		edi_elem = etree.Element(ns.EVENLY_DISCRETIZED_INCREMENTAL_MFD)
-		edi_elem.set(ns.MINIMUM_MAGNITUDE, str(self.min_mag))
-		edi_elem.set(ns.BIN_WIDTH, str(self.bin_width))
-		edi_elem.set(ns.OCCURRENCE_RATES, " ".join(map(str, self.occurrence_rates)))
-		return edi_elem
 
 	def plot(self, color='k', style="-", label="", discrete=False, cumul_or_inc="cumul", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, fig_width=0, dpi=300):
 		"""
