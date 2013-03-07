@@ -485,7 +485,7 @@ class PSHAModel(PSHAModelBase):
 			{str, val} dict, defining respectively parameters and value for OpenQuake (default: None).
 		"""
 		## set OQ_params object and override with params from user_params
-		params = OQ_Params(calculation_mode='classical', description = self.name)
+		params = OQ_Params(calculation_mode='classical', description=self.name)
 		if user_params:
 			for key in user_params:
 				setattr(params, key, user_params[key])

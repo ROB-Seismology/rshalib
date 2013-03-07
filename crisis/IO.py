@@ -5,7 +5,7 @@ import os
 import numpy as np
 
 from ..result import *
-from ..mfd import alphabetalambda
+from ..mfd import alphabetalambda, TruncatedGRMFD, CharacteristicMFD
 from ..source import PointSource, AreaSource, SimpleFaultSource, ComplexFaultSource
 
 
@@ -484,20 +484,28 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 				## MFD
 				#print rake_weight, depth_weight
 				mfd = source.mfd * (rake_weight * depth_weight)
-				try:
+				if isinstance(mfd, TruncatedGRMFD):
 					a, b = mfd.a_val, mfd.b_val
-				except:
+					Mmin = mfd.min_mag
+					abl = alphabetalambda(a, b, Mmin)
+					beta = abl[1]
+					beta_cov = 0
+					lbd = abl[2]
+					Mmax_expected = mfd.max_mag
+					Mmax_stdev = 0
+					Mmax_lower_limit = mfd.max_mag
+					Mmax_upper_limit = mfd.max_mag
+					of.write("%.6f,%.6f,%s,%.2f,%.2f,%.2f,%.2f,%.2f\n" % (lbd, beta, beta_cov, Mmax_expected, Mmax_stdev, Mmax_lower_limit, Mmin, Mmax_upper_limit))
+				elif isinstance(mfd, CharacteristicMFD):
+					Mmin = mfd.get_min_mag_edge()
+					Mmax = mfd.get_magnitude_bin_edges()[-1]
+					M_sigma = mfd.M_sigma
+					return_period = mfd.return_period
+					## time-dependent parameters
+					D, F, T00 = 0, 0, 0
+					of.write("%.s, %s, %s, %s, %.2f, %.2f, %.2f" % (return_period, D, F, T00, M_sigma, Mmin, Mmax))
+				else:
 					raise Exception("CRISIS does not support EvenlyDiscretizedMFD !")
-				Mmin = mfd.min_mag
-				abl = alphabetalambda(a, b, Mmin)
-				beta = abl[1]
-				beta_cov = 0
-				lbd = abl[2]
-				Mmax_expected = mfd.max_mag
-				Mmax_stdev = 0
-				Mmax_lower_limit = mfd.max_mag
-				Mmax_upper_limit = mfd.max_mag
-				of.write("%.6f,%.6f,%s,%.2f,%.2f,%.2f,%.2f,%.2f\n" % (lbd, beta, beta_cov, Mmax_expected, Mmax_stdev, Mmax_lower_limit, Mmin, Mmax_upper_limit))
 				of.write(" 0\n")
 
 	## Additional background maps

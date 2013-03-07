@@ -383,6 +383,11 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 			Mmin = M
 			occurrence_rates = [1./return_period]
 		EvenlyDiscretizedMFD.__init__(self, Mmin+bin_width/2, bin_width, occurrence_rates, Mtype=Mtype)
+		self.M_sigma = M_sigma
+
+	@property
+	def return_period(self):
+		return 1. / np.sum(self.occurrence_rates)
 
 
 class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
