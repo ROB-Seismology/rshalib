@@ -11,7 +11,7 @@ from matplotlib import pyplot
 
 from openquake.hazardlib.scalerel import WC1994
 
-import mapping.MIPython as MI
+#import mapping.MIPython as MI
 from eqcatalog.source_models import rob_source_models_dict
 
 from ..mfd import TruncatedGRMFD, EvenlyDiscretizedMFD
@@ -47,11 +47,15 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	:return:
 		SourceModel object.
 	"""
+	from mapping.geo.readGIS import read_GIS_file
+
 	## Initialze MapInfo
-	miApp = MI.Application(maximize=False)
+	#miApp = MI.Application(maximize=False)
 
 	rob_source_model = rob_source_models_dict[source_model_name]
-	source_rec_table = miApp.OpenTable(rob_source_model['tab_filespec'])
+	#source_rec_table = miApp.OpenTable(rob_source_model['tab_filespec'])
+	source_records = read_GIS_file(rob_source_model['tab_filespec'])
+
 	## Override default column map
 	default_column_map = rob_source_model['column_map']
 	for key in default_column_map:
@@ -61,7 +65,7 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 		column_map["min_mag"] = min_mag
 
 	sources = []
-	for source_rec in source_rec_table:
+	for source_rec in source_records:
 		source_id = source_rec.get(column_map["id"])
 		max_mag = source_rec.get(column_map["max_mag"], column_map["max_mag"])
 		if max_mag > min_mag:
@@ -71,7 +75,7 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 				print("Discarding source %s: zero or negative b value" % source_id)
 		else:
 			print("Discarding source %s: Mmax (%s) <= Mmin (%s)" % (source_id, max_mag, min_mag))
-	source_rec_table.Close()
+	#source_rec_table.Close()
 	source_model = SourceModel(source_model_name, sources)
 	return source_model
 
@@ -94,7 +98,8 @@ def create_rob_source(source_rec, column_map, **kwargs):
 		AreaSource or SimpleFaultSource object.
 	"""
 	## Decide which function to use based on MapInfo object type
-	function = {MI.OBJ_TYPE_REGION: create_rob_area_source, MI.OBJ_TYPE_PLINE: create_rob_simple_fault_source}[source_rec.obj_type]
+	#function = {MI.OBJ_TYPE_REGION: create_rob_area_source, MI.OBJ_TYPE_PLINE: create_rob_simple_fault_source}[source_rec.obj_type]
+	function = {"POLYGON": create_rob_area_source, "LINESTRING": create_rob_simple_fault_source}[source_rec["obj"].GetGeometryName()]
 	return function(source_rec, column_map=column_map, **kwargs)
 
 
@@ -192,6 +197,7 @@ def create_rob_area_source(
 		hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
 	## set polygon
 	if not polygon:
+		"""
 		miApp = source_rec._MIapp
 		coordsys = miApp.GetCurrentCoordsys()
 		miApp.SetCoordsys(MI.Coordsys(1,0))
@@ -205,6 +211,14 @@ def create_rob_area_source(
 			points.append(Point(node.x, node.y))
 		polygon = Polygon(points)
 		miApp.SetCoordsys(coordsys)
+		"""
+		points = []
+		zone_poly = source_rec['obj']
+		## Assume outer outline corresponds to first linear ring
+		linear_ring = zone_poly.GetGeometryRef(0)
+		points = linear_ring.GetPoints()
+		polygon = Polygon([Point(*pt) for pt in points])
+
 	## initiate AreaSource object
 	area_source = AreaSource(
 		source_id,
@@ -288,6 +302,7 @@ def create_rob_simple_fault_source(
 
 	## Fault trace
 	if not fault_trace:
+		"""
 		miApp = source_rec._MIapp
 		coordsys = miApp.GetCurrentCoordsys()
 		miApp.SetCoordsys(MI.Coordsys(1,0))
@@ -296,6 +311,13 @@ def create_rob_simple_fault_source(
 			points.append(Point(node.x, node.y))
 		fault_trace = Line(points)
 		miApp.SetCoordsys(coordsys)
+		"""
+
+		points = []
+		zone_poly = source_rec['obj']
+		linear_ring = zone_poly.GetGeometryRef(0)
+		points = linear_ring.GetPoints()
+		fault_trace = Line([Point(*pt) for pt in points])
 
 	## Dip
 	if isinstance(column_map['dip'], (int, float)):
