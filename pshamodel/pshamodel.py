@@ -314,7 +314,7 @@ class PSHAModelBase(object):
 		if isinstance(self.grid_spacing, (str, unicode)) and self.grid_spacing[-2:] == 'km':
 			grid_spacing_km = float(self.grid_spacing[:-2])
 		else:
-			central_latitude = numpy.mean([site[1] for site in self.grid_outline])
+			central_latitude = np.mean([site[1] for site in self.grid_outline])
 			grid_spacing_km1 = self._degree_to_km(self.grid_spacing[0], central_latitude)
 			grid_spacing_km2 = self._degree_to_km(self.grid_spacing[1])
 			grid_spacing_km = min(grid_spacing_km1, grid_spacing_km2)
@@ -325,7 +325,7 @@ class PSHAModelBase(object):
 		"""
 		Return grid spacing in degrees as a tuple
 		"""
-		central_latitude = numpy.mean([site[1] for site in self.grid_outline])
+		central_latitude = np.mean([site[1] for site in self.grid_outline])
 		if isinstance(self.grid_spacing, (str, unicode)) and self.grid_spacing[-2:] == 'km':
 			grid_spacing_km = float(self.grid_spacing[:-2])
 			grid_spacing_lon = self._km_to_degree(grid_spacing_km, central_latitude)
@@ -486,6 +486,8 @@ class PSHAModel(PSHAModelBase):
 		"""
 		## set OQ_params object and override with params from user_params
 		params = OQ_Params(calculation_mode='classical', description=self.name)
+		params.mean_hazard_curves = False
+		params.quantile_hazard_curves = []
 		if user_params:
 			for key in user_params:
 				setattr(params, key, user_params[key])

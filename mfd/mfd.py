@@ -315,7 +315,9 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		edi_elem = etree.Element(ns.EVENLY_DISCRETIZED_INCREMENTAL_MFD)
 		edi_elem.set(ns.MINIMUM_MAGNITUDE, str(self.min_mag))
 		edi_elem.set(ns.BIN_WIDTH, str(self.bin_width))
-		edi_elem.set(ns.OCCURRENCE_RATES, " ".join(map(str, self.occurrence_rates)))
+		#edi_elem.set(ns.OCCURRENCE_RATES, " ".join(map(str, self.occurrence_rates)))
+		occur_rates_elem = etree.SubElement(edi_elem, ns.OCCURRENCE_RATES)
+		occur_rates_elem.text = " ".join(map(str, self.occurrence_rates))
 		return edi_elem
 
 	def plot(self, color='k', style="o", label="", discrete=True, cumul_or_inc="both", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, fig_width=0, dpi=300):

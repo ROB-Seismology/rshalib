@@ -76,7 +76,7 @@ OQparams['rupture_mesh_spacing'] = rupture_mesh_spacing
 OQparams['area_source_discretization'] = area_discretization
 OQparams['width_of_mfd_bin'] = mfd_bin_width
 OQparams['export_dir'] = 'output'
-OQparams['mean_hazard_curves'] = True
+
 
 
 ### Create source model

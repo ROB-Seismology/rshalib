@@ -29,7 +29,8 @@ class GroundMotionSystem(LogicTree):
 			branchingLevel = LogicTreeBranchingLevel(branchingLevelID, [branchSet])
 			for j, (gmpe, weight) in enumerate(self.gmpe_system_dict[tectonicRegionType].items()):
 				branchID = "lbl%02d_lb%02d" % (i, j)
-				branch = LogicTreeBranch(branchID, nhlib.gsim.get_available_gsims()[gmpe], weight)
+				#branch = LogicTreeBranch(branchID, nhlib.gsim.get_available_gsims()[gmpe], weight)
+				branch = LogicTreeBranch(branchID, gmpe, weight)
 				branchSet.branches.append(branch)
 			self.branchingLevels.append(branchingLevel)
 

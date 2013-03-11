@@ -50,6 +50,16 @@ class PSHASite(Point):
 		else:
 			self.name = name
 
+	def __str__(self):
+		return self.name
+
+	def to_nhlib_soil_site(self, vs30=760., vs30measured=False, z1pt0=100., z2pt5=2.):
+		"""
+		Convert to a nhlib.site.Site object, representing a site with
+		soil characteristics
+		"""
+		return nhlib.site.Site(self, vs30, vs30measured, z1pt0, z2pt5)
+
 
 class SiteModel(nhlib.site.SiteCollection):
 	"""
