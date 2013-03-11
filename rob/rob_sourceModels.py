@@ -314,8 +314,7 @@ def create_rob_simple_fault_source(
 		"""
 
 		points = []
-		zone_poly = source_rec['obj']
-		linear_ring = zone_poly.GetGeometryRef(0)
+		linear_ring = source_rec['obj']
 		points = linear_ring.GetPoints()
 		fault_trace = Line([Point(*pt) for pt in points])
 
