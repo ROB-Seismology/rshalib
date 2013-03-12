@@ -193,6 +193,7 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2):
 	:return weights:
 		Numpy array with weights of distribution values
 	"""
+	#decimal.getcontext().prec = 4
 	val_range = max - min
 	mean = (min + max) / 2.
 	if val_range == 0. or num_bins == 1.:
@@ -208,10 +209,11 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2):
 		## Compute probability of area covered by each bin
 		weights = bin_edge_probs[1:] - bin_edge_probs[:-1]
 		## Normalize
+		weights = np.array([Decimal(w) for w in weights])
 		weights /= sum(weights)
 		## Check if and set sum == 1
-		if sum(weights) != Decimal(1.0):
-			weights[-1] = 1.0-(sum(weights[:-1]))
+		if sum(weights) != 1.0:
+			weights[-1] = 1.0 - sum(weights[:-1])
 	return bin_centers, weights
 
 
@@ -232,13 +234,14 @@ def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2):
 	:return weights:
 		Numpy array with weights of distribution values
 	"""
+	#decimal.getcontext().prec = 4
 	val_range = max - min
 	mean = (min + max) / 2.
 	sigma = val_range / (sigma_range * 2)
 	bin_edges = np.linspace(min, max, num_bins+1)
 	weights = stats.distributions.norm.pdf(bin_edges, loc=mean, scale=sigma)
-	weights /= sum(weights)
 	weights = np.array([Decimal(w) for w in weights])
+	weights /= sum(weights)
 	## Check if and set sum == 1
 	if sum(weights) != 1.0:
 		weights[-1] = 1 - sum(weights[:-1])
@@ -277,6 +280,7 @@ def get_uniform_weights(num_weights):
 	:return:
 		Numpy array (length equal to num_weights) of equal weights summing up to 1.0.
 	"""
+	#decimal.getcontext().prec = 4
 	weights = np.array([Decimal(1) for i in range(num_weights)])
 	weights /= Decimal(num_weights)
 

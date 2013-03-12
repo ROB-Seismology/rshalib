@@ -21,7 +21,7 @@ from ..source import AreaSource, SimpleFaultSource, SourceModel
 
 
 # set precision for weights calculation
-decimal.getcontext().prec = 4
+#decimal.getcontext().prec = 4
 
 
 def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, column_map={}, **kwargs):
