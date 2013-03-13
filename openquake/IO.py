@@ -8,12 +8,13 @@ import numpy as np
 
 from lxml import etree
 
-from hazard.rshalib.nrml import ns
-from hazard.rshalib.result import HazardCurveField, HazardMap
+from ..nrml import ns
+from ..result import HazardCurveField, HazardMap
 
 
 NRML = ns.NRML_NS
 GML = ns.GML_NS
+intensity_unit = {'PGD': 'cm', 'PGV': 'cms', 'PGA': 'g', 'SA': 'g'}
 
 
 def parse_hazard_curves(xml_filespec):
@@ -26,9 +27,9 @@ def parse_hazard_curves(xml_filespec):
 			model_name = (e.attrib['sourceModelTreePath'] + ' - '
 				+ e.attrib['gsimTreePath'])
 			IMT = e.attrib['IMT']
-			try:
+			if e.attrib.has_key('saPeriod'):
 				period = e.attrib['saPeriod']
-			except:
+			else:
 				period = 0
 			timespan = float(e.attrib['investigationTime'])
 		if e.tag == '{%s}IMLs' % NRML:
@@ -38,7 +39,7 @@ def parse_hazard_curves(xml_filespec):
 			sites.append(tuple(lon_lat))
 			poess.append(poes)
 	hcf = HazardCurveField(model_name, xml_filespec, sites, period, IMT,
-		intensities, timespan=timespan, poes=np.array(poess))
+		intensities, intensity_unit=intensity_unit[IMT], timespan=timespan, poes=np.array(poess))
 	return hcf
 
 
@@ -64,9 +65,9 @@ def parse_hazard_map(xml_filespec):
 			model_name = (e.attrib['sourceModelTreePath'] + ' - '
 				+ e.attrib['gsimTreePath'])
 			IMT = e.attrib['IMT']
-			try:
+			if e.attrib.has_key('saPeriod'):
 				period = e.attrib['saPeriod']
-			except:
+			else:
 				period = 0
 			timespan = float(e.attrib['investigationTime'])
 			poe = float(e.attrib['poE'])
@@ -77,7 +78,7 @@ def parse_hazard_map(xml_filespec):
 			iml = float(e.attrib['iml'])
 			intensities.append(iml)
 	hm = HazardMap(model_name, xml_filespec, sites, period, IMT,
-		np.array(intensities), timespan=timespan, poe=poe)
+		np.array(intensities), intensity_unit=intensity_unit[IMT], timespan=timespan, poe=poe)
 	return hm
 
 
@@ -310,12 +311,12 @@ def parse_hazard_map(xml_filespec):
 if __name__ == "__main__":
 	"""
 	"""
-#	xml_filespec = r'D:\Python\hazard\rshalib\test\nrml\hazard-curves-30.xml'
-#	hcf = parse_hazard_curves(xml_filespec)
-#	hcf.plot()
+	xml_filespec = r'D:\Python\hazard\rshalib\test\nrml\hazard-curves-30.xml'
+	hcf = parse_hazard_curves(xml_filespec)
+	hcf.plot()
 	
-	xml_filespec = r'D:\Python\hazard\rshalib\test\nrml\hazard-map-40.xml'
-	hm = parse_hazard_map(xml_filespec)
-	hm.plot()
+#	xml_filespec = r'D:\Python\hazard\rshalib\test\nrml\hazard-map-40.xml'
+#	hm = parse_hazard_map(xml_filespec)
+#	hm.plot()
 
 
