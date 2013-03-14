@@ -2962,7 +2962,7 @@ class HazardMap(HazardResult, HazardField):
 			vmgrd.WriteRow(row, (nrows-1)-rownr)
 		vmgrd.Close()
 
-	def plot(self, cmap=pylab.cm.jet, contour_interval=0.02, amin=0., amax=None, num_grid_cells=100, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
+	def plot(self, cmap=pylab.cm.jet, contour_interval=0.02, amin=0., amax=None, num_grid_cells=100, site_symbol=".", site_color="w", site_size=6, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
 		"""
 		Plot hazard map
 
@@ -2975,7 +2975,16 @@ class HazardMap(HazardResult, HazardField):
 		:param amax:
 			Float, maximum ground-motion level to contour (default: None)
 		:param num_grid_cells:
-			Int, number of grid cells used for interpolating intensity grid (default: 100)
+			Int, number of grid cells used for interpolating intensity grid
+			(default: 100)
+		:param site_symbol:
+			Char, matplotlib symbol specification for plotting site points
+			(default: ".")
+		:param site_color:
+			matplotlib color specification for plotting site point symbols
+			(default: "w")
+		:param site_size:
+			Int, size of site point symbols (default: 6)
 		:param region:
 			(w, e, s, n) tuple specifying rectangular region to plot in
 			geographic coordinates (default: None)
@@ -3044,12 +3053,13 @@ class HazardMap(HazardResult, HazardField):
 		cbar = map.colorbar(cs, location='bottom', pad="10%")
 
 		## Intensity data points
-		x, y = map(longitudes, latitudes)
-		map.scatter(x, y, s=12, marker='.', edgecolors='w', facecolors='w', label=None)
+		if site_symbol:
+			x, y = map(longitudes, latitudes)
+			map.scatter(x, y, s=site_size, marker=site_symbol, facecolors=site_color, label=None)
 
 		## Coastlines and national boundaries
-		map.drawcoastlines()
-		map.drawcountries()
+		map.drawcoastlines(linewidth=2, color="w")
+		map.drawcountries(linewidth=2, color="w")
 
 		## Source model
 		if source_model:
