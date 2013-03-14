@@ -10,6 +10,7 @@ from lxml import etree
 
 from ..nrml import ns
 from ..result import HazardCurveField, HazardMap
+from ..site import PSHASite
 
 
 NRML = ns.NRML_NS
@@ -36,7 +37,8 @@ def parse_hazard_curves(xml_filespec):
 			intensities = np.array(e.text.split(), dtype=float)
 		if e.tag == '{%s}hazardCurve' % NRML:
 			lon_lat, poes = parse_hazard_curve(e)
-			sites.append(tuple(lon_lat))
+			#sites.append(tuple(lon_lat))
+			sites.append(PSHASite(*lon_lat))
 			poess.append(poes)
 	hcf = HazardCurveField(model_name, xml_filespec, sites, period, IMT,
 		intensities, intensity_unit=intensity_unit[IMT], timespan=timespan, poes=np.array(poess))
@@ -48,11 +50,11 @@ def parse_hazard_curve(hazard_curve):
 	"""
 	for e in hazard_curve.iter():
 		if e.tag == '{%s}pos' % GML:
-			lon_lat = str(e.text).split()
+			lon, lat = map(float, str(e.text).split())
 		if e.tag == '{%s}poEs' % NRML:
 			poes = np.array(e.text.split(), dtype=float)
 			poes[np.where(poes==0)] = 10**-15
-	return lon_lat, poes
+	return (lon, lat), poes
 
 
 def parse_hazard_map(xml_filespec):
@@ -74,7 +76,7 @@ def parse_hazard_map(xml_filespec):
 		if e.tag == '{%s}node' % NRML:
 			lon = float(e.attrib['lon'])
 			lat = float(e.attrib['lat'])
-			sites.append((lon, lat))
+			sites.append(PSHASite(lon, lat))
 			iml = float(e.attrib['iml'])
 			intensities.append(iml)
 	hm = HazardMap(model_name, xml_filespec, sites, period, IMT,
@@ -314,7 +316,7 @@ if __name__ == "__main__":
 	xml_filespec = r'D:\Python\hazard\rshalib\test\nrml\hazard-curves-30.xml'
 	hcf = parse_hazard_curves(xml_filespec)
 	hcf.plot()
-	
+
 #	xml_filespec = r'D:\Python\hazard\rshalib\test\nrml\hazard-map-40.xml'
 #	hm = parse_hazard_map(xml_filespec)
 #	hm.plot()

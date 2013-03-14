@@ -306,10 +306,10 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		min_lon, max_lon = min(lons), max(lons)
 		min_lat, max_lat = min(lats), max(lats)
 		## Round min/max lon/lat to multiples of grid_spacing
-		min_lon = np.ceil((min_lon / grid_spacing[0]) * grid_spacing[0])
-		max_lon = np.floor((max_lon / grid_spacing[0]) * grid_spacing[0])
-		min_lat = np.ceil((min_lat / grid_spacing[1]) * grid_spacing[1])
-		max_lat = np.floor((max_lat / grid_spacing[1]) * grid_spacing[1])
+		min_lon = np.ceil((min_lon / grid_spacing[0])) * grid_spacing[0]
+		max_lon = np.floor((max_lon / grid_spacing[0])) * grid_spacing[0]
+		min_lat = np.ceil((min_lat / grid_spacing[1])) * grid_spacing[1]
+		max_lat = np.floor((max_lat / grid_spacing[1])) * grid_spacing[1]
 		grid_origin = (min_lon, min_lat)
 		num_grid_lons = ((max_lon - min_lon) / grid_spacing[0]) + 1
 		num_grid_lats = ((max_lat - min_lat) / grid_spacing[1]) + 1

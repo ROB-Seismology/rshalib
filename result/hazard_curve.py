@@ -7,7 +7,7 @@ Blueprint for classes representing hazard results of both OpenQuake and CRISIS
 
 ### imports
 import os, sys
-import numpy
+import numpy as np
 
 from scipy.stats import scoreatpercentile
 import pylab
@@ -70,11 +70,11 @@ def Poisson(life_time=None, return_period=None, prob=None):
 		parameters
 	"""
 	if life_time != None and prob != None:
-		return -life_time / numpy.log(1.0 - prob)
+		return -life_time / np.log(1.0 - prob)
 	elif return_period != None and prob != None:
-		return -return_period * numpy.log(1.0 - prob)
+		return -return_period * np.log(1.0 - prob)
 	elif life_time != None and return_period != None:
-		return 1.0 - numpy.exp(-life_time / return_period)
+		return 1.0 - np.exp(-life_time / return_period)
 	else:
 		raise TypeError("Need to specify 2 parameters")
 
@@ -85,14 +85,14 @@ def interpolate(xin, yin, xout):
 	"""
 	## Scipy and numpy interpolation don't work as exceedance rates
 	## are in decreasing order
-	#if numpy.all(numpy.diff(xin) < 0):
+	#if np.all(np.diff(xin) < 0):
 	#	xin, yin = xin[::-1], yin[::-1]
 	## SciPy
 	#interpolator = interp1d(xin, yin, bounds_error=False)
 	#yout = interpolator(xout)
 
 	## Numpy
-	#yout = numpy.interp(xout, xin, yin)
+	#yout = np.interp(xout, xin, yin)
 
 	## CWP intlin
 	yout = intlin(xin, yin, xout)
@@ -106,7 +106,7 @@ def as_array(values):
 	if values in ([], None) or values[0] == None:
 		values = None
 	else:
-		values = {True: values, False: numpy.array(values, dtype='d')}[isinstance(values, numpy.ndarray)]
+		values = {True: values, False: np.array(values, dtype='d')}[isinstance(values, np.ndarray)]
 	return values
 
 
@@ -200,13 +200,13 @@ class HazardSpectrum:
 	def period_index(self, period_spec):
 		if isinstance(period_spec, int):
 			period_index = period_spec
-		elif isinstance(period_spec, (float, numpy.floating)):
+		elif isinstance(period_spec, (float, np.floating)):
 			if len(self.periods) > 1:
 				min_diff = abs(self.periods[1:] - self.periods[:-1]).min()
 				min_diff = min(min_diff, 1E-3)
 			else:
 				min_diff = 1E-3
-			period_index = numpy.where(numpy.abs(self.periods - period_spec) < min_diff)[0][0]
+			period_index = np.where(np.abs(self.periods - period_spec) < min_diff)[0][0]
 		else:
 			raise Exception("Invalid period specification: %s" % period_spec)
 		return period_index
@@ -238,14 +238,14 @@ class HazardField:
 		"""
 		Return array with longitudes of all sites
 		"""
-		return numpy.array([site[0] for site in self.sites])
+		return np.array([site[0] for site in self.sites])
 
 	@property
 	def latitudes(self):
 		"""
 		Return array with latitudes of all sites
 		"""
-		return numpy.array([site[1] for site in self.sites])
+		return np.array([site[1] for site in self.sites])
 
 	def lonmin(self):
 		"""
@@ -271,45 +271,60 @@ class HazardField:
 		"""
 		return self.latitudes.max()
 
-	@property
-	def grid_longitudes(self):
+	def get_grid_longitudes(self, num_cells=100):
 		"""
-		Return ordered array of unique longitudes
-		"""
-		unique_lons = list(set(self.longitudes))
-		unique_lons.sort()
-		return unique_lons
+		Return array of equally spaced longitudes
 
-	def meshgrid(self):
+		:param num_cells:
+			Integer, number of grid cells
+		"""
+		#unique_lons = list(set(self.longitudes))
+		#unique_lons.sort()
+		#return unique_lons
+		return np.linspace(self.lonmin(), self.lonmax(), num_cells)
+
+	def get_grid_latitudes(self, num_cells=100):
+		"""
+		Return array of equally spaced latitudes
+
+		:param num_cells:
+			Integer, number of grid cells
+		"""
+		#unique_lats = list(set(self.latitudes))
+		#unique_lats.sort()
+		#return unique_lats
+		return np.linspace(self.latmin(), self.latmax(), num_cells)
+
+	def meshgrid(self, num_cells=100):
 		"""
 		Return longitude and latitude matrices of the grid
-		"""
-		return numpy.meshgrid(self.grid_longitudes, self.grid_latitudes)
 
-	@property
-	def grid_latitudes(self):
+		:param num_cells:
+			Integer, number of grid cells in X and Y direction
 		"""
-		Return ordered array of unique latitudes
-		"""
-		unique_lats = list(set(self.latitudes))
-		unique_lats.sort()
-		return unique_lats
+		return np.meshgrid(self.get_grid_longitudes(num_cells), self.get_grid_latitudes(num_cells))
 
-	@property
-	def grid_shape(self):
+	def get_grid_intensities(self, num_cells=100):
 		"""
-		Return two-tuple with grid dimensions
-		"""
-		return(len(self.grid_latitudes), len(self.grid_longitudes))
+		Convert intensities to a spatial grid (2-D array)
 
-	@property
-	def grid_properties(self):
+		:param num_cells:
+			Integer, number of grid cells in X and Y direction
+		"""
+		from scipy.interpolate import griddata
+		x, y = self.longitudes, self.latitudes
+		xi, yi = self.get_grid_longitudes(num_cells), self.get_grid_latitudes(num_cells)
+		z = self.intensities
+		zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method='cubic')
+		return zi
+
+	def get_grid_properties(self):
 		"""
 		Return nested tuple with grid extent and spacing in both dimensions:
 		((lonmin, lonmax, dlon), (latmin, latmax, dlat))
 		"""
-		grid_longitudes = self.grid_longitudes
-		grid_latitudes = self.grid_latitudes
+		grid_longitudes = self.get_grid_longitudes()
+		grid_latitudes = self.get_grid_latitudes()
 		dlon = grid_longitudes[1] - grid_longitudes[0]
 		dlat = grid_latitudes[1] - grid_latitudes[0]
 		lonmin, lonmax = grid_longitudes[0], grid_longitudes[-1]
@@ -330,26 +345,29 @@ class HazardField:
 			raise Exception("Invalid site specification: %s" % site_spec)
 		return site_index
 
-	def grid_index(self, site):
+	## Note: the following functions are obsolete
+	def get_grid_index(self, site):
 		"""
 		Return grid index (row, col) for given site
 		"""
 		lon, lat = site
-		(lonmin, lonmax, dlon), (latmin, latmax, dlat) = self.grid_properties
+		(lonmin, lonmax, dlon), (latmin, latmax, dlat) = self.get_grid_properties()
 		col = int(round((lon - lonmin) / dlon))
 		row = int(round((lat - latmin) / dlat))
 		return row, col
 
-	@property
-	def grid_indexes(self):
+	def get_grid_indexes(self):
 		"""
 		Return two arrays with row and column indexes of all sites
 		"""
-		rows = numpy.zeros(len(self.sites), dtype='i')
-		cols = numpy.zeros(len(self.sites), dtype='i')
-		(lonmin, lonmax, dlon), (latmin, latmax, dlat) = self.grid_properties
+		rows = np.zeros(len(self.sites), dtype='i')
+		cols = np.zeros(len(self.sites), dtype='i')
+		(lonmin, lonmax, dlon), (latmin, latmax, dlat) = self.get_grid_properties()
 		for i, site in enumerate(self.sites):
-			lon, lat = site
+			try:
+				lon, lat = site
+			except ValueError:
+				lon, lat = site.longitude, site.latitude
 			cols[i] = int(round((lon - lonmin) / dlon))
 			rows[i] = int(round((lat - latmin) / dlat))
 		return rows, cols
@@ -364,7 +382,7 @@ class HazardTree(HazardResult):
 		HazardResult.__init__(self, timespan=timespan, poes=poes, exceedance_rates=exceedance_rates, return_periods=return_periods, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
 		self.branch_names = branch_names
 		if weights in ([], None):
-			weights = numpy.ones(len(branch_names), 'd') / len(branch_names)
+			weights = np.ones(len(branch_names), 'd') / len(branch_names)
 		self.weights = as_array(weights)
 		self.set_mean(mean)
 		self.set_percentiles(percentiles, percentile_levels)
@@ -423,7 +441,7 @@ class HazardTree(HazardResult):
 		"""
 		Return total weight of all branches
 		"""
-		return numpy.add.reduce(self.weights)
+		return np.add.reduce(self.weights)
 
 	def normalize_weights(self):
 		"""
@@ -591,15 +609,15 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		num_intensities = shcf0.num_intensities
 
 		if shcf0._exceedance_rates != None:
-			all_exceedance_rates = numpy.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
+			all_exceedance_rates = np.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
 			all_exceedance_rates[:,0,:,:] = shcf0._exceedance_rates
 			all_poes = None
 		else:
 			all_exceedance_rates = None
-			all_poes = numpy.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
+			all_poes = np.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
 			all_poes[:,0,:,:] = shcf0._poes
 		if shcf0.variances != None:
-			all_variances = numpy.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
+			all_variances = np.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
 			all_variances[:,0,:,:] = shcf0.variances
 		else:
 			all_variances = None
@@ -608,7 +626,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		if branch_names in (None, []):
 			branch_names = [shcf.model_name for shcf in shcf_list]
 		if weights in (None, []):
-			weights = numpy.ones(num_models, 'f') / num_models
+			weights = np.ones(num_models, 'f') / num_models
 
 		shcft = SpectralHazardCurveFieldTree(model_name, branch_names, filespecs, weights, shcf0.sites, shcf0.periods, shcf0.IMT, shcf0.intensities, shcf0.intensity_unit, shcf0.timespan, poes=all_poes, exceedance_rates=all_exceedance_rates, variances=all_variances, site_names=shcf0.site_names)
 
@@ -630,7 +648,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 
 		if percentiles != None:
 			num_percentiles = len(percentiles)
-			perc_array = numpy.zeros((num_sites, num_periods, num_intensities, num_percentiles), 'd')
+			perc_array = np.zeros((num_sites, num_periods, num_intensities, num_percentiles), 'd')
 			for p in range(num_percentiles):
 				shcf = percentiles[p]
 				shcft.check_shcf_compatibility(shcf)
@@ -680,16 +698,16 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		self.branch_names.append(branch_name)
 		self.filespecs.append(shcf.filespecs[0])
 		## Do not recompute weights, assume they are correct
-		self.weights = numpy.concatenate([self.weights, [weight]])
+		self.weights = np.concatenate([self.weights, [weight]])
 		shape = (self.num_sites, 1, self.num_periods, self.num_intensities)
 		if self._exceedance_rates != None:
-			self._exceedance_rates = numpy.concatenate([self._exceedance_rates, shcf.exceedance_rates.reshape(shape)], axis=1)
+			self._exceedance_rates = np.concatenate([self._exceedance_rates, shcf.exceedance_rates.reshape(shape)], axis=1)
 		if self._poes != None:
-			self._poes = numpy.concatenate([self._poes, shcf.poes.reshape(shape)], axis=1)
+			self._poes = np.concatenate([self._poes, shcf.poes.reshape(shape)], axis=1)
 		if self.variances != None:
 			## Note: this is only correct if both shcft and shcf are of the same type
 			## (exceedance rates or probabilities of exceedance)
-			self.variances = numpy.concatenate([self.variances, shcf.variances.reshape(shape)], axis=1)
+			self.variances = np.concatenate([self.variances, shcf.variances.reshape(shape)], axis=1)
 
 	def getSpectralHazardCurveField(self, branch_spec=0):
 		"""
@@ -772,9 +790,9 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			mean exceedance rates: 3-D array [i,k,l]
 		"""
 		if weighted:
-			return numpy.average(self.exceedance_rates, weights=self.weights, axis=1)
+			return np.average(self.exceedance_rates, weights=self.weights, axis=1)
 		else:
-			return numpy.mean(self.exceedance_rates, axis=1)
+			return np.mean(self.exceedance_rates, axis=1)
 
 	def calc_variance_of_mean(self, weighted=True):
 		"""
@@ -788,14 +806,14 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		if weighted and not self.weights in ([], None):
 			# TODO: this needs to be checked
 			mean = self.calc_mean(weighted=True)
-			weights = numpy.array(self.weights)
+			weights = np.array(self.weights)
 			weights_column = weights.reshape((self.num_branches, 1))
-			variance_of_mean = numpy.zeros((self.num_sites, self.num_periods, self.num_intensities), 'd')
+			variance_of_mean = np.zeros((self.num_sites, self.num_periods, self.num_intensities), 'd')
 			for i in range(self.num_sites):
 				for k in range(self.num_periods):
-					variance_of_mean[i,k] = numpy.add.reduce(weights_column * (self.exceedance_rates[i,:,k] - mean[i,k])**2, axis=0)
+					variance_of_mean[i,k] = np.add.reduce(weights_column * (self.exceedance_rates[i,:,k] - mean[i,k])**2, axis=0)
 		else:
-			 variance_of_mean = numpy.var(self.exceedance_rates, axis=1)
+			 variance_of_mean = np.var(self.exceedance_rates, axis=1)
 		return variance_of_mean
 
 	def calc_mean_variance(self, weighted=True):
@@ -809,9 +827,9 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		"""
 		if self.variances != None:
 			if weighted:
-				mean_variance = numpy.average(self.variances, weights=self.weights, axis=1)
+				mean_variance = np.average(self.variances, weights=self.weights, axis=1)
 			else:
-				mean_variance = numpy.mean(self.variances, axis=1)
+				mean_variance = np.mean(self.variances, axis=1)
 		else:
 			mean_variance = None
 		return mean_variance
@@ -832,7 +850,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			percentile_levels = [5, 16, 50, 84, 95]
 		num_sites, num_periods, num_intensities = self.num_sites, self.num_periods, self.num_intensities
 		num_percentiles = len(percentile_levels)
-		percentiles = numpy.zeros((num_sites, num_periods, num_intensities, num_percentiles))
+		percentiles = np.zeros((num_sites, num_periods, num_intensities, num_percentiles))
 		for i in range(num_sites):
 			for k in range(num_periods):
 				for l in range(num_intensities):
@@ -921,7 +939,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			perc_indexes = []
 			for perc in percentile_levels:
 				try:
-					perc_index = numpy.where(shcft.percentile_levels == perc)[0][0]
+					perc_index = np.where(shcft.percentile_levels == perc)[0][0]
 				except:
 					raise Exception("Percentile level %s not found in file %s!" % (perc, agr_filespec))
 				perc_indexes.append(perc_index)
@@ -988,7 +1006,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		weights = self.weights[branch_indexes]
 		## Recompute branch weights
 		if normalize_weights:
-			weight_sum = numpy.add.reduce(weights)
+			weight_sum = np.add.reduce(weights)
 			weights /= weight_sum
 		sites = self.sites
 		periods = self.periods
@@ -1017,13 +1035,13 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			UHSFieldTree object
 		"""
 		num_sites, num_periods, num_models = self.num_sites, self.num_periods, self.num_models
-		rp_intensities = numpy.zeros((num_sites, num_models, num_periods), dtype='d')
+		rp_intensities = np.zeros((num_sites, num_models, num_periods), dtype='d')
 		if self.mean not in (None, []):
-			rp_mean = numpy.zeros((num_sites, num_periods), dtype='d')
+			rp_mean = np.zeros((num_sites, num_periods), dtype='d')
 		else:
 			rp_mean = None
 		if self.percentiles not in (None, []):
-			rp_percentiles = numpy.zeros((num_sites, num_periods, self.num_percentiles), dtype='d')
+			rp_percentiles = np.zeros((num_sites, num_periods, self.num_percentiles), dtype='d')
 		else:
 			rp_percentiles = None
 		interpol_exceedance = 1. / return_period
@@ -1048,22 +1066,22 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		"""
 		num_sites, num_branches, num_intensities = self.num_sites, self.num_branches, self.num_intensities
 		if self._exceedance_rates != None:
-			out_exceedance_rates = numpy.zeros((num_sites, num_branches, len(out_periods), num_intensities), dtype='d')
+			out_exceedance_rates = np.zeros((num_sites, num_branches, len(out_periods), num_intensities), dtype='d')
 			out_poes = None
 		else:
 			out_exceedance_rates = None
-			out_poes = numpy.zeros((num_sites, num_branches, len(out_periods), num_intensities), dtype='d')
+			out_poes = np.zeros((num_sites, num_branches, len(out_periods), num_intensities), dtype='d')
 		if self.variances != None:
-			out_variances = numpy.zeros((num_sites, num_branches, len(out_periods), num_intensities), dtype='d')
+			out_variances = np.zeros((num_sites, num_branches, len(out_periods), num_intensities), dtype='d')
 		else:
 			out_variances = None
 		if self.mean != None:
-			out_mean = numpy.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
+			out_mean = np.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
 		else:
 			out_mean = None
 		if self.percentiles != None:
 			num_percentiles = self.num_percentiles
-			out_percentiles = numpy.zeros((num_sites, len(out_periods), num_intensities, num_percentiles), dtype='d')
+			out_percentiles = np.zeros((num_sites, len(out_periods), num_intensities, num_percentiles), dtype='d')
 
 		for i in range(num_sites):
 			for j in range(num_branches):
@@ -1475,7 +1493,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			variances = None
 		branch_names = [self.model_name]
 		filespecs = [self.filespecs[0]]
-		weights = numpy.array([1.], 'd')
+		weights = np.array([1.], 'd')
 		return SpectralHazardCurveFieldTree(self.model_name, branch_names, filespecs, weights, self.sites, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, exceedance_rates=exceedance_rates, poes=poes, variances=variances, site_names=self.site_names)
 
 	def interpolate_return_periods(self, return_periods):
@@ -1487,9 +1505,9 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			UHSFieldSet object
 		"""
 		filespecs = [self.filespecs[0]] * len(return_periods)
-		return_periods = numpy.array(return_periods)
+		return_periods = np.array(return_periods)
 		num_sites, num_periods = self.num_sites, self.num_periods
-		rp_intensities = numpy.zeros((len(return_periods), num_sites, num_periods))
+		rp_intensities = np.zeros((len(return_periods), num_sites, num_periods))
 		interpol_exceedances = 1. / return_periods
 		for i in range(num_sites):
 			for k in range(num_periods):
@@ -1506,13 +1524,13 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		"""
 		num_sites, num_intensities = self.num_sites, self.num_intensities
 		if self._exceedance_rates != None:
-			out_exceedance_rates = numpy.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
+			out_exceedance_rates = np.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
 			out_poes = None
 		else:
 			out_exceedance_rates = None
-			out_poes = numpy.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
+			out_poes = np.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
 		if self.variances != None:
-			out_variances = numpy.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
+			out_variances = np.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
 		else:
 			out_variances = None
 
@@ -1764,7 +1782,7 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 			UHS object
 		"""
 		num_periods = self.num_periods
-		rp_intensities = numpy.zeros(num_periods)
+		rp_intensities = np.zeros(num_periods)
 		interpol_exceedance_rate = 1. / return_period
 		for k in range(num_periods):
 			rp_intensities[k] = interpolate(self.exceedance_rates[k], self.intensities[k], [interpol_exceedance_rate])[0]
@@ -1784,16 +1802,16 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 			in_periods = self.periods
 			num_intensities = self.num_intensities
 			if self._exceedance_rates != None:
-				out_exceedance_rates = numpy.zeros((len(out_periods), num_intensities), dtype='d')
+				out_exceedance_rates = np.zeros((len(out_periods), num_intensities), dtype='d')
 				out_poes = None
 			else:
 				out_exceedance_rates = None
-				out_poes = numpy.zeros((len(out_periods), num_intensities), dtype='d')
+				out_poes = np.zeros((len(out_periods), num_intensities), dtype='d')
 			if self.variances != None:
-				out_variances = numpy.zeros((len(out_periods), num_intensities), dtype='d')
+				out_variances = np.zeros((len(out_periods), num_intensities), dtype='d')
 			else:
 				out_variances = None
-			out_period_intensities = numpy.zeros((len(out_periods), num_intensities), dtype='d')
+			out_period_intensities = np.zeros((len(out_periods), num_intensities), dtype='d')
 
 			for k in range(len(out_periods)):
 				## if k is close to an in_period, take over the corresponding intensities,
@@ -1802,10 +1820,10 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 				## and then interpolate at the wanted period
 				threshold = 1E-6
 				try:
-					id = numpy.where(abs(in_periods - out_periods[k]) < threshold)[0][0]
+					id = np.where(abs(in_periods - out_periods[k]) < threshold)[0][0]
 				except IndexError:
-					id1 = numpy.where(in_periods < out_periods[k])[0][-1]
-					id2 = numpy.where(in_periods > out_periods[k])[0][0]
+					id1 = np.where(in_periods < out_periods[k])[0][-1]
+					id2 = np.where(in_periods > out_periods[k])[0][0]
 					Imin = min(self.intensities[id1][0], self.intensities[id2][0])
 					Imax = min(self.intensities[id1][-1], self.intensities[id2][-1])
 					#Imin, Imax = self.intensities[id1][0], self.intensities[id1][-1]
@@ -2071,8 +2089,8 @@ class HazardCurveField(HazardResult, HazardField):
 			HazardMapSet object
 		"""
 		filespecs = [self.filespec] * len(return_periods)
-		return_periods = numpy.array(return_periods)
-		rp_intensities = numpy.zeros((len(return_periods), self.num_sites))
+		return_periods = np.array(return_periods)
+		rp_intensities = np.zeros((len(return_periods), self.num_sites))
 		interpol_exceedances = 1. / return_periods
 		for i in range(num_sites):
 				rp_intensities[:,i] = interpolate(self.exceedance_rates[i], self.intensities, interpol_exceedances)
@@ -2226,7 +2244,7 @@ class HazardCurve(HazardResult):
 		Return value:
 			1-D array of intensity measure levels
 		"""
-		return_periods = numpy.array(return_periods, 'd')
+		return_periods = np.array(return_periods, 'd')
 		interpol_exceedance_rates = 1. / return_periods
 		rp_intensities = interpolate(self.exceedance_rates, self.intensities, interpol_exceedance_rates)
 		return rp_intensities
@@ -2405,21 +2423,21 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		and then interpolating at a particular return period
 		"""
 		if weighted:
-			return numpy.average(self.intensities, weights=self.weights, axis=1)
+			return np.average(self.intensities, weights=self.weights, axis=1)
 		else:
-			return numpy.mean(self.intensities, axis=1)
+			return np.mean(self.intensities, axis=1)
 
 	def calc_variance_of_mean(self, weighted=True):
 		if weighted and not self.weights in ([], None):
 			mean = self.calc_mean(weighted=True)
-			weights = numpy.array(self.weights)
+			weights = np.array(self.weights)
 			weights_column = weights.reshape((self.num_branches, 1))
-			variance_of_mean = numpy.zeros((self.num_sites, self.num_periods), 'd')
+			variance_of_mean = np.zeros((self.num_sites, self.num_periods), 'd')
 			for i in range(self.num_sites):
 				for k in range(self.num_periods):
-					variance_of_mean[i,k] = numpy.add.reduce(weights_column * (self.intensities[i,:,k] - mean[i,k])**2, axis=0)
+					variance_of_mean[i,k] = np.add.reduce(weights_column * (self.intensities[i,:,k] - mean[i,k])**2, axis=0)
 		else:
-			 variance_of_mean = numpy.var(self.intensities, axis=1)
+			 variance_of_mean = np.var(self.intensities, axis=1)
 		return variance_of_mean
 
 	def calc_percentiles(self, percentile_levels, weighted=True):
@@ -2427,7 +2445,7 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 			percentile_levels = [5, 16, 50, 84, 95]
 		num_sites, num_periods = self.num_sites, self.num_periods
 		num_percentiles = len(percentile_levels)
-		percentiles = numpy.zeros((num_sites, num_periods, num_percentiles))
+		percentiles = np.zeros((num_sites, num_periods, num_percentiles))
 		for i in range(num_sites):
 			for k in range(num_periods):
 				if weighted:
@@ -2730,11 +2748,11 @@ class UHSFieldSet(HazardResult, HazardField, HazardSpectrum):
 	def getUHSField(self, index=None, poe=None, return_period=None):
 		if index is None:
 			if poe is not None:
-				index = numpy.where(numpy.abs(self.poes - poe) < 1E-12)[0]
+				index = np.where(np.abs(self.poes - poe) < 1E-12)[0]
 				if len(index) == 0:
 					raise ValueError("No UHS field for poE=%s" % poe)
 			elif return_period is not None:
-				index = numpy.where(numpy.abs(self.return_periods - return_period) < 1E-12)[0]
+				index = np.where(np.abs(self.return_periods - return_period) < 1E-12)[0]
 				if len(index) == 0:
 					raise ValueError("No UHS field for return period=%s" % return_period)
 
@@ -2752,7 +2770,7 @@ class UHSFieldSet(HazardResult, HazardField, HazardSpectrum):
 		Should yield a HazardMapSet
 		"""
 		num_sites, num_rp = self.num_sites, len(self.return_periods)
-		period_intensities = numpy.zeros((num_rp, num_sites))
+		period_intensities = np.zeros((num_rp, num_sites))
 		for i in range(num_sites):
 			for p in range(num_rp):
 				period_intensities[p,i] = interpolate(self.periods, self.intensities[p,i], [period])
@@ -2919,17 +2937,7 @@ class HazardMap(HazardResult, HazardField):
 		hm = HazardMap(model_name, filespec, sites, period, IMT, intensities, intensity_unit, timespan, poe, return_period, site_names, vs30s)
 		return hm
 
-	def create_grid(self):
-		"""
-		Convert intensities to a spatial grid (2-D array)
-		"""
-		intensity_grid = numpy.zeros(self.grid_shape, dtype='d')
-		row_indexes, col_indexes = self.grid_indexes
-		for row, col, intensity in zip(row_indexes, col_indexes, self.intensities):
-			intensity_grid[row,col] = intensity
-		return intensity_grid
-
-	def export_VM(self, base_filespec):
+	def export_VM(self, base_filespec, num_cells=100):
 		"""
 		Export hazard map to a Vertical Mapper grid
 		"""
@@ -2941,67 +2949,142 @@ class HazardMap(HazardResult, HazardField):
 		rp_label = "%.3Gyr" % self.return_period
 		grd_filespec = os.path.splitext(base_filespec)[0] + "_%s_%s" % (imt_label, rp_label)
 
-		(lonmin, lonmax, dlon), (latmin, latmax, dlat) = self.grid_properties
+		(lonmin, lonmax, dlon), (latmin, latmax, dlat) = self.get_grid_properties()
 		assert abs(dlon - dlat) < 1E-12
 		cell_size = dlon
 		zmin, zmax = self.min(), self.max()
 		vmgrd = vm.CreateNumericGrid(grd_filespec, lonmin, lonmax, latmin, latmax, cell_size, zmin, zmax, Zdescription=self.intensity_unit)
 		print("Created VM grid %s" % grd_filespec)
 
-		intensity_grid = self.create_grid()
+		intensity_grid = self.get_grid_intensities(num_cells)
 		nrows = intensity_grid.shape[0]
 		for rownr, row in enumerate(intensity_grid):
 			vmgrd.WriteRow(row, (nrows-1)-rownr)
 		vmgrd.Close()
 
-	def plot(self, fig_filespec=None, cmap=pylab.cm.jet, contour_interval=0.02, meridian_interval=1., parallel_interval=1., hide_sea=False, amax=None, want_basemap=True):
+	def plot(self, cmap=pylab.cm.jet, contour_interval=0.02, amin=0., amax=None, num_grid_cells=100, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
 		"""
 		Plot hazard map
+
+		:param cmap:
+			Color map (default: pylab.cm.jet)
+		:param contour_interval:
+			Float, ground-motion contour interval
+		:param amin:
+			Float, minimum ground-motion level to contour (default: 0.)
+		:param amax:
+			Float, maximum ground-motion level to contour (default: None)
+		:param num_grid_cells:
+			Int, number of grid cells used for interpolating intensity grid (default: 100)
+		:param region:
+			(w, e, s, n) tuple specifying rectangular region to plot in
+			geographic coordinates (default: None)
+		:param projection:
+			String, map projection. See Basemap documentation
+			(default: "cyl")
+		:param resolution:
+			String, map resolution (coastlines and country borders):
+			'c' (crude), 'l' (low), 'i' (intermediate), 'h' (high), 'f' (full)
+			(default: 'i')
+		:param dlon:
+			Float, meridian interval in degrees (default: 1.)
+		:param dlat:
+			Float, parallel interval in degrees (default: 1.)
+		:param source_model:
+			String, name of source model to overlay on the plot
+			(default: None)
+		:param title:
+			String, plot title (default: None)
+		:param fig_filespec:
+			String, full path of image to be saved.
+			If None (default), map is displayed on screen.
+		:param fig_width:
+			Float, figure width in cm, used to recompute :param:`dpi` with
+			respect to default figure width (default: 0)
+		:param dpi:
+			Int, image resolution in dots per inch (default: 300)
 		"""
+		from mpl_toolkits.basemap import Basemap
+
+		## Prepare intensity grid and contour levels
 		longitudes, latitudes = self.longitudes, self.latitudes
-		x, y = self.meshgrid()
-		intensity_grid = self.create_grid()
+		grid_lons, grid_lats = self.meshgrid(num_grid_cells)
+		intensity_grid = self.get_grid_intensities(num_grid_cells)
+		if amin is None:
+			amin = self.min()
 		if not amax:
 			amax = self.max()
 		if contour_interval:
-			levels = numpy.arange(0, amax+contour_interval, contour_interval)
+			levels = np.arange(0, amax+contour_interval, contour_interval)
 		else:
 			levels = 100
-		try:
-			from mpl_toolkits.basemap import Basemap
-		except:
-			want_basemap = False
 
-		if want_basemap:
+		## Compute map limits
+		if not region:
 			llcrnrlon, llcrnrlat = min(longitudes), min(latitudes)
 			urcrnrlon, urcrnrlat = max(longitudes), max(latitudes)
-			lon_0 = (llcrnrlon + urcrnrlon) / 2.
-			lat_0 = (llcrnrlat + urcrnrlat) / 2.
-			## Contouring does not seem to work for other projections...
-			map = Basemap(projection="cyl", resolution="i", llcrnrlon=llcrnrlon, llcrnrlat=llcrnrlat, urcrnrlon=urcrnrlon, urcrnrlat=urcrnrlat, lon_0=lon_0, lat_0=lat_0)
-			if hide_sea:
-				rgba_land, rgba_ocean = (255, 255, 255, 0), (255, 255, 255, 255)
-				map.drawlsmask(rgba_land, rgba_ocean)
-			cs = map.contourf(x, y, intensity_grid, levels=levels, cmap=cmap)
-			map.contour(x, y, intensity_grid, levels=levels, colors='k', linewidths=1)
-			cbar = map.colorbar(cs, location='bottom', pad="10%")
-			map.drawcoastlines()
-			map.drawcountries()
-			first_meridian = numpy.ceil(llcrnrlon / meridian_interval) * meridian_interval
-			last_meridian = numpy.floor(urcrnrlon / meridian_interval) * meridian_interval + meridian_interval
-			meridians = numpy.arange(first_meridian, last_meridian, meridian_interval)
-			map.drawmeridians(meridians, labels=[0,1,0,1])
-			first_parallel = numpy.ceil(llcrnrlat / parallel_interval) * parallel_interval
-			last_parallel = numpy.floor(urcrnrlat / parallel_interval) * parallel_interval + parallel_interval
-			parallels = numpy.arange(first_parallel, last_parallel, parallel_interval)
-			map.drawparallels(parallels, labels=[0,1,0,1])
-			map.drawmapboundary()
 		else:
-			map = pylab.Figure()
-			cs = pylab.contourf(x, y, intensity_grid, levels=levels, cmap=cmap)
-			pylab.contour(x, y, intensity_grid, levels=levels, colors='k', linewidths=1)
-			cbar = pylab.colorbar(mappable=cs, cax=None, orientation='horizontal', pad=0.1)
+			llcrnrlon=region[0]
+			llcrnrlat=region[2]
+			urcrnrlon=region[1]
+			urcrnrlat=region[3]
+		lon_0 = (llcrnrlon + urcrnrlon) / 2.
+		lat_0 = (llcrnrlat + urcrnrlat) / 2.
 
+		## Contouring does not seem to work for other projections...
+		map = Basemap(projection=projection, resolution=resolution, llcrnrlon=llcrnrlon, llcrnrlat=llcrnrlat, urcrnrlon=urcrnrlon, urcrnrlat=urcrnrlat, lon_0=lon_0, lat_0=lat_0)
+		if hide_sea:
+			rgba_land, rgba_ocean = (255, 255, 255, 0), (255, 255, 255, 255)
+			map.drawlsmask(rgba_land, rgba_ocean)
+
+		## Intensity grid
+		x, y = map(grid_lons, grid_lats)
+		cs = map.contourf(x, y, intensity_grid, levels=levels, cmap=cmap)
+		map.contour(x, y, intensity_grid, levels=levels, colors='k', linewidths=1)
+		cbar = map.colorbar(cs, location='bottom', pad="10%")
+
+		## Intensity data points
+		x, y = map(longitudes, latitudes)
+		map.scatter(x, y, s=12, marker='.', edgecolors='w', facecolors='w', label=None)
+
+		## Coastlines and national boundaries
+		map.drawcoastlines()
+		map.drawcountries()
+
+		## Source model
+		if source_model:
+			from eqcatalog.source_models import read_source_model
+			model_data = read_source_model(source_model)
+			for i, zone_data in enumerate(model_data.values()):
+				geom = zone_data['obj']
+				lines = []
+				if geom.GetGeometryName() == "LINESTRING":
+					lines.append(geom.GetPoints())
+				elif geom.GetGeometryName() == "POLYGON":
+					for linear_ring in geom:
+						lines.append(linear_ring.GetPoints())
+				for line in lines:
+					lons, lats = zip(*line)
+					x, y = map(lons, lats)
+					if i == 0:
+						label = source_model
+					else:
+						label = "_nolegend_"
+					map.plot(x, y, ls='-', lw=2, color='k')
+
+		## Meridians and parallels
+		first_meridian = np.ceil(llcrnrlon / dlon) * dlon
+		last_meridian = np.floor(urcrnrlon / dlon) * dlon + dlon
+		meridians = np.arange(first_meridian, last_meridian, dlon)
+		map.drawmeridians(meridians, labels=[0,1,0,1])
+		first_parallel = np.ceil(llcrnrlat / dlat) * dlat
+		last_parallel = np.floor(urcrnrlat / dlat) * dlat + dlat
+		parallels = np.arange(first_parallel, last_parallel, dlat)
+		map.drawparallels(parallels, labels=[0,1,0,1])
+		map.drawmapboundary()
+
+
+		## Title
 		if self.IMT == "SA":
 			period_label = "%s (%s s)" % (self.IMT, self.period)
 		else:
@@ -3010,7 +3093,12 @@ class HazardMap(HazardResult, HazardField):
 		cbar.set_label('%s (%s)' % (self.IMT, self.intensity_unit))
 
 		if fig_filespec:
-			pylab.savefig(fig_filespec, dpi=300)
+			default_figsize = pylab.rcParams['figure.figsize']
+			default_dpi = pylab.rcParams['figure.dpi']
+			if fig_width:
+				fig_width /= 2.54
+				dpi = dpi * (fig_width / default_figsize[0])
+			pylab.savefig(fig_filespec, dpi=dpi)
 			pylab.clf()
 		else:
 			pylab.show()
@@ -3069,11 +3157,11 @@ class HazardMapSet(HazardResult, HazardField):
 			raise Exception("One of index, poe or return_period must be specified!")
 		if index is None:
 			if poe is not None:
-				index = numpy.where(numpy.abs(self.poes - poe) < 1E-6)[0]
+				index = np.where(np.abs(self.poes - poe) < 1E-6)[0]
 				if len(index) == 0:
 					raise ValueError("No hazard map for poE=%s" % poe)
 			elif return_period is not None:
-				index = numpy.where(numpy.abs(self.return_periods - return_period) < 1)[0]
+				index = np.where(np.abs(self.return_periods - return_period) < 1)[0]
 				if len(index) == 0:
 					raise ValueError("No hazard map for return period=%s" % return_period)
 
@@ -3165,8 +3253,8 @@ if __name__ == "__main__":
 	#hcft2 = hcft.slice_by_branch_indexes(range(50), "Subset")
 	hcft2 = hcft.slice_by_branch_names(["BergeThierry"], "BergeThierry", strict=False)
 	print len(hcft2)
-	import numpy.random
-	hcft2.weights = numpy.random.rand(len(hcft2))
+	import np.random
+	hcft2.weights = np.random.rand(len(hcft2))
 	uhsft = hcft2.interpolate_return_period(10000)
 	uhsft.plot_histogram()
 	#hcft.plot()
