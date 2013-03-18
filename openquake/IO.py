@@ -5,6 +5,7 @@ I/O classes and functions for openquake
 
 
 import numpy as np
+import os
 
 from lxml import etree
 
@@ -82,6 +83,19 @@ def parse_hazard_map(xml_filespec):
 	hm = HazardMap(model_name, xml_filespec, sites, period, IMT,
 		np.array(intensities), intensity_unit=intensity_unit[IMT], timespan=timespan, poe=poe)
 	return hm
+
+
+def rename_output_files(dir):
+	"""
+	"""
+	for name in os.listdir(dir):
+		filespec = os.path.join(dir, name)
+		if name.startswith('hazard-map'):
+			hm = parse_hazard_map(filespec)
+			new_filespec = 'hazard-map_%.fyr_%s(%s).xml' % (hm.return_period, hm.IMT, hm.period, )
+			os.rename(filespec, new_filespec)
+		if name.startswith('hazard-curve'):
+			pass
 
 
 #class NrmlParser():
