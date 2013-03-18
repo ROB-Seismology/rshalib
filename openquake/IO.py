@@ -92,7 +92,7 @@ def rename_output_files(dir):
 		filespec = os.path.join(dir, name)
 		if name.startswith('hazard-map'):
 			hm = parse_hazard_map(filespec)
-			new_filespec = 'hazard-map_%.fyr_%s(%s).xml' % (hm.return_period, hm.IMT, hm.period, )
+			new_filespec = os.path.join(dir, 'hazard-map_%.fyr_%s(%s).xml' % (hm.return_period, hm.IMT, hm.period))
 			os.rename(filespec, new_filespec)
 		if name.startswith('hazard-curve'):
 			pass
