@@ -90,12 +90,17 @@ def rename_output_files(dir):
 	"""
 	for name in os.listdir(dir):
 		filespec = os.path.join(dir, name)
-		if name.startswith('hazard-map'):
-			hm = parse_hazard_map(filespec)
-			new_filespec = os.path.join(dir, 'hazard-map_%.fyr_%s(%s).xml' % (hm.return_period, hm.IMT, hm.period))
-			os.rename(filespec, new_filespec)
-		if name.startswith('hazard-curve'):
-			pass
+		if os.path.splitext(name)[-1] == ".xml":
+			if name.startswith('hazard-map'):
+				hm = parse_hazard_map(filespec)
+				new_filespec = os.path.join(dir, 'hazard-map_%.fyr_%s(%s).xml' % (hm.return_period, hm.IMT, hm.period))
+				if new_filespec != filespec:
+					os.rename(filespec, new_filespec)
+			if name.startswith('hazard-curve'):
+				hc = parse_hazard_curve(filespec)
+				new_filespec = os.path.join(dir, 'hazard-curve_%s(%s).xml' % (hc.IMT, hc.period))
+				if new_filespec != filespec:
+					os.rename(filespec, new_filespec)
 
 
 #class NrmlParser():

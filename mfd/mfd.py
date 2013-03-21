@@ -382,7 +382,6 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		Float, number of standard deviations to spread occurrence rates over
 		(default: 0)
 	"""
-	# TODO: sigma, num_sigma
 	def __init__(self, M, return_period, bin_width, Mtype="MW", M_sigma=0.3, num_sigma=0):
 		from matplotlib import mlab
 		if M_sigma and num_sigma:

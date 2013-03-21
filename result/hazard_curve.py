@@ -10,6 +10,7 @@ import os, sys
 import numpy as np
 
 from scipy.stats import scoreatpercentile
+import matplotlib
 import pylab
 
 from ..nrml import ns
@@ -18,7 +19,7 @@ import stats.percentiles
 from ..nrml.common import *
 from ..site import PSHASite
 from plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram
-from ..utils import interpolate, logrange
+from ..utils import interpolate, logrange, LevelNorm
 
 
 # TODO: use PSHASites instead of sites and site_names separately.
@@ -74,29 +75,9 @@ def Poisson(life_time=None, return_period=None, prob=None):
 	elif return_period != None and prob != None:
 		return -return_period * np.log(1.0 - prob)
 	elif life_time != None and return_period != None:
-		return 1.0 - np.exp(-life_time / return_period)
+		return 1.0 - np.exp(-life_time * 1.0 / return_period)
 	else:
 		raise TypeError("Need to specify 2 parameters")
-
-
-def interpolate(xin, yin, xout):
-	"""
-	Wrapper for linear interpolation function
-	"""
-	## Scipy and numpy interpolation don't work as exceedance rates
-	## are in decreasing order
-	#if np.all(np.diff(xin) < 0):
-	#	xin, yin = xin[::-1], yin[::-1]
-	## SciPy
-	#interpolator = interp1d(xin, yin, bounds_error=False)
-	#yout = interpolator(xout)
-
-	## Numpy
-	#yout = np.interp(xout, xin, yin)
-
-	## CWP intlin
-	yout = intlin(xin, yin, xout)
-	return yout
 
 
 def as_array(values):
@@ -2962,14 +2943,19 @@ class HazardMap(HazardResult, HazardField):
 			vmgrd.WriteRow(row, (nrows-1)-rownr)
 		vmgrd.Close()
 
-	def plot(self, cmap=pylab.cm.jet, contour_interval=0.02, amin=0., amax=None, num_grid_cells=100, site_symbol=".", site_color="w", site_size=6, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
+	def plot(self, cmap=pylab.cm.jet, contour_interval=None, intensity_levels=[0., 0.02, 0.06, 0.14, 0.30, 0.90], num_grid_cells=100, plot_style="cont", site_symbol=".", site_color="w", site_size=6, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
 		"""
 		Plot hazard map
 
 		:param cmap:
 			Color map (default: pylab.cm.jet)
 		:param contour_interval:
-			Float, ground-motion contour interval
+			Float, ground-motion contour interval (default: None = auto)
+		:param intensity_levels:
+			List or array of intensity values (in ascending order) that will
+			be uniformly spaced in color space. If None or empty list, linear
+			normalization will be applied.
+			(default: [0., 0.02, 0.06, 0.14, 0.30, 0.90])
 		:param amin:
 			Float, minimum ground-motion level to contour (default: 0.)
 		:param amax:
@@ -2977,6 +2963,9 @@ class HazardMap(HazardResult, HazardField):
 		:param num_grid_cells:
 			Int, number of grid cells used for interpolating intensity grid
 			(default: 100)
+		:param plot_style:
+			String, either "disc" for discrete or "cont" for continuous
+			(default: "cont")
 		:param site_symbol:
 			Char, matplotlib symbol specification for plotting site points
 			(default: ".")
@@ -3003,7 +2992,8 @@ class HazardMap(HazardResult, HazardField):
 			String, name of source model to overlay on the plot
 			(default: None)
 		:param title:
-			String, plot title (default: None)
+			String, plot title. If None, title will be generated automatically,
+			if empty string, title will not be plotted (default: None)
 		:param fig_filespec:
 			String, full path of image to be saved.
 			If None (default), map is displayed on screen.
@@ -3019,14 +3009,31 @@ class HazardMap(HazardResult, HazardField):
 		longitudes, latitudes = self.longitudes, self.latitudes
 		grid_lons, grid_lats = self.meshgrid(num_grid_cells)
 		intensity_grid = self.get_grid_intensities(num_grid_cells)
-		if amin is None:
-			amin = self.min()
-		if not amax:
-			amax = self.max()
-		if contour_interval:
-			levels = np.arange(0, amax+contour_interval, contour_interval)
-		else:
-			levels = 100
+		if not contour_interval:
+			arange = self.max() - self.min()
+			if arange < 0.1:
+				contour_interval = 0.01
+			elif 0.1 <= arange < 0.2:
+				contour_interval = 0.02
+			elif 0.2 <= arange < 0.4:
+				contour_interval = 0.04
+			elif 0.4 <= arange < 0.5:
+				contour_interval = 0.05
+			elif 0.5 <= arange < 0.8:
+				contour_interval = 0.08
+			elif 0.8 <= arange < 1.0:
+				contour_interval = 0.1
+			elif 1.0 <= arange < 2.0:
+				contour_interval = 0.2
+
+		#if intensity_levels in (None, []):
+		#	amin, amax = 0., self.max()
+		#else:
+		#	amin, amax = intensity_levels[0], intensity_levels[-1]
+		amin = np.floor(self.min() / contour_interval) * contour_interval
+		amax = np.ceil(self.max() / contour_interval) * contour_interval
+
+		contour_levels = np.arange(amin, amax+contour_interval, contour_interval)
 
 		## Compute map limits
 		if not region:
@@ -3040,17 +3047,24 @@ class HazardMap(HazardResult, HazardField):
 		lon_0 = (llcrnrlon + urcrnrlon) / 2.
 		lat_0 = (llcrnrlat + urcrnrlat) / 2.
 
-		## Contouring does not seem to work for other projections...
 		map = Basemap(projection=projection, resolution=resolution, llcrnrlon=llcrnrlon, llcrnrlat=llcrnrlat, urcrnrlon=urcrnrlon, urcrnrlat=urcrnrlat, lon_0=lon_0, lat_0=lat_0)
 		if hide_sea:
 			rgba_land, rgba_ocean = (255, 255, 255, 0), (255, 255, 255, 255)
 			map.drawlsmask(rgba_land, rgba_ocean)
 
 		## Intensity grid
+		if intensity_levels in (None, []):
+			norm = matplotlib.colors.Normalize(amin, amax)
+		else:
+			norm = LevelNorm(intensity_levels)
 		x, y = map(grid_lons, grid_lats)
-		cs = map.contourf(x, y, intensity_grid, levels=levels, cmap=cmap)
-		map.contour(x, y, intensity_grid, levels=levels, colors='k', linewidths=1)
-		cbar = map.colorbar(cs, location='bottom', pad="10%")
+		if plot_style == "disc":
+			cs = map.contourf(x, y, intensity_grid, levels=contour_levels, cmap=cmap, norm=norm)
+		elif plot_style == "cont":
+			cs = map.pcolor(x, y, intensity_grid, vmin=amin, vmax=amax, cmap=cmap, norm=norm)
+		cl = map.contour(x, y, intensity_grid, levels=contour_levels, colors='k', linewidths=1)
+		pylab.clabel(cl, inline=True, fontsize=10, fmt='%.2f')
+		cbar = map.colorbar(cs, location='bottom', pad="10%", format='%.2f', spacing="uniform", ticks=contour_levels)
 
 		## Intensity data points
 		if site_symbol:
@@ -3095,12 +3109,14 @@ class HazardMap(HazardResult, HazardField):
 
 
 		## Title
+		if title is None:
+			title = "%s\n%.4G yr return period" % (self.model_name, self.return_period)
+		pylab.title(title)
 		if self.IMT == "SA":
-			period_label = "%s (%s s)" % (self.IMT, self.period)
+			imt_label = "%s (%s s)" % (self.IMT, self.period)
 		else:
-			period_label = self.IMT
-		pylab.title("%s\n%s - %.4G yr return period" % (self.model_name, period_label, self.return_period))
-		cbar.set_label('%s (%s)' % (self.IMT, self.intensity_unit))
+			imt_label = self.IMT
+		cbar.set_label('%s (%s)' % (imt_label, self.intensity_unit))
 
 		if fig_filespec:
 			default_figsize = pylab.rcParams['figure.figsize']

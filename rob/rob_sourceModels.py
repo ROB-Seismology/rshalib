@@ -52,6 +52,8 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	## Initialze MapInfo
 	#miApp = MI.Application(maximize=False)
 
+	# TODO: on second call of this function, column_map has value of previous call!
+
 	rob_source_model = rob_source_models_dict[source_model_name]
 	#source_rec_table = miApp.OpenTable(rob_source_model['tab_filespec'])
 	source_records = read_GIS_file(rob_source_model['tab_filespec'])
@@ -115,7 +117,7 @@ def create_rob_area_source(
 	hypocentral_distribution=None,
 	polygon=None,
 	area_discretization=1.,
-	mfd_bin_width = 0.1,
+	mfd_bin_width=0.1,
 	column_map={},
 	**kwargs
 	):
