@@ -2943,12 +2943,14 @@ class HazardMap(HazardResult, HazardField):
 			vmgrd.WriteRow(row, (nrows-1)-rownr)
 		vmgrd.Close()
 
-	def plot(self, cmap=pylab.cm.jet, contour_interval=None, intensity_levels=[0., 0.02, 0.06, 0.14, 0.30, 0.90], num_grid_cells=100, plot_style="cont", site_symbol=".", site_color="w", site_size=6, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
+	def plot(self, cmap="usgs", contour_interval=None, intensity_levels=[0., 0.02, 0.06, 0.14, 0.30, 0.90], num_grid_cells=100, plot_style="cont", site_symbol=".", site_color="w", site_size=6, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
 		"""
 		Plot hazard map
 
 		:param cmap:
-			Color map (default: pylab.cm.jet)
+			String or matplotlib.cm.colors.Colormap instance: Color map
+			Some nice color maps are: jet, spectral, gist_rainbow_r, Spectral_r, usgs
+			(default: "usgs")
 		:param contour_interval:
 			Float, ground-motion contour interval (default: None = auto)
 		:param intensity_levels:
@@ -3004,6 +3006,7 @@ class HazardMap(HazardResult, HazardField):
 			Int, image resolution in dots per inch (default: 300)
 		"""
 		from mpl_toolkits.basemap import Basemap
+		import matplotlib.cm as cm
 
 		## Prepare intensity grid and contour levels
 		longitudes, latitudes = self.longitudes, self.latitudes
@@ -3011,20 +3014,9 @@ class HazardMap(HazardResult, HazardField):
 		intensity_grid = self.get_grid_intensities(num_grid_cells)
 		if not contour_interval:
 			arange = self.max() - self.min()
-			if arange < 0.1:
-				contour_interval = 0.01
-			elif 0.1 <= arange < 0.2:
-				contour_interval = 0.02
-			elif 0.2 <= arange < 0.4:
-				contour_interval = 0.04
-			elif 0.4 <= arange < 0.5:
-				contour_interval = 0.05
-			elif 0.5 <= arange < 0.8:
-				contour_interval = 0.08
-			elif 0.8 <= arange < 1.0:
-				contour_interval = 0.1
-			elif 1.0 <= arange < 2.0:
-				contour_interval = 0.2
+			candidates = np.array([0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.08, 0.1, 0.2, 0.25, 0.4, 0.5, 0.6, 0.75, 0.8, 1.0])
+			index = np.where(arange / candidates <= 10)[0][0]
+			contour_interval = candidates[index]
 
 		#if intensity_levels in (None, []):
 		#	amin, amax = 0., self.max()
@@ -3034,6 +3026,9 @@ class HazardMap(HazardResult, HazardField):
 		amax = np.ceil(self.max() / contour_interval) * contour_interval
 
 		contour_levels = np.arange(amin, amax+contour_interval, contour_interval)
+		## Sometimes, there is an empty contour interval at the end
+		if contour_levels[-2] > self.max():
+			contour_levels = contour_levels[:-1]
 
 		## Compute map limits
 		if not region:
@@ -3051,6 +3046,38 @@ class HazardMap(HazardResult, HazardField):
 		if hide_sea:
 			rgba_land, rgba_ocean = (255, 255, 255, 0), (255, 255, 255, 255)
 			map.drawlsmask(rgba_land, rgba_ocean)
+
+		## Color map
+		if cmap == "usgs":
+			usgs_rgb = [(255, 255, 255),
+						(230, 230, 230),
+						(200, 200, 200),
+						(231, 255, 255),
+						(215, 255, 255),
+						(198, 255, 255),
+						(151, 255, 241),
+						(151, 254, 199),
+						(200, 255, 153),
+						(202, 254, 83),
+						(251, 250, 100),
+						(255, 238, 0),
+						(254, 225, 1),
+						(255, 200, 1),
+						(255, 94, 0),
+						(254, 0, 2),
+						(200, 121, 20),
+						(151, 74, 20)]
+			num_colors = len(usgs_rgb)
+			cmap_limits = np.linspace(0, 1, num_colors)
+			usgs_cdict = {'red': [], 'green': [], 'blue': []}
+			for i in range(num_colors):
+				r, g, b = np.array(usgs_rgb[i]) / 255.
+				usgs_cdict['red'].append((cmap_limits[i], r, r))
+				usgs_cdict['green'].append((cmap_limits[i], g, g))
+				usgs_cdict['blue'].append((cmap_limits[i], b, b))
+			cmap = matplotlib.colors.LinearSegmentedColormap('usgs', usgs_cdict, 256)
+		elif isinstance(cmap, str):
+			cmap = cm.get_cmap(cmap)
 
 		## Intensity grid
 		if intensity_levels in (None, []):
