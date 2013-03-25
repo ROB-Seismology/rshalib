@@ -176,6 +176,58 @@ class HypocentralDepthDistribution(nhlib.pmf.PMF):
 		return hdd_elem
 
 
+def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
+	"""
+	Generate a uniform nodal plane distribution from strike, dip, and rake
+	ranges.
+
+	:param strike_range:
+		- Tuple (min_strike, max_strike, delta_strike) in degrees
+		- Single strike value (integer or float)
+	:param dip_range:
+		- Tuple (min_dip, max_dip, delta_dip) in degrees
+		- Single dip value (integer or float)
+	:param rake_range:
+		- Tuple (min_rake, max_rake, delta_rake) in degrees
+		- Single rake value (integer or float)
+
+	:return:
+		instance of :class:`NodalPlaneDistribution`
+	"""
+	if isinstance(strike_range, (int, float)):
+		strikes, strike_weights = [strike_range], Decimal(1.0)
+	elif len(strike_range) == 3:
+		min_strike, max_strike, delta_strike = strike_range
+		strikes, strike_weights = get_uniform_distribution(min_strike, max_strike, delta_strike)
+	else:
+		raise Exception("strike_range tuple must contain 3 elements: min, max, and delta.")
+
+	if isinstance(dip_range, (int, float)):
+		dips, dip_weights = [dip_range], Decimal(1.0)
+	elif len(dip_range) == 3:
+		min_dip, max_dip, delta_dip = dip_range
+		dips, dip_weights = get_uniform_distribution(min_dip, max_dip, delta_dip)
+	else:
+		raise Exception("dip_range tuple must contain 3 elements: min, max, and delta.")
+
+	if isinstance(rake_range, (int, float)):
+		rakes, rake_weights = [rake_range], Decimal(1.0)
+	elif len(rake_range) == 3:
+		min_rake, max_rake, delta_rake = rake_range
+		rakes, rake_weights = get_uniform_distribution(min_rake, max_rake, delta_rake)
+	else:
+		raise Exception("rake_range tuple must contain 3 elements: min, max, and delta.")
+
+	nodal_planes, nodal_plane_weights = [], []
+	for strike, strike_weight in zip(strikes, strike_weights):
+		for dip, dip_weight in zip(dips, dip_weights):
+			for rake, rake_weight in zip(rakes, rake_weights):
+				nodal_planes.append(rshalib.geo.NodalPlane(strike, dip, rake))
+				nodal_plane_weights.append(strike_weight * rake_weight * dip_weight)
+
+	return NodalPlaneDistribution(nodal_planes, nodal_plane_weights)
+
+
 def get_normal_distribution(min, max, num_bins, sigma_range=2):
 	"""
 	Get normal distribution with bin centers as values.
@@ -256,6 +308,7 @@ def get_uniform_distribution(min, max, delta):
 		Float for minimum value of distribution.
 	:param max:
 		Float for maximum value of distribution.
+
 	:param delta:
 		Float for step between distribution values.
 	:return values:

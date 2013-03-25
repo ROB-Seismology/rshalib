@@ -82,18 +82,11 @@ OQparams['export_dir'] = 'output'
 ### Create source model
 
 ## Nodal-plane distribution
+min_strike, max_strike, delta_strike = 0, 270, 90
 dip = 45.
-strikes, strike_weights = rshalib.pmf.get_uniform_distribution(0, 270, 90)
-print strikes, strike_weights
-rakes, rake_weights = rshalib.pmf.get_uniform_distribution(-90, 90, 90)
-#rakes, rake_weights = rshalib.pmf.get_uniform_distribution(-90, 90, 0)
-print rakes, rake_weights
-nodal_planes, nodal_plane_weights = [], []
-for strike, strike_weight in zip(strikes, strike_weights):
-	for rake, rake_weight in zip(rakes, rake_weights):
-		nodal_planes.append(rshalib.geo.NodalPlane(strike, dip, rake))
-		nodal_plane_weights.append(strike_weight * rake_weight)
-npd = rshalib.pmf.NodalPlaneDistribution(nodal_planes, nodal_plane_weights)
+min_rake, max_rake, delta_rake = -90, 90, 90
+#min_rake, max_rake, delta_rake = -90, -90, 0
+npd = rshalib.pmf.create_nodal_plane_distribution((min_strike, max_strike, delta_strike), dip, (min_rake, max_rake, delta_rake))
 
 ## Hypocentral depth distribution
 #hypo_depths, hypo_weights = rshalib.pmf.get_normal_distribution(5., 15., 3)
