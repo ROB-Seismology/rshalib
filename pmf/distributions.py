@@ -19,6 +19,7 @@ import openquake.hazardlib as nhlib
 
 from ..nrml import ns
 from ..nrml.common import *
+from ..geo import NodalPlane
 
 
 
@@ -195,7 +196,7 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 		instance of :class:`NodalPlaneDistribution`
 	"""
 	if isinstance(strike_range, (int, float)):
-		strikes, strike_weights = [strike_range], Decimal(1.0)
+		strikes, strike_weights = [strike_range], [Decimal(1.0)]
 	elif len(strike_range) == 3:
 		min_strike, max_strike, delta_strike = strike_range
 		strikes, strike_weights = get_uniform_distribution(min_strike, max_strike, delta_strike)
@@ -203,7 +204,7 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 		raise Exception("strike_range tuple must contain 3 elements: min, max, and delta.")
 
 	if isinstance(dip_range, (int, float)):
-		dips, dip_weights = [dip_range], Decimal(1.0)
+		dips, dip_weights = [dip_range], [Decimal(1.0)]
 	elif len(dip_range) == 3:
 		min_dip, max_dip, delta_dip = dip_range
 		dips, dip_weights = get_uniform_distribution(min_dip, max_dip, delta_dip)
@@ -211,7 +212,7 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 		raise Exception("dip_range tuple must contain 3 elements: min, max, and delta.")
 
 	if isinstance(rake_range, (int, float)):
-		rakes, rake_weights = [rake_range], Decimal(1.0)
+		rakes, rake_weights = [rake_range], [Decimal(1.0)]
 	elif len(rake_range) == 3:
 		min_rake, max_rake, delta_rake = rake_range
 		rakes, rake_weights = get_uniform_distribution(min_rake, max_rake, delta_rake)
@@ -222,7 +223,7 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 	for strike, strike_weight in zip(strikes, strike_weights):
 		for dip, dip_weight in zip(dips, dip_weights):
 			for rake, rake_weight in zip(rakes, rake_weights):
-				nodal_planes.append(rshalib.geo.NodalPlane(strike, dip, rake))
+				nodal_planes.append(NodalPlane(strike, dip, rake))
 				nodal_plane_weights.append(strike_weight * rake_weight * dip_weight)
 
 	return NodalPlaneDistribution(nodal_planes, nodal_plane_weights)
