@@ -5,4 +5,4 @@
 import site
 reload(site)
 
-from site import PSHASite, SiteModel, create_site_model
+from site import PSHASite, SoilSite, SiteModel, create_site_model

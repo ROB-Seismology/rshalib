@@ -15,6 +15,7 @@ import openquake.hazardlib as nhlib
 from ..nrml import ns
 from ..nrml.common import *
 from ..geo import Point
+import vs30
 
 
 class PSHASite(Point):
@@ -44,7 +45,7 @@ class PSHASite(Point):
 				EorW = "W"
 			else:
 				EorW = "E"
-			self.name = "%.3f N, %.3f E" % (abs(longitude), abs(latitude))
+			self.name = "%.3f %s, %.3f %s" % (abs(longitude), NorS, abs(latitude), EorW)
 			if depth:
 				self.name += ", %.1f" % depth
 		else:
@@ -53,12 +54,53 @@ class PSHASite(Point):
 	def __str__(self):
 		return self.name
 
-	def to_nhlib_soil_site(self, vs30=760., vs30measured=False, z1pt0=100., z2pt5=2.):
+	def to_soil_site(self, vs30=vs30.rock, vs30measured=False, z1pt0=100., z2pt5=2.):
 		"""
-		Convert to a nhlib.site.Site object, representing a site with
+		Convert to a SoilSite object, representing a site with
 		soil characteristics
+
+		:param vs30:
+			Float, average shear-wave velocity down to 30 m depth, in m/s
+			(default: value defined in vs30.rock)
+		:param vs30measured:
+			Bool, indicating whether vs30 was actually measured
+			(default: False)
+		:param z1pt0:
+		:param z2pt5:
+
+		:return:
+			instance of :class:`SoilSite`
 		"""
-		return nhlib.site.Site(self, vs30, vs30measured, z1pt0, z2pt5)
+		return SoilSite(self.longitude, self.latitude, self.depth, vs30, vs30measured, z1pt0, z2pt5, self.name)
+
+
+class SoilSite(nhlib.site.Site, PSHASite):
+	"""
+	Class representing a site with soil characteristics.
+	This class extends :class:`nhlib.site.Site` by providing longitude,
+	latitude, depth, and name properties
+
+	:param longitude:
+		Float, longitude
+	:param latitude:
+		Float, latitude
+	:param depth:
+		Float, depth (default: 0.0)
+	:param vs30:
+		Float, average shear-wave velocity down to 30 m depth, in m/s
+		(default: value defined in vs30.rock)
+	:param vs30measured:
+		Bool, indicating whether vs30 was actually measured
+		(default: False)
+	:param z1pt0:
+	:param z2pt5:
+	:param name:
+		Site name (default: "")
+	"""
+	def __init__(self, longitude, latitude, depth=0, vs30=vs30.rock, vs30measured=False, z1pt0=100., z2pt5=2., name=""):
+		location = Point(longitude, latitude, depth)
+		nhlib.site.Site.__init__(self, location, vs30, vs30measured, z1pt0, z2pt5)
+		PSHASite.__init__(self, longitude, latitude, depth, name)
 
 
 class SiteModel(nhlib.site.SiteCollection):
@@ -81,6 +123,10 @@ class SiteModel(nhlib.site.SiteCollection):
 
 	@property
 	def sites(self):
+		"""
+		:return:
+			list with instances of :class:`PSHASite`
+		"""
 		return [PSHASite(pt.longitude, pt.latitude, pt.depth) for pt in self.mesh]
 
 	def create_xml_element(self, encoding='latin1'):
@@ -127,7 +173,7 @@ class SiteModel(nhlib.site.SiteCollection):
 		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
 
 
-def create_site_model(name, lons_lats, grid=False, grid_spacing=0.1, vs30=800., vs30measured=True, z1pt0=1., z2pt5=2.):
+def create_site_model(name, lons_lats, grid=False, grid_spacing=0.1, vs30=vs30.rock, vs30measured=False, z1pt0=1., z2pt5=2.):
 	"""
 	Create site model from site longitudes and latitudes.
 
@@ -136,9 +182,9 @@ def create_site_model(name, lons_lats, grid=False, grid_spacing=0.1, vs30=800., 
 	:param grid:
 		Boolean, if True lons_lats contains only two elements (left and lower right corner) from which rectangular grid is created.
 	:param vs30:
-		See class Site (Default: 800.).
+		See class Site (Default: value defined in vs30.rock).
 	:param vs30measured:
-		See class Site (Default: True).
+		See class Site (Default: False).
 	:param z1pt0:
 		See class Site (Default: 1.).
 	:param z2pt5:

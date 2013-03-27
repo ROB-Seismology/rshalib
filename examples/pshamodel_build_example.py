@@ -70,13 +70,6 @@ return_periods = [1E+3, 1E+4, 1E+5]
 investigation_time = 50.
 
 
-## Additional OpenQuake params not automatically handled by pshamodel
-OQparams = {}
-OQparams['rupture_mesh_spacing'] = rupture_mesh_spacing
-OQparams['area_source_discretization'] = area_discretization
-OQparams['width_of_mfd_bin'] = mfd_bin_width
-OQparams['export_dir'] = 'output'
-
 
 
 ### Create source model
@@ -131,6 +124,16 @@ source_model = rshalib.source.SourceModel('Borssele_source_model1', [source])
 #ground_motion_model = rshalib.gsim.GroundMotionModel('SCR_BT2003', {trt: 'BergeThierry2003'})
 #ground_motion_model = rshalib.gsim.GroundMotionModel('SCR_A1996', {trt: 'AmbraseysEtAl1996'})
 ground_motion_model = rshalib.gsim.GroundMotionModel('Mixed', {'Active Shallow Crust': 'BindiEtAl2011', 'Stable Shallow Crust': 'Campbell2003'})
+
+
+def create_oq_params():
+	## Additional OpenQuake params not automatically handled by pshamodel
+	OQparams = {}
+	OQparams['rupture_mesh_spacing'] = rupture_mesh_spacing
+	OQparams['area_source_discretization'] = area_discretization
+	OQparams['width_of_mfd_bin'] = mfd_bin_width
+	OQparams['export_dir'] = 'output'
+	return OQparams
 
 
 def create_psha_model(engine="nhlib"):
@@ -197,6 +200,7 @@ if __name__ == '__main__':
 
 	## OpenQuake
 	#psha_model = create_psha_model("openquake")
+	#OQparams = create_oq_params()
 	#psha_model.write_openquake(OQparams)
 
 	## Crisis
