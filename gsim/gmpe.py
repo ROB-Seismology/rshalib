@@ -675,7 +675,7 @@ class GMPE(object):
 		"""
 		plot_distance([self], Mmin=Mmin, Mmax=Mmax, Mstep=Mstep, dmin=dmin, dmax=dmax, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping, plot_style=plot_style, amin=amin, amax=amax, colors=[color], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
 
-	def plot_spectrum(self, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5, plot_freq=False, plot_style="loglog", amin=None, amax=None, color='k', fig_filespec=None, title="", want_minor_grid=False, include_pgm=True, legend_location=None, lang="en"):
+	def plot_spectrum(self, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5, plot_freq=False, plot_style="loglog", amin=None, amax=None, color='k', label=None, fig_filespec=None, title="", want_minor_grid=False, include_pgm=True, legend_location=None, lang="en"):
 		"""
 		Plot ground motion spectrum for this GMPE.
 		Horizontal axis: spectral periods or frequencies.
@@ -735,6 +735,8 @@ class GMPE(object):
 			upper ground-motion value to plot (default: None).
 		:param color:
 			matplotlib color specification (default: 'k')
+		:param label:
+			String, label to plot in legend (default: None)
 		:param fig_filespec:
 			String, full path specification of output file (default: None).
 		:param title:
@@ -762,7 +764,7 @@ class GMPE(object):
 			Tmin = self.Tmin(imt)
 		if Tmax is None:
 			Tmax = self.Tmax(imt)
-		plot_spectrum([self], Mmin=Mmin, Mmax=Mmax, Mstep=Mstep, d=d, h=h, imt=imt, Tmin=Tmin, Tmax=Tmax, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping, include_pgm=include_pgm, plot_freq=plot_freq, plot_style=plot_style, amin=amin, amax=amax, colors=[color], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
+		plot_spectrum([self], Mmin=Mmin, Mmax=Mmax, Mstep=Mstep, d=d, h=h, imt=imt, Tmin=Tmin, Tmax=Tmax, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping, include_pgm=include_pgm, plot_freq=plot_freq, plot_style=plot_style, amin=amin, amax=amax, colors=[color], labels=[label], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
 
 
 class AmbraseysEtAl1996GMPE(GMPE):
@@ -3171,7 +3173,7 @@ def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="
 		pylab.show()
 
 
-def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5, include_pgm=True, plot_freq=False, plot_style="loglog", amin=None, amax=None, colors=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=None, lang="en"):
+def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5, include_pgm=True, plot_freq=False, plot_style="loglog", amin=None, amax=None, colors=None, labels=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=None, lang="en"):
 	"""
 	Function to plot ground motion spectrum for one or more GMPE's.
 	Horizontal axis: spectral periods or frequencies.
@@ -3233,6 +3235,8 @@ def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tma
 		upper ground-motion value to plot (default: None).
 	:param colors:
 		List of matplotlib color specifications (default: None).
+	:param labels:
+		List of labels for each GMPE (defaultl: None)
 	:param fig_filespec:
 		String, full path specification of output file (default: None).
 	:param title:
@@ -3294,7 +3298,10 @@ def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tma
 			#		non_zero_Asigma_values.append(sigma)
 
 			style = linestyles[j] + colors[i]
-			gmpe_label = gmpe.name
+			if isinstance(labels, (list, tuple)) and len(labels) > i and labels[i] != None:
+				gmpe_label = labels[i]
+			else:
+				gmpe_label = gmpe.name
 			if gmpe.is_rake_dependent():
 				gmpe_label += " - %s" % mechanism
 			plotfunc(xvalues, Avalues, style, linewidth=3, label=gmpe_label+" (M=%.1f)" % M)
