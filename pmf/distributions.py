@@ -104,6 +104,15 @@ class NodalPlaneDistribution(nhlib.pmf.PMF):
 			np_elem.set(ns.RAKE, str(np.rake))
 		return npd_elem
 
+	def print_distribution(self):
+		"""
+		Print strike, dip, rake and weight of all nodal planes
+		in distribution
+		"""
+		print "Strike Dip Rake Weight"
+		for nodal_plane, weight in zip(self.nodal_planes, self.weights):
+			print "   %3d  %2d %4d %.4f" % (nodal_plane.strike, nodal_plane.dip, nodal_plane.rake, weight)
+
 
 class HypocentralDepthDistribution(nhlib.pmf.PMF):
 	"""
@@ -175,6 +184,15 @@ class HypocentralDepthDistribution(nhlib.pmf.PMF):
 			hd_elem.set(ns.PROBABILITY, str(weight))
 			hd_elem.set(ns.DEPTH, str(depth))
 		return hdd_elem
+
+	def print_distribution(self):
+		"""
+		Print strike, dip, rake and weight of all nodal planes
+		in distribution
+		"""
+		print "Depth Weight"
+		for depth, weight in zip(self.hypo_depths, self.weights):
+			print "%5.2f %.4f" % (depth, weight)
 
 
 def create_nodal_plane_distribution(strike_range, dip_range, rake_range):

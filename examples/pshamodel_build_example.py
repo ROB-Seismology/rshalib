@@ -111,7 +111,7 @@ polygon = rshalib.geo.Polygon([rshalib.geo.Point(lon, lat) for lon, lat in zip([
 rupture_aspect_ratio = 1.
 upper_seismogenic_depth, lower_seismogenic_depth = 0., 20.
 source = rshalib.source.AreaSource('bg', 'background', trt, mfd, rupture_mesh_spacing, WC1994(), rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth, npd, hdd, polygon, area_discretization)
-source_model = rshalib.source.SourceModel('Borssele_source_model1', [source])
+#source_model = rshalib.source.SourceModel('Borssele_source_model1', [source])
 
 ### Test export to/import from json
 #source_model = SourceModel.from_json(source_model.to_json())
@@ -170,7 +170,7 @@ if __name__ == '__main__':
 	## nhlib
 	psha_model = create_psha_model("nhlib")
 	start_time = time.time()
-	shcfs = psha_model.run_nhlib_shcf(write=True)
+	shcfs = psha_model.run_nhlib_shcf(write=False)
 	end_time = time.time()
 	print end_time - start_time
 	shcfs['PGA'].plot()

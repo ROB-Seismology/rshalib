@@ -379,10 +379,10 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		for r in range(num_rakes):
 			try:
 				rake = rakes[non_zero_rake_indexes][r]
-				rake_weight = rake_weights[non_zero_rake_indexes][r]
+				rake_weight = np.float(rake_weights[non_zero_rake_indexes][r])
 			except TypeError:
 				rake = rakes[non_zero_rake_indexes]
-				rake_weight = rake_weights[non_zero_rake_indexes]
+				rake_weight = np.float(rake_weights[non_zero_rake_indexes])
 
 			if -135 <= rake < -45:
 				sof = "normal"
@@ -398,7 +398,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 			for d in range(num_depths):
 				if isinstance(source, (AreaSource, PointSource)):
 					hypo_depth = source.hypocenter_distribution.hypo_depths[d]
-					depth_weight = source.hypocenter_distribution.weights[d]
+					depth_weight = np.float(source.hypocenter_distribution.weights[d])
 				else:
 					depth_weight = 1.0
 
