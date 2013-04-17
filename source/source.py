@@ -689,6 +689,46 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 		"""
 		return self.get_Mmax_slip(mu=mu) / (self.get_length() * 1E+3)
 
+	def get_strike_slip_rate(self):
+		"""
+		Compute strike-slip component of slip rate.
+
+		:return:
+			Float, strike-slip component of slip rate (+ = left-lateral,
+				- = right-lateral)
+		"""
+		return self.slip_rate * np.cos(np.radians(self.rake))
+
+	def get_dip_slip_rate(self):
+		"""
+		Compute dip-slip component of slip rate.
+
+		:return:
+			Float, dip-slip component of slip rate (+ = reverse,
+				- = normal)
+		"""
+		return self.slip_rate * np.sin(np.radians(self.rake))
+
+	def get_vertical_dip_slip_rate(self):
+		"""
+		Compute vertical component of dip-slip component of slip rate.
+
+		:return:
+			Float, vertical component of dip-slip rate (+ = reverse,
+				- = normal)
+		"""
+		return self.get_dip_slip_rate() * np.sin(np.radians(self.dip))
+
+	def get_horizontal_dip_slip_rate(self):
+		"""
+		Compute horizontal component of dip-slip component of slip rate.
+
+		:return:
+			Float, vertical component of dip-slip rate (+ = shortening,
+				- = extension)
+		"""
+		return self.get_dip_slip_rate() * np.cos(np.radians(self.dip))
+
 
 class ComplexFaultSource(nhlib.source.ComplexFaultSource):
 	"""
