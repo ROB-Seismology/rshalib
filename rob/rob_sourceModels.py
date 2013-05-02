@@ -11,9 +11,6 @@ from matplotlib import pyplot
 
 from openquake.hazardlib.scalerel import WC1994
 
-#import mapping.MIPython as MI
-from eqcatalog.source_models import rob_source_models_dict
-
 from ..mfd import TruncatedGRMFD, EvenlyDiscretizedMFD
 from ..geo import Point, Line, Polygon, NodalPlane, mean_angle
 from ..pmf.distributions import *
@@ -47,15 +44,12 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	:return:
 		SourceModel object.
 	"""
+	from eqcatalog.source_models import rob_source_models_dict
 	from mapping.geo.readGIS import read_GIS_file
-
-	## Initialze MapInfo
-	#miApp = MI.Application(maximize=False)
 
 	# TODO: on second call of this function, column_map has value of previous call!
 
 	rob_source_model = rob_source_models_dict[source_model_name]
-	#source_rec_table = miApp.OpenTable(rob_source_model['tab_filespec'])
 	source_records = read_GIS_file(rob_source_model['tab_filespec'])
 
 	## Override default column map
@@ -77,7 +71,6 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 				print("Discarding source %s: zero or negative b value" % source_id)
 		else:
 			print("Discarding source %s: Mmax (%s) <= Mmin (%s)" % (source_id, max_mag, min_mag))
-	#source_rec_table.Close()
 	source_model = SourceModel(source_model_name, sources)
 	return source_model
 
@@ -99,8 +92,7 @@ def create_rob_source(source_rec, column_map, **kwargs):
 	:return:
 		AreaSource or SimpleFaultSource object.
 	"""
-	## Decide which function to use based on MapInfo object type
-	#function = {MI.OBJ_TYPE_REGION: create_rob_area_source, MI.OBJ_TYPE_PLINE: create_rob_simple_fault_source}[source_rec.obj_type]
+	## Decide which function to use based on object type
 	function = {"POLYGON": create_rob_area_source, "LINESTRING": create_rob_simple_fault_source}[source_rec["obj"].GetGeometryName()]
 	return function(source_rec, column_map=column_map, **kwargs)
 
