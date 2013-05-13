@@ -19,7 +19,7 @@ from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from ..utils import interpolate
 
 
-def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", want_recurrence=False, fixed_life_time=None, interpol_rp=0, interpol_prob=0, interpol_rp_range=None, amax=None, intensity_unit="g", tr_max=1E+07, legend_location=0, lang="en"):
+def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", want_recurrence=False, fixed_life_time=None, interpol_rp=None, interpol_prob=0, interpol_rp_range=None, amax=None, intensity_unit="g", tr_max=1E+07, legend_location=0, lang="en"):
 	"""
 	Generic function to plot a hazard curve (exceedance rate or probability of exceedance)
 	Parameters:
@@ -37,10 +37,10 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 			instead of exceedance rate (default: None)
 		interpol_rp: return period for which to interpolate intensity
 			(one value or a list of values for each dataset). Will be plotted
-			with a dashed line for each dataset (default: 0, i.e. no interpolation)
+			with a dashed line for each dataset (default: None, i.e. no interpolation)
 		interpol_prob: exceedance probability for which to interpolate intensity
 			(one value or list of values for each dataset). Will be plotted
-			with a dashed line for each dataset  (default: 0, i.e. no interpolation)
+			with a dashed line for each dataset  (default: None, i.e. no interpolation)
 		interpol_rp_range: return period range for which to interpolate intensity
 			([min return period, max return period] list). Will be plotted
 			with a grey area for first dataset only (default: None, i.e. no interpolation)
@@ -73,11 +73,19 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 	if not linewidths:
 		linewidths = [2]
 
-	if not hasattr(interpol_rp, '__iter__'):
-		interpol_rp = [interpol_rp for i in range(len(datasets))]
+	if interpol_rp != None:
+		if not hasattr(interpol_rp, '__iter__'):
+			#interpol_rp = [interpol_rp for i in range(len(datasets))]
+			interpol_rp = np.array([interpol_rp])
+		else:
+			interpol_rp = np.array(interpol_rp)
 
-	if not hasattr(interpol_prob, '__iter__'):
-		interpol_prob = [interpol_prob for i in range(len(datasets))]
+	if interpol_prob != None:
+		if not hasattr(interpol_prob, '__iter__'):
+			#interpol_prob = [interpol_prob for i in range(len(datasets))]
+			interpol_prob = np.array([interpol_prob])
+		else:
+			interpol_prob = np.array(interpol_prob)
 
 	ax = pylab.subplot(111)
 
@@ -100,25 +108,38 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 			pylab.semilogy(intensities, yvalues, color=color, linestyle=linestyle, linewidth=linewidth, label=label)
 
 			## Interpolate acceleration corresponding to return period or probability of exceedance
-			if interpol_rp[i] or interpol_prob[i]:
-				if interpol_rp[i]:
-					interpol_pga = intcubicspline(exceedances, intensities, [1.0/interpol_rp[i]], ideriv=0)[0]
+			#if interpol_rp[i] or interpol_prob[i]:
+			if (interpol_rp, interpol_prob) != (None, None):
+				#if interpol_rp[i]:
+				if interpol_rp != None:
+					#interpol_pga = intcubicspline(exceedances, intensities, [1.0/interpol_rp[i]], ideriv=0)[0]
+					#interpol_pga = interpolate(exceedances, intensities, [1.0/interpol_rp[i]])[0]
+					interpol_pga = interpolate(exceedances, intensities, 1.0/interpol_rp)
 					if want_recurrence:
-						interpol_y = interpol_rp[i]
+						#interpol_y = interpol_rp[i]
+						interpol_y = interpol_rp
 					elif fixed_life_time:
-						interpol_y = (1.0 - np.exp(-fixed_life_time*(1.0/interpol_rp[i])))
+						#interpol_y = (1.0 - np.exp(-fixed_life_time*(1.0/interpol_rp[i])))
+						interpol_y = (1.0 - np.exp(-fixed_life_time*(1.0/interpol_rp)))
 					else:
-						interpol_y = 1.0/interpol_rp[i]
-				if interpol_prob[i]:
+						#interpol_y = 1.0/interpol_rp[i]
+						interpol_y = 1.0/interpol_rp
+				#if interpol_prob[i]:
+				if interpol_prob != None:
 					if fixed_life_time:
-						interpol_pga = intcubicspline(yvalues, intensities, [interpol_prob[i]], ideriv=0)[0]
-						interpol_y = interpol_prob[i]
+						#interpol_pga = intcubicspline(yvalues, intensities, [interpol_prob[i]], ideriv=0)[0]
+						#interpol_pga = interpolate(yvalues, intensities, [interpol_prob[i]])[0]
+						#interpol_y = interpol_prob[i]
+						interpol_pga = interpolate(yvalues, intensities, interpol_prob)
+						interpol_y = interpol_prob
 					else:
-						interpol_pga = 0.
+						interpol_pga = None
 						print "fixed_life_time must be set if interpol_prob is used!"
-				if interpol_pga:
-					print "%.3f" % interpol_pga
-					pylab.semilogy([0.0, interpol_pga, interpol_pga, interpol_pga], [interpol_y, interpol_y, interpol_y, 1E-10], color=color, linestyle=':', linewidth=linewidth, label="_nolegend_")
+				if interpol_pga != None:
+					print "%s" % interpol_pga
+					#pylab.semilogy([0.0, interpol_pga, interpol_pga, interpol_pga], [interpol_y, interpol_y, interpol_y, 1E-10], color=color, linestyle=':', linewidth=linewidth, label="_nolegend_")
+					for ipga, iy in zip(interpol_pga, interpol_y):
+						pylab.semilogy([0.0, ipga, ipga, ipga], [iy, iy, iy, 1E-10], color=color, linestyle=':', linewidth=linewidth, label="_nolegend_")
 
 			## Interpolate acceleration range corresponding to return period range
 			if interpol_rp_range and i == 0:
