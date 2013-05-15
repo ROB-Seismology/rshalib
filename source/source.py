@@ -558,7 +558,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 
 		max_mag = self.max_mag - bin_width
 		return_period = self.get_Mmax_return_period()
-		MFD = CharacteristicMFD(max_mag, return_period, bin_width, Mtype=self.mfd.Mtype, M_sigma=M_sigma, num_sigma=num_sigma)
+		MFD = CharacteristicMFD(max_mag, return_period, bin_width, M_sigma=M_sigma, num_sigma=num_sigma)
 		return MFD
 
 	def get_MFD_Anderson_Luco(self, min_mag=None, max_mag=None, bin_width=None, b_val=None, aseismic_coef=0., moment_scaling=None, strain_drop=None, mu=3E+10, arbitrary_surface=False):
@@ -615,6 +615,34 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 
 		occurrence_rates = get_mfd(self.slip_rate, aseismic_coef, trt, self, b_val, min_mag, bin_width, max_mag, self.rake, moment_scaling, arbitrary_surface)
 		return EvenlyDiscretizedMFD(min_mag, bin_width, occurrence_rates)
+
+	def get_MFD_Youngs_Coppersmith(self, min_mag=None, bin_width=None, b_val=None):
+		"""
+		Compute MFD according to Youngs & Coppersmith (1985), based on
+		frequency of Mmax
+
+		:param min_mag:
+			Float, Minimum magnitude (default: None, take min_mag from current MFD).
+		:param bin_width:
+			Float, Magnitude interval for evenly discretized magnitude frequency
+			distribution (default: None, take bin_width from current MFD).
+		:param b_val:
+			Float, Parameter of the truncated gutenberg richter model.
+			(default: None, take b_val from current MFD)
+
+		:return:
+			instance of :class:`YoungsCoppersmith1985MFD`
+		"""
+		if b_val is None:
+			b_val = self.mfd.b_val
+		if bin_width is None:
+			bin_width = self.mfd.bin_width
+		if min_mag is None:
+			min_mag = self.mfd.get_min_mag_center()
+		char_mag = self.max_mag
+		char_rate = 1. / self.get_Mmax_return_period()
+		MFD = YoungsCoppersmith1985MFD.from_characteristic_rate(min_mag, b_val, char_mag, char_rate, bin_width)
+		return MFD
 
 	def get_moment_rate(self, mu=3E+10):
 		"""
