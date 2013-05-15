@@ -106,6 +106,15 @@ class MFD(object):
 		else:
 			return True
 
+	def to_evenly_discretized_mfd(self):
+		"""
+		Convert to an EvenlyDiscretizedMFD
+
+		:return:
+			instance of :class:`EvenlyDiscretizedMFD`
+		"""
+		return EvenlyDiscretizedMFD(self.get_min_mag_center(), self.bin_width, list(self.occurrence_rates), Mtype=self.Mtype)
+
 
 class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 	"""
@@ -143,13 +152,13 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			raise TypeError("Divisor must be integer or float")
 
 	def __add__(self, other):
-		if isinstance(other, (TruncatedGRMFD, EvenlyDiscretizedMFD)):
+		if isinstance(other, (TruncatedGRMFD, EvenlyDiscretizedMFD, YoungsCoppersmith1985MFD)):
 			return sum_MFDs([self, other])
 		else:
 			raise TypeError("Operand must be MFD")
 
 	def __sub__(self, other):
-		if isinstance(other, (TruncatedGRMFD, EvenlyDiscretizedMFD)):
+		if isinstance(other, (TruncatedGRMFD, EvenlyDiscretizedMFD, YoungsCoppersmith1985MFD)):
 			if not self.is_compatible(other):
 				raise Exception("MFD's not compatible")
 			if self.get_min_mag() <= other.get_min_mag() and self.max_mag >= other.max_mag:
@@ -382,7 +391,7 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		Float, number of standard deviations to spread occurrence rates over
 		(default: 0)
 	"""
-	def __init__(self, M, return_period, bin_width, Mtype="MW", M_sigma=0.3, num_sigma=0):
+	def __init__(self, M, return_period, bin_width, M_sigma=0.3, num_sigma=0):
 		from matplotlib import mlab
 		if M_sigma and num_sigma:
 			Mmin = M - M_sigma * num_sigma
@@ -396,7 +405,7 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		else:
 			Mmin = M
 			occurrence_rates = [1./return_period]
-		EvenlyDiscretizedMFD.__init__(self, Mmin+bin_width/2, bin_width, occurrence_rates, Mtype=Mtype)
+		EvenlyDiscretizedMFD.__init__(self, Mmin+bin_width/2, bin_width, occurrence_rates, Mtype="MW")
 		self.M_sigma = M_sigma
 
 	@property
@@ -530,15 +539,6 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		## Note: the following is identical
 		#return np.add.accumulate(self.occurrence_rates[::-1])[::-1]
 
-	def to_evenly_discretized_mfd(self):
-		"""
-		Convert to an EvenlyDiscretizedMFD
-
-		:return:
-			instance of :class:`EvenlyDiscretizedMFD`
-		"""
-		return EvenlyDiscretizedMFD(self.get_min_mag_center(), self.bin_width, list(self.occurrence_rates))
-
 	def divide(self, weights):
 		"""
 		Divide MFD into a number of MFD's that together sum up to the original MFD
@@ -651,6 +651,118 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 			Int, image resolution in dots per inch (default: 300)
 		"""
 		plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, fig_width=fig_width, dpi=dpi)
+
+
+class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, MFD):
+	"""
+	Class implementing the MFD for the 'Characteristic Earthquake Model'
+	by Youngs & Coppersmith (1985)
+
+	:param min_mag:
+		The lowest possible magnitude for this MFD. The first bin in the
+		:meth:`result histogram <get_annual_occurrence_rates>` will be aligned
+		to make its left border match this value.
+	:param a_val:
+		Float, the cumulative ``a`` value (``10 ** a`` is the number
+		of earthquakes per year with magnitude greater than or equal to 0),
+	:param b_val:
+		Float, Gutenberg-Richter ``b`` value -- the decay rate
+		of exponential distribution. It describes the relative size distribution
+		of earthquakes: a higher ``b`` value indicates a relatively larger
+		proportion of small events and vice versa.
+	:param char_mag:
+		The characteristic magnitude defining the middle point of the
+		characteristic distribution. That is the boxcar function representing
+		the characteristic distribution is defined in the range
+		[char_mag - 0.25, char_mag + 0.25].
+	:param char_rate:
+		The characteristic rate associated to the characteristic magnitude,
+		to be distributed over the domain of the boxcar function representing
+		the characteristic distribution (that is: char_rate / 0.5)
+	:param bin_width:
+		A positive float value -- the width of a single histogram bin.
+	"""
+	def __init__(self, min_mag, a_val, b_val, char_mag, char_rate, bin_width):
+		super(YoungsCoppersmith1985MFD, self).__init__(min_mag, a_val, b_val, char_mag, char_rate, bin_width)
+		self.Mtype = "MW"
+
+	@property
+	def occurrence_rates(self):
+		return np.array(zip(*self.get_annual_occurrence_rates())[1])
+
+	@property
+	def beta(self):
+		return np.log(10) * self.b_val
+
+	@property
+	def alpha(self):
+		return np.log(10) * self.a_val
+
+	@property
+	def max_mag(self):
+		return self.get_min_mag_edge() + len(self.occurrence_rates) * self.bin_width
+
+	def get_min_mag_edge(self):
+		"""
+		Return left edge of minimum magnitude bin
+
+		:return:
+			Float
+		"""
+		return self.min_mag
+
+	def get_min_mag_center(self):
+		"""
+		Return center value of minimum magnitude bin
+
+		:return:
+			Float
+		"""
+		return self.min_mag + self.bin_width / 2
+
+	def plot(self, color='k', style="-", label="", discrete=True, cumul_or_inc="both", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, fig_width=0, dpi=300):
+		"""
+		Plot magnitude-frequency distribution
+
+		:param color:
+			matplotlib color specification (default: 'k')
+		:param style:
+			matplotlib symbol style or line style (default: '-')
+		:param label:
+			String, plot labels (default: "")
+		:param discrete:
+			Bool, whether or not to plot discrete MFD (default: True)
+		:param cumul_or_inc:
+			String, either "cumul", "inc" or "both", indicating
+			whether to plot cumulative MFD, incremental MFD or both
+			(default: "both")
+		:param completeness:
+			instance of :class:`Completeness`, used to plot completeness
+			limits (default: None)
+		:param end_year:
+			Int, end year of catalog (used when plotting completeness limits)
+			(default: None, will use current year)
+		:param Mrange:
+			(Mmin, Mmax) tuple, minimum and maximum magnitude in X axis
+			(default: ())
+		:param Freq_range:
+			(Freq_min, Freq_max) tuple, minimum and maximum values in frequency
+			(Y) axis (default: ())
+		:param title:
+			String, plot title (default: "")
+		:param lang:
+			String, language of plot axis labels (default: "en")
+		:param fig_filespec:
+			String, full path to output image file, if None plot to screen
+			(default: None)
+		:param fig_width:
+			Float, figure width in cm, used to recompute :param:`dpi` with
+			respect to default figure width (default: 0)
+		:param dpi:
+			Int, image resolution in dots per inch (default: 300)
+		"""
+		plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, fig_width=fig_width, dpi=dpi)
+
 
 
 def sum_MFDs(mfd_list, weights=[]):

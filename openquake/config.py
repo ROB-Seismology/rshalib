@@ -7,10 +7,10 @@ from configobj import Section, ConfigObj
 from validate import Validator
 
 
-import sys
-f = sys._current_frames().values()[0]
-print f.f_back.f_globals['__file__']
-print f.f_back.f_globals['__name__']
+#import sys
+#f = sys._current_frames().values()[0]
+#print f.f_back.f_globals['__file__']
+#print f.f_back.f_globals['__name__']
 
 
 class ConfigError(StandardError):

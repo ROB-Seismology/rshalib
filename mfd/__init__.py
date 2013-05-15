@@ -5,4 +5,5 @@
 import mfd
 reload(mfd)
 
-from mfd import EvenlyDiscretizedMFD, CharacteristicMFD, TruncatedGRMFD, sum_MFDs, plot_MFD, alphabetalambda
+from mfd import (EvenlyDiscretizedMFD, CharacteristicMFD, TruncatedGRMFD,
+                 YoungsCoppersmith1985MFD, sum_MFDs, plot_MFD, alphabetalambda)
