@@ -561,7 +561,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 		MFD = CharacteristicMFD(max_mag, return_period, bin_width, M_sigma=M_sigma, num_sigma=num_sigma)
 		return MFD
 
-	def get_MFD_Anderson_Luco(self, min_mag=None, max_mag=None, bin_width=None, b_val=None, aseismic_coef=0., moment_scaling=None, strain_drop=None, mu=3E+10, arbitrary_surface=False):
+	def get_MFD_Anderson_Luco(self, min_mag=None, max_mag=None, bin_width=None, b_val=None, aseismic_coef=0., strain_drop=None, mu=3E+10, arbitrary_surface=False):
 		"""
 		Compute MFD according to Anderson & Luco (1983), based on slip rate
 
@@ -578,8 +578,6 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 		:param aseismic_coef:
 			Float, The proportion of the fault slip that is released aseismically.
 			(default: 0.)
-		:param moment_scaling:
-			Tuple, Moment scaling relation (default: None, take default).
 		:param strain_drop:
 			Float, strain drop (dimensionless), this is the ratio between
 			rupture displacement and rupture length. If not provided, it will
@@ -593,28 +591,51 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 		:return:
 			instance of :class:`EvenlyDiscretizedMFD`
 		"""
-		from mtoolkit.scientific.fault_calculator import get_mfd, MOMENT_SCALING
-		from mtoolkit.geo.tectonic_region import TectonicRegionBuilder
 		if b_val is None:
 			b_val = self.mfd.b_val
 		if bin_width is None:
 			bin_width = self.mfd.bin_width
 		if min_mag is None:
-			min_mag = self.mfd.get_min_mag_center()
+			min_mag = self.mfd.get_min_mag_edge()
 		if max_mag is None:
 			#max_mag = self.mfd.max_mag - bin_width / 2.
 			max_mag = self.mfd.max_mag
-		if moment_scaling is None:
-			moment_scaling = MOMENT_SCALING
-		trt = TectonicRegionBuilder.create_tect_region_by_name(self.tectonic_region_type)
-		## Override displacement-length ratio with actual value computed from Mmax
 		if not strain_drop:
 			strain_drop = self.get_Mmax_strain_drop()
-		trt._dlr = {'value': [strain_drop], 'weight': [1.0]}
-		trt._smod = {'value': [mu/1E+9], 'weight': [1.0]}
+		## For seismic moment in units of dyn-cm
+		c, d = 16.05, 1.5
 
-		occurrence_rates = get_mfd(self.slip_rate, aseismic_coef, trt, self, b_val, min_mag, bin_width, max_mag, self.rake, moment_scaling, arbitrary_surface)
-		return EvenlyDiscretizedMFD(min_mag, bin_width, occurrence_rates)
+		## Using mtoolkit, returns EvenlyDiscretizedMFD
+		#from mtoolkit.scientific.fault_calculator import get_mfd, MOMENT_SCALING
+		#from mtoolkit.geo.tectonic_region import TectonicRegionBuilder
+		#moment_scaling = (c, d)
+		#min_mag = min_mag + bin_width / 2.
+		#trt = TectonicRegionBuilder.create_tect_region_by_name(self.tectonic_region_type)
+		## Override displacement-length ratio with actual value computed from Mmax
+		#trt._dlr = {'value': [strain_drop], 'weight': [1.0]}
+		#trt._smod = {'value': [mu/1E+9], 'weight': [1.0]}
+		#occurrence_rates = get_mfd(self.slip_rate, aseismic_coef, trt, self, b_val, min_mag, bin_width, max_mag, self.rake, moment_scaling, arbitrary_surface)
+		#return EvenlyDiscretizedMFD(min_mag, bin_width, occurrence_rates)
+
+		dbar = d * np.log(10.0)
+		bbar = b_val * np.log(10.0)
+		seismic_slip = self.slip_rate * (1.0 - aseismic_coef)
+
+		## Compute cumulative value for M=0
+		mag_value = 0
+		if arbitrary_surface:
+			max_mag_moment = 10 ** ((max_mag + 10.73) * 1.5)
+			arbitrary_surface_param = max_mag_moment / ((mu * 10) * (self.get_area() * 1E10))
+			N0 = (((dbar - bbar) / (dbar)) * ((seismic_slip / 10.) / arbitrary_surface_param) *
+						np.exp(bbar * (max_mag - mag_value)))
+		else:
+			beta = np.sqrt(strain_drop * (10.0 ** c) / ((mu * 10) * (self.get_width() * 1E5)))
+			N0 = (((dbar - bbar) / (dbar)) * ((seismic_slip / 10.) / beta) *
+						np.exp(bbar * (max_mag - mag_value)) *
+						np.exp(-(dbar / 2.) * max_mag))
+
+		a_val = np.log10(N0)
+		return TruncatedGRMFD(min_mag, max_mag, bin_width, a_val, b_val)
 
 	def get_MFD_Youngs_Coppersmith(self, min_mag=None, bin_width=None, b_val=None):
 		"""
