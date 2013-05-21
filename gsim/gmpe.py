@@ -440,9 +440,11 @@ class GMPE(object):
 		if num_periods > 40:
 			print("Warning: Too many (%d) periods. CRISIS only supports 40!" % num_periods)
 
+		## Periods should be in ascending order
+		## Sorting IMT's makes sure PGA comes before SA
 		all_periods = []
-		for imt in imt_periods.keys():
-			for T in imt_periods[imt]:
+		for imt in sorted(imt_periods.keys()):
+			for T in sorted(imt_periods[imt]):
 				## CRISIS does not support non-numeric structural periods,
 				## so different IMT's may not have duplicate periods!
 				if not T in all_periods:

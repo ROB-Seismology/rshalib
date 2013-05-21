@@ -1387,6 +1387,10 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			if self.variances.shape != (num_sites, num_periods, num_intensities):
 				raise Exception("variances array has wrong shape")
 
+	def getHazardCurveField(self, period_spec=0):
+		# TODO !
+		pass
+
 	def getSpectralHazardCurve(self, site_spec=0):
 		"""
 		Return spectral hazard curve for a particular site
@@ -2943,6 +2947,10 @@ class HazardMap(HazardResult, HazardField):
 			vmgrd.WriteRow(row, (nrows-1)-rownr)
 		vmgrd.Close()
 
+	def export_kml(self):
+		# TODO!
+		pass
+
 	def plot(self, cmap="usgs", contour_interval=None, intensity_levels=[0., 0.02, 0.06, 0.14, 0.30, 0.90], num_grid_cells=100, plot_style="cont", site_symbol=".", site_color="w", site_size=6, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
 		"""
 		Plot hazard map
@@ -3213,10 +3221,14 @@ class HazardMapSet(HazardResult, HazardField):
 				index = np.where(np.abs(self.poes - poe) < 1E-6)[0]
 				if len(index) == 0:
 					raise ValueError("No hazard map for poE=%s" % poe)
+				else:
+					index = index[0]
 			elif return_period is not None:
 				index = np.where(np.abs(self.return_periods - return_period) < 1)[0]
 				if len(index) == 0:
 					raise ValueError("No hazard map for return period=%s" % return_period)
+				else:
+					index = index[0]
 
 		try:
 			return_period = self.return_periods[index]

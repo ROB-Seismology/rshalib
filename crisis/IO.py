@@ -276,7 +276,9 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 	of.write("%d,%d,%d,%d\n" % (num_sources, num_atn_tables, len(all_periods), num_intensities))
 
 	## IMTLS
-	for imt in imt_periods.keys():
+	## Periods should be in ascending order
+	## Sorting IMT's makes sure PGA comes before SA
+	for imt in sorted(imt_periods.keys()):
 		periods = imt_periods[imt]
 		if intensities:
 			Imin = [intensities[0]]
@@ -290,7 +292,8 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 			Imax = max_intensities[imt]
 		if len(Imax) == 1:
 			Imax = list(Imax) * len(periods)
-		for k, T in enumerate(periods):
+		for T in sorted(periods):
+			k = periods.index(T)
 			of.write("%.3E,%.2E,%.2E,%s\n" % (T, Imin[k], Imax[k], imt_unit))
 
 	## Integration parameters, return periods, and distance metric for deaggregation
@@ -1001,6 +1004,7 @@ def readCRISIS_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True
 		if linenr == 15:
 			words = line.split()[3:8]
 			return_periods = [int(float(s)) for s in words]
+			return_periods = [rp for rp in return_periods if not rp == 0]
 			for rp in return_periods:
 				intensities.append([])
 
@@ -1011,7 +1015,7 @@ def readCRISIS_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True
 			if not site in sites:
 				sites.append(site)
 			else:
-				break
+				continue
 	f.seek(0)
 
 	num_sites, num_periods, num_return_periods = len(sites), len(periods), len(return_periods)
@@ -1029,7 +1033,7 @@ def readCRISIS_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True
 				site_index += 1
 			if site_index == num_sites:
 				site_index = 0
-			a = np.array([a0, a1, a2, a3, a4], 'd')
+			a = np.array([a0, a1, a2, a3, a4][:num_return_periods], 'd')
 			period_index = int(nt) - 1
 			intensities[:, site_index, period_index] = a
 			prev_site = site
