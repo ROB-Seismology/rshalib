@@ -149,7 +149,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			occurrence_rates = np.array(self.occurrence_rates) * other
 			return EvenlyDiscretizedMFD(self.min_mag, self.bin_width, list(occurrence_rates), self.Mtype)
 		else:
-			raise TypeError("Divisor must be integer or float")
+			raise TypeError("Multiplier must be integer or float")
 
 	def __add__(self, other):
 		if isinstance(other, (TruncatedGRMFD, EvenlyDiscretizedMFD, YoungsCoppersmith1985MFD)):
@@ -379,7 +379,7 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 	evenly discretized MFD with one magnitude bin. The characteristic
 	magnitde is taken to correspond to the left edge of the bin.
 
-	:param M:
+	:param char_mag:
 		Float, magnitude of characteristic earthquake
 	:param return_period:
 		Float, return period of characteristic earthquake in year
@@ -391,22 +391,38 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		Float, number of standard deviations to spread occurrence rates over
 		(default: 0)
 	"""
-	def __init__(self, M, return_period, bin_width, M_sigma=0.3, num_sigma=0):
+	def __init__(self, char_mag, return_period, bin_width, M_sigma=0.3, num_sigma=0):
 		from matplotlib import mlab
 		if M_sigma and num_sigma:
-			Mmin = M - M_sigma * num_sigma
-			Mmax = M + M_sigma * num_sigma
+			Mmin = char_mag - M_sigma * num_sigma
+			Mmax = char_mag + M_sigma * num_sigma
 			Mmin = np.floor(Mmin / bin_width) * bin_width
 			Mmax = np.ceil(Mmax / bin_width) * bin_width
 			magnitudes = np.arange(Mmin, Mmax + bin_width, bin_width)
-			probs = mlab.normpdf(magnitudes, M, M_sigma)
+			probs = mlab.normpdf(magnitudes, char_mag, M_sigma)
 			probs /= np.sum(probs)
 			occurrence_rates = (1./return_period) * probs
 		else:
 			Mmin = M
 			occurrence_rates = [1./return_period]
 		EvenlyDiscretizedMFD.__init__(self, Mmin+bin_width/2, bin_width, occurrence_rates, Mtype="MW")
+		self.char_mag = char_mag
 		self.M_sigma = M_sigma
+		self.num_sigma = num_sigma
+
+	def __div__(self, other):
+		if isinstance(other, (int, float)):
+			return_period = self.return_period * other
+			return CharacteristicMFD(self.char_mag, self.return_period, self.bin_width, self.M_sigma, self.num_sigma)
+		else:
+			raise TypeError("Divisor must be integer or float")
+
+	def __mul__(self, other):
+		if isinstance(other, (int, float)):
+			return_period = self.return_period / other
+			return CharacteristicMFD(self.char_mag, self.return_period, self.bin_width, self.M_sigma, self.num_sigma)
+		else:
+			raise TypeError("Multiplier must be integer or float")
 
 	@property
 	def return_period(self):

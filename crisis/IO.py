@@ -160,7 +160,6 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 	:param overwrite:
 		Boolean, whether or not to overwrite existing input files (default: False)
 	"""
-	from ..mfd import alphabetalambda
 	from ..gsim import gmpe as att
 	from shapely.geometry.polygon import LinearRing
 
@@ -455,7 +454,13 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 				else:
 					raise Exception("Complex fault sources are not supported in CRISIS!")
 				is_alive = True
-				of.write("1,%d,%d,%s,%s,%s\n" % (source_type, atn_index, is_alive, k1, k2))
+				if isinstance(source.mfd, TruncatedGRMFD):
+					mfd_type = 1
+				elif isinstance(source.mfd, CharacteristicMFD):
+					mfd_type = 2
+				else:
+					raise Exception("CRISIS does not support EvenlyDiscretizedMFD !")
+				of.write("%d,%d,%d,%s,%s,%s\n" % (mfd_type, source_type, atn_index, is_alive, k1, k2))
 
 				## Geometry
 				if not isinstance(source, PointSource):
@@ -504,9 +509,10 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					Mmax = mfd.get_magnitude_bin_edges()[-1]
 					M_sigma = mfd.M_sigma
 					return_period = mfd.return_period
+					D = mfd.char_mag
 					## time-dependent parameters
-					D, F, T00 = 0, 0, 0
-					of.write("%.s, %s, %s, %s, %.2f, %.2f, %.2f" % (return_period, D, F, T00, M_sigma, Mmin, Mmax))
+					F, T00 = 0, 1
+					of.write("%s, %s, %s, %s, %.2f, %.2f, %.2f\n" % (return_period, T00, D, F, M_sigma, Mmin, Mmax))
 				else:
 					raise Exception("CRISIS does not support EvenlyDiscretizedMFD !")
 				of.write(" 0\n")
