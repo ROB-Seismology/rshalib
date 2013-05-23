@@ -3035,7 +3035,7 @@ class HazardMap(HazardResult, HazardField):
 
 		contour_levels = np.arange(amin, amax+contour_interval, contour_interval)
 		## Sometimes, there is an empty contour interval at the end
-		if contour_levels[-2] > self.max():
+		if len(contour_levels) > 1 and contour_levels[-2] > self.max():
 			contour_levels = contour_levels[:-1]
 
 		## Compute map limits
