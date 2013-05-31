@@ -508,7 +508,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					#Mmin = mfd.get_min_mag_edge()
 					#Mmax = mfd.get_magnitude_bin_edges()[-1]
 					Mmin = mfd.char_mag - mfd.M_sigma * mfd.num_sigma
-					Mmax = mfd.char_mag + mfd.M_sigma * mfd.num_sigma
+					Mmax = mfd.char_mag + mfd.M_sigma * mfd.num_sigma + mfd.bin_width
 					M_sigma = mfd.M_sigma
 					return_period = mfd.return_period
 					D = mfd.char_mag

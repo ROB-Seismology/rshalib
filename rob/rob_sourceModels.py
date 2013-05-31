@@ -103,7 +103,8 @@ def create_rob_area_source(
 	rupture_mesh_spacing=1.,
 	magnitude_scaling_relationship=WC1994(),
 	rupture_aspect_ratio=1.,
-	strike_delta=45.,
+	strike_delta=90.,
+	dip_delta=30.,
 	nodal_plane_distribution=None,
 	hypo_num_bins=5,
 	hypocentral_distribution=None,
@@ -127,12 +128,14 @@ def create_rob_area_source(
 	:param rupture_aspect_ratio:
 		See class AreaSource (Default: 1.0).
 	:param strike_delta:
-		Float with strike delta for nodal plane distribution (Default: 45.).
+		Float with strike delta for nodal plane distribution (default: 90.).
+	:param dip_delta:
+		Float with dip delta for nodal plane distribution (default: 30.)
 	:param nodal_plane_distribution:
 		See class AreaSource (Default: None).
 	:param hypo_num_bins:
 		Integer with number of bins for hypocentral depth distribution (Default: 5)
-	:param hypocenter_distribution:
+	:param hypocentral_distribution:
 		See class AreaSource (Default: None).
 	:param polygon:
 		See class AreaSource (Default: None).
@@ -149,26 +152,30 @@ def create_rob_area_source(
 	:return:
 		AreaSource object.
 	"""
-	## set id
+	## ID and name
 	source_id = source_rec.get(column_map['id'], column_map['id'])
-	## set name
 	name = source_rec.get(column_map['name'], column_map['name'])
 	name = name.decode('latin1')
-	## set tectonic region type
+	print source_id
+
+	## Tectonic region type
 	tectonic_region_type = source_rec.get(column_map['tectonic_region_type'], column_map['tectonic_region_type'])
-	## set mfd
+
+	## MFD
 	if not mfd:
 		a_val = source_rec.get(column_map['a_val'], column_map['a_val'])
 		b_val = source_rec.get(column_map['b_val'], column_map['b_val'])
 		min_mag = source_rec.get(column_map['min_mag'], column_map['min_mag'])
 		max_mag = source_rec.get(column_map['max_mag'], column_map['max_mag'])
 		mfd = TruncatedGRMFD(min_mag, max_mag, mfd_bin_width, a_val, b_val)
-	## set upper seismogenic depth
+
+	## upper and lower seismogenic depth
 	upper_seismogenic_depth = source_rec.get(column_map['upper_seismogenic_depth'], column_map['upper_seismogenic_depth'])
-	## set lower seismogenic depth
 	lower_seismogenic_depth = source_rec.get(column_map['lower_seismogenic_depth'], column_map['lower_seismogenic_depth'])
-	## set nodal plane distribution
+
+	## nodal plane distribution
 	if not nodal_plane_distribution:
+		## Strike
 		# TODO: This may fail when e.g., min_strike=355 and max_strike=5
 		min_strike = source_rec.get(column_map['min_strike'], column_map['min_strike'])
 		max_strike = source_rec.get(column_map['max_strike'], column_map['max_strike'])
@@ -178,18 +185,38 @@ def create_rob_area_source(
 		## to real fault directions, and allow only these values
 		if max_strike - min_strike == 180.:
 			strike_delta = 180.
-		strikes, weights = get_uniform_distribution(min_strike, max_strike, strike_delta)
-		dip = source_rec.get(column_map['dip'], column_map['dip'])
-		rake = source_rec.get(column_map['rake'], column_map['rake'])
-		nodal_planes = [NodalPlane(strike, dip, rake) for strike in strikes]
-		nodal_plane_distribution = NodalPlaneDistribution(nodal_planes, weights)
-	## set hypocenter distribution
+		strikes, strike_weights = get_uniform_distribution(min_strike, max_strike, strike_delta)
+
+		## Dip
+		min_dip = source_rec.get(column_map['min_dip'], column_map['min_dip'])
+		max_dip = source_rec.get(column_map['max_dip'], column_map['max_dip'])
+		dips, dip_weights = get_uniform_distribution(min_dip, max_dip, dip_delta)
+
+		## Rake
+		Ss = source_rec.get(column_map['Ss'], column_map['Ss'])
+		Nf = source_rec.get(column_map['Nf'], column_map['Nf'])
+		Tf = source_rec.get(column_map['Tf'], column_map['Tf'])
+		rake_weights = np.array([Ss, Nf, Tf]) / Decimal(100.)
+		rakes = np.array([0, -90, 90])[rake_weights > 0]
+		rake_weights = rake_weights[rake_weights > 0]
+
+		## NPD
+		nodal_planes, nodal_plane_weights = [], []
+		for strike, strike_weight in zip(strikes, strike_weights):
+			for dip, dip_weight in zip(dips, dip_weights):
+				for rake, rake_weight in zip(rakes, rake_weights):
+					nodal_planes.append(NodalPlane(strike, dip, rake))
+					nodal_plane_weights.append(strike_weight * rake_weight * dip_weight)
+		nodal_plane_distribution = NodalPlaneDistribution(nodal_planes, nodal_plane_weights)
+
+	## hypocenter distribution
 	if not hypocentral_distribution:
 		min_hypo_depth = source_rec.get(column_map['min_hypo_depth'], column_map['min_hypo_depth'])
 		max_hypo_depth = source_rec.get(column_map['max_hypo_depth'], column_map['max_hypo_depth'])
 		hypo_depths, weights = get_normal_distribution(min_hypo_depth, max_hypo_depth, num_bins=hypo_num_bins)
 		hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
-	## set polygon
+
+	## polygon
 	if not polygon:
 		"""
 		miApp = source_rec._MIapp
@@ -213,7 +240,7 @@ def create_rob_area_source(
 		points = linear_ring.GetPoints()
 		polygon = Polygon([Point(*pt) for pt in points])
 
-	## initiate AreaSource object
+	## instantiate AreaSource object
 	area_source = AreaSource(
 		source_id,
 		name,
