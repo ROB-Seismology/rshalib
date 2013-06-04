@@ -345,8 +345,10 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			datetime.date or Int, end date with respect to which observation periods
 			will be determined in Weichert method
 		:param method:
-			String, computation method, either "Weichert" or "LSQ"
-			(default: "Weichert")
+			String, computation method (default: "Weichert":
+			- "Weichert"
+			- "LSQc" (least squares on cumulative values)
+			- "LSQi" (least squares on incremental values)
 		:param b_val:
 			Float, fixed b value to constrain MLE estimation (default: None)
 		:param verbose:
@@ -361,9 +363,17 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			## Number of earthquakes in each bin according to completeness
 			bins_N = self.get_num_earthquakes(completeness, end_date)
 			a, b, stdb = calcGR_Weichert(magnitudes, bins_N, completeness, end_date, b_val=b_val, verbose=verbose)
-		elif method == "LSQ":
-			cumul_rates = self.get_cumulative_rates()
-			a, b, stdb = calcGR_LSQ(magnitudes, cumul_rates, b_val=b_val, verbose=verbose)
+		elif method[:3] == "LSQ":
+			if method == "LSQc":
+				occurrence_rates = self.get_cumulative_rates()
+			elif method == "LSQi":
+				occurrence_rates = self.occurrence_rates
+			a, b, stdb = calcGR_LSQ(magnitudes, occurrence_rates, b_val=b_val, verbose=verbose)
+			if method == "LSQi":
+				## Compute a value for cumulative MFD from discrete a value
+				a2 = a
+				dM = self.bin_width
+				a = a2 + b * dM - np.log10(10**(b*dM) - 1)
 		return TruncatedGRMFD(self.get_min_mag_edge(), self.max_mag, self.bin_width, a, b, b_sigma=stdb, Mtype=self.Mtype)
 
 	def create_xml_element(self, encoding='latin1'):
