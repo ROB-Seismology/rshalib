@@ -115,6 +115,24 @@ class MFD(object):
 		"""
 		return EvenlyDiscretizedMFD(self.get_min_mag_center(), self.bin_width, list(self.occurrence_rates), Mtype=self.Mtype)
 
+	def get_num_earthquakes(self, completeness, end_date):
+		"""
+		Return array with number of earthquakes per magnitude bin,
+		taking into account completeness
+
+		:param completeness:
+			instance of :class:`Completeness`
+		:param end_date:
+			datetime.date or Int, end date with respect to which observation periods
+			will be determined
+
+		:return:
+			numpy float array
+		"""
+		magnitudes = self.get_magnitude_bin_edges()
+		timespans = completeness.get_completeness_timespans(magnitudes, end_date)
+		return self.occurrence_rates * timespans
+
 
 class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 	"""
@@ -313,6 +331,40 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			self.extend(characteristic_mfd)
 		else:
 			raise Exception("Characteristic magnitude should be multiple of bin width!")
+
+	def to_truncated_GR_mfd(self, completeness, end_date, method="Weichert", b_val=None, verbose=False):
+		"""
+		Calculate truncated Gutenberg-Richter MFD using maximum likelihood estimation
+		for variable observation periods for different magnitude increments.
+		Adapted from calB.m and calBfixe.m Matlab modules written by Philippe Rosset (ROB, 2004),
+		which is based on the method by Weichert, 1980 (BSSA, 70, Nr 4, 1337-1346).
+
+		:param completeness:
+			instance of :class:`Completeness`, necessary for Weichert method
+		:param end_date:
+			datetime.date or Int, end date with respect to which observation periods
+			will be determined in Weichert method
+		:param method:
+			String, computation method, either "Weichert" or "LSQ"
+			(default: "Weichert")
+		:param b_val:
+			Float, fixed b value to constrain MLE estimation (default: None)
+		:param verbose:
+			Bool, whether some messages should be printed or not (default: False)
+
+		:return:
+			instance of :class:`TruncatedGRMFD`
+		"""
+		from eqcatalog.calcGR import calcGR_Weichert, calcGR_LSQ
+		magnitudes = self.get_magnitude_bin_edges()
+		if method == "Weichert":
+			## Number of earthquakes in each bin according to completeness
+			bins_N = self.get_num_earthquakes(completeness, end_date)
+			a, b, stdb = calcGR_Weichert(magnitudes, bins_N, completeness, end_date, b_val=b_val, verbose=verbose)
+		elif method == "LSQ":
+			cumul_rates = self.get_cumulative_rates()
+			a, b, stdb = calcGR_LSQ(magnitudes, cumul_rates, b_val=b_val, verbose=verbose)
+		return TruncatedGRMFD(self.get_min_mag_edge(), self.max_mag, self.bin_width, a, b, b_sigma=stdb, Mtype=self.Mtype)
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
