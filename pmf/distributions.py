@@ -271,7 +271,7 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2):
 		bin_centers = [mean]
 		weights = [1.]
 	else:
-		# Assume depth range corresponds to +/ sigma_range
+		# Assume range corresponds to +/ sigma_range
 		sigma = val_range / (sigma_range * 2)
 		bin_width = val_range / num_bins
 		bin_edges = np.linspace(min, max, num_bins+1)
@@ -284,7 +284,7 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2):
 		weights /= sum(weights)
 		## Check if and set sum == 1
 		if sum(weights) != 1.0:
-			weights[-1] = 1.0 - sum(weights[:-1])
+			weights[-1] = Decimal(1.0) - sum(weights[:-1])
 	return bin_centers, weights
 
 
@@ -338,7 +338,10 @@ def get_uniform_distribution(min, max, delta):
 	if delta == 0:
 		values = [np.mean([min, max])]
 	else:
-		values = np.arange(min, max+delta, delta)
+		# TODO: check if this works as expected !
+		max = min + np.floor((max - min) / delta) * delta
+		values = np.arange(min, max+1, delta)
+		#values = np.arange(min, max+delta, delta)
 	weights = get_uniform_weights(len(values))
 	return values, weights
 

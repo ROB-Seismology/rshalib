@@ -47,12 +47,12 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	from eqcatalog.source_models import rob_source_models_dict
 	from mapping.geo.readGIS import read_GIS_file
 
-	# TODO: on second call of this function, column_map has value of previous call!
-
 	rob_source_model = rob_source_models_dict[source_model_name]
-	source_records = read_GIS_file(rob_source_model['tab_filespec'])
+	source_records = read_GIS_file(rob_source_model['gis_filespec'])
 
 	## Override default column map
+	## Avoid side effects in calling function
+	column_map = column_map.copy()
 	default_column_map = rob_source_model['column_map']
 	for key in default_column_map:
 		if not key in column_map:
@@ -167,7 +167,10 @@ def create_rob_area_source(
 		b_val = source_rec.get(column_map['b_val'], column_map['b_val'])
 		min_mag = source_rec.get(column_map['min_mag'], column_map['min_mag'])
 		max_mag = source_rec.get(column_map['max_mag'], column_map['max_mag'])
-		mfd = TruncatedGRMFD(min_mag, max_mag, mfd_bin_width, a_val, b_val)
+		try:
+			mfd = TruncatedGRMFD(min_mag, max_mag, mfd_bin_width, a_val, b_val)
+		except ValueError:
+			mfd = None
 
 	## upper and lower seismogenic depth
 	upper_seismogenic_depth = source_rec.get(column_map['upper_seismogenic_depth'], column_map['upper_seismogenic_depth'])
@@ -179,6 +182,8 @@ def create_rob_area_source(
 		# TODO: This may fail when e.g., min_strike=355 and max_strike=5
 		min_strike = source_rec.get(column_map['min_strike'], column_map['min_strike'])
 		max_strike = source_rec.get(column_map['max_strike'], column_map['max_strike'])
+		if min_strike > max_strike:
+			min_strike, max_strike = max_strike, min_strike
 		if min_strike == 0. and max_strike == 360.:
 			max_strike -= strike_delta
 		## If min_strike and max_strike are 180 degrees apart, assume they correspond
@@ -189,14 +194,20 @@ def create_rob_area_source(
 
 		## Dip
 		min_dip = source_rec.get(column_map['min_dip'], column_map['min_dip'])
+		if min_dip == 0:
+			min_dip = 1E-6
 		max_dip = source_rec.get(column_map['max_dip'], column_map['max_dip'])
+		if max_dip == 0:
+			max_dip = 1E-6
+		if min_dip > max_dip:
+			min_dip, max_dip = max_dip, min_dip
 		dips, dip_weights = get_uniform_distribution(min_dip, max_dip, dip_delta)
 
 		## Rake
 		Ss = source_rec.get(column_map['Ss'], column_map['Ss'])
 		Nf = source_rec.get(column_map['Nf'], column_map['Nf'])
 		Tf = source_rec.get(column_map['Tf'], column_map['Tf'])
-		rake_weights = np.array([Ss, Nf, Tf]) / Decimal(100.)
+		rake_weights = np.array([Ss, Nf, Tf], 'i') / Decimal(100.)
 		rakes = np.array([0, -90, 90])[rake_weights > 0]
 		rake_weights = rake_weights[rake_weights > 0]
 
@@ -212,27 +223,14 @@ def create_rob_area_source(
 	## hypocenter distribution
 	if not hypocentral_distribution:
 		min_hypo_depth = source_rec.get(column_map['min_hypo_depth'], column_map['min_hypo_depth'])
+		min_hypo_depth = max(min_hypo_depth, upper_seismogenic_depth)
 		max_hypo_depth = source_rec.get(column_map['max_hypo_depth'], column_map['max_hypo_depth'])
+		max_hypo_depth = min(max_hypo_depth, lower_seismogenic_depth)
 		hypo_depths, weights = get_normal_distribution(min_hypo_depth, max_hypo_depth, num_bins=hypo_num_bins)
 		hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
 
 	## polygon
 	if not polygon:
-		"""
-		miApp = source_rec._MIapp
-		coordsys = miApp.GetCurrentCoordsys()
-		miApp.SetCoordsys(MI.Coordsys(1,0))
-		points = []
-		## If polygon contains more than one polyline, take the outer one
-		mi_polygon = max(source_rec.GetGeography())
-		## Reverse polygon if clockwise
-		if source_rec.IsClockwise():
-			mi_polygon.reverse()
-		for node in mi_polygon:
-			points.append(Point(node.x, node.y))
-		polygon = Polygon(points)
-		miApp.SetCoordsys(coordsys)
-		"""
 		points = []
 		zone_poly = source_rec['obj']
 		## Assume outer outline corresponds to first linear ring
@@ -255,7 +253,7 @@ def create_rob_area_source(
 		hypocentral_distribution,
 		polygon,
 		area_discretization)
-	## return AreaSource object
+
 	return area_source
 
 
@@ -295,11 +293,12 @@ def create_rob_simple_fault_source(
 	:return:
 		SimpleFaultSource object.
 	"""
-	## ID
+	## ID and name
 	source_id = source_rec.get(column_map['id'], column_map['id'])
-	## Name
 	name = source_rec.get(column_map['name'], column_map['name'])
 	name = name.decode('latin1')
+	print source_id
+
 	## Tectonic region type
 	tectonic_region_type = source_rec.get(column_map['tectonic_region_type'], column_map['tectonic_region_type'])
 
@@ -314,7 +313,10 @@ def create_rob_simple_fault_source(
 		## Make sure maximum magnitude is smaller than MFD.max_mag
 		if np.allclose(max_mag, max_mag_rounded):
 			max_mag_rounded += mfd_bin_width
-		mfd = TruncatedGRMFD(min_mag, max_mag_rounded, mfd_bin_width, a_val, b_val)
+		try:
+			mfd = TruncatedGRMFD(min_mag, max_mag_rounded, mfd_bin_width, a_val, b_val)
+		except ValueError:
+			mfd = None
 
 	## Upper seismogenic depth
 	upper_seismogenic_depth = source_rec.get(column_map['upper_seismogenic_depth'], column_map['upper_seismogenic_depth'])
@@ -323,65 +325,42 @@ def create_rob_simple_fault_source(
 
 	## Fault trace
 	if not fault_trace:
-		"""
-		miApp = source_rec._MIapp
-		coordsys = miApp.GetCurrentCoordsys()
-		miApp.SetCoordsys(MI.Coordsys(1,0))
-		points = []
-		for node in source_rec.GetGeography()[0]:
-			points.append(Point(node.x, node.y))
-		fault_trace = Line(points)
-		miApp.SetCoordsys(coordsys)
-		"""
-
 		points = []
 		linear_ring = source_rec['obj']
 		points = linear_ring.GetPoints()
 		fault_trace = Line([Point(*pt) for pt in points])
 
 	## Dip
-	if isinstance(column_map['dip'], (int, float)):
-		dip = column_map['dip']
+	max_dip = source_rec.get(column_map['min_dip'], column_map['min_dip'])
+	min_dip = source_rec.get(column_map['max_dip'], column_map['max_dip'])
+	if None in (min_dip, max_dip):
+		raise Exception("Dip not defined")
 	else:
-		dip = source_rec.get(column_map['dip'])
-		if dip is None:
-			max_dip = source_rec.get(column_map['dip']+"Max")
-			min_dip = source_rec.get(column_map['dip']+"Min")
-			if None in (min_dip, max_dip):
-				raise Exception("Dip not defined")
-			else:
-				dip = (min_dip + max_dip) / 2.
+		dip = (min_dip + max_dip) / 2.
 
 	## Rake
-	if isinstance(column_map['rake'], (int, float)):
-		rake = column_map['rake']
+	max_rake = source_rec.get(column_map['min_rake'], column_map['min_rake'])
+	min_rake = source_rec.get(column_map['max_rake'], column_map['max_rake'])
+	if None in (min_rake, max_rake):
+		raise Exception("Rake not defined")
 	else:
-		rake = source_rec.get(column_map['rake'])
-		if rake is None:
-			max_rake = source_rec.get(column_map['rake']+"Max")
-			min_rake = source_rec.get(column_map['rake']+"Min")
-			if None in (min_rake, max_rake):
-				raise Exception("Rake not defined")
-			else:
-				rake = mean_angle([min_rake, max_rake])
-				## Constrain to (-180, 180)
-				if rake > 180:
-					rake -= 360.
+		rake = mean_angle([min_rake, max_rake])
+		## Constrain to (-180, 180)
+		if rake > 180:
+			rake -= 360.
 
 	## Slip rate
-	if isinstance(column_map['slip_rate'], (int, float)):
-		slip_rate = column_map['slip_rate']
+	max_slip_rate = source_rec.get(column_map['min_slip_rate'], column_map['min_slip_rate'])
+	min_slip_rate = source_rec.get(column_map['max_slip_rate'], column_map['max_slip_rate'])
+	if None in (min_slip_rate, max_slip_rate):
+		print("Warning: Slip rate not defined")
 	else:
-		slip_rate = source_rec.get(column_map['slip_rate'])
-		if slip_rate is None:
-			max_slip_rate = source_rec.get(column_map['slip_rate']+"Max")
-			min_slip_rate = source_rec.get(column_map['slip_rate']+"Min")
-			if None in (min_slip_rate, max_slip_rate):
-				print("Warning: Slip rate not defined")
-			else:
-				slip_rate = (min_slip_rate + max_slip_rate) / 2.
+		slip_rate = (min_slip_rate + max_slip_rate) / 2.
 
-	## Initiate SimpleFaultSource object
+	## Background zone
+	bg_zone = source_rec.get(column_map['bg_zone'], column_map['bg_zone'])
+
+	## Instantiate SimpleFaultSource object
 	simple_fault_source = SimpleFaultSource(
 		source_id,
 		name,
@@ -395,9 +374,9 @@ def create_rob_simple_fault_source(
 		fault_trace,
 		dip,
 		rake,
-		slip_rate)
+		slip_rate,
+		bg_zone)
 
-	## return SimpleFaultSource object
 	return simple_fault_source
 
 

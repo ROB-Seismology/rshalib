@@ -309,8 +309,10 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 		Angle describing fault rake in decimal degrees.
 	:param slip_rate:
 		Slip rate in mm/yr (default: NaN)
+	:param bg_zone:
+		String, ID of background zone (default: None)
 	"""
-	def __init__(self, source_id, name, tectonic_region_type, mfd, rupture_mesh_spacing, magnitude_scaling_relationship, rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth, fault_trace, dip, rake, slip_rate=numpy.NaN):
+	def __init__(self, source_id, name, tectonic_region_type, mfd, rupture_mesh_spacing, magnitude_scaling_relationship, rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth, fault_trace, dip, rake, slip_rate=numpy.NaN, bg_zone=None):
 		super(SimpleFaultSource, self).__init__(source_id=source_id,
 				name=name,
 				tectonic_region_type=tectonic_region_type,
@@ -324,6 +326,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 				dip=dip,
 				rake=rake)
 		self.slip_rate = slip_rate
+		self.bg_zone = bg_zone
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
