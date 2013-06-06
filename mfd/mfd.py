@@ -373,7 +373,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 				## Compute a value for cumulative MFD from discrete a value
 				a2 = a
 				dM = self.bin_width
-				a = a2 + b * dM - np.log10(10**(b*dM) - 1)
+				a = a2 + get_a_separation(b, dM)
 		return TruncatedGRMFD(self.get_min_mag_edge(), self.max_mag, self.bin_width, a, b, b_sigma=stdb, Mtype=self.Mtype)
 
 	def create_xml_element(self, encoding='latin1'):
@@ -1085,7 +1085,8 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 
 def alphabetalambda(a, b, M=0):
 	"""
-	Calculate alpha, beta, lambda from a, b, and M0.
+	Calculate alpha, beta, lambda from a, b, and M.
+	(assuming truncated Gutenberg-Richter MFD)
 
 	:param a:
 		Float, a value of Gutenberg-Richter relation
@@ -1103,6 +1104,38 @@ def alphabetalambda(a, b, M=0):
 	# This is identical
 	# lambda0 = 10**(a - b*M)
 	return (alpha, beta, lambda0)
+
+
+def a_from_lambda(lamda, M, b):
+	"""
+	Compute a value from lambda value for a particular magnitude
+	(assuming truncated Gutenberg-Richter MFD)
+
+	:param lamda:
+		Float, Frequency (1/yr) for magnitude M
+	:param M:
+		Float, magnitude
+	:param b:
+		Float, b value
+
+	:return:
+		Float, a value
+	"""
+	return np.log10(lamda) + b * M
+
+
+def get_a_separation(b, dM):
+	"""
+	Compute separation between a values of cumulative and discrete
+	(assuming truncated Gutenberg-Richter MFD)
+
+	:param b:
+		Float, b value
+	:param dM:
+		Float, magnitude bin width
+	"""
+	return b * dM - np.log10(10**(b*dM) - 1)
+
 
 
 # TODO: the following functions are probably obsolete

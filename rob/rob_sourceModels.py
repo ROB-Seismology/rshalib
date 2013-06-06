@@ -152,6 +152,10 @@ def create_rob_area_source(
 	:return:
 		AreaSource object.
 	"""
+	import osr
+	from mapping.geo.coordtrans import wgs84, lambert1972
+	coordTrans = osr.CoordinateTransformation(wgs84, lambert1972)
+
 	## ID and name
 	source_id = source_rec.get(column_map['id'], column_map['id'])
 	name = source_rec.get(column_map['name'], column_map['name'])
@@ -237,6 +241,10 @@ def create_rob_area_source(
 		linear_ring = zone_poly.GetGeometryRef(0)
 		points = linear_ring.GetPoints()
 		polygon = Polygon([Point(*pt) for pt in points])
+
+		## Calculate area
+		#zone_poly.Transform(coordTrans)
+		#area = zone_poly.GetArea() / 1E6
 
 	## instantiate AreaSource object
 	area_source = AreaSource(

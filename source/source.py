@@ -141,6 +141,25 @@ class PointSource(nhlib.source.PointSource):
 		"""
 		return [self.location.latitude]
 
+	def to_ogr_geometry(self):
+		"""
+		Create OGR Geometry object
+		"""
+		import osr, ogr
+
+		## Construct WGS84 projection system corresponding to earthquake coordinates
+		wgs84 = osr.SpatialReference()
+		wgs84.SetWellKnownGeogCS("WGS84")
+
+		## Create point object
+		point = ogr.Geometry(ogr.wkbPoint)
+		point.AssignSpatialReference(wgs84)
+
+		## Set point coordinates
+		point.SetPoint(0, self.location.longitude, self.location.latitude)
+
+		return point
+
 
 class AreaSource(nhlib.source.AreaSource):
 	"""
@@ -267,6 +286,17 @@ class AreaSource(nhlib.source.AreaSource):
 		Return list of latitudes in the source's Polygon object
 		"""
 		return self.polygon.lats
+
+	def to_ogr_geometry(self):
+		"""
+		Create OGR Geometry object
+		"""
+		# TODO
+		import osr, ogr
+
+		## Construct WGS84 projection system corresponding to earthquake coordinates
+		wgs84 = osr.SpatialReference()
+		wgs84.SetWellKnownGeogCS("WGS84")
 
 
 class SimpleFaultSource(nhlib.source.SimpleFaultSource):
@@ -780,6 +810,17 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 				- = extension)
 		"""
 		return self.get_dip_slip_rate() * np.cos(np.radians(self.dip))
+
+	def to_ogr_geometry(self):
+		"""
+		Create OGR Geometry object
+		"""
+		# TODO: complete
+		import osr, ogr
+
+		## Construct WGS84 projection system corresponding to earthquake coordinates
+		wgs84 = osr.SpatialReference()
+		wgs84.SetWellKnownGeogCS("WGS84")
 
 
 class ComplexFaultSource(nhlib.source.ComplexFaultSource):
