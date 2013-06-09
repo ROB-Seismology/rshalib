@@ -21,7 +21,7 @@ from ..source import AreaSource, SimpleFaultSource, SourceModel
 #decimal.getcontext().prec = 4
 
 
-def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, column_map={}, **kwargs):
+def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, column_map={}, source_catalogs={}, catalog_params={}, **kwargs):
 	"""
 	Create OQ/nhlib source model from one of the known ROB source models
 	(stored in MapInfo tables).
@@ -37,6 +37,13 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 		Dict, mapping OQ/nhlib source parameters (keys) to MapInfo column names
 		(values), thus overriding the values specified in the default column_map
 		in rob_source_models_dict (Default: {}).
+	:param source_catalogs:
+		Dict, mapping source IDs to earthquake catalogs.
+		If specified, catalog will be used to determine max_mag and MFD
+		of each source (default: {})
+	:param catalog_params:
+		Dict, defining catalog parameters, in particular the keys
+		'Mtype', 'Mrelation', and 'completeness' (default: {})
 	:param kwargs:
 		Keyword arguments supported by create_rob_area_source or
 		create_rob_simple_fault_source
@@ -51,7 +58,7 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	source_records = read_GIS_file(rob_source_model['gis_filespec'])
 
 	## Override default column map
-	## Avoid side effects in calling function
+	## Copy dict to avoid side effects in calling function
 	column_map = column_map.copy()
 	default_column_map = rob_source_model['column_map']
 	for key in default_column_map:
@@ -63,19 +70,21 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	sources = []
 	for source_rec in source_records:
 		source_id = source_rec.get(column_map["id"])
-		max_mag = source_rec.get(column_map["max_mag"], column_map["max_mag"])
-		if max_mag > min_mag:
-			if source_rec.get(column_map['b_val'], column_map['b_val']) > 0.0:
-				sources.append(create_rob_source(source_rec, column_map, mfd_bin_width=mfd_bin_width, **kwargs))
-			else:
-				print("Discarding source %s: zero or negative b value" % source_id)
-		else:
-			print("Discarding source %s: Mmax (%s) <= Mmin (%s)" % (source_id, max_mag, min_mag))
+		source_catalog = source_catalogs.get(source_id)
+		#max_mag = source_rec.get(column_map["max_mag"], column_map["max_mag"])
+		#if max_mag > min_mag:
+		#	if source_rec.get(column_map['b_val'], column_map['b_val']) > 0.0:
+		#		sources.append(create_rob_source(source_rec, column_map, mfd_bin_width=mfd_bin_width, **kwargs))
+		#	else:
+		#		print("Discarding source %s: zero or negative b value" % source_id)
+		#else:
+		#	print("Discarding source %s: Mmax (%s) <= Mmin (%s)" % (source_id, max_mag, min_mag))
+		sources.append(create_rob_source(source_rec, column_map, mfd_bin_width=mfd_bin_width, catalog=source_catalog, catalog_params=catalog_params, **kwargs))
 	source_model = SourceModel(source_model_name, sources)
 	return source_model
 
 
-def create_rob_source(source_rec, column_map, **kwargs):
+def create_rob_source(source_rec, column_map, catalog=None, catalog_params={}, **kwargs):
 	"""
 	Create source from ROB GIS-data (MapInfo table record).
 	This is a wrapper function for create_rob_area_source and
@@ -85,6 +94,12 @@ def create_rob_source(source_rec, column_map, **kwargs):
 		MIPython Record object for a ROB source.
 	:param column_map:
 		Dictionary for mapping variables (keys) to source_rec columns (values).
+	:param catalog:
+		instance of :class:`EQCatalog` that will be used to determine
+		max_mag and MFD (default: None)
+	:param catalog_params:
+		Dict, defining catalog parameters, in particular the keys
+		'Mtype', 'Mrelation', and 'completeness' (default: {})
 	:param kwargs:
 		Keyword arguments supported by create_rob_area_source or
 		create_rob_simple_fault_source
@@ -94,7 +109,7 @@ def create_rob_source(source_rec, column_map, **kwargs):
 	"""
 	## Decide which function to use based on object type
 	function = {"POLYGON": create_rob_area_source, "LINESTRING": create_rob_simple_fault_source}[source_rec["obj"].GetGeometryName()]
-	return function(source_rec, column_map=column_map, **kwargs)
+	return function(source_rec, column_map=column_map, catalog=catalog, catalog_params=catalog_params, **kwargs)
 
 
 def create_rob_area_source(
@@ -112,6 +127,8 @@ def create_rob_area_source(
 	area_discretization=1.,
 	mfd_bin_width=0.1,
 	column_map={},
+	catalog=None,
+	catalog_params={},
 	**kwargs
 	):
 	"""
@@ -146,6 +163,12 @@ def create_rob_area_source(
 	:param column_map:
 		Dict, mapping OQ/nhlib source parameters (keys) to MapInfo column names
 		(values) (Default: {}).
+	:param catalog:
+		instance of :class:`EQCatalog` that will be used to determine
+		max_mag and MFD (default: None)
+	:param catalog_params:
+		Dict, defining catalog parameters, in particular the keys
+		'Mtype', 'Mrelation', and 'completeness' (default: {})
 	:param kwargs:
 		Possible extra parameters that will be ignored
 
@@ -164,17 +187,6 @@ def create_rob_area_source(
 
 	## Tectonic region type
 	tectonic_region_type = source_rec.get(column_map['tectonic_region_type'], column_map['tectonic_region_type'])
-
-	## MFD
-	if not mfd:
-		a_val = source_rec.get(column_map['a_val'], column_map['a_val'])
-		b_val = source_rec.get(column_map['b_val'], column_map['b_val'])
-		min_mag = source_rec.get(column_map['min_mag'], column_map['min_mag'])
-		max_mag = source_rec.get(column_map['max_mag'], column_map['max_mag'])
-		try:
-			mfd = TruncatedGRMFD(min_mag, max_mag, mfd_bin_width, a_val, b_val)
-		except ValueError:
-			mfd = None
 
 	## upper and lower seismogenic depth
 	upper_seismogenic_depth = source_rec.get(column_map['upper_seismogenic_depth'], column_map['upper_seismogenic_depth'])
@@ -262,6 +274,64 @@ def create_rob_area_source(
 		polygon,
 		area_discretization)
 
+	## MFD
+	if not mfd:
+		## Determine MFD from catalog if one is specified
+		if catalog is not None:
+			min_mag = column_map['min_mag']
+
+			## Lower magnitude to compute MFD
+			if catalog_params.has_key('completeness'):
+				min_mag_mfd = catalog_params['completeness'].min_mag
+			else:
+				min_mag_mfd = min_mag
+
+			## Use b value specified in column map (but not in GIS table)
+			if isinstance(column_map['b_val'], (int, float)):
+				b_val = column_map['b_val']
+			else:
+				b_val = None
+
+			## Use max_mag specified in column map or determine from catalog using EPRI method
+			max_mag = None
+			if isinstance(column_map['max_mag'], (int, float)):
+				max_mag = column_map['max_mag']
+			if max_mag is None:
+				max_mag = catalog.get_EPRI_Mmax_percentile(min_mag, perc=50, b_val=b_val, extended=False, dM=mfd_bin_width, verbose=False, **catalog_params)
+			max_mag = np.ceil(max_mag / mfd_bin_width) * mfd_bin_width
+
+			try:
+				## Weichert computation
+				## Note: using lowest magnitude in completeness object
+				## is more robust than using min_mag
+				mfd = catalog.get_estimated_MFD(min_mag_mfd, max_mag, mfd_bin_width, method="Weichert", b_val=b_val, verbose=False, **catalog_params)
+			except ValueError as err:
+				print("Warning: Weichert MFD computation: %s" % err.args[0])
+				try:
+					## Fall back to minimum MFD for SCR by Fenton et al. (2006)
+					mfd = area_source.get_MFD_FentonEtAl(min_mag, max_mag, mfd_bin_width, b_val)
+				except ValueError as err:
+					mfd = None
+			else:
+				mfd.min_mag = min_mag
+
+		else:
+			## Read parameters from GIS table
+			a_val = source_rec.get(column_map['a_val'], column_map['a_val'])
+			b_val = source_rec.get(column_map['b_val'], column_map['b_val'])
+			min_mag = source_rec.get(column_map['min_mag'], column_map['min_mag'])
+			max_mag = source_rec.get(column_map['max_mag'], column_map['max_mag'])
+			try:
+				mfd = TruncatedGRMFD(min_mag, max_mag, mfd_bin_width, a_val, b_val)
+			except ValueError:
+				try:
+					## Fall back to minimum MFD for SCR by Fenton et al. (2006)
+					mfd = area_source.get_MFD_FentonEtAl(min_mag, max_mag, mfd_bin_width, b_val)
+				except ValueError:
+					mfd = None
+
+		area_source.mfd = mfd
+
 	return area_source
 
 
@@ -274,6 +344,8 @@ def create_rob_simple_fault_source(
 	fault_trace=None,
 	mfd_bin_width = 0.1,
 	column_map={},
+	catalog=None,
+	catalog_params={},
 	**kwargs
 	):
 	"""
@@ -295,6 +367,13 @@ def create_rob_simple_fault_source(
 		Float, bin width of MFD (default: 0.1)
 	:param column_map:
 		Dict, for mapping variables (keys) to source_rec columns (values) (Default: {}).
+	:param catalog:
+		instance of :class:`EQCatalog` that will be used to determine
+		max_mag and MFD (default: None)
+		Currently ignored
+	:param catalog_params:
+		Dict, defining catalog parameters, in particular the keys
+		'Mtype', 'Mrelation', and 'completeness' (default: {})
 	:param kwargs:
 		Possible extra parameters that will be ignored
 

@@ -287,16 +287,95 @@ class AreaSource(nhlib.source.AreaSource):
 		"""
 		return self.polygon.lats
 
+	def get_MFD_FentonEtAl(self, min_mag=None, max_mag=None, bin_width=None, b_val=0.7991):
+		"""
+		Construct "minimum" MFD for SCR according to Fenton et al. (2006),
+		based on surface area
+
+		:param min_mag:
+			Float, Minimum magnitude (default: None, take min_mag from current MFD).
+		:param max_mag:
+			Maximum magnitude (default: None, take max_mag from current MFD).
+		:param bin_width:
+			Float, Magnitude interval for evenly discretized magnitude frequency
+			distribution (default: None, take bin_width from current MFD.
+		:param b_val:
+			Float, Parameter of the truncated gutenberg richter model.
+			(default: 0.7991)
+
+		:return:
+			instance of :class:`TruncatedGRMFD`
+		"""
+		if bin_width is None:
+			bin_width = self.mfd.bin_width
+		if min_mag is None:
+			min_mag = self.mfd.get_min_mag_edge()
+		if max_mag is None:
+			max_mag = self.mfd.max_mag
+		beta, std_beta = 1.84, 0.24
+		stdb = std_beta / np.log(10)
+		if b_val is None:
+			b_val = beta / np.log(10)
+		lamda = 0.004 * self.get_area() / 1E6
+		try:
+			a_val = mfd.a_from_lambda(lamda, 6.0, b_val)
+		except:
+			print b_val
+			raise()
+		MFD = mfd.TruncatedGRMFD(min_mag, max_mag, bin_width, a_val, b_val, stdb)
+		return MFD
+
 	def to_ogr_geometry(self):
 		"""
 		Create OGR Geometry object
 		"""
-		# TODO
 		import osr, ogr
 
 		## Construct WGS84 projection system corresponding to earthquake coordinates
 		wgs84 = osr.SpatialReference()
 		wgs84.SetWellKnownGeogCS("WGS84")
+
+		# Create ring
+		ring = ogr.Geometry(ogr.wkbLinearRing)
+
+		# Add points
+		for lon, lat in zip(self.longitudes, self.latitudes):
+			ring.AddPoint(lon, lat)
+
+		# Create polygon
+		poly = ogr.Geometry(ogr.wkbPolygon)
+		poly.AssignSpatialReference(wgs84)
+		poly.AddGeometry(ring)
+
+		return poly
+
+	def get_area(self):
+		"""
+		Compute area of source in square km
+
+		:return:
+			Float, fault source in square km
+		"""
+		import osr
+		from mapping.geo.coordtrans import wgs84, get_utm_spec, get_utm_srs
+
+		poly = self.to_ogr_geometry()
+		centroid = poly.Centroid()
+		utm_spec = get_utm_spec(centroid.GetX(), centroid.GetY())
+		utm_srs = get_utm_srs(utm_spec)
+		coordTrans = osr.CoordinateTransformation(wgs84, utm_srs)
+		poly.Transform(coordTrans)
+		return poly.GetArea() / 1E6
+
+	def get_centroid(self):
+		"""
+		Compute centroid of area source
+
+		:return:
+			(Float, Float) tuple: longitude, latitude of centroid
+		"""
+		centroid = self.to_ogr_geometry().Centroid()
+		return (centroid.GetX(), centroid.GetY())
 
 
 class SimpleFaultSource(nhlib.source.SimpleFaultSource):
@@ -622,7 +701,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 			corresponds to max_mag (default: False)
 
 		:return:
-			instance of :class:`EvenlyDiscretizedMFD`
+			instance of :class:`TruncatedGRMFD`
 		"""
 		if b_val is None:
 			b_val = self.mfd.b_val
@@ -821,6 +900,17 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 		## Construct WGS84 projection system corresponding to earthquake coordinates
 		wgs84 = osr.SpatialReference()
 		wgs84.SetWellKnownGeogCS("WGS84")
+
+		## Create line
+		line = ogr.Geometry(type=ogr.wkbLineString)
+
+		## Add points
+		for lon, lat in zip(self.longitudes, self.latitudes):
+			line.AddPoint_2D(lon, lat)
+
+		line.AssignSpatialReference(wgs84)
+
+		return line
 
 
 class ComplexFaultSource(nhlib.source.ComplexFaultSource):
