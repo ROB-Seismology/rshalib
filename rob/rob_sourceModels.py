@@ -319,10 +319,11 @@ def create_rob_area_source(
 			## Read parameters from GIS table
 			a_val = source_rec.get(column_map['a_val'], column_map['a_val'])
 			b_val = source_rec.get(column_map['b_val'], column_map['b_val'])
+			b_sigma = source_rec.get(column_map['b_sigma'], column_map['b_sigma'])
 			min_mag = source_rec.get(column_map['min_mag'], column_map['min_mag'])
 			max_mag = source_rec.get(column_map['max_mag'], column_map['max_mag'])
 			try:
-				mfd = TruncatedGRMFD(min_mag, max_mag, mfd_bin_width, a_val, b_val)
+				mfd = TruncatedGRMFD(min_mag, max_mag, mfd_bin_width, a_val, b_val, b_sigma)
 			except ValueError:
 				try:
 					## Fall back to minimum MFD for SCR by Fenton et al. (2006)

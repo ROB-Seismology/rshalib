@@ -12,6 +12,7 @@ from lxml import etree
 
 from ..nrml import ns
 from ..nrml.common import *
+from source import PointSource, AreaSource, SimpleFaultSource, ComplexFaultSource
 
 import jsonpickle
 import base64, zlib
@@ -209,6 +210,48 @@ class SourceModel():
 	@property
 	def upper_seismogenic_depth(self):
 		return min([source.upper_seismogenic_depth for source in self.sources])
+
+	def get_point_sources(self):
+		return [source for source in self.sources if isinstance(source, PointSource)]
+
+	def get_area_sources(self):
+		return [source for source in self.sources if isinstance(source, AreaSource)]
+
+	def get_simple_fault_sources(self):
+		return [source for source in self.sources if isinstance(source, SimpleFaultSource)]
+
+	def get_complex_fault_sources(self):
+		return [source for source in self.sources if isinstance(source, ComplexFaultSource)]
+
+	def get_fault_sources(self):
+		return [source for source in self.sources if isinstance(source, (SimpleFaultSource, ComplexFaultSource))]
+
+	def set_fault_MFDs_from_BG_zones(self):
+		"""
+		Set MFD's of fault sources in the model from MFD of background zone,
+		weighted by moment rate of fault sources. min_mag and max_mag of original
+		fault MFD's will be preserved.
+		"""
+		fault_sources = self.get_fault_sources()
+		fault_source_groups = {}
+		for fault in fault_sources:
+			if fault.bg_zone in fault_source_groups.keys():
+				fault_source_groups[fault.bg_zone].append(fault)
+			else:
+				fault_source_groups[fault.bg_zone] = [fault]
+
+		for bg_zone_name, fault_source_group in fault_source_groups.items():
+			bg_zone = getattr(self, bg_zone_name)
+			moment_rates = numpy.zeros(len(fault_source_group), 'd')
+			for i, fault in enumerate(fault_source_group):
+				moment_rates[i] = fault.get_moment_rate()
+			moment_rate_weights = moment_rates / numpy.add.reduce(moment_rates)
+			fault_mfds = bg_zone.mfd.divide(moment_rate_weights)
+			for fault, fault_mfd in zip(fault_source_group, fault_mfds):
+				min_mag, max_mag = fault.mfd.min_mag, fault.mfd.max_mag
+				fault.mfd = fault_mfd
+				fault.mfd.min_mag = min_mag
+				fault.mfd.max_mag = max_mag
 
 
 
