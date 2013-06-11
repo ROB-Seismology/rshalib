@@ -730,6 +730,12 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		"""
 		plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, fig_width=fig_width, dpi=dpi)
 
+	def to_truncated_GR_mfd(self):
+		"""
+		Copy to another instance of :class:`TruncatedGRMFD`
+		"""
+		return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, self.a_val, self.b_val, self.b_sigma, self.Mtype)
+
 
 class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, MFD):
 	"""
@@ -952,6 +958,12 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 	if not labels:
 		labels = [""] * len(mfd_list)
 
+	if isinstance(discrete, bool):
+		discrete = [discrete] * len(mfd_list)
+
+	if isinstance(cumul_or_inc, (str, unicode)):
+		cumul_or_inc = [cumul_or_inc] * len(mfd_list)
+
 	## Plot
 	fig = pylab.figure()
 
@@ -961,20 +973,20 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 		try:
 			want_discrete = discrete[i]
 		except:
-			if isinstance(mfd, EvenlyDiscretizedMFD):
-				want_discrete = True
-			elif isinstance(mfd, TruncatedGRMFD):
+			if isinstance(mfd, TruncatedGRMFD):
 				want_discrete = False
+			else:
+				want_discrete = True
 
 		try:
 			cumul_or_inc[i]
 		except:
-			if isinstance(mfd, EvenlyDiscretizedMFD):
-				want_cumulative = True
-				want_incremental = True
-			elif isinstance(mfd, TruncatedGRMFD):
+			if isinstance(mfd, TruncatedGRMFD):
 				want_cumulative = True
 				want_incremental = False
+			else:
+				want_cumulative = True
+				want_incremental = True
 		else:
 			if cumul_or_inc[i] == "cumul":
 				want_cumulative = True
