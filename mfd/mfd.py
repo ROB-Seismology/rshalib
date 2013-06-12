@@ -133,6 +133,22 @@ class MFD(object):
 		timespans = completeness.get_completeness_timespans(magnitudes, end_date)
 		return self.occurrence_rates * timespans
 
+	def get_cumul_num_earthquakes(self, completeness, end_date):
+		"""
+		Return array with cumulative number of earthquakes above each
+		bin edge magnitude, taking into account completeness
+
+		:param completeness:
+			instance of :class:`Completeness`
+		:param end_date:
+			datetime.date or Int, end date with respect to which observation periods
+			will be determined
+
+		:return:
+			numpy float array
+		"""
+		return np.add.accumulate(self.get_num_earthquakes(completeness, end_date)[::-1])[::-1]
+
 
 class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 	"""
@@ -730,11 +746,25 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		"""
 		plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, fig_width=fig_width, dpi=dpi)
 
-	def to_truncated_GR_mfd(self):
+	def to_truncated_GR_mfd(self, min_mag=None, max_mag=None, bin_width=None):
 		"""
 		Copy to another instance of :class:`TruncatedGRMFD`
+		Optionally, non-defining parameters can be changed
+
+		:param min_mag:
+			Float, lower magnitude (bin edge) of MFD (default: None)
+		:param max_mag:
+			Float, upper magnitude of MFD (default: None)
+		:param bin_width:
+			Float, magnitude bin width of MFD (default: None)
 		"""
-		return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, self.a_val, self.b_val, self.b_sigma, self.Mtype)
+		if min_mag is None:
+			min_mag = self.min_mag
+		if max_mag is None:
+			max_mag = self.max_mag
+		if bin_width is None:
+			bin_width = self.bin_width
+		return TruncatedGRMFD(min_mag, max_mag, bin_width, self.a_val, self.b_val, self.b_sigma, self.Mtype)
 
 
 class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, MFD):
