@@ -133,22 +133,6 @@ class MFD(object):
 		timespans = completeness.get_completeness_timespans(magnitudes, end_date)
 		return self.occurrence_rates * timespans
 
-	def get_cumul_num_earthquakes(self, completeness, end_date):
-		"""
-		Return array with cumulative number of earthquakes above each
-		bin edge magnitude, taking into account completeness
-
-		:param completeness:
-			instance of :class:`Completeness`
-		:param end_date:
-			datetime.date or Int, end date with respect to which observation periods
-			will be determined
-
-		:return:
-			numpy float array
-		"""
-		return np.add.accumulate(self.get_num_earthquakes(completeness, end_date)[::-1])[::-1]
-
 
 class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 	"""
