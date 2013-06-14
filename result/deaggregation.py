@@ -187,6 +187,16 @@ class DeaggregationResult(object):
 		"""
 		return disagg.lon_lat_trt_pmf(self.matrix)
 
+	def to_exceedance_rate(self):
+		"""
+		Convert deaggregation matrix to exceedance rate
+
+		:return:
+			ndarray with same shape as deaggregation matrix
+		"""
+		from hazard_curve import Poisson
+		return Poisson(life_time=self.timespan, prob=self.matrix)
+
 	def plot_mag_dist_pmf(self, return_period=475):
 		"""
 		Plot magnitude / distance PMF.
@@ -201,4 +211,8 @@ class DeaggregationResult(object):
 		except AttributeError:
 			imt_period = None
 		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=imt_period, title_comment="", fig_filespec=None)
+
+## Note: exceedance rates are additive, exceedance probabilities are multiplicative
+## (see CRISIS 2008 user manual)
+## So, probably np.sum has to be replaced with multiplication !
 
