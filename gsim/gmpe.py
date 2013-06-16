@@ -233,6 +233,45 @@ class GMPE(object):
 		except:
 			return 34
 
+	def get_epsilon(self, im, M, d, h=0., imt="PGA", T=0., imt_unit="g", soil_type="rock", vs30=None, mechanism="normal", damping=5):
+		"""
+		Determine epsilon for a given intensity measure, magnitude, and distance
+
+		:param M:
+			Float, magnitude.
+		:param d:
+			Float, distance in km.
+		:param h:
+			Float, depth in km. Ignored if distance metric of GMPE is epicentral
+			or Joyner-Boore (default: 0).
+		:param imt:
+			String, one of the supported intensity measure types: "PGA" or "SA"
+			(default: "SA").
+		:param T:
+			Float, spectral period of considered IMT. Ignored if IMT is
+			"PGA" or "PGV" (default: 0).
+		:param imt_unit:
+			String, unit in which intensities should be expressed, depends on
+			IMT (default: "g")
+		:param soil_type:
+			String, one of the soil types supported by the GMPE (default: "rock").
+		:param vs30:
+			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
+			it takes precedence over the soil_type parameter (default: None).
+		:param mechanism:
+			String, fault mechanism: either "normal", "reverse" or "strike-slip".
+			(default: "normal").
+		:param damping:
+			Float, damping in percent.
+
+		:return:
+			float array, epsilon value(s)
+		"""
+		im_med = self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+		log_sigma = self.log_sigma(M, d, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+		epsilon = (np.log10(im) - np.log10(im_med)) / log_sigma
+		return epsilon
+
 	def is_depth_dependent(self):
 		"""
 		Indicate whether or not GMPE depends on depth of the source
@@ -292,7 +331,6 @@ class GMPE(object):
 			print imt, allclose
 			if not allclose:
 				print values
-
 
 	def get_spectrum(self, M, d, h=0, imt="SA", periods=[], imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
 		"""
