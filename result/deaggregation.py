@@ -89,7 +89,14 @@ class DeaggregationResult(object):
 		"""
 		Return total probability of exceedance
 		"""
-		return np.sum(self.matrix)
+		return 1 - np.prod(1 - self.matrix)
+
+	def get_total_exceedance_rate(self):
+		"""
+		Return total exceedance rate
+		"""
+		from hazard_curve import Poisson
+		return Poisson(life_time=self.timespan, prob=self.get_total_probability())
 
 	def get_mag_pmf(self):
 		"""
@@ -118,7 +125,7 @@ class DeaggregationResult(object):
 		"""
 		eps_pmf = np.zeros(self.neps)
 		for m in xrange(self.neps):
-			eps_pmf[m] = np.sum(self.matrix[i][j][k][l][m][n]
+			eps_pmf[m] = 1 - np.prod(1 - self.matrix[i][j][k][l][m][n]
 							  for i in xrange(self.nmags)
 							  for j in xrange(self.ndists)
 							  for k in xrange(self.nlons)
