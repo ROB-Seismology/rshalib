@@ -3,6 +3,61 @@ import numpy as np
 import openquake.hazardlib.calc.disagg as disagg
 
 from plot import plot_deaggregation
+from hazard_curve import Poisson
+
+
+
+class DeaggMatrix(np.ndarray):
+	def __new__(cls, data):
+		obj = np.asarray(data).view(cls)
+		return obj
+
+	def __array_finalize__(self, obj):
+		if obj is None:
+			return
+
+	@property
+	def matrix(self):
+		return np.asarray(self)
+
+
+class ExceedanceRateMatrix(DeaggMatrix):
+	def get_total_exceedance_rate(self, timespan=None):
+		return np.sum(self.matrix)
+
+	def get_total_probability(self, timespan):
+		return Poisson(life_time=timespan, return_period=1./self.get_total_exceedance_rate())
+
+	def to_probability_matrix(self, timespan):
+		return ProbabilityMatrix(Poisson(life_time=timespan, return_period=1./self.matrix))
+
+	def to_exceedance_rate_matrix(self, timespan):
+		return ExceedanceRateMatrix(self.matrix)
+
+	def to_normalized_matrix(self, timespan=None):
+		return self.matrix / self.get_total_exceedance_rate()
+
+
+class ProbabilityMatrix(DeaggMatrix):
+	#def __new__(cls, data):
+	#	obj = DeaggMatrix.__new__(cls, data)
+	#	return obj
+
+	def get_total_exceedance_rate(self, timespan):
+		return 1. / Poisson(life_time=timespan, prob=self.get_total_probability())
+
+	def get_total_probability(self, timespan=None):
+		return 1 - np.prod(1 - self.matrix)
+
+	def to_exceedance_rate_matrix(self, timespan):
+		return ExceedanceRateMatrix(1. / Poisson(life_time=timespan, prob=self.matrix))
+
+	def to_probability_matrix(self, timespan=None):
+		return ProbabilityMatrix(self.matrix)
+
+	def to_normalized_matrix(self, timespan):
+		#return 1 - (1 - self.matrix) / (1 - self.get_total_probability())
+		return self.to_exceedance_rate_matrix(timespan).to_normalized_matrix()
 
 
 class DeaggregationResult(object):
@@ -25,11 +80,15 @@ class DeaggregationResult(object):
 	"""
 	def __init__(self, bin_edges, deagg_matrix, site, imt, iml, time_span):
 		self.bin_edges = bin_edges
-		self.matrix = deagg_matrix
+		self.deagg_matrix = deagg_matrix
 		self.site = site
 		self.imt = imt
 		self.iml = iml
 		self.time_span = time_span
+
+	@property
+	def matrix(self):
+		return np.asarray(self.deagg_matrix)
 
 	@property
 	def nmags(self):
@@ -79,24 +138,23 @@ class DeaggregationResult(object):
 	def trt_bins(self):
 		return self.bin_edges[5]
 
-	def normalize(self):
+	def to_normalized_matrix(self):
 		"""
 		Normalize probability matrix.
 		"""
-		self.matrix /= self.get_total_probability()
+		return self.deagg_matrix.to_normalized_matrix(self.timespan)
 
 	def get_total_probability(self):
 		"""
 		Return total probability of exceedance
 		"""
-		return 1 - np.prod(1 - self.matrix)
+		return self.deagg_matrix.get_total_probability(self.timespan)
 
 	def get_total_exceedance_rate(self):
 		"""
 		Return total exceedance rate
 		"""
-		from hazard_curve import Poisson
-		return Poisson(life_time=self.timespan, prob=self.get_total_probability())
+		return self.deagg_matrix.get_total_exceedance_rate(self.timespan)
 
 	def get_mag_pmf(self):
 		"""
@@ -105,7 +163,7 @@ class DeaggregationResult(object):
 		:returns:
 			1D array, a histogram representing magnitude PMF.
 		"""
-		return disagg.mag_pmf(self.matrix)
+		return ProbabilityMatrix(disagg.mag_pmf(self.matrix))
 
 	def get_dist_pmf(self):
 		"""
@@ -114,7 +172,7 @@ class DeaggregationResult(object):
 		:returns:
 			1D array, a histogram representing distance PMF.
 		"""
-		return disagg.dist_pmf(self.matrix)
+		return ProbabilityMatrix(disagg.dist_pmf(self.matrix))
 
 	def get_eps_pmf(self):
 		"""
@@ -131,7 +189,7 @@ class DeaggregationResult(object):
 							  for k in xrange(self.nlons)
 							  for l in xrange(self.nlats)
 							  for n in xrange(self.ntrts))
-		return eps_pmf
+		return ProbabilityMatrix(eps_pmf)
 
 	def get_trt_pmf(self):
 		"""
@@ -140,7 +198,7 @@ class DeaggregationResult(object):
 		:returns:
 			1D array, a histogram representing tectonic region type PMF.
 		"""
-		return disagg.trt_pmf(self.matrix)
+		return ProbabilityMatrix(disagg.trt_pmf(self.matrix))
 
 	def get_mag_dist_pmf(self):
 		"""
@@ -150,7 +208,7 @@ class DeaggregationResult(object):
 			2D array, first dimension represents magnitude histogram bins,
 			second one -- distance histogram bins.
 		"""
-		return disagg.mag_dist_pmf(self.matrix)
+		return ProbabilityMatrix(disagg.mag_dist_pmf(self.matrix))
 
 	def get_mag_dist_eps_pmf(self):
 		"""
@@ -161,7 +219,7 @@ class DeaggregationResult(object):
 			second one -- distance histogram bins, third one -- epsilon
 			histogram bins.
 		"""
-		return disagg.mag_dist_eps_pmf(self.matrix)
+		return ProbabilityMatrix(disagg.mag_dist_eps_pmf(self.matrix))
 
 	def get_lon_lat_pmf(self):
 		"""
@@ -171,7 +229,7 @@ class DeaggregationResult(object):
 			2D array, first dimension represents longitude histogram bins,
 			second one -- latitude histogram bins.
 		"""
-		return disagg.lon_lat_pmf(self.matrix)
+		return ProbabilityMatrix(disagg.lon_lat_pmf(self.matrix))
 
 	def get_mag_lon_lat_pmf(self):
 		"""
@@ -182,7 +240,7 @@ class DeaggregationResult(object):
 			second one -- longitude histogram bins, third one -- latitude
 			histogram bins.
 		"""
-		return disagg.mag_lon_lat_pmf(self.matrix)
+		return ProbabilityMatrix(disagg.mag_lon_lat_pmf(self.matrix))
 
 	def get_lon_lat_trt_pmf(self):
 		"""
@@ -192,7 +250,7 @@ class DeaggregationResult(object):
 			3D array, first dimension represents longitude histogram bins,
 			second one -- latitude histogram bins, third one -- trt histogram bins.
 		"""
-		return disagg.lon_lat_trt_pmf(self.matrix)
+		return ProbabilityMatrix(disagg.lon_lat_trt_pmf(self.matrix))
 
 	def to_exceedance_rate(self):
 		"""
@@ -201,25 +259,19 @@ class DeaggregationResult(object):
 		:return:
 			ndarray with same shape as deaggregation matrix
 		"""
-		from hazard_curve import Poisson
-		return Poisson(life_time=self.timespan, prob=self.matrix)
+		return ProbabilityMatrix(self.deagg_matrix.to_exceedance_matrix(self.timespan))
 
 	def plot_mag_dist_pmf(self, return_period=475):
 		"""
 		Plot magnitude / distance PMF.
 		"""
-		total_probability = self.get_total_probability()
-		mag_dist_pmf = self.get_mag_dist_pmf() / total_probability
+		mag_dist_pmf = self.get_mag_dist_pmf().to_normalized_matrix(self.timespan)
 		mag_dist_pmf = mag_dist_pmf.transpose()
-		eps_pmf = self.get_eps_pmf() / total_probability
+		eps_pmf = self.get_eps_pmf().to_normalized_matrix(self.timespan)
 		eps_bin_edges = self.eps_bin_edges[1:]
 		try:
 			imt_period = self.imt.period
 		except AttributeError:
 			imt_period = None
 		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=imt_period, title_comment="", fig_filespec=None)
-
-## Note: exceedance rates are additive, exceedance probabilities are multiplicative
-## (see CRISIS 2008 user manual)
-## So, probably np.sum has to be replaced with multiplication !
 
