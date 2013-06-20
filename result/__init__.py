@@ -13,6 +13,6 @@ reload(plot)
 
 from hazard_curve import *
 
-from deaggregation import DeaggregationResult
+from deaggregation import DeaggregationSlice, ExceedanceRateMatrix, ProbabilityMatrix
 
 from plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram, plot_deaggregation

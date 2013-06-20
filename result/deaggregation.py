@@ -3,7 +3,7 @@ import numpy as np
 import openquake.hazardlib.calc.disagg as disagg
 
 from plot import plot_deaggregation
-from hazard_curve import Poisson
+from hazard_curve import Poisson, HazardCurve
 
 
 
@@ -39,8 +39,9 @@ class ExceedanceRateMatrix(DeaggMatrix):
 
 
 class ProbabilityMatrix(DeaggMatrix):
-	#def __new__(cls, data):
+	#def __new__(cls, data, timespan):
 	#	obj = DeaggMatrix.__new__(cls, data)
+	#	obj.timespan = timespan
 	#	return obj
 
 	def get_total_exceedance_rate(self, timespan):
@@ -55,36 +56,19 @@ class ProbabilityMatrix(DeaggMatrix):
 	def to_probability_matrix(self, timespan=None):
 		return ProbabilityMatrix(self.matrix)
 
-	def to_normalized_matrix(self, timespan):
-		#return 1 - (1 - self.matrix) / (1 - self.get_total_probability())
-		return self.to_exceedance_rate_matrix(timespan).to_normalized_matrix()
+	def to_normalized_matrix(self, timespan=None):
+		ln_non_exceedance_probs = np.log(1. - self.matrix)
+		return ln_non_exceedance_probs / np.sum(ln_non_exceedance_probs)
 
 
-class DeaggregationResult(object):
-	"""
-	Class representing a full deaggregation result as computed by nhlib.
-
-	Deaggregation values represent conditional probability distribution of:
-		- rupture magnitude,
-		- joyner-boore distance from rupture surface to site,
-		- longitude and latitude of surface projection of rupture closest point
-		  to site,
-		- epsilon: number of standard deviations by which an intensity measure
-		  level deviates from the median value predicted by a gsim, given
-		  the rupture parameters.
-		- rupture tectonic region type
-
-	given the event that an intensity measure type ``imt`` exceeds an intensity
-	measure level ``iml`` at a geographical location ``site``.
-
-	"""
-	def __init__(self, bin_edges, deagg_matrix, site, imt, iml, time_span):
+class DeaggBase(object):
+	def __init__(self, bin_edges, deagg_matrix, timespan):
 		self.bin_edges = bin_edges
 		self.deagg_matrix = deagg_matrix
-		self.site = site
-		self.imt = imt
-		self.iml = iml
-		self.time_span = time_span
+		self.timespan = timespan
+
+		# TODO: check shape
+		# TODO: check that deagg_matrix is ProbabilityMatrix or ExceedanceRateMatrix
 
 	@property
 	def matrix(self):
@@ -92,31 +76,41 @@ class DeaggregationResult(object):
 
 	@property
 	def nmags(self):
-		return self.matrix.shape[0]
+		return self.matrix.shape[-6]
 
 	@property
 	def ndists(self):
-		return self.matrix.shape[1]
+		return self.matrix.shape[-5]
 
 	@property
 	def nlons(self):
-		return self.matrix.shape[2]
+		return self.matrix.shape[-4]
 
 	@property
 	def nlats(self):
-		return self.matrix.shape[3]
+		return self.matrix.shape[-3]
 
 	@property
 	def neps(self):
-		return self.matrix.shape[4]
+		return self.matrix.shape[-2]
 
 	@property
 	def ntrts(self):
-		return self.matrix.shape[5]
+		return self.matrix.shape[-1]
 
 	@property
 	def mag_bin_edges(self):
 		return self.bin_edges[0]
+
+	@property
+	def mag_bin_widths(self):
+		mag_bin_edges = self.mag_bin_edges
+		return mag_bin_edges[1:] - mag_bin_edges[:-1]
+
+	@property
+	def mag_bin_centers(self):
+		mag_bin_widths = self.mag_bin_widths
+		return self.mag_bin_edges[:-1] + mag_bin_widths / 2
 
 	@property
 	def dist_bin_edges(self):
@@ -138,7 +132,7 @@ class DeaggregationResult(object):
 	def trt_bins(self):
 		return self.bin_edges[5]
 
-	def to_normalized_matrix(self):
+	def to_percent_contribution(self):
 		"""
 		Normalize probability matrix.
 		"""
@@ -156,6 +150,33 @@ class DeaggregationResult(object):
 		"""
 		return self.deagg_matrix.get_total_exceedance_rate(self.timespan)
 
+
+class DeaggregationSlice(DeaggBase):
+	"""
+	Class representing a full deaggregation result as computed by nhlib.
+	6-D array
+
+	Deaggregation values represent conditional probability distribution of:
+		- rupture magnitude,
+		- joyner-boore distance from rupture surface to site,
+		- longitude and latitude of surface projection of rupture closest point
+		  to site,
+		- epsilon: number of standard deviations by which an intensity measure
+		  level deviates from the median value predicted by a gsim, given
+		  the rupture parameters.
+		- rupture tectonic region type
+
+	given the event that an intensity measure type ``imt`` exceeds an intensity
+	measure level ``iml`` at a geographical location ``site``.
+
+	"""
+	def __init__(self, bin_edges, deagg_matrix, site, imt, iml, period, timespan):
+		DeaggBase.__init__(self, bin_edges, deagg_matrix, timespan)
+		self.site = site
+		self.imt = imt
+		self.iml = iml
+		self.period = period
+
 	def get_mag_pmf(self):
 		"""
 		Fold full deaggregation matrix to magnitude PMF.
@@ -163,7 +184,7 @@ class DeaggregationResult(object):
 		:returns:
 			1D array, a histogram representing magnitude PMF.
 		"""
-		return ProbabilityMatrix(disagg.mag_pmf(self.matrix))
+		return ProbabilityMatrix(disagg.mag_pmf(self.deagg_matrix.to_probability_matrix()))
 
 	def get_dist_pmf(self):
 		"""
@@ -172,7 +193,7 @@ class DeaggregationResult(object):
 		:returns:
 			1D array, a histogram representing distance PMF.
 		"""
-		return ProbabilityMatrix(disagg.dist_pmf(self.matrix))
+		return ProbabilityMatrix(disagg.dist_pmf(self.deagg_matrix.to_probability_matrix()))
 
 	def get_eps_pmf(self):
 		"""
@@ -183,7 +204,7 @@ class DeaggregationResult(object):
 		"""
 		eps_pmf = np.zeros(self.neps)
 		for m in xrange(self.neps):
-			eps_pmf[m] = 1 - np.prod(1 - self.matrix[i][j][k][l][m][n]
+			eps_pmf[m] = 1 - np.prod(1 - self.deagg_matrix.to_probability_matrix()[i][j][k][l][m][n]
 							  for i in xrange(self.nmags)
 							  for j in xrange(self.ndists)
 							  for k in xrange(self.nlons)
@@ -198,7 +219,7 @@ class DeaggregationResult(object):
 		:returns:
 			1D array, a histogram representing tectonic region type PMF.
 		"""
-		return ProbabilityMatrix(disagg.trt_pmf(self.matrix))
+		return ProbabilityMatrix(disagg.trt_pmf(self.deagg_matrix.to_probability_matrix()))
 
 	def get_mag_dist_pmf(self):
 		"""
@@ -208,7 +229,9 @@ class DeaggregationResult(object):
 			2D array, first dimension represents magnitude histogram bins,
 			second one -- distance histogram bins.
 		"""
-		return ProbabilityMatrix(disagg.mag_dist_pmf(self.matrix))
+		if isinstance(self.deagg_matrix, ProbabilityMatrix):
+			return ProbabilityMatrix(disagg.mag_dist_pmf(self.deagg_matrix.to_probability_matrix()))
+
 
 	def get_mag_dist_eps_pmf(self):
 		"""
@@ -219,7 +242,7 @@ class DeaggregationResult(object):
 			second one -- distance histogram bins, third one -- epsilon
 			histogram bins.
 		"""
-		return ProbabilityMatrix(disagg.mag_dist_eps_pmf(self.matrix))
+		return ProbabilityMatrix(disagg.mag_dist_eps_pmf(self.deagg_matrix.to_probability_matrix()))
 
 	def get_lon_lat_pmf(self):
 		"""
@@ -229,7 +252,7 @@ class DeaggregationResult(object):
 			2D array, first dimension represents longitude histogram bins,
 			second one -- latitude histogram bins.
 		"""
-		return ProbabilityMatrix(disagg.lon_lat_pmf(self.matrix))
+		return ProbabilityMatrix(disagg.lon_lat_pmf(self.deagg_matrix.to_probability_matrix()))
 
 	def get_mag_lon_lat_pmf(self):
 		"""
@@ -240,7 +263,7 @@ class DeaggregationResult(object):
 			second one -- longitude histogram bins, third one -- latitude
 			histogram bins.
 		"""
-		return ProbabilityMatrix(disagg.mag_lon_lat_pmf(self.matrix))
+		return ProbabilityMatrix(disagg.mag_lon_lat_pmf(self.deagg_matrix.to_probability_matrix()))
 
 	def get_lon_lat_trt_pmf(self):
 		"""
@@ -250,7 +273,7 @@ class DeaggregationResult(object):
 			3D array, first dimension represents longitude histogram bins,
 			second one -- latitude histogram bins, third one -- trt histogram bins.
 		"""
-		return ProbabilityMatrix(disagg.lon_lat_trt_pmf(self.matrix))
+		return ProbabilityMatrix(disagg.lon_lat_trt_pmf(self.deagg_matrix.to_probability_matrix()))
 
 	def to_exceedance_rate(self):
 		"""
@@ -259,7 +282,7 @@ class DeaggregationResult(object):
 		:return:
 			ndarray with same shape as deaggregation matrix
 		"""
-		return ProbabilityMatrix(self.deagg_matrix.to_exceedance_matrix(self.timespan))
+		return ExceedanceRateMatrix(self.deagg_matrix.to_exceedance_matrix(self.timespan))
 
 	def plot_mag_dist_pmf(self, return_period=475):
 		"""
@@ -274,4 +297,63 @@ class DeaggregationResult(object):
 		except AttributeError:
 			imt_period = None
 		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=imt_period, title_comment="", fig_filespec=None)
+
+	def get_mode_eq(self):
+		"""
+
+		"""
+		mag_dist_pmf = self.get_mag_dist_pmf()
+		mag_index, dist_index = np.unravel_index(mag_dist_pmf.argmax(), mag_dist_pmf.shape)
+		return (self.mag_bin_centers[mag_index], self.dist_bin_centers[dist_index])
+
+
+class DeaggregationCurve(DeaggBase):
+	"""
+	Class representing a full deaggregation result for a range of intensities
+	7-D array
+	"""
+	def __init__(self, bin_edges, deagg_matrix, site, imt, intensities, period, timespan):
+		self.site = site
+		self.imt = imt
+		self.period = period
+
+		## Make sure intensities are ordered from small to large
+		if intensities[0] > intensities[-1]:
+			DeaggBase.__init__(self, bin_edges, deagg_matrix[::-1], timespan)
+			self.intensities = intensities[::-1]
+		else:
+			DeaggBase.__init__(self, bin_edges, deagg_matrix, timespan)
+			self.intensities = intensities
+
+	def __len__(self):
+		return len(self.intensities)
+
+	def __iter__(self):
+		for iml_index in range(len(self.intensities)):
+			yield self.get_slice(iml_index=iml_index)
+
+	def get_slice(self, iml=None, iml_index=None):
+		if iml is not None:
+			iml_index = np.argmin(np.abs(self.intensities - iml))
+		matrix = self.matrix[iml_index]
+		iml = self.intensities[iml_index]
+		return DeaggregationSlice(self.bin_edges, matrix, self.site, self.imt, iml, self.period, self.timespan)
+
+	def get_hazard_curve(self):
+		exceedance_rates = []
+		for slice in self:
+			exceedance_rates.append(slice.get_total_exceedance_rate())
+		model_name = ""
+		filespec = ""
+		return HazardCurve(model_name, filespec, self.site, self.period, self.imt, self.intensities, "g", self.timespan, poes=None, exceedance_rates=exceedance_rates, variances=None, site_name="")
+
+	def get_occurrence_rates(self):
+		"""
+		Calculate rate of occurrence for each intensity interval
+		"""
+		exceedance_rates = self.matrix
+		occurrence_rates = exceedance_rates[:-1] - exceedance_rates[1:]
+		occurrence_rates = np.append(deagg_occurrences, deagg_exceedances[-1:], axis=0)
+		return occurrence_rates
+
 

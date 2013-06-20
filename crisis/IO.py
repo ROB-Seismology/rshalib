@@ -1064,6 +1064,150 @@ def readCRISIS_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True
 	return result
 
 
+def readCRISIS_DES(filespec, site, intensity=None, return_period=None, period_index=0, rebin_magnitudes=[], rebin_distances=[], verbose=True):
+	"""
+	Read CRISIS deaggregation by Magnitude and distance results (.DES) file
+	The results are only read for a particular intensity value or for the intensity
+	corresponding to a particular return period. Use readCRISIS_DES_full to read the
+	complete deaggregation results.
+
+	:param filespec:
+		Str, full path to file to be read
+	:param site:
+		site index (int) or tuple with site coordinates
+	:param intensity:
+		Float, intensity value for which to read M,r deaggregation results
+		(default: None)
+	:param return_period:
+		Float, return period for which to read M,r deaggregation results
+		The corresponding intensity is interpolated from the .GRA file,
+		and results are given for the nearest intensity value (default: None)
+	:param period_index:
+		Int, index of structural period for which to read M, r deaggregation
+		results (default: 0)
+	:param rebin_magnitudes:
+		array of magnitudes to rebin M, r deaggregation results
+		(default: [], i.e. no rebinning, use magnitude values from the .DES file)
+	:param rebin_distances:
+		array of distances to rebin M, r deaggregation results
+		(default: [], i.e. no rebinning, use distance values from the .DES file)
+	:param verbose:
+		boolean whether or not to print some information about what data
+		is actually read
+
+	:return:
+		instance of :class:`DeaggregationSlice`
+
+	Note:
+		either intensity or return_period must be specified
+	"""
+	if filespec[-4:].lower() != ".des":
+		filespec += ".des"
+
+	if not (intensity or return_period):
+		raise Exception("Need to specify either intensity or return period!")
+
+	## Read necessary information from .GRA file
+	shcf = readCRISIS_GRA(os.path.splitext(filespec)[0])
+	struc_periods = shcf.periods
+	sites = shcf.sites
+	intensities = shcf.intensities
+	if len(intensities.shape) > 1:
+		intensities = intensities[period_index]
+	exceedance_means = shcf.exceedance_rates
+
+	## Determine site index
+	site_nr = shcf.site_index(site)
+	if verbose:
+		print "Site nr: %d" % site_nr
+
+	## Determine intensity index
+	if return_period:
+		intensity = interpolate(exceedance_means[site_nr,period_index,:], intensities, [1.0 / return_period])[0]
+		if verbose:
+			print "Interpolated intensity: %.3f g" % intensity
+	if intensity:
+		intensity_nr = abs(intensities - intensity).argmin()
+	if verbose:
+		print "Intensity nr: %d (value: %.3f g)" % (intensity_nr, intensities[intensity_nr])
+
+	## Read number of magnitudes and number of distances from header
+	f = open(filespec)
+	for linenr, line in enumerate(f):
+		if "Number of magnitudes" in line:
+			MagNum = int(line.split(':')[1].strip())
+		if "Number of distances" in line:
+			DistNum = int(line.split(':')[1].strip())
+			start_nr = linenr + 1
+			break
+	f.seek(0)
+
+	## Determine line numbers to read
+	rec_len = MagNum + 3
+	period_len = rec_len * len(intensities)
+	site_len = period_len * len(struc_periods) + 2
+	site_start = start_nr + site_nr * site_len
+	period_start = site_start + period_index * period_len
+	rec_start = period_start + intensity_nr * rec_len + 3
+	rec_end = rec_start + MagNum + 1
+	if verbose:
+		print "DES Reading lines %d : %d" % (rec_start, rec_end)
+
+	## Read M,r values for particular site, intensity, and structural period
+	magnitudes = np.zeros(MagNum, 'f')
+	values = np.zeros((MagNum-1, DistNum-1), 'd')
+	for linenr, line in enumerate(f):
+		if rec_start == linenr:
+			distances = [float(s) for s in line.split()]
+			distances = np.array(distances)
+			i = 0
+		elif rec_start < linenr < rec_end:
+			words = line.split()
+			magnitudes[i] = float(words[0])
+			if i < MagNum - 1:
+				## value for last magnitude is always zero
+				for j, word in enumerate(words[2:]):
+					## value for first distance is always zero
+					values[i,j] = float(word)
+			i += 1
+		elif linenr > rec_end:
+			break
+
+	## Rebin magnitudes and/or distances
+	if rebin_magnitudes not in (None, []):
+		rebin_values = np.zeros((DistNum, len(rebin_magnitudes)), 'd')
+		for d in range(DistNum):
+			rebin_values[d] = interpolate(magnitudes, values[d], rebin_magnitudes, ideriv=0)
+			## Renormalize
+			total, rebin_total = np.add.reduce(values[d]), np.add.reduce(rebin_values[d])
+			if rebin_total != 0:
+				rebin_values[d] = rebin_values[d] * (total / rebin_total)
+		values = rebin_values
+		magnitudes = rebin_magnitudes
+		MagNum = len(rebin_magnitudes)
+
+	if rebin_distances not in (None, []):
+		rebin_values = np.zeros((len(rebin_distances), MagNum), 'd')
+		for m in range(MagNum):
+			rebin_values[:,m] = interpolate(distances, values[:,m], rebin_distances, ideriv=0)
+			## Renormalize
+			total, rebin_total = np.add.reduce(values[:,m]), np.add.reduce(rebin_values[:,m])
+			if rebin_total != 0:
+				rebin_values[:,m] = rebin_values[:,m] * (total / rebin_total)
+		values = rebin_values
+		distances = rebin_distances
+
+	values = values[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
+	bin_edges = (magnitudes, distances, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
+	values = ExceedanceRateMatrix(values)
+	site = sites[site_nr]
+	period = struc_periods[period_index]
+	imt = shcf.IMT
+	iml = intensity
+	time_span = 50
+	return DeaggregationSlice(bin_edges, values, site, imt, iml, period, time_span)
+
+
 # TODO: implement length parameters
 def get_crisis_rupture_area_parameters(scale_rel="WC1994", rake=None):
 	"""

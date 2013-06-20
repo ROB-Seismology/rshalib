@@ -89,7 +89,9 @@ hdd = rshalib.pmf.HypocentralDepthDistribution(hypo_depths, hypo_weights)
 
 ## Read from GIS tables
 trt = 'Stable Shallow Crust'
-source_model = rshalib.rob.create_rob_source_model("Seismotectonic", min_mag=Mmin, mfd_bin_width=mfd_bin_width, rupture_mesh_spacing=rupture_mesh_spacing, area_discretization=area_discretization, hypocentral_distribution=hdd, nodal_plane_distribution=npd)
+source_model = rshalib.rob.create_rob_source_model("Leynaud_extended", min_mag=Mmin, mfd_bin_width=mfd_bin_width, rupture_mesh_spacing=rupture_mesh_spacing, area_discretization=area_discretization, hypocentral_distribution=hdd, nodal_plane_distribution=npd)
+for source in source_model:
+	print source.mfd.a_val
 
 ## Example of how parameters of individual sources can be overridden
 source = source_model.RVG
@@ -168,16 +170,16 @@ if __name__ == '__main__':
 	import time
 
 	## nhlib
+	"""
 	psha_model = create_psha_model("nhlib")
 	start_time = time.time()
 	shcfs = psha_model.run_nhlib_shcf(write=False)
 	end_time = time.time()
 	print end_time - start_time
 	shcfs['PGA'].plot()
-
+	"""
 
 	## nhlib deaggregation
-	"""
 	psha_model = create_psha_model("nhlib")
 	#import jsonpickle
 	#json = jsonpickle.encode(psha_model)
@@ -194,9 +196,10 @@ if __name__ == '__main__':
 	print deagg_result.lat_bin_edges
 	print deagg_result.eps_bin_edges
 	print deagg_result.trt_bins
+	print deagg_result.matrix.shape
 	print deagg_result.matrix.max()
-	deagg_result.plot_mag_dist_pmf()
-	"""
+	#deagg_result.plot_mag_dist_pmf()
+
 
 	## OpenQuake
 	#psha_model = create_psha_model("openquake")

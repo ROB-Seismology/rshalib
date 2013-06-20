@@ -16,7 +16,7 @@ from openquake.hazardlib.imt import PGA, SA, PGV, PGD, MMI
 
 from ..geo import *
 from ..site import *
-from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, DeaggregationResult
+from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, DeaggregationSlice
 from ..logictree import GroundMotionSystem, create_basic_seismicSourceSystem
 from ..crisis.IO import writeCRISIS2007
 from ..openquake.config import OQ_Params
@@ -470,12 +470,13 @@ class PSHAModel(PSHAModelBase):
 		site = self._get_sites()[site_index]
 		nhlib_site = nhlib.site.Site(Point(*site), *self.ref_site_params)
 		#imt = self._get_nhlib_imts()
-		ssdf = nhlib.filters.source_site_distance_filter(self.integration_distance)
-		rsdf = nhlib.filters.rupture_site_distance_filter(self.integration_distance)
+		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
+		rsdf = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
 
-		tom = nhlib.tom.PoissonTOM(self.time_span)
-		bin_edges, deagg_matrix = nhlib.calc.disaggregation(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), tom, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
-		return DeaggregationResult(bin_edges, deagg_matrix, site, imt, iml, self.time_span)
+		#tom = nhlib.tom.PoissonTOM(self.time_span)
+		#bin_edges, deagg_matrix = nhlib.calc.disaggregation(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), tom, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
+		bin_edges, deagg_matrix = nhlib.calc.disaggregation_poissonian(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), self.time_span, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
+		return DeaggregationSlice(bin_edges, deagg_matrix, site, imt, iml, self.time_span)
 
 	def write_openquake(self, user_params=None):
 		"""
