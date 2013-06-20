@@ -37,6 +37,15 @@ class ExceedanceRateMatrix(DeaggMatrix):
 	def to_normalized_matrix(self, timespan=None):
 		return self.matrix / self.get_total_exceedance_rate()
 
+	def fold_axis(self, axis):
+		return self.sum(axis=axis)
+
+	def fold_axes(self, axes):
+		matrix = self
+		for axis in sorted(axes)[::-1]:
+			matrix = matrix.fold_axis(axis)
+		return matrix
+
 
 class ProbabilityMatrix(DeaggMatrix):
 	#def __new__(cls, data, timespan):
@@ -59,6 +68,15 @@ class ProbabilityMatrix(DeaggMatrix):
 	def to_normalized_matrix(self, timespan=None):
 		ln_non_exceedance_probs = np.log(1. - self.matrix)
 		return ln_non_exceedance_probs / np.sum(ln_non_exceedance_probs)
+
+	def fold_axis(self, axis):
+		return 1 - np.prod(1 - self, axis=axis)
+
+	def fold_axes(self, axes):
+		matrix = self
+		for axis in sorted(axes)[::-1]:
+			matrix = matrix.fold_axis(axis)
+		return matrix
 
 
 class DeaggBase(object):
@@ -109,24 +127,59 @@ class DeaggBase(object):
 
 	@property
 	def mag_bin_centers(self):
-		mag_bin_widths = self.mag_bin_widths
-		return self.mag_bin_edges[:-1] + mag_bin_widths / 2
+		return self.mag_bin_edges[:-1] + self.mag_bin_widths / 2
 
 	@property
 	def dist_bin_edges(self):
 		return self.bin_edges[1]
 
 	@property
+	def dist_bin_widths(self):
+		dist_bin_edges = self.dist_bin_edges
+		return dist_bin_edges[1:] - dist_bin_edges[:-1]
+
+	@property
+	def dist_bin_centers(self):
+		return self.dist_bin_edges[:-1] + self.dist_bin_widths / 2
+
+	@property
 	def lon_bin_edges(self):
 		return self.bin_edges[2]
+
+	@property
+	def lon_bin_widths(self):
+		lon_bin_edges = self.lon_bin_edges
+		return lon_bin_edges[1:] - lon_bin_edges[:-1]
+
+	@property
+	def lon_bin_centers(self):
+		return self.lon_bin_edges[:-1] + self.lon_bin_widths / 2
 
 	@property
 	def lat_bin_edges(self):
 		return self.bin_edges[3]
 
 	@property
+	def lat_bin_widths(self):
+		lat_bin_edges = self.lat_bin_edges
+		return lat_bin_edges[1:] - lat_bin_edges[:-1]
+
+	@property
+	def lat_bin_centers(self):
+		return self.lat_bin_edges[:-1] + self.lat_bin_widths / 2
+
+	@property
 	def eps_bin_edges(self):
 		return self.bin_edges[4]
+
+	@property
+	def eps_bin_widhts(self):
+		eps_bin_edges = self.eps_bin_edges
+		return eps_bin_edges[1:] - eps_bin_edges[:-1]
+
+	@property
+	def eps_bin_centers(self):
+		return self.eps_bin_edges[:-1] + self.eps_bin_widths / 2
 
 	@property
 	def trt_bins(self):
@@ -184,7 +237,7 @@ class DeaggregationSlice(DeaggBase):
 		:returns:
 			1D array, a histogram representing magnitude PMF.
 		"""
-		return ProbabilityMatrix(disagg.mag_pmf(self.deagg_matrix.to_probability_matrix()))
+		return self.deagg_matrix.fold_axes([5,4,3,2,1])
 
 	def get_dist_pmf(self):
 		"""
@@ -193,7 +246,7 @@ class DeaggregationSlice(DeaggBase):
 		:returns:
 			1D array, a histogram representing distance PMF.
 		"""
-		return ProbabilityMatrix(disagg.dist_pmf(self.deagg_matrix.to_probability_matrix()))
+		return self.deagg_matrix.fold_axes([5,4,3,2,0])
 
 	def get_eps_pmf(self):
 		"""
@@ -202,15 +255,7 @@ class DeaggregationSlice(DeaggBase):
 		:returns:
 			1D array, a histogram representing epsilon PMF.
 		"""
-		eps_pmf = np.zeros(self.neps)
-		for m in xrange(self.neps):
-			eps_pmf[m] = 1 - np.prod(1 - self.deagg_matrix.to_probability_matrix()[i][j][k][l][m][n]
-							  for i in xrange(self.nmags)
-							  for j in xrange(self.ndists)
-							  for k in xrange(self.nlons)
-							  for l in xrange(self.nlats)
-							  for n in xrange(self.ntrts))
-		return ProbabilityMatrix(eps_pmf)
+		return self.deagg_matrix.fold_axes([5,4,3,1,0])
 
 	def get_trt_pmf(self):
 		"""
@@ -219,7 +264,7 @@ class DeaggregationSlice(DeaggBase):
 		:returns:
 			1D array, a histogram representing tectonic region type PMF.
 		"""
-		return ProbabilityMatrix(disagg.trt_pmf(self.deagg_matrix.to_probability_matrix()))
+		return self.deagg_matrix.fold_axes([4,3,2,1,0])
 
 	def get_mag_dist_pmf(self):
 		"""
@@ -229,9 +274,7 @@ class DeaggregationSlice(DeaggBase):
 			2D array, first dimension represents magnitude histogram bins,
 			second one -- distance histogram bins.
 		"""
-		if isinstance(self.deagg_matrix, ProbabilityMatrix):
-			return ProbabilityMatrix(disagg.mag_dist_pmf(self.deagg_matrix.to_probability_matrix()))
-
+		return self.deagg_matrix.fold_axes([5,4,3,2])
 
 	def get_mag_dist_eps_pmf(self):
 		"""
@@ -242,7 +285,7 @@ class DeaggregationSlice(DeaggBase):
 			second one -- distance histogram bins, third one -- epsilon
 			histogram bins.
 		"""
-		return ProbabilityMatrix(disagg.mag_dist_eps_pmf(self.deagg_matrix.to_probability_matrix()))
+		return self.deagg_matrix.fold_axes([5,4,3])
 
 	def get_lon_lat_pmf(self):
 		"""
@@ -252,7 +295,7 @@ class DeaggregationSlice(DeaggBase):
 			2D array, first dimension represents longitude histogram bins,
 			second one -- latitude histogram bins.
 		"""
-		return ProbabilityMatrix(disagg.lon_lat_pmf(self.deagg_matrix.to_probability_matrix()))
+		return self.deagg_matrix.fold_axes([5,2,1,0])
 
 	def get_mag_lon_lat_pmf(self):
 		"""
@@ -263,7 +306,7 @@ class DeaggregationSlice(DeaggBase):
 			second one -- longitude histogram bins, third one -- latitude
 			histogram bins.
 		"""
-		return ProbabilityMatrix(disagg.mag_lon_lat_pmf(self.deagg_matrix.to_probability_matrix()))
+		return self.deagg_matrix.fold_axes([5,2,1])
 
 	def get_lon_lat_trt_pmf(self):
 		"""
@@ -273,16 +316,24 @@ class DeaggregationSlice(DeaggBase):
 			3D array, first dimension represents longitude histogram bins,
 			second one -- latitude histogram bins, third one -- trt histogram bins.
 		"""
-		return ProbabilityMatrix(disagg.lon_lat_trt_pmf(self.deagg_matrix.to_probability_matrix()))
+		return self.deagg_matrix.fold_axes([2,1,0])
 
 	def to_exceedance_rate(self):
 		"""
-		Convert deaggregation matrix to exceedance rate
+		Convert deaggregation slice to exceedance rate
 
 		:return:
-			ndarray with same shape as deaggregation matrix
+			instance of :class:`DeaggregationSlice`
 		"""
-		return ExceedanceRateMatrix(self.deagg_matrix.to_exceedance_matrix(self.timespan))
+		deagg_matrix = self.deagg_matrix.to_exceedance_rate_matrix(self.timespan)
+		return DeaggregationSlice(self.bin_edges, deagg_matrix, self.site, self.imt, self.iml, self.period, self.timespan)
+
+	def to_probability(self):
+		"""
+		Convert deaggregation slice to probability of exceecance
+		"""
+		deagg_matrix = self.deagg_matrix.to_probability_matrix(self.timespan)
+		return DeaggregationSlice(self.bin_edges, deagg_matrix, self.site, self.imt, self.iml, self.period, self.timespan)
 
 	def plot_mag_dist_pmf(self, return_period=475):
 		"""
@@ -290,7 +341,10 @@ class DeaggregationSlice(DeaggBase):
 		"""
 		mag_dist_pmf = self.get_mag_dist_pmf().to_normalized_matrix(self.timespan)
 		mag_dist_pmf = mag_dist_pmf.transpose()
-		eps_pmf = self.get_eps_pmf().to_normalized_matrix(self.timespan)
+		if self.neps > 1:
+			eps_pmf = self.get_eps_pmf().to_normalized_matrix(self.timespan)
+		else:
+			eps_pmf = None
 		eps_bin_edges = self.eps_bin_edges[1:]
 		try:
 			imt_period = self.imt.period
@@ -298,9 +352,12 @@ class DeaggregationSlice(DeaggBase):
 			imt_period = None
 		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=imt_period, title_comment="", fig_filespec=None)
 
-	def get_mode_eq(self):
+	def get_modal_eq_scenario(self):
 		"""
+		Determine modal earthquake scenario (having largest contribution)
 
+		:return:
+			(mag, dist) tuple
 		"""
 		mag_dist_pmf = self.get_mag_dist_pmf()
 		mag_index, dist_index = np.unravel_index(mag_dist_pmf.argmax(), mag_dist_pmf.shape)
@@ -355,5 +412,4 @@ class DeaggregationCurve(DeaggBase):
 		occurrence_rates = exceedance_rates[:-1] - exceedance_rates[1:]
 		occurrence_rates = np.append(deagg_occurrences, deagg_exceedances[-1:], axis=0)
 		return occurrence_rates
-
 

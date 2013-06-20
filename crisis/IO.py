@@ -1175,32 +1175,32 @@ def readCRISIS_DES(filespec, site, intensity=None, return_period=None, period_in
 
 	## Rebin magnitudes and/or distances
 	if rebin_magnitudes not in (None, []):
-		rebin_values = np.zeros((DistNum, len(rebin_magnitudes)), 'd')
+		rebin_values = np.zeros((len(rebin_magnitudes)), DistNum, 'd')
 		for d in range(DistNum):
-			rebin_values[d] = interpolate(magnitudes, values[d], rebin_magnitudes, ideriv=0)
+			rebin_values[d] = interpolate(magnitudes, values[:,d], rebin_magnitudes)
 			## Renormalize
-			total, rebin_total = np.add.reduce(values[d]), np.add.reduce(rebin_values[d])
+			total, rebin_total = np.add.reduce(values[:,d]), np.add.reduce(rebin_values[:,d])
 			if rebin_total != 0:
-				rebin_values[d] = rebin_values[d] * (total / rebin_total)
+				rebin_values[:,d] = rebin_values[:,d] * (total / rebin_total)
 		values = rebin_values
 		magnitudes = rebin_magnitudes
 		MagNum = len(rebin_magnitudes)
 
 	if rebin_distances not in (None, []):
-		rebin_values = np.zeros((len(rebin_distances), MagNum), 'd')
+		rebin_values = np.zeros(MagNum, (len(rebin_distances)), 'd')
 		for m in range(MagNum):
-			rebin_values[:,m] = interpolate(distances, values[:,m], rebin_distances, ideriv=0)
+			rebin_values[:,m] = interpolate(distances, values[m], rebin_distances)
 			## Renormalize
-			total, rebin_total = np.add.reduce(values[:,m]), np.add.reduce(rebin_values[:,m])
+			total, rebin_total = np.add.reduce(values[m]), np.add.reduce(rebin_values[m])
 			if rebin_total != 0:
-				rebin_values[:,m] = rebin_values[:,m] * (total / rebin_total)
+				rebin_values[m] = rebin_values[m] * (total / rebin_total)
 		values = rebin_values
 		distances = rebin_distances
 
 	values = values[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 	bin_edges = (magnitudes, distances, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
 	values = ExceedanceRateMatrix(values)
-	site = sites[site_nr]
+	site = PSHASite(*sites[site_nr])
 	period = struc_periods[period_index]
 	imt = shcf.IMT
 	iml = intensity
