@@ -1172,6 +1172,7 @@ def readCRISIS_DES(filespec, site, intensity=None, return_period=None, period_in
 			i += 1
 		elif linenr > rec_end:
 			break
+	f.close()
 
 	## Rebin magnitudes and/or distances
 	if rebin_magnitudes not in (None, []):
@@ -1198,14 +1199,141 @@ def readCRISIS_DES(filespec, site, intensity=None, return_period=None, period_in
 		distances = rebin_distances
 
 	values = values[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
-	bin_edges = (magnitudes, distances, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
 	values = ExceedanceRateMatrix(values)
+	bin_edges = (magnitudes, distances, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
 	site = PSHASite(*sites[site_nr])
 	period = struc_periods[period_index]
 	imt = shcf.IMT
 	iml = intensity
 	time_span = 50
 	return DeaggregationSlice(bin_edges, values, site, imt, iml, period, time_span)
+
+
+def readCRISIS_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[], verbose=True):
+	"""
+	Read CRISIS deaggregation by Magnitude and distance results (.DES) file
+	In contrast to readCRISIS_DES, the results are read completely for a particular site
+	Parameters:
+		filespec: full path to file to be read
+		site: site index or tuple with site coordinates
+		rebin_magnitudes: array of magnitudes to rebin M, r deaggregation results
+			(default: [], i.e. no rebinning, use magnitude values from the .DES file)
+		rebin_distances: array of distances to rebin M, r deaggregation results
+			(default: [], i.e. no rebinning, use distance values from the .DES file)
+		verbose: boolean whether or not to print some information about what data
+			is actually read
+	Return value:
+		tuple of (magnitudes, distances, deagg_exceedances, intensities)
+			magnitudes: array of magnitude values (lower bounds of magnitude bins)
+			distances: array of distance values (lower bounds of distance bins)
+			deagg_exceedances: 4-D [k,l,r,m] array of M,r- deaggregated exceedance rates
+				for a range of structural periods (k) and intensities (l)
+			intensities: 1-D or 2-D array of intensity values
+	Note:
+		either intensity or return_period must be specified
+	"""
+	if filespec[-4:].lower() != ".des":
+		filespec += ".des"
+
+	## Read necessary information from .GRA file
+	shcf = readCRISIS_GRA(os.path.splitext(filespec)[0])
+	struc_periods = shcf.periods
+	sites = shcf.sites
+	intensities = shcf.intensities
+	exceedance_means = shcf.exceedance_rates
+
+	num_intensities = intensities.shape[-1]
+
+	## Determine site index
+	site_nr = shcf.site_index(site)
+	if verbose:
+		print "Site nr: %d" % site_nr
+
+	## Read number of magnitudes and number of distances from header
+	f = open(filespec)
+	for linenr, line in enumerate(f):
+		if "Number of magnitudes" in line:
+			MagNum = int(line.split(':')[1].strip())
+		if "Number of distances" in line:
+			DistNum = int(line.split(':')[1].strip())
+			start_nr = linenr + 1
+			break
+	f.seek(0)
+
+	## Determine line numbers to read
+	rec_len = MagNum + 3
+	period_len = rec_len * num_intensities
+	site_len = period_len * len(struc_periods) + 2
+	site_start = start_nr + site_nr * site_len
+	site_end = site_start + site_len
+	if verbose:
+		print "DES Reading lines %d : %d" % (site_start, site_end)
+
+	## Read M,r values for particular site
+	magnitudes = np.zeros(MagNum, 'f')
+	deagg_exceedances = np.zeros((len(struc_periods), num_intensities, MagNum - 1, DistNum - 1) ,'d')
+
+	i = 0
+	for linenr, line in enumerate(f):
+		if site_start <= linenr < site_end:
+			columns = line.split()
+			if len(columns) > 2:
+				i += 1
+				if "INTENSITY" in line:
+					i = 0
+					period_index, intensity_index = int(columns[1]) - 1, int(columns[3]) - 1
+				elif i == 1 and linenr == start_nr + 2 + i:
+					distances = [float(s) for s in columns]
+					distances = np.array(distances)
+				elif i > 1:
+					if len(columns):
+						Mag_index = i - 2
+						if linenr == start_nr + 2 + i:
+							magnitudes[Mag_index] = float(columns[0])
+						## value for last magnitude is always zero
+						if Mag_index < MagNum - 1:
+							## value for first distance is always zero
+							values = np.array([float(s) for s in columns[2:]], 'd')
+							deagg_exceedances[period_index, intensity_index, Mag_index] = values
+		elif linenr == site_end:
+			break
+	f.close()
+
+	## Rebin magnitudes and/or distances
+	if rebin_magnitudes not in (None, []):
+		rebin_values = np.zeros((len(struc_periods), num_intensities, DistNum, len(rebin_magnitudes)) ,'d')
+		for k in range(len(struc_periods)):
+			for l in range(num_intensities):
+				for d in range(DistNum):
+					rebin_values[k,l,d] = intcubicspline(magnitudes, deagg_exceedances[k,l,d], rebin_magnitudes, ideriv=0)
+					## Renormalize
+					total, rebin_total = np.add.reduce(deagg_exceedances[k,l,d]), np.add.reduce(rebin_values[k,l,d])
+					if rebin_total != 0:
+						rebin_values[k,l,d] = rebin_values[k,l,d] * (total / rebin_total)
+		deagg_exceedances = rebin_values
+		magnitudes = rebin_magnitudes
+		MagNum = len(rebin_magnitudes)
+
+	if rebin_distances not in (None, []):
+		rebin_values = np.zeros((len(struc_periods), num_intensities, len(rebin_distances), MagNum),'d')
+		for k in range(len(struc_periods)):
+			for l in range(num_intensities):
+				for m in range(MagNum):
+					rebin_values[k,l,:,m] = intcubicspline(distances, deagg_exceedances[k,l,:,m], rebin_distances, ideriv=0)
+					## Renormalize
+					total, rebin_total = np.add.reduce(deagg_exceedances[k,l,:,m]), np.add.reduce(rebin_values[k,l,:,m])
+					if rebin_total != 0:
+						rebin_values[k,l,:,m] = rebin_values[k,l,:,m] * (total / rebin_total)
+		deagg_exceedances = rebin_values
+		distances = rebin_distances
+
+	deagg_exceedances = deagg_exceedances[:,:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
+	deagg_exceedances = ExceedanceRateMatrix(deagg_exceedances)
+	bin_edges = (magnitudes, distances, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
+	site = PSHASite(*sites[site_nr])
+	imt = shcf.IMT
+	time_span = 50
+	return SpectralDeaggregationCurve(bin_edges, deagg_exceedances, site, imt, intensities, struc_periods, time_span)
 
 
 # TODO: implement length parameters

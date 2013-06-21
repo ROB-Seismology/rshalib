@@ -421,14 +421,8 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 	from matplotlib import cm, mpl
 
 	Nmag, Ndist = len(magnitudes), len(distances)
-	dmag, ddist = (magnitudes[1] - magnitudes[0]), (distances[1] - distances[0])
 
 	## Normalize M,r deaggregation results
-	tot_hazard = np.add.reduce(mr_values.flatten())
-	if not return_period:
-		return_period = 1./tot_hazard
-	#print 1./tot_hazard
-	mr_values /= tot_hazard
 	mr_values *= 100
 
 	## Plot deaggregation by M,r
@@ -479,8 +473,8 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		cmap = cm.Spectral_r
 		#cmap = cm.jet
 		cmap.set_under('w', 1.0)
-		extent = [distances[0], distances[-1]+ddist, magnitudes[0], magnitudes[-1]+dmag]
-		img = ax1.imshow(mr_values.transpose()[::-1,:], vmin=0.1, cmap=cmap, interpolation="nearest", aspect="auto", extent=extent)
+		extent = [distances[0], distances[-1], magnitudes[0], magnitudes[-1]]
+		img = ax1.imshow(mr_values[::-1,:], vmin=0.1, cmap=cmap, interpolation="nearest", aspect="auto", extent=extent)
 		xticks = [0, 50, 100, 150, 200, 250, 300]
 		ax1.set_xticks(xticks)
 		ax1.set_xticklabels(xticks)

@@ -191,18 +191,6 @@ class DeaggBase(object):
 		"""
 		return self.deagg_matrix.to_normalized_matrix(self.timespan)
 
-	def get_total_probability(self):
-		"""
-		Return total probability of exceedance
-		"""
-		return self.deagg_matrix.get_total_probability(self.timespan)
-
-	def get_total_exceedance_rate(self):
-		"""
-		Return total exceedance rate
-		"""
-		return self.deagg_matrix.get_total_exceedance_rate(self.timespan)
-
 
 class DeaggregationSlice(DeaggBase):
 	"""
@@ -335,12 +323,23 @@ class DeaggregationSlice(DeaggBase):
 		deagg_matrix = self.deagg_matrix.to_probability_matrix(self.timespan)
 		return DeaggregationSlice(self.bin_edges, deagg_matrix, self.site, self.imt, self.iml, self.period, self.timespan)
 
+	def get_total_probability(self):
+		"""
+		Return total probability of exceedance
+		"""
+		return self.deagg_matrix.get_total_probability(self.timespan)
+
+	def get_total_exceedance_rate(self):
+		"""
+		Return total exceedance rate
+		"""
+		return self.deagg_matrix.get_total_exceedance_rate(self.timespan)
+
 	def plot_mag_dist_pmf(self, return_period=475):
 		"""
 		Plot magnitude / distance PMF.
 		"""
 		mag_dist_pmf = self.get_mag_dist_pmf().to_normalized_matrix(self.timespan)
-		mag_dist_pmf = mag_dist_pmf.transpose()
 		if self.neps > 1:
 			eps_pmf = self.get_eps_pmf().to_normalized_matrix(self.timespan)
 		else:
@@ -362,6 +361,12 @@ class DeaggregationSlice(DeaggBase):
 		mag_dist_pmf = self.get_mag_dist_pmf()
 		mag_index, dist_index = np.unravel_index(mag_dist_pmf.argmax(), mag_dist_pmf.shape)
 		return (self.mag_bin_centers[mag_index], self.dist_bin_centers[dist_index])
+
+	def rebin_magnitudes(self):
+		pass
+
+	def rebin_distances(self):
+		pass
 
 
 class DeaggregationCurve(DeaggBase):
@@ -392,8 +397,9 @@ class DeaggregationCurve(DeaggBase):
 	def get_slice(self, iml=None, iml_index=None):
 		if iml is not None:
 			iml_index = np.argmin(np.abs(self.intensities - iml))
-		matrix = self.matrix[iml_index]
-		iml = self.intensities[iml_index]
+		else:
+			iml = self.intensities[iml_index]
+		matrix = self.deagg_matrix[iml_index]
 		return DeaggregationSlice(self.bin_edges, matrix, self.site, self.imt, iml, self.period, self.timespan)
 
 	def get_hazard_curve(self):
@@ -413,3 +419,59 @@ class DeaggregationCurve(DeaggBase):
 		occurrence_rates = np.append(deagg_occurrences, deagg_exceedances[-1:], axis=0)
 		return occurrence_rates
 
+	def filter_cav(self):
+		pass
+
+
+class SpectralDeaggregationCurve(DeaggBase):
+	"""
+	Class representing a full deaggregation result for a range of intensities
+	and a range of periods
+	8-D array
+	"""
+	def __init__(self, bin_edges, deagg_matrix, site, imt, intensities, periods, timespan):
+		self.site = site
+		self.imt = imt
+		self.periods = periods
+
+		## Make sure intensities are ordered from small to large
+		if intensities[0,0] > intensities[0,-1]:
+			DeaggBase.__init__(self, bin_edges, deagg_matrix[:,::-1], timespan)
+			self.intensities = intensities[:,::-1]
+		else:
+			DeaggBase.__init__(self, bin_edges, deagg_matrix, timespan)
+			self.intensities = intensities
+
+	def __iter__(self):
+		for period_index in range(len(self.periods)):
+			yield self.get_curve(period_index=period_index)
+
+	def __len__(self):
+		return len(self.periods)
+
+	def get_curve(self, period=None, period_index=None):
+		if period is not None:
+			period_index = np.argmin(np.abs(self.periods - period))
+		else:
+			period = self.periods[period_index]
+		matrix = self.deagg_matrix[period_index]
+		intensities = self.intensities[period_index]
+		return DeaggregationCurve(self.bin_edges, matrix, self.site, self.imt, intensities, period, self.timespan)
+
+	@classmethod
+	def from_deaggregation_curves(self, deagg_curves):
+		periods = np.array([dc.period for dc in deagg_curves])
+		period_indexes = np.argsort(periods)
+		deagg_matrixes = [deagg_curves[period_index].deagg_matrix for period_index in period_indexes]
+		deagg_matrix = np.concatenate(deagg_matrixes)
+		intensity_arrays = [deagg_curves[period_index].intensities for period_index in period_indexes]
+		intensities = np.concatenate(intensities)
+		# TODO: check that bin_edges etc. are identical
+		bin_edges = deagg_curves[0].bin_edges
+		site = deagg_curves[0].site
+		imt = deagg_curves[0].imt
+		timespan = deagg_curves[0].timespan
+		return SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, imt, intensities, periods, timespan)
+
+	def filter_cav(self):
+		pass
