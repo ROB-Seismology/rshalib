@@ -20,6 +20,10 @@ class DeaggMatrix(np.ndarray):
 	def matrix(self):
 		return np.asarray(self)
 
+	@property
+	def num_axes(self):
+		return len(self.shape)
+
 
 class ExceedanceRateMatrix(DeaggMatrix):
 	def get_total_exceedance_rate(self, timespan=None):
@@ -38,10 +42,13 @@ class ExceedanceRateMatrix(DeaggMatrix):
 		return self.matrix / self.get_total_exceedance_rate()
 
 	def fold_axis(self, axis):
+		if axis < 0:
+			axis = self.num_axes + axis
 		return self.sum(axis=axis)
 
 	def fold_axes(self, axes):
 		matrix = self
+		axes = [{True: self.num_axes + axis, False: axis}[axis < 0] for axis in axes]
 		for axis in sorted(axes)[::-1]:
 			matrix = matrix.fold_axis(axis)
 		return matrix
@@ -70,10 +77,13 @@ class ProbabilityMatrix(DeaggMatrix):
 		return ln_non_exceedance_probs / np.sum(ln_non_exceedance_probs)
 
 	def fold_axis(self, axis):
+		if axis < 0:
+			axis = self.num_axes + axis
 		return 1 - np.prod(1 - self, axis=axis)
 
 	def fold_axes(self, axes):
 		matrix = self
+		axes = [{True: self.num_axes + axis, False: axis}[axis < 0] for axis in axes]
 		for axis in sorted(axes)[::-1]:
 			matrix = matrix.fold_axis(axis)
 		return matrix
@@ -185,6 +195,94 @@ class DeaggBase(object):
 	def trt_bins(self):
 		return self.bin_edges[5]
 
+	def get_mag_pmf(self):
+		"""
+		Fold full deaggregation matrix to magnitude PMF.
+
+		:returns:
+			1D array, a histogram representing magnitude PMF.
+		"""
+		return self.deagg_matrix.fold_axes([-5,-4,-3,-2,-1])
+
+	def get_dist_pmf(self):
+		"""
+		Fold full deaggregation matrix to distance PMF.
+
+		:returns:
+			1D array, a histogram representing distance PMF.
+		"""
+		return self.deagg_matrix.fold_axes([-6,-4,-3,-2,-1])
+
+	def get_eps_pmf(self):
+		"""
+		Fold full deaggregation matrix to epsilon PMF.
+
+		:returns:
+			1D array, a histogram representing epsilon PMF.
+		"""
+		return self.deagg_matrix.fold_axes([-6,-5,-3,-2,-1])
+
+	def get_trt_pmf(self):
+		"""
+		Fold full deaggregation matrix to tectonic region type PMF.
+
+		:returns:
+			1D array, a histogram representing tectonic region type PMF.
+		"""
+		return self.deagg_matrix.fold_axes([-6,-5,-4,-3,-2])
+
+	def get_mag_dist_pmf(self):
+		"""
+		Fold full deaggregation matrix to magnitude / distance PMF.
+
+		:returns:
+			2D array, first dimension represents magnitude histogram bins,
+			second one -- distance histogram bins.
+		"""
+		return self.deagg_matrix.fold_axes([-4,-3,-2,-1])
+
+	def get_mag_dist_eps_pmf(self):
+		"""
+		Fold full deaggregation matrix to magnitude / distance /epsilon PMF.
+
+		:returns:
+			3D array, first dimension represents magnitude histogram bins,
+			second one -- distance histogram bins, third one -- epsilon
+			histogram bins.
+		"""
+		return self.deagg_matrix.fold_axes([-3,-2,-1])
+
+	def get_lon_lat_pmf(self):
+		"""
+		Fold full deaggregation matrix to longitude / latitude PMF.
+
+		:returns:
+			2D array, first dimension represents longitude histogram bins,
+			second one -- latitude histogram bins.
+		"""
+		return self.deagg_matrix.fold_axes([-6,-5,-4,-1])
+
+	def get_mag_lon_lat_pmf(self):
+		"""
+		Fold full deaggregation matrix to magnitude / longitude / latitude PMF.
+
+		:returns:
+			3D array, first dimension represents magnitude histogram bins,
+			second one -- longitude histogram bins, third one -- latitude
+			histogram bins.
+		"""
+		return self.deagg_matrix.fold_axes([-5,-4,-1])
+
+	def get_lon_lat_trt_pmf(self):
+		"""
+		Fold full deaggregation matrix to longitude / latitude / trt PMF.
+
+		:returns:
+			3D array, first dimension represents longitude histogram bins,
+			second one -- latitude histogram bins, third one -- trt histogram bins.
+		"""
+		return self.deagg_matrix.fold_axes([-6,-5,-4])
+
 	def to_percent_contribution(self):
 		"""
 		Normalize probability matrix.
@@ -217,94 +315,6 @@ class DeaggregationSlice(DeaggBase):
 		self.imt = imt
 		self.iml = iml
 		self.period = period
-
-	def get_mag_pmf(self):
-		"""
-		Fold full deaggregation matrix to magnitude PMF.
-
-		:returns:
-			1D array, a histogram representing magnitude PMF.
-		"""
-		return self.deagg_matrix.fold_axes([5,4,3,2,1])
-
-	def get_dist_pmf(self):
-		"""
-		Fold full deaggregation matrix to distance PMF.
-
-		:returns:
-			1D array, a histogram representing distance PMF.
-		"""
-		return self.deagg_matrix.fold_axes([5,4,3,2,0])
-
-	def get_eps_pmf(self):
-		"""
-		Fold full deaggregation matrix to epsilon PMF.
-
-		:returns:
-			1D array, a histogram representing epsilon PMF.
-		"""
-		return self.deagg_matrix.fold_axes([5,4,3,1,0])
-
-	def get_trt_pmf(self):
-		"""
-		Fold full deaggregation matrix to tectonic region type PMF.
-
-		:returns:
-			1D array, a histogram representing tectonic region type PMF.
-		"""
-		return self.deagg_matrix.fold_axes([4,3,2,1,0])
-
-	def get_mag_dist_pmf(self):
-		"""
-		Fold full deaggregation matrix to magnitude / distance PMF.
-
-		:returns:
-			2D array, first dimension represents magnitude histogram bins,
-			second one -- distance histogram bins.
-		"""
-		return self.deagg_matrix.fold_axes([5,4,3,2])
-
-	def get_mag_dist_eps_pmf(self):
-		"""
-		Fold full deaggregation matrix to magnitude / distance /epsilon PMF.
-
-		:returns:
-			3D array, first dimension represents magnitude histogram bins,
-			second one -- distance histogram bins, third one -- epsilon
-			histogram bins.
-		"""
-		return self.deagg_matrix.fold_axes([5,4,3])
-
-	def get_lon_lat_pmf(self):
-		"""
-		Fold full deaggregation matrix to longitude / latitude PMF.
-
-		:returns:
-			2D array, first dimension represents longitude histogram bins,
-			second one -- latitude histogram bins.
-		"""
-		return self.deagg_matrix.fold_axes([5,2,1,0])
-
-	def get_mag_lon_lat_pmf(self):
-		"""
-		Fold full deaggregation matrix to magnitude / longitude / latitude PMF.
-
-		:returns:
-			3D array, first dimension represents magnitude histogram bins,
-			second one -- longitude histogram bins, third one -- latitude
-			histogram bins.
-		"""
-		return self.deagg_matrix.fold_axes([5,2,1])
-
-	def get_lon_lat_trt_pmf(self):
-		"""
-		Fold full deaggregation matrix to longitude / latitude / trt PMF.
-
-		:returns:
-			3D array, first dimension represents longitude histogram bins,
-			second one -- latitude histogram bins, third one -- trt histogram bins.
-		"""
-		return self.deagg_matrix.fold_axes([2,1,0])
 
 	def to_exceedance_rate(self):
 		"""
@@ -416,11 +426,57 @@ class DeaggregationCurve(DeaggBase):
 		"""
 		exceedance_rates = self.matrix
 		occurrence_rates = exceedance_rates[:-1] - exceedance_rates[1:]
-		occurrence_rates = np.append(deagg_occurrences, deagg_exceedances[-1:], axis=0)
+		occurrence_rates = np.append(occurrence_rates, exceedance_rates[-1:], axis=0)
 		return occurrence_rates
 
-	def filter_cav(self):
-		pass
+	def filter_cav(self, vs30, CAVmin=0.16, gmpe_name=""):
+		from hazard.psha.CAVfiltering import calc_ln_PGA_given_SA, calc_CAV_exceedance_prob
+
+		num_intensities = len(self.intensities)
+
+		## Reduce to magnitude-distance pmf, and store in a new DeaggregationCurve object
+		deagg_matrix = self.get_mag_dist_pmf()[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
+		bin_edges = (self.mag_bin_edges, self.dist_bin_edges, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
+		CAV_deagg_curve = DeaggregationCurve(bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.period, self.timespan)
+
+		if self.imt == "PGA":
+			## Calculate CAV exceedance probabilities corresponding to PGA
+			num_intensities = len(self.intensities)
+			CAV_exceedance_probs = np.zeros((num_intensities, self.nmags), 'd')
+			for k in range(num_intensities):
+				zk = self.intensities[k]
+				CAV_exceedance_probs[k] = calc_CAV_exceedance_prob(zk, self.mag_bin_centers, vs30, CAVmin)
+			print CAV_exceedance_probs
+			CAV_exceedance_probs = CAV_exceedance_probs[:,np.newaxis,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
+
+		elif self.imt == "SA":
+			## Compute PGA given SA
+			pga_given_sa = np.zeros((num_intensities, self.ndists, self.nmags), 'd')
+			T = self.period
+			for k in range(num_intensities):
+				sa = intensities[k]
+				for r in range(self.ndists):
+					R = self.dist_bin_centers[r]
+					ln_pga_values = calc_ln_PGA_given_SA(sa, self.mag_bin_centers, R, T, vs30, gmpe_name)[0]
+					pga_given_sa[k,r] = np.exp(ln_pga_values)
+
+			## Calculate CAV exceedance probabilities corresponding to PGA
+			CAV_exceedance_probs = np.zeros((num_intensities, self.ndists, self.nmags), 'd')
+			for k in range(num_intensities):
+				for r in range(self.ndists):
+					zk = pga_given_sa[T,k,r]
+					CAV_exceedance_probs[k,r] = calc_CAV_exceedance_prob(zk, self.mag_bin_centers, vs30, CAVmin)
+			CAV_exceedance_probs = CAV_exceedance_probs[:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
+
+		## Calculate filtered occurrence rates
+		deagg_occurrence_rates = CAV_deagg_curve.get_occurrence_rates()
+		CAV_deagg_occurrence_rates = deagg_occurrence_rates * CAV_exceedance_probs
+
+		## Convert occurrence rates back to exceedance rates
+		CAV_deagg_exceedance_rates = np.add.accumulate(CAV_deagg_occurrence_rates[::-1,:,:], axis=0)[::-1,:,:]
+		CAV_deagg_curve.deagg_matrix = self.deagg_matrix.__class__(CAV_deagg_exceedance_rates)
+
+		return CAV_deagg_curve
 
 
 class SpectralDeaggregationCurve(DeaggBase):
