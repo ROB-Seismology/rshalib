@@ -424,10 +424,10 @@ class DeaggregationCurve(DeaggBase):
 		"""
 		Calculate rate of occurrence for each intensity interval
 		"""
-		exceedance_rates = self.matrix
+		exceedance_rates = self.deagg_matrix.to_exceedance_rate_matrix(self.timespan)
 		occurrence_rates = exceedance_rates[:-1] - exceedance_rates[1:]
 		occurrence_rates = np.append(occurrence_rates, exceedance_rates[-1:], axis=0)
-		return occurrence_rates
+		return ExceedanceRateMatrix(occurrence_rates)
 
 	def filter_cav(self, vs30, CAVmin=0.16, gmpe_name=""):
 		from hazard.psha.CAVfiltering import calc_ln_PGA_given_SA, calc_CAV_exceedance_prob
@@ -435,7 +435,7 @@ class DeaggregationCurve(DeaggBase):
 		num_intensities = len(self.intensities)
 
 		## Reduce to magnitude-distance pmf, and store in a new DeaggregationCurve object
-		deagg_matrix = self.get_mag_dist_pmf()[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
+		deagg_matrix = self.get_mag_dist_pmf()[:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 		bin_edges = (self.mag_bin_edges, self.dist_bin_edges, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
 		CAV_deagg_curve = DeaggregationCurve(bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.period, self.timespan)
 
@@ -446,8 +446,8 @@ class DeaggregationCurve(DeaggBase):
 			for k in range(num_intensities):
 				zk = self.intensities[k]
 				CAV_exceedance_probs[k] = calc_CAV_exceedance_prob(zk, self.mag_bin_centers, vs30, CAVmin)
-			print CAV_exceedance_probs
-			CAV_exceedance_probs = CAV_exceedance_probs[:,np.newaxis,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
+			CAV_exceedance_probs = CAV_exceedance_probs[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
+			print CAV_exceedance_probs.shape
 
 		elif self.imt == "SA":
 			## Compute PGA given SA
@@ -459,6 +459,7 @@ class DeaggregationCurve(DeaggBase):
 					R = self.dist_bin_centers[r]
 					ln_pga_values = calc_ln_PGA_given_SA(sa, self.mag_bin_centers, R, T, vs30, gmpe_name)[0]
 					pga_given_sa[k,r] = np.exp(ln_pga_values)
+			CAV_exceedance_probs = CAV_exceedance_probs[:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 
 			## Calculate CAV exceedance probabilities corresponding to PGA
 			CAV_exceedance_probs = np.zeros((num_intensities, self.ndists, self.nmags), 'd')
@@ -466,14 +467,14 @@ class DeaggregationCurve(DeaggBase):
 				for r in range(self.ndists):
 					zk = pga_given_sa[T,k,r]
 					CAV_exceedance_probs[k,r] = calc_CAV_exceedance_prob(zk, self.mag_bin_centers, vs30, CAVmin)
-			CAV_exceedance_probs = CAV_exceedance_probs[:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 
 		## Calculate filtered occurrence rates
 		deagg_occurrence_rates = CAV_deagg_curve.get_occurrence_rates()
+		#deagg_occurrence_rates = deagg_occurrence_rates.fold_axes([3,4,5,6])
 		CAV_deagg_occurrence_rates = deagg_occurrence_rates * CAV_exceedance_probs
 
 		## Convert occurrence rates back to exceedance rates
-		CAV_deagg_exceedance_rates = np.add.accumulate(CAV_deagg_occurrence_rates[::-1,:,:], axis=0)[::-1,:,:]
+		CAV_deagg_exceedance_rates = np.add.accumulate(CAV_deagg_occurrence_rates[::-1], axis=0)[::-1]
 		CAV_deagg_curve.deagg_matrix = self.deagg_matrix.__class__(CAV_deagg_exceedance_rates)
 
 		return CAV_deagg_curve
