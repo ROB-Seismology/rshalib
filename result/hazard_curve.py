@@ -2330,7 +2330,10 @@ class HazardCurveCollection:
 		self.hazard_curves.append(hc)
 		if not label:
 			label = hc.model_name
-			self.labels.append(label)
+		self.labels.append(label)
+		self.colors.append(color)
+		self.linestyles.append(linestyle)
+		self.linewidths.append(linewidth)
 
 	@property
 	def intensity_unit(self):

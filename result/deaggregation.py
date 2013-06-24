@@ -345,7 +345,7 @@ class DeaggregationSlice(DeaggBase):
 		"""
 		return self.deagg_matrix.get_total_exceedance_rate(self.timespan)
 
-	def plot_mag_dist_pmf(self, return_period=475):
+	def plot_mag_dist_pmf(self, return_period=475, title="", fig_filespec=None):
 		"""
 		Plot magnitude / distance PMF.
 		"""
@@ -359,7 +359,7 @@ class DeaggregationSlice(DeaggBase):
 			imt_period = self.imt.period
 		except AttributeError:
 			imt_period = None
-		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=imt_period, title_comment="", fig_filespec=None)
+		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=imt_period, title_comment=title, fig_filespec=fig_filespec)
 
 	def get_modal_eq_scenario(self):
 		"""
@@ -372,8 +372,25 @@ class DeaggregationSlice(DeaggBase):
 		mag_index, dist_index = np.unravel_index(mag_dist_pmf.argmax(), mag_dist_pmf.shape)
 		return (self.mag_bin_centers[mag_index], self.dist_bin_centers[dist_index])
 
-	def rebin_magnitudes(self):
-		pass
+	def rebin(self, new_bin_edges, axis=0):
+		from ..utils import interpolate
+		rebinned_shape = self.deagg_matrix.shape
+		rebinned_shape[axis] = len(new_bin_edges) - 1
+		rebinned_deagg = np.zeros(rebinned_shape, 'd')
+		other_axes = [i for i in range(len(rebinned_shape)) if not i == axis]
+		for i in range(rebinned_shape[other_axes[0]]):
+			for j in range(rebinned_shape[other_axes[1]]):
+				for k in range(rebinned_shape[other_axes[2]]):
+					for l in range(rebinned_shape[other_axes[3]]):
+						for m in range(rebinned_shape[other_axes[4]]):
+							rebinned_deagg[d] = interpolate(self.mag_bin_edges, self.deagg_matrix[:,d], new_mag_bin_edges[:-1])
+							## Renormalize
+							total, rebinned_total = np.add.reduce(self.deagg_matrix[:,d]), np.add.reduce(rebinned_deagg[:,d])
+							if rebinned_total != 0:
+								rebinned_deagg[:,d] = rebinned_deagg[:,d] * (total / rebinned_total)
+		rebinned_deagg = self.deagg_matrix.__class__(rebinned_deagg)
+		bin_edges = [new_mag_bin_edges] + self.bin_edges[1:]
+		return DeaggregationSlice(bin_edges, rebinned_deagg, self.site, self.imt, self.iml, self.period, self.timespan)
 
 	def rebin_distances(self):
 		pass
@@ -403,6 +420,9 @@ class DeaggregationCurve(DeaggBase):
 	def __iter__(self):
 		for iml_index in range(len(self.intensities)):
 			yield self.get_slice(iml_index=iml_index)
+
+	def __getitem__(self, iml_index):
+		return self.get_slice(iml_index=iml_index)
 
 	def get_slice(self, iml=None, iml_index=None):
 		if iml is not None:
@@ -447,35 +467,33 @@ class DeaggregationCurve(DeaggBase):
 				zk = self.intensities[k]
 				CAV_exceedance_probs[k] = calc_CAV_exceedance_prob(zk, self.mag_bin_centers, vs30, CAVmin)
 			CAV_exceedance_probs = CAV_exceedance_probs[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
-			print CAV_exceedance_probs.shape
 
 		elif self.imt == "SA":
 			## Compute PGA given SA
-			pga_given_sa = np.zeros((num_intensities, self.ndists, self.nmags), 'd')
+			pga_given_sa = np.zeros((num_intensities, self.nmags, self.ndists), 'd')
 			T = self.period
 			for k in range(num_intensities):
-				sa = intensities[k]
+				sa = self.intensities[k]
 				for r in range(self.ndists):
 					R = self.dist_bin_centers[r]
 					ln_pga_values = calc_ln_PGA_given_SA(sa, self.mag_bin_centers, R, T, vs30, gmpe_name)[0]
-					pga_given_sa[k,r] = np.exp(ln_pga_values)
-			CAV_exceedance_probs = CAV_exceedance_probs[:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
+					pga_given_sa[k,:,r] = np.exp(ln_pga_values)
 
 			## Calculate CAV exceedance probabilities corresponding to PGA
-			CAV_exceedance_probs = np.zeros((num_intensities, self.ndists, self.nmags), 'd')
+			CAV_exceedance_probs = np.zeros((num_intensities, self.nmags, self.ndists), 'd')
 			for k in range(num_intensities):
 				for r in range(self.ndists):
-					zk = pga_given_sa[T,k,r]
-					CAV_exceedance_probs[k,r] = calc_CAV_exceedance_prob(zk, self.mag_bin_centers, vs30, CAVmin)
+					zk = pga_given_sa[k,:,r]
+					CAV_exceedance_probs[k,:,r] = calc_CAV_exceedance_prob(zk, self.mag_bin_centers, vs30, CAVmin)
+			CAV_exceedance_probs = CAV_exceedance_probs[:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 
 		## Calculate filtered occurrence rates
 		deagg_occurrence_rates = CAV_deagg_curve.get_occurrence_rates()
-		#deagg_occurrence_rates = deagg_occurrence_rates.fold_axes([3,4,5,6])
 		CAV_deagg_occurrence_rates = deagg_occurrence_rates * CAV_exceedance_probs
 
 		## Convert occurrence rates back to exceedance rates
 		CAV_deagg_exceedance_rates = np.add.accumulate(CAV_deagg_occurrence_rates[::-1], axis=0)[::-1]
-		CAV_deagg_curve.deagg_matrix = self.deagg_matrix.__class__(CAV_deagg_exceedance_rates)
+		CAV_deagg_curve.deagg_matrix = ExceedanceRateMatrix(CAV_deagg_exceedance_rates)
 
 		return CAV_deagg_curve
 
@@ -506,6 +524,9 @@ class SpectralDeaggregationCurve(DeaggBase):
 	def __len__(self):
 		return len(self.periods)
 
+	def __getitem__(self, period_index):
+		return self.get_curve(period_index=period_index)
+
 	def get_curve(self, period=None, period_index=None):
 		if period is not None:
 			period_index = np.argmin(np.abs(self.periods - period))
@@ -519,10 +540,11 @@ class SpectralDeaggregationCurve(DeaggBase):
 	def from_deaggregation_curves(self, deagg_curves):
 		periods = np.array([dc.period for dc in deagg_curves])
 		period_indexes = np.argsort(periods)
-		deagg_matrixes = [deagg_curves[period_index].deagg_matrix for period_index in period_indexes]
+		deagg_matrixes = [deagg_curves[period_index].deagg_matrix[np.newaxis] for period_index in period_indexes]
 		deagg_matrix = np.concatenate(deagg_matrixes)
-		intensity_arrays = [deagg_curves[period_index].intensities for period_index in period_indexes]
-		intensities = np.concatenate(intensities)
+		deagg_matrix = deagg_curves[0].deagg_matrix.__class__(deagg_matrix)
+		intensity_arrays = [deagg_curves[period_index].intensities[np.newaxis,:] for period_index in period_indexes]
+		intensities = np.concatenate(intensity_arrays, axis=0)
 		# TODO: check that bin_edges etc. are identical
 		bin_edges = deagg_curves[0].bin_edges
 		site = deagg_curves[0].site
@@ -530,5 +552,9 @@ class SpectralDeaggregationCurve(DeaggBase):
 		timespan = deagg_curves[0].timespan
 		return SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, imt, intensities, periods, timespan)
 
-	def filter_cav(self):
-		pass
+	def filter_cav(self, vs30, CAVmin=0.16, gmpe_name=""):
+		CAV_curves = []
+		for curve in self:
+			CAV_deagg_curve = curve.filter_cav(vs30, CAVmin=CAVmin, gmpe_name=gmpe_name)
+			CAV_curves.append(CAV_deagg_curve)
+		return SpectralDeaggregationCurve.from_deaggregation_curves(CAV_curves)
