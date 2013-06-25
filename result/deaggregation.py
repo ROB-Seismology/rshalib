@@ -374,22 +374,36 @@ class DeaggregationSlice(DeaggBase):
 
 	def rebin(self, new_bin_edges, axis=0):
 		from ..utils import interpolate
-		rebinned_shape = self.deagg_matrix.shape
+		rebinned_shape = list(self.deagg_matrix.shape)
 		rebinned_shape[axis] = len(new_bin_edges) - 1
 		rebinned_deagg = np.zeros(rebinned_shape, 'd')
-		other_axes = [i for i in range(len(rebinned_shape)) if not i == axis]
+		other_axes = [i for i in range(6) if not i == axis]
+		old_bin_edges = self.bin_edges[axis]
 		for i in range(rebinned_shape[other_axes[0]]):
 			for j in range(rebinned_shape[other_axes[1]]):
 				for k in range(rebinned_shape[other_axes[2]]):
 					for l in range(rebinned_shape[other_axes[3]]):
 						for m in range(rebinned_shape[other_axes[4]]):
-							rebinned_deagg[d] = interpolate(self.mag_bin_edges, self.deagg_matrix[:,d], new_mag_bin_edges[:-1])
+							## Construct list with axis indexes
+							ax = [0] * 6
+							ax[other_axes[0]] = i
+							ax[other_axes[1]] = j
+							ax[other_axes[2]] = k
+							ax[other_axes[3]] = l
+							ax[other_axes[4]] = m
+							ax[axis] = slice(None)
+							interpol_deagg = interpolate(old_bin_edges[:-1], self.deagg_matrix[ax[0], ax[1], ax[2], ax[3], ax[4], ax[5]], new_bin_edges[:-1])
+							interpol_deagg = self.deagg_matrix.__class__(interpol_deagg)
 							## Renormalize
-							total, rebinned_total = np.add.reduce(self.deagg_matrix[:,d]), np.add.reduce(rebinned_deagg[:,d])
-							if rebinned_total != 0:
-								rebinned_deagg[:,d] = rebinned_deagg[:,d] * (total / rebinned_total)
+							#total = self.deagg_matrix[ax[0], ax[1], ax[2], ax[3], ax[4], ax[5]].get_total_exceedance_rate(self.timespan)
+							#rebinned_total = interpol_deagg.get_total_exceedance_rate(self.timespan)
+							#if rebinned_total != 0:
+							#	interpol_deagg = interpol_deagg * (total / rebinned_total)
+							rebinned_deagg[ax[0], ax[1], ax[2], ax[3], ax[4], ax[5]] = interpol_deagg
 		rebinned_deagg = self.deagg_matrix.__class__(rebinned_deagg)
-		bin_edges = [new_mag_bin_edges] + self.bin_edges[1:]
+		bin_edges = list(self.bin_edges)
+		bin_edges[axis] = new_bin_edges
+		bin_edges = tuple(bin_edges)
 		return DeaggregationSlice(bin_edges, rebinned_deagg, self.site, self.imt, self.iml, self.period, self.timespan)
 
 	def rebin_distances(self):
@@ -448,6 +462,22 @@ class DeaggregationCurve(DeaggBase):
 		occurrence_rates = exceedance_rates[:-1] - exceedance_rates[1:]
 		occurrence_rates = np.append(occurrence_rates, exceedance_rates[-1:], axis=0)
 		return ExceedanceRateMatrix(occurrence_rates)
+
+	@classmethod
+	def from_deaggregation_slices(self, deagg_slices):
+		imls = np.array([ds.iml for ds in deagg_slices])
+		iml_indexes = np.argsort(imls)
+		imls = imls[iml_indexes]
+		deagg_matrixes = [deagg_slices[iml_index].deagg_matrix[np.newaxis] for iml_index in iml_indexes]
+		deagg_matrix = np.concatenate(deagg_matrixes)
+		deagg_matrix = deagg_curves[0].deagg_matrix.__class__(deagg_matrix)
+		# TODO: check that bin_edges etc. are identical
+		bin_edges = deagg_slices[0].bin_edges
+		site = deagg_slices[0].site
+		imt = deagg_slices[0].imt
+		period = deagg_slices[0].period
+		timespan = deagg_slices[0].timespan
+		return DeaggregationCurve(bin_edges, deagg_matrix, site, imt, imls, period, timespan)
 
 	def filter_cav(self, vs30, CAVmin=0.16, gmpe_name=""):
 		from hazard.psha.CAVfiltering import calc_ln_PGA_given_SA, calc_CAV_exceedance_prob
@@ -540,6 +570,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 	def from_deaggregation_curves(self, deagg_curves):
 		periods = np.array([dc.period for dc in deagg_curves])
 		period_indexes = np.argsort(periods)
+		periods = periods[period_indexes]
 		deagg_matrixes = [deagg_curves[period_index].deagg_matrix[np.newaxis] for period_index in period_indexes]
 		deagg_matrix = np.concatenate(deagg_matrixes)
 		deagg_matrix = deagg_curves[0].deagg_matrix.__class__(deagg_matrix)
