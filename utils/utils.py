@@ -9,8 +9,8 @@ def interpolate(xin, yin, xout):
 	Wrapper for linear interpolation function
 	"""
 	## Scipy and numpy interpolation don't work as exceedance rates
-	## are in decreasing order
-	if np.all(np.diff(xin) < 0):
+	## are in decreasing order,
+	if np.all(np.diff(xin) <= 0):
 		xin, yin = xin[::-1], yin[::-1]
 	## SciPy
 	#from scipy.interpolate import interp1d
