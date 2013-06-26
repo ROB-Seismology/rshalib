@@ -332,7 +332,7 @@ class GMPE(object):
 			if not allclose:
 				print values
 
-	def get_spectrum(self, M, d, h=0, imt="SA", periods=[], imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def get_spectrum(self, M, d, h=0, imt="SA", periods=[], imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Return (periods, intensities) tuple for given magnitude, distance, depth
 		and number of standard deviations.
@@ -358,6 +358,8 @@ class GMPE(object):
 		:param vs30:
 			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip".
 			(default: "normal").
@@ -366,7 +368,7 @@ class GMPE(object):
 		"""
 		if periods in (None, []):
 			periods = self.imt_periods[imt]
-		intensities = [self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)[0] for T in periods]
+		intensities = [self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)[0] for T in periods]
 		intensities = np.array(intensities)
 		return (periods, intensities)
 
@@ -715,7 +717,7 @@ class GMPE(object):
 		"""
 		plot_distance([self], Mmin=Mmin, Mmax=Mmax, Mstep=Mstep, dmin=dmin, dmax=dmax, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping, plot_style=plot_style, amin=amin, amax=amax, colors=[color], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
 
-	def plot_spectrum(self, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5, plot_freq=False, plot_style="loglog", amin=None, amax=None, color='k', label=None, fig_filespec=None, title="", want_minor_grid=False, include_pgm=True, legend_location=None, lang="en"):
+	def plot_spectrum(self, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_freq=False, plot_style="loglog", amin=None, amax=None, color='k', label=None, fig_filespec=None, title="", want_minor_grid=False, include_pgm=True, legend_location=None, lang="en"):
 		"""
 		Plot ground motion spectrum for this GMPE.
 		Horizontal axis: spectral periods or frequencies.
@@ -753,6 +755,8 @@ class GMPE(object):
 		:param vs30:
 			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip"
 			(default: "normal").
@@ -804,7 +808,7 @@ class GMPE(object):
 			Tmin = self.Tmin(imt)
 		if Tmax is None:
 			Tmax = self.Tmax(imt)
-		plot_spectrum([self], Mmin=Mmin, Mmax=Mmax, Mstep=Mstep, d=d, h=h, imt=imt, Tmin=Tmin, Tmax=Tmax, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping, include_pgm=include_pgm, plot_freq=plot_freq, plot_style=plot_style, amin=amin, amax=amax, colors=[color], labels=[label], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
+		plot_spectrum([self], Mmin=Mmin, Mmax=Mmax, Mstep=Mstep, d=d, h=h, imt=imt, Tmin=Tmin, Tmax=Tmax, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, include_pgm=include_pgm, plot_freq=plot_freq, plot_style=plot_style, amin=amin, amax=amax, colors=[color], labels=[label], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
 
 
 class AmbraseysEtAl1996GMPE(GMPE):
@@ -2656,7 +2660,7 @@ class Campbell2003(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -2707,7 +2711,7 @@ class Campbell2003SHARE(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -2830,7 +2834,7 @@ class ToroEtAl2002(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -2856,7 +2860,7 @@ class ToroEtAl2002SHARE(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -3216,7 +3220,7 @@ def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="
 		pylab.show()
 
 
-def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5, include_pgm=True, plot_freq=False, plot_style="loglog", amin=None, amax=None, colors=None, labels=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=None, lang="en"):
+def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, include_pgm=True, plot_freq=False, plot_style="loglog", amin=None, amax=None, colors=None, labels=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=None, lang="en"):
 	"""
 	Function to plot ground motion spectrum for one or more GMPE's.
 	Horizontal axis: spectral periods or frequencies.
@@ -3256,6 +3260,8 @@ def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tma
 	:param vs30:
 		Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 		it takes precedence over the soil_type parameter (default: None).
+	:param kappa:
+		Float, kappa value (default: None)
 	:param mechanism:
 		String, fault mechanism: either "normal", "reverse" or "strike-slip"
 		(default: "normal").
@@ -3329,9 +3335,9 @@ def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tma
 		else:
 			xvalues = periods
 		for j, M in enumerate(Mags):
-			periods, Avalues = gmpe.get_spectrum(M, d, h=h, imt=imt, imt_unit=imt_unit, epsilon=0, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+			periods, Avalues = gmpe.get_spectrum(M, d, h=h, imt=imt, imt_unit=imt_unit, epsilon=0, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 			#Asigma_values = gmpe.get_spectrum(M, d, h=h, imt=imt, imt_unit=imt_unit, epsilon=num_sigma, soil_type=soil_type, mechanism=mechanism, damping=damping)
-			Asigma_values = np.array([gmpe.log_sigma(M, d, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)[0] for T in periods])
+			Asigma_values = np.array([gmpe.log_sigma(M, d, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)[0] for T in periods])
 
 			#non_zero_Avalues, non_zero_xvalues, non_zero_Asigma_values = [], [], []
 			#for a, x, sigma in zip(Avalues, xvalues, Asigma_values):
@@ -3357,8 +3363,8 @@ def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tma
 					pass
 				else:
 					if gmpe.has_imt(pgm) and plot_style in ("lin", "linlog") and plot_freq == False:
-						[pgm_T], [pgm_Avalue] = gmpe.get_spectrum(M, d, h=h, imt=pgm, imt_unit=imt_unit, epsilon=0, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
-						pgm_sigma = gmpe.log_sigma(M, d, h=h, imt=pgm, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+						[pgm_T], [pgm_Avalue] = gmpe.get_spectrum(M, d, h=h, imt=pgm, imt_unit=imt_unit, epsilon=0, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+						pgm_sigma = gmpe.log_sigma(M, d, h=h, imt=pgm, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 						Tmin = pgm_T
 						# TODO: add outline color and symbol size
 						plotfunc(pgm_T, pgm_Avalue, colors[j]+"o", label="_nolegend_")
