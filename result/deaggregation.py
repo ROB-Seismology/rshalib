@@ -8,6 +8,13 @@ from hazard_curve import Poisson, HazardCurve
 
 
 class DeaggMatrix(np.ndarray):
+	"""
+	Base class for deaggregation matrix, subclassed from numpy ndarray
+
+	:param data:
+		ndarray, n-d float array containing exceedance rates or
+		probabilities of exceedance
+	"""
 	def __new__(cls, data):
 		obj = np.asarray(data).view(cls)
 		return obj
@@ -26,27 +33,94 @@ class DeaggMatrix(np.ndarray):
 
 
 class ExceedanceRateMatrix(DeaggMatrix):
+	"""
+	Class representing a deaggregation matrix containing exceedance rates
+
+	:param data:
+		ndarray, n-d float array containing exceedance rates
+	"""
 	def get_total_exceedance_rate(self, timespan=None):
+		"""
+		Return total exceedance rate
+
+		:param timespan:
+			Float, time span in Poisson formula (default: None).
+			This parameter is supported for compatibility with a similar
+			method in ProbabilityMatrix, but ignored.
+		"""
 		return np.sum(self.matrix)
 
 	def get_total_probability(self, timespan):
+		"""
+		Return total probability
+
+		:param timespan:
+			Float, time span in Poisson formula.
+		"""
 		return Poisson(life_time=timespan, return_period=1./self.get_total_exceedance_rate())
 
 	def to_probability_matrix(self, timespan):
+		"""
+		Convert to probability matrix
+
+		:param timespan:
+			Float, time span in Poisson formula.
+
+		:return:
+			instance of :class:`ProbabilityMatrix`
+		"""
 		return ProbabilityMatrix(Poisson(life_time=timespan, return_period=1./self.matrix))
 
-	def to_exceedance_rate_matrix(self, timespan):
+	def to_exceedance_rate_matrix(self, timespan=None):
+		"""
+		Convert to exceedance-rate matrix
+
+		:param timespan:
+			Float, time span in Poisson formula (default: None).
+			This parameter is supported for compatibility with a similar
+			method in ProbabilityMatrix, but ignored.
+
+		:return:
+			instance of :class:`ExceedanceRateMatrix`
+		"""
 		return ExceedanceRateMatrix(self.matrix)
 
-	def to_normalized_matrix(self, timespan=None):
+	def to_normalized_matrix(self):
+		"""
+		Convert to a normalized matrix, containing percentual contribution
+		to hazard
+
+		:return:
+			ndarray
+		"""
 		return self.matrix / self.get_total_exceedance_rate()
 
 	def fold_axis(self, axis):
+		"""
+		Fold matrix along one axis.
+		Total exceedance rate in given axis is computed as sum of all
+		exceedance rates.
+
+		:param axis:
+			Int, index of axis to fold
+
+		:return:
+			instance of :class:`ExceedanceRateMatrix`
+		"""
 		if axis < 0:
 			axis = self.num_axes + axis
 		return self.sum(axis=axis)
 
 	def fold_axes(self, axes):
+		"""
+		Fold matrix along multiple axes
+
+		:param axes:
+			List of integers, indexes of axes to fold
+
+		:return:
+			instance of :class:`ExceedanceRateMatrix`
+		"""
 		matrix = self
 		axes = [{True: self.num_axes + axis, False: axis}[axis < 0] for axis in axes]
 		for axis in sorted(axes)[::-1]:
@@ -55,33 +129,100 @@ class ExceedanceRateMatrix(DeaggMatrix):
 
 
 class ProbabilityMatrix(DeaggMatrix):
+	"""
+	Class representing a deaggregation matrix containing probabilities of exceedance
+
+	:param data:
+		ndarray, n-d float array containing exceedance rates
+	"""
 	#def __new__(cls, data, timespan):
 	#	obj = DeaggMatrix.__new__(cls, data)
 	#	obj.timespan = timespan
 	#	return obj
 
 	def get_total_exceedance_rate(self, timespan):
+		"""
+		Return total exceedance rate
+
+		:param timespan:
+			Float, time span in Poisson formula.
+		"""
 		return 1. / Poisson(life_time=timespan, prob=self.get_total_probability())
 
 	def get_total_probability(self, timespan=None):
+		"""
+		Return total probability
+
+		:param timespan:
+			Float, time span in Poisson formula (default: None).
+			This parameter is supported for compatibility with a similar
+			method in ExceedanceRateMatrix, but ignored.
+		"""
 		return 1 - np.prod(1 - self.matrix)
 
-	def to_exceedance_rate_matrix(self, timespan):
-		return ExceedanceRateMatrix(1. / Poisson(life_time=timespan, prob=self.matrix))
-
 	def to_probability_matrix(self, timespan=None):
+		"""
+		Convert to probability matrix
+
+		:param timespan:
+			Float, time span in Poisson formula.
+			This parameter is supported for compatibility with a similar
+			method in ExceedanceRateMatrix, but ignored.
+
+		:return:
+			instance of :class:`ProbabilityMatrix`
+		"""
 		return ProbabilityMatrix(self.matrix)
 
-	def to_normalized_matrix(self, timespan=None):
+	def to_exceedance_rate_matrix(self, timespan):
+		"""
+		Convert to exceedance-rate matrix
+
+		:param timespan:
+			Float, time span in Poisson formula.
+
+		:return:
+			instance of :class:`ExceedanceRateMatrix`
+		"""
+		return ExceedanceRateMatrix(1. / Poisson(life_time=timespan, prob=self.matrix))
+
+	def to_normalized_matrix(self):
+		"""
+		Convert to a normalized matrix, containing percentual contribution
+		to hazard
+
+		:return:
+			ndarray
+		"""
 		ln_non_exceedance_probs = np.log(1. - self.matrix)
 		return ln_non_exceedance_probs / np.sum(ln_non_exceedance_probs)
 
 	def fold_axis(self, axis):
+		"""
+		Fold matrix along one axis.
+		Total probability in given axis is computed as product of all
+		non-exceedance probabilities.
+
+		:param axis:
+			Int, index of axis to fold
+
+		:return:
+			instance of :class:`ProbabilityMatrix`
+		"""
 		if axis < 0:
 			axis = self.num_axes + axis
 		return 1 - np.prod(1 - self, axis=axis)
 
 	def fold_axes(self, axes):
+		"""
+		Fold matrix along multiple axes
+
+		:param axes:
+			List of integers, indexes of axes to fold
+
+		:return:
+			instance of :class:`ProbabilityMatrix`
+		"""
 		matrix = self
 		axes = [{True: self.num_axes + axis, False: axis}[axis < 0] for axis in axes]
 		for axis in sorted(axes)[::-1]:
@@ -90,13 +231,44 @@ class ProbabilityMatrix(DeaggMatrix):
 
 
 class DeaggBase(object):
+	"""
+	Base class for deaggregation results
+
+	:param bin_edges:
+		6-tuple, containing:
+			- magnitude bin edges
+			- distance bin edges
+			- epsilon bin edges
+			- longitude bin edges
+			- latitude bin edges
+			- tectonic region types
+
+	:param deagg_matrix:
+		instance of :class:`ExceedanceRateMatrix` or :class:`ProbabilityMatrix`,
+		6-or-more-dimensional array containing deaggregation values, with
+		the 6 last dimensions corresponding to:
+			- magnitude bins
+			- distance bins
+			- epsilon bins
+			- longitude bins
+			- latitude bins
+			- tectonic-region-type bins
+
+	:param timespan:
+		Float, time span in Poisson formula.
+	"""
 	def __init__(self, bin_edges, deagg_matrix, timespan):
+		assert len(bin_edges) == 6, "bin_edges must contain 6 elements!"
 		self.bin_edges = bin_edges
+		assert deagg_matrix.shape[-6] == max(1, len(bin_edges[0]) - 1), "Number of magnitude bins not in accordance with specified bin edges!"
+		assert deagg_matrix.shape[-5] == max(1, len(bin_edges[1]) - 1), "Number of distance bins not in accordance with specified bin edges!"
+		assert deagg_matrix.shape[-4] == max(1, len(bin_edges[2]) - 1), "Number of epsilon bins not in accordance with specified bin edges!"
+		assert deagg_matrix.shape[-3] == max(1, len(bin_edges[3]) - 1), "Number of longitude bins not in accordance with specified bin edges!"
+		assert deagg_matrix.shape[-2] == max(1, len(bin_edges[4]) - 1), "Number of latitude bins not in accordance with specified bin edges!"
+		assert deagg_matrix.shape[-1] == max(1, len(bin_edges[5])), "Number of tectonic-region-type bins not in accordance with specified bin edges!"
+		assert isinstance(deagg_matrix, (ExceedanceRateMatrix, ProbabilityMatrix)), "deagg_matrix must be instance of ExceedanceRateMatrix or ProbabilityMatrix!"
 		self.deagg_matrix = deagg_matrix
 		self.timespan = timespan
-
-		# TODO: check shape
-		# TODO: check that deagg_matrix is ProbabilityMatrix or ExceedanceRateMatrix
 
 	@property
 	def matrix(self):
@@ -183,7 +355,7 @@ class DeaggBase(object):
 		return self.bin_edges[4]
 
 	@property
-	def eps_bin_widhts(self):
+	def eps_bin_widths(self):
 		eps_bin_edges = self.eps_bin_edges
 		return eps_bin_edges[1:] - eps_bin_edges[:-1]
 
@@ -194,6 +366,51 @@ class DeaggBase(object):
 	@property
 	def trt_bins(self):
 		return self.bin_edges[5]
+
+	def get_axis_bin_edges(self, axis):
+		"""
+		Return bin edges for given axis.
+
+		:param axis:
+			Int, axis index
+		"""
+		return self.bin_edges[axis]
+
+	def get_axis_bin_widths(self, axis):
+		"""
+		Return bin widths for given axis.
+
+		:param axis:
+			Int, axis index
+		"""
+		if axis == 0:
+			return self.mag_bin_widths
+		elif axis == 1:
+			return self.dist_bin_widths
+		elif axis == 2:
+			return self.eps_bin_widths
+		elif axis == 3:
+			return self.lon_bin_widths
+		elif axis == 4:
+			return self.lat_bin_widths
+
+	def get_axis_bin_centers(self, axis):
+		"""
+		Return bin centers for given axis.
+
+		:param axis:
+			Int, axis index
+		"""
+		if axis == 0:
+			return self.mag_bin_centers
+		elif axis == 1:
+			return self.dist_bin_centers
+		elif axis == 2:
+			return self.eps_bin_centers
+		elif axis == 3:
+			return self.lon_bin_centers
+		elif axis == 4:
+			return self.lat_bin_centers
 
 	def get_mag_pmf(self):
 		"""
@@ -285,17 +502,21 @@ class DeaggBase(object):
 
 	def to_percent_contribution(self):
 		"""
-		Normalize probability matrix.
+		Convert deaggregation values to percent contribution.
+
+		:return:
+			ndarray with same dimensions as self.deagg_matrix
 		"""
-		return self.deagg_matrix.to_normalized_matrix(self.timespan)
+		return self.deagg_matrix.to_normalized_matrix()
 
 
 class DeaggregationSlice(DeaggBase):
 	"""
-	Class representing a full deaggregation result as computed by nhlib.
-	6-D array
+	Class representing a full deaggregation result for a single intensity level,
+	as computed by nhlib.
 
-	Deaggregation values represent conditional probability distribution of:
+	Deaggregation values represent conditional probability distribution or
+	exceedance rate as a function of:
 		- rupture magnitude,
 		- joyner-boore distance from rupture surface to site,
 		- longitude and latitude of surface projection of rupture closest point
@@ -304,10 +525,42 @@ class DeaggregationSlice(DeaggBase):
 		  level deviates from the median value predicted by a gsim, given
 		  the rupture parameters.
 		- rupture tectonic region type
-
 	given the event that an intensity measure type ``imt`` exceeds an intensity
 	measure level ``iml`` at a geographical location ``site``.
 
+	:param bin_edges:
+		6-tuple, containing:
+			- magnitude bin edges
+			- distance bin edges
+			- epsilon bin edges
+			- longitude bin edges
+			- latitude bin edges
+			- tectonic region types
+
+	:param deagg_matrix:
+		instance of :class:`ExceedanceRateMatrix` or :class:`ProbabilityMatrix`,
+		6-D array containing deaggregation values, with dimensions corresponding to:
+			- magnitude bins
+			- distance bins
+			- epsilon bins
+			- longitude bins
+			- latitude bins
+			- tectonic-region-type bins
+
+	:param site:
+		instance of :class:`PSHASite`: site where hazard was computed
+
+	:param imt:
+		str, intensity measure type
+
+	:param iml:
+		float, intensity level
+
+	:period:
+		float, spectral period
+
+	:param timespan:
+		Float, time span in Poisson formula.
 	"""
 	def __init__(self, bin_edges, deagg_matrix, site, imt, iml, period, timespan):
 		DeaggBase.__init__(self, bin_edges, deagg_matrix, timespan)
@@ -329,6 +582,9 @@ class DeaggregationSlice(DeaggBase):
 	def to_probability(self):
 		"""
 		Convert deaggregation slice to probability of exceecance
+
+		:return:
+			ndarray, 6-D
 		"""
 		deagg_matrix = self.deagg_matrix.to_probability_matrix(self.timespan)
 		return DeaggregationSlice(self.bin_edges, deagg_matrix, self.site, self.imt, self.iml, self.period, self.timespan)
@@ -349,9 +605,9 @@ class DeaggregationSlice(DeaggBase):
 		"""
 		Plot magnitude / distance PMF.
 		"""
-		mag_dist_pmf = self.get_mag_dist_pmf().to_normalized_matrix(self.timespan)
+		mag_dist_pmf = self.get_mag_dist_pmf().to_normalized_matrix()
 		if self.neps > 1:
-			eps_pmf = self.get_eps_pmf().to_normalized_matrix(self.timespan)
+			eps_pmf = self.get_eps_pmf().to_normalized_matrix()
 		else:
 			eps_pmf = None
 		eps_bin_edges = self.eps_bin_edges[1:]
@@ -372,7 +628,89 @@ class DeaggregationSlice(DeaggBase):
 		mag_index, dist_index = np.unravel_index(mag_dist_pmf.argmax(), mag_dist_pmf.shape)
 		return (self.mag_bin_centers[mag_index], self.dist_bin_centers[dist_index])
 
+	def get_mean_eq_scenario(self):
+		"""
+		Determine mean earthquake scenario
+
+		:return:
+			(mag, dist) tuple
+		"""
+		return (self.get_mean_magnitude(), self.get_mean_distance())
+
+	def get_mean_magnitude(self):
+		"""
+		Return mean magnitude according to formula in DOE-STD-1023-95,
+		appendix A, page 5.
+		"""
+		deagg_matrix = self.deagg_matrix.to_exceedance_rate_matrix(self.timespan)
+		deagg_matrix = deagg_matrix.fold_axes([1,2,3,4,5])
+		return float(np.sum(self.mag_bin_centers * deagg_matrix)) / self.get_total_exceedance_rate()
+
+	def get_mean_distance(self):
+		"""
+		Return mean distance according to formula in DOE-STD-1023-95,
+		appendix A, page 6.
+		"""
+		deagg_matrix = self.deagg_matrix.to_exceedance_rate_matrix(self.timespan)
+		deagg_matrix = deagg_matrix.fold_axes([0,2,3,4,5])
+		return np.exp(float(np.sum(np.log(self.dist_bin_centers) * deagg_matrix)) / self.get_total_exceedance_rate())
+
+	def get_contribution_above_threshold(self, threshold, axis):
+		"""
+		Determine contribution of bins above a threshold value.
+
+		:param threshold:
+			Float, threshold value in given axis
+		:param axis:
+			Int, index of axis
+
+		:return:
+			Float, percent contribution
+		"""
+		bin_indexes = np.where(self.get_axis_bin_centers(axis) > threshold)
+		deagg_matrix = self.deagg_matrix.to_exceedance_rate_matrix(self.timespan)
+		axes_to_fold = np.arange(6)
+		axes_to_fold = np.delete(axes_to_fold, axis)
+		deagg_matrix = deagg_matrix.fold_axes(axes_to_fold)
+		return float(np.sum(deagg_matrix[bin_indexes])) / self.get_total_exceedance_rate()
+
+	def get_contribution_above_magnitude(self, mag):
+		"""
+		Determine contribution of magnitudes above a threshold magnitude.
+
+		:param mag:
+			Float, threshold magnitude
+
+		:return:
+			Float, percent contribution
+		"""
+		return self.get_contribution_above_threshold(mag, axis=0)
+
+	def get_contribution_above_distance(self, dist):
+		"""
+		Determine contribution of distances above a threshold distance.
+
+		:param dist:
+			Float, threshold distance
+
+		:return:
+			Float, percent contribution
+		"""
+		return self.get_contribution_above_threshold(dist, axis=1)
+
 	def rebin(self, new_bin_edges, axis=0):
+		"""
+		Rebin deaggregation slice along a given axis
+
+		:param new_bin_edges:
+			array-like, new bin edges
+		:param axis:
+			Int, axis index
+
+		:return:
+			instance of :class:`DeaggregationSlice`
+		"""
+		#TODO: renormalization!
 		from ..utils import interpolate
 		rebinned_shape = list(self.deagg_matrix.shape)
 		rebinned_shape[axis] = len(new_bin_edges) - 1
@@ -406,14 +744,73 @@ class DeaggregationSlice(DeaggBase):
 		bin_edges = tuple(bin_edges)
 		return DeaggregationSlice(bin_edges, rebinned_deagg, self.site, self.imt, self.iml, self.period, self.timespan)
 
-	def rebin_distances(self):
-		pass
+	def rebin_magnitudes(self, mag_bin_edges):
+		"""
+		Rebin magnitude bins
+
+		:param mag_bin_edges:
+			array-like, new magnitude bin edges
+		:param axis:
+			Int, axis index
+
+		:return:
+			instance of :class:`DeaggregationSlice`
+		"""
+		return self.rebin(mag_bin_edges, axis=0)
+
+	def rebin_distances(self, dist_bin_edges):
+		"""
+		Rebin distance bins
+
+		:param dist_bin_edges:
+			array-like, new distance bin edges
+		:param axis:
+			Int, axis index
+
+		:return:
+			instance of :class:`DeaggregationSlice`
+		"""
+		return self.rebin(dist_bin_edges, axis=1)
 
 
 class DeaggregationCurve(DeaggBase):
 	"""
 	Class representing a full deaggregation result for a range of intensities
-	7-D array
+
+	:param bin_edges:
+		6-tuple, containing:
+			- magnitude bin edges
+			- distance bin edges
+			- epsilon bin edges
+			- longitude bin edges
+			- latitude bin edges
+			- tectonic region types
+
+	:param deagg_matrix:
+		instance of :class:`ExceedanceRateMatrix` or :class:`ProbabilityMatrix`,
+		7-D array containing deaggregation values, with dimensions corresponding to:
+			- intensity levels
+			- magnitude bins
+			- distance bins
+			- epsilon bins
+			- longitude bins
+			- latitude bins
+			- tectonic-region-type bins
+
+	:param site:
+		instance of :class:`PSHASite`: site where hazard was computed
+
+	:param imt:
+		str, intensity measure type
+
+	:param intensities:
+		float array, intensity levels
+
+	:period:
+		float, spectral period
+
+	:param timespan:
+		Float, time span in Poisson formula.
 	"""
 	def __init__(self, bin_edges, deagg_matrix, site, imt, intensities, period, timespan):
 		self.site = site
@@ -438,7 +835,31 @@ class DeaggregationCurve(DeaggBase):
 	def __getitem__(self, iml_index):
 		return self.get_slice(iml_index=iml_index)
 
+	def get_intensity_bin_centers(self):
+		"""
+		Return center values of intensity bins
+		Note: in contrast to deaggregation bins, the number of intensity bin
+		centers returned is equal to the number of intensities.
+		"""
+		imls = self.intensities
+		log_imls = np.log(imls)
+		log_iml_widths = log_imls[1:] - log_imls[:-1]
+		intensity_bin_centers = np.exp(log_imls[:-1] + log_iml_widths / 2.)
+		intensity_bin_centers = np.append(intensity_bin_centers, np.exp(log_imls[-1] + log_iml_widths[-1] / 2))
+		return intensity_bin_centers
+
 	def get_slice(self, iml=None, iml_index=None):
+		"""
+		Get deaggregation slice for a particular intensity level.
+
+		:param iml:
+			Float, intensity level (default: None)
+		:param iml_index:
+			Int, intensity index (default: None)
+
+		:return:
+			instance of :class:`DeaggregationSlice`
+		"""
 		if iml is not None:
 			iml_index = np.argmin(np.abs(self.intensities - iml))
 		else:
@@ -447,6 +868,13 @@ class DeaggregationCurve(DeaggBase):
 		return DeaggregationSlice(self.bin_edges, matrix, self.site, self.imt, iml, self.period, self.timespan)
 
 	def get_hazard_curve(self):
+		"""
+		Get hazard curve corresponding to total exceedance rate or
+		probability for each intensity level.
+
+		:return:
+			instance of :class:`HazardCurve`
+		"""
 		exceedance_rates = []
 		for slice in self:
 			exceedance_rates.append(slice.get_total_exceedance_rate())
@@ -456,7 +884,13 @@ class DeaggregationCurve(DeaggBase):
 
 	def get_occurrence_rates(self):
 		"""
-		Calculate rate of occurrence for each intensity interval
+		Calculate rate of occurrence for each intensity interval (difference
+		between exceedance rates of intensity below and above)
+		Note: the number of occurrence rates returned is equal to the number
+		of exceedance rates (or intensities).
+
+		:return:
+			instance of :class:`ExceedanceRateMatrix`
 		"""
 		exceedance_rates = self.deagg_matrix.to_exceedance_rate_matrix(self.timespan)
 		occurrence_rates = exceedance_rates[:-1] - exceedance_rates[1:]
@@ -465,12 +899,19 @@ class DeaggregationCurve(DeaggBase):
 
 	@classmethod
 	def from_deaggregation_slices(self, deagg_slices):
+		"""
+		Construct new instance of :class:`DeaggregationCurve` from a number of
+		deaggregation slices.
+
+		:param deagg_slices:
+			list of instances of :class:`DeaggregationSlice`
+		"""
 		imls = np.array([ds.iml for ds in deagg_slices])
 		iml_indexes = np.argsort(imls)
 		imls = imls[iml_indexes]
 		deagg_matrixes = [deagg_slices[iml_index].deagg_matrix[np.newaxis] for iml_index in iml_indexes]
 		deagg_matrix = np.concatenate(deagg_matrixes)
-		deagg_matrix = deagg_curves[0].deagg_matrix.__class__(deagg_matrix)
+		deagg_matrix = deagg_slices[0].deagg_matrix.__class__(deagg_matrix)
 		# TODO: check that bin_edges etc. are identical
 		bin_edges = deagg_slices[0].bin_edges
 		site = deagg_slices[0].site
@@ -480,6 +921,20 @@ class DeaggregationCurve(DeaggBase):
 		return DeaggregationCurve(bin_edges, deagg_matrix, site, imt, imls, period, timespan)
 
 	def filter_cav(self, vs30, CAVmin=0.16, gmpe_name=""):
+		"""
+		Apply CAV filtering to deaggregation curve, according to EPRI report
+		by Abrahamson et al. (2006).
+
+		:param vs30:
+			Float, shear-wave velocity in the top 30 m (m/s)
+		:param CAVmin:
+			Float, minimum CAV value in g.s (default: 0.16)
+		:param gmpe_name:
+			Str, name of GMPE (needed when imt is spectral)
+
+		:return:
+			instance of :class:`DeaggregationCurve`
+		"""
 		from hazard.psha.CAVfiltering import calc_ln_PGA_given_SA, calc_CAV_exceedance_prob
 
 		num_intensities = len(self.intensities)
@@ -489,12 +944,14 @@ class DeaggregationCurve(DeaggBase):
 		bin_edges = (self.mag_bin_edges, self.dist_bin_edges, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
 		CAV_deagg_curve = DeaggregationCurve(bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.period, self.timespan)
 
+		intensities = self.get_intensity_bin_centers()
+
 		if self.imt == "PGA":
 			## Calculate CAV exceedance probabilities corresponding to PGA
 			num_intensities = len(self.intensities)
 			CAV_exceedance_probs = np.zeros((num_intensities, self.nmags), 'd')
 			for k in range(num_intensities):
-				zk = self.intensities[k]
+				zk = intensities[k]
 				CAV_exceedance_probs[k] = calc_CAV_exceedance_prob(zk, self.mag_bin_centers, vs30, CAVmin)
 			CAV_exceedance_probs = CAV_exceedance_probs[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 
@@ -503,7 +960,7 @@ class DeaggregationCurve(DeaggBase):
 			pga_given_sa = np.zeros((num_intensities, self.nmags, self.ndists), 'd')
 			T = self.period
 			for k in range(num_intensities):
-				sa = self.intensities[k]
+				sa = intensities[k]
 				for r in range(self.ndists):
 					R = self.dist_bin_centers[r]
 					ln_pga_values = calc_ln_PGA_given_SA(sa, self.mag_bin_centers, R, T, vs30, gmpe_name)[0]
@@ -532,7 +989,42 @@ class SpectralDeaggregationCurve(DeaggBase):
 	"""
 	Class representing a full deaggregation result for a range of intensities
 	and a range of periods
-	8-D array
+
+	:param bin_edges:
+		6-tuple, containing:
+			- magnitude bin edges
+			- distance bin edges
+			- epsilon bin edges
+			- longitude bin edges
+			- latitude bin edges
+			- tectonic region types
+
+	:param deagg_matrix:
+		instance of :class:`ExceedanceRateMatrix` or :class:`ProbabilityMatrix`,
+		8-D array containing deaggregation values, with dimensions corresponding to:
+			- spectral periods
+			- intensity levels
+			- magnitude bins
+			- distance bins
+			- epsilon bins
+			- longitude bins
+			- latitude bins
+			- tectonic-region-type bins
+
+	:param site:
+		instance of :class:`PSHASite`: site where hazard was computed
+
+	:param imt:
+		str, intensity measure type
+
+	:param intensities:
+		float array, intensity levels
+
+	:periods:
+		float array, spectral periods
+
+	:param timespan:
+		Float, time span in Poisson formula.
 	"""
 	def __init__(self, bin_edges, deagg_matrix, site, imt, intensities, periods, timespan):
 		self.site = site
@@ -558,6 +1050,17 @@ class SpectralDeaggregationCurve(DeaggBase):
 		return self.get_curve(period_index=period_index)
 
 	def get_curve(self, period=None, period_index=None):
+		"""
+		Get deaggregation curve for a particular spectral period.
+
+		:param period:
+			Float, spectral period (default: None)
+		:param iml_index:
+			Int, period index (default: None)
+
+		:return:
+			instance of :class:`DeaggregationCurve`
+		"""
 		if period is not None:
 			period_index = np.argmin(np.abs(self.periods - period))
 		else:
@@ -568,6 +1071,13 @@ class SpectralDeaggregationCurve(DeaggBase):
 
 	@classmethod
 	def from_deaggregation_curves(self, deagg_curves):
+		"""
+		Construct new instance of :class:`SpectralDeaggregationCurve` from a
+		number of deaggregation slices.
+
+		:param deagg_curves:
+			list of instances of :class:`DeaggregationCurve`
+		"""
 		periods = np.array([dc.period for dc in deagg_curves])
 		period_indexes = np.argsort(periods)
 		periods = periods[period_indexes]
@@ -584,8 +1094,28 @@ class SpectralDeaggregationCurve(DeaggBase):
 		return SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, imt, intensities, periods, timespan)
 
 	def filter_cav(self, vs30, CAVmin=0.16, gmpe_name=""):
+		"""
+		Apply CAV filtering to each spectral deaggregation curve,
+		and reconstruct into a spectral deaggregation curve
+
+		:param vs30:
+			Float, shear-wave velocity in the top 30 m (m/s)
+		:param CAVmin:
+			Float, minimum CAV value in g.s (default: 0.16)
+		:param gmpe_name:
+			Str, name of GMPE (needed when imt is spectral)
+
+		:return:
+			instance of :class:`SpectralDeaggregationCurve`
+		"""
 		CAV_curves = []
 		for curve in self:
 			CAV_deagg_curve = curve.filter_cav(vs30, CAVmin=CAVmin, gmpe_name=gmpe_name)
 			CAV_curves.append(CAV_deagg_curve)
 		return SpectralDeaggregationCurve.from_deaggregation_curves(CAV_curves)
+
+	def get_conditional_mean_spectrum(self):
+		"""
+		Compute conditional mean spectrum as outlined in e.g., Baker (2011)
+		"""
+		pass
