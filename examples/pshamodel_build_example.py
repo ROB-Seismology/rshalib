@@ -198,7 +198,7 @@ if __name__ == '__main__':
 	print deagg_result.trt_bins
 	print deagg_result.matrix.shape
 	print deagg_result.matrix.max()
-	#deagg_result.plot_mag_dist_pmf()
+	deagg_result.plot_mag_dist_pmf()
 
 
 	## OpenQuake

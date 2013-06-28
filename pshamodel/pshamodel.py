@@ -454,14 +454,7 @@ class PSHAModel(PSHAModelBase):
 			Float, lon/lat bin width in decimal degrees (default: 1.)
 
 		:return:
-			A tuple of two items. First is itself a tuple of bin edges information
-			for (in specified order) magnitude, distance, longitude, latitude,
-			epsilon and tectonic region types.
-
-			Second item is 6d-array representing the full disaggregation matrix.
-			Dimensions are in the same order as bin edges in the first item
-			of the result tuple. The matrix can be used directly by pmf-extractor
-			functions.
+			instance of :class:`DeaggregationSlice`
 		"""
 		if not n_epsilons:
 			n_epsilons = 2 * int(np.ceil(self.truncation_level))
@@ -476,7 +469,10 @@ class PSHAModel(PSHAModelBase):
 		#tom = nhlib.tom.PoissonTOM(self.time_span)
 		#bin_edges, deagg_matrix = nhlib.calc.disaggregation(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), tom, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
 		bin_edges, deagg_matrix = nhlib.calc.disaggregation_poissonian(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), self.time_span, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
-		return DeaggregationSlice(bin_edges, deagg_matrix, site, imt, iml, self.time_span)
+		imt_name = str(imt).split('(')[0]
+		if imt_name == "SA":
+			period = imt.period
+		return DeaggregationSlice(bin_edges, deagg_matrix, site, imt_name, iml, period, self.time_span)
 
 	def write_openquake(self, user_params=None):
 		"""
