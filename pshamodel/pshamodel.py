@@ -472,6 +472,8 @@ class PSHAModel(PSHAModelBase):
 		imt_name = str(imt).split('(')[0]
 		if imt_name == "SA":
 			period = imt.period
+		else:
+			period = 0
 		return DeaggregationSlice(bin_edges, deagg_matrix, site, imt_name, iml, period, self.time_span)
 
 	def write_openquake(self, user_params=None):

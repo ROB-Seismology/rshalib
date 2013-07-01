@@ -12,6 +12,7 @@ from lxml import etree
 ## Note: Don't import numpy as np to avoid conflicts with np as abbreviation
 ## for nodalplane
 import numpy
+import pylab
 
 import openquake.hazardlib as nhlib
 
@@ -22,7 +23,47 @@ from ..geo.angle import *
 from ..geo import Point, Line, Polygon
 
 
-class PointSource(nhlib.source.PointSource):
+
+class GenericSource():
+	"""
+	Methods to explore rupture data
+
+	The number of ruptures generated in an area source is equal to
+	the number of area discretization points * number of magnitude bins *
+	number of hypocentral depths * number of nodal planes
+	"""
+	def get_ruptures(self, timespan=50):
+		tom = nhlib.tom.PoissonTOM(timespan)
+		ruptures = []
+		for rup in self.iter_ruptures(tom):
+			ruptures.append(rup)
+		return ruptures
+
+	def get_rupture_hypocentral_depths(self, timespan=50):
+		## rup.hypocenter.depth does not appear to have correct information
+		ruptures = self.get_ruptures(timespan=timespan)
+		hypo_depths = [rup.surface.get_middle_point().depth for rup in ruptures]
+		return np.array(hypo_depths)
+
+	def plot_map_rupture_centers(self, timespan=50):
+		ruptures = self.get_ruptures(timespan=timespan)
+		lons = np.array([rup.hypocenter.longitude for rup in ruptures])
+		lats = np.array([rup.hypocenter.latitude for rup in ruptures])
+		pylab.plot(lons, lats, '.')
+		pylab.show()
+
+	def plot_map_rupture_bounds(self, mag, timespan=50):
+		ruptures = self.get_ruptures(timespan=timespan)
+		ruptures = [rup for rup in ruptures if np.allclose(rup.mag, mag)]
+		corner_indexes = [0,1,3,2,0]
+		for rup in ruptures:
+			lons = rup.surface.corner_lons[corner_indexes]
+			lats = rup.surface.corner_lats[corner_indexes]
+			pylab.plot(lons, lats)
+		pylab.show()
+
+
+class PointSource(nhlib.source.PointSource, GenericSource):
 	"""
 	Class representing a point source, corresponding to a single geographic site
 
@@ -161,7 +202,7 @@ class PointSource(nhlib.source.PointSource):
 		return point
 
 
-class AreaSource(nhlib.source.AreaSource):
+class AreaSource(nhlib.source.AreaSource, GenericSource):
 	"""
 	Class representing an area source, i.e. a polygonal geographical region
 	where seismicity is assumed to be uniform.
@@ -378,7 +419,7 @@ class AreaSource(nhlib.source.AreaSource):
 		return (centroid.GetX(), centroid.GetY())
 
 
-class SimpleFaultSource(nhlib.source.SimpleFaultSource):
+class SimpleFaultSource(nhlib.source.SimpleFaultSource, GenericSource):
 	"""
 	Class representing a simple fault source.
 
@@ -913,7 +954,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource):
 		return line
 
 
-class ComplexFaultSource(nhlib.source.ComplexFaultSource):
+class ComplexFaultSource(nhlib.source.ComplexFaultSource, GenericSource):
 	"""
 	Class representing a complex fault source.
 
