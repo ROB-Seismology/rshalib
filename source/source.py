@@ -46,6 +46,13 @@ class GenericSource():
 		hypo_depths = [rup.surface.get_middle_point().depth for rup in ruptures]
 		return np.array(hypo_depths)
 
+	def plot_rupture_mags_vs_occurrence_rates(self, timespan=1):
+		ruptures = self.get_ruptures_Poisson(timespan=timespan)
+		mags = [rup.mag for rup in ruptures]
+		occurrences = [rup.occurrence_rate for rup in ruptures]
+		pylab.plot(mags, occurrences, '.')
+		pylab.show()
+
 	def plot_map_rupture_centers(self, timespan=1):
 		ruptures = self.get_ruptures_Poisson(timespan=timespan)
 		lons = np.array([rup.hypocenter.longitude for rup in ruptures])
