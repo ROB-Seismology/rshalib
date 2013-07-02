@@ -26,40 +26,87 @@ from ..geo import Point, Line, Polygon
 
 class GenericSource():
 	"""
-	Methods to explore rupture data
+	Class containing methods to explore rupture data
+	independent of source type.
 
 	The number of ruptures generated in an area source is equal to
 	the number of area discretization points * number of magnitude bins *
 	number of hypocentral depths * number of nodal planes
 	"""
-	def get_ruptures(self, timespan=50):
+	def get_ruptures_Poisson(self, timespan=1):
 		tom = nhlib.tom.PoissonTOM(timespan)
 		ruptures = []
 		for rup in self.iter_ruptures(tom):
 			ruptures.append(rup)
 		return ruptures
 
-	def get_rupture_hypocentral_depths(self, timespan=50):
+	def get_rupture_hypocentral_depths(self, timespan=1):
 		## rup.hypocenter.depth does not appear to have correct information
-		ruptures = self.get_ruptures(timespan=timespan)
+		ruptures = self.get_ruptures_Poisson(timespan=timespan)
 		hypo_depths = [rup.surface.get_middle_point().depth for rup in ruptures]
 		return np.array(hypo_depths)
 
-	def plot_map_rupture_centers(self, timespan=50):
-		ruptures = self.get_ruptures(timespan=timespan)
+	def plot_map_rupture_centers(self, timespan=1):
+		ruptures = self.get_ruptures_Poisson(timespan=timespan)
 		lons = np.array([rup.hypocenter.longitude for rup in ruptures])
 		lats = np.array([rup.hypocenter.latitude for rup in ruptures])
 		pylab.plot(lons, lats, '.')
 		pylab.show()
 
-	def plot_map_rupture_bounds(self, mag, timespan=50):
-		ruptures = self.get_ruptures(timespan=timespan)
+	def plot_map_rupture_bounds(self, mag, timespan=1):
+		from mpl_toolkits.basemap import Basemap
+
+		ruptures = self.get_ruptures_Poisson(timespan=timespan)
 		ruptures = [rup for rup in ruptures if np.allclose(rup.mag, mag)]
+
+		if isinstance(self, PointSource):
+			src_longitudes = [self.location.longitude]
+			src_latitudes = [self.location.latitude]
+		elif isinstance(self, AreaSource):
+			src_longitudes = self.polygon.lons
+			src_latitudes = self.polygon.lats
+		elif isinstance(self, SimpleFaultSource):
+			polygon = self.get_polygon()
+			src_longitudes = polygon.lons
+			src_latitudes = polygon.lats
+
+		llcrnrlon, llcrnrlat = min(src_longitudes), min(src_latitudes)
+		urcrnrlon, urcrnrlat = max(src_longitudes), max(src_latitudes)
+		lon_0 = (llcrnrlon + urcrnrlon) / 2.
+		lat_0 = (llcrnrlat + urcrnrlat) / 2.
+
+		map = Basemap(projection="aea", resolution='i', llcrnrlon=llcrnrlon, llcrnrlat=llcrnrlat, urcrnrlon=urcrnrlon, urcrnrlat=urcrnrlat, lon_0=lon_0, lat_0=lat_0)
+
 		corner_indexes = [0,1,3,2,0]
 		for rup in ruptures:
-			lons = rup.surface.corner_lons[corner_indexes]
-			lats = rup.surface.corner_lats[corner_indexes]
-			pylab.plot(lons, lats)
+			if -135 <= rup.rake <= -45:
+				color = 'g'
+			elif 45 <= rup.rake <= 135:
+				color = 'r'
+			else:
+				color = 'b'
+			if isinstance(self, (PointSource, AreaSource)):
+				lons = rup.surface.corner_lons[corner_indexes]
+				lats = rup.surface.corner_lats[corner_indexes]
+			elif isinstance(self, SimpleFaultSource):
+				polygon = rup.surface.mesh.get_convex_hull()
+				lons, lats = polygon.lons, polygon.lats
+			x, y = map(lons, lats)
+			map.plot(x, y, color)
+
+		if isinstance(self, PointSource):
+			pass
+		elif isinstance(self, AreaSource):
+			x, y = map(src_longitudes, src_latitudes)
+			map.plot(x, y, 'k', lw=3)
+		if isinstance(self, SimpleFaultSource):
+			x, y = map(src_longitudes, src_latitudes)
+			map.plot(x, y, 'k--', lw=2)
+			x, y = map(self.longitudes, self.latitudes)
+			map.plot(x, y, 'k', lw=3)
+
+		map.drawmapboundary()
+		pylab.title(self.name)
 		pylab.show()
 
 
@@ -677,7 +724,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, GenericSource):
 			lon, lat = nhlib.geo.geodetic.point_at(pt[0], pt[1], perpendicular_direction, width)
 			bottom_edge.append(Point(lon, lat, z1))
 		bottom_edge.reverse()
-		return Polygon(top_edge + bottom_edge)
+		return Polygon(top_edge + bottom_edge + [top_edge[0]])
 
 	def calc_Mmax_Wells_Coppersmith(self):
 		"""
@@ -691,7 +738,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, GenericSource):
 		max_mag = wc.get_median_mag(self.get_area(), self.rake)
 		return max_mag
 
-	def get_MFD_characteristic(self, bin_width=None, M_sigma=0.03, num_sigma=0):
+	def get_MFD_characteristic(self, bin_width=None, M_sigma=0.3, num_sigma=1):
 		"""
 		Construct MFD corresponding to a characteristic Mmax
 		:param bin_width:
@@ -701,7 +748,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, GenericSource):
 			Float, standard deviation on magnitude (default: 0.3)
 		:param num_sigma:
 			Float, number of standard deviations to spread occurrence rates over
-			(default: 0)
+			(default: 1)
 
 		:return:
 			instance of :class:`EvenlyDiscretizedMFD`
