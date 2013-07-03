@@ -79,9 +79,49 @@ class GenericSource():
 
 	def plot_map_rupture_centers(self, timespan=1):
 		ruptures = self.get_ruptures_Poisson(timespan=timespan)
-		lons = np.array([rup.hypocenter.longitude for rup in ruptures])
-		lats = np.array([rup.hypocenter.latitude for rup in ruptures])
+		lons, lats, depths = self.get_rupture_centers(ruptures)
 		pylab.plot(lons, lats, '.')
+		pylab.show()
+
+	def plot_3d_rupture_bounds(self, mag, strike=None, rake=None, timespan=1):
+		#from mayavi import mlab
+		import mpl_toolkits.mplot3d.axes3d as p3
+		import mapping.geo.coordtrans as coordtrans
+
+		ruptures = self.get_ruptures_Poisson(timespan=timespan)
+		ruptures = [rup for rup in ruptures if np.allclose(rup.mag, mag)]
+		if strike is not None:
+			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.strike, strike)]
+		if rake is not None:
+			ruptures = [rup for rup in ruptures if np.allclose(rup.rake, rake)]
+
+		if isinstance(self, PointSource):
+			src_longitudes = [self.location.longitude]
+			src_latitudes = [self.location.latitude]
+		elif isinstance(self, AreaSource):
+			src_longitudes = self.polygon.lons
+			src_latitudes = self.polygon.lats
+		elif isinstance(self, SimpleFaultSource):
+			polygon = self.get_polygon()
+			src_longitudes = polygon.lons
+			src_latitudes = polygon.lats
+
+		fig = pylab.figure()
+		ax = p3.Axes3D(fig)
+		for rup in ruptures:
+			lons, lats, depths = self.get_rupture_bounds(rup)
+			coord_list = zip(lons, lats)
+			utm_coord_list = coordtrans.lonlat_to_utm(coord_list)
+			x, y = zip(*utm_coord_list)
+			#mlab.plot3d(x, y, depths)
+			ax.plot3D(x, y, -depths)
+
+		coord_list = zip(src_longitudes, src_latitudes)
+		utm_coord_list = coordtrans.lonlat_to_utm(coord_list)
+		x, y = zip(*utm_coord_list)
+		ax.plot3D(x, y, np.zeros_like(x), 'k', lw=3)
+
+		#mlab.show()
 		pylab.show()
 
 	def plot_map_rupture_bounds(self, mag, timespan=1):
