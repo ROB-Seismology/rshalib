@@ -105,16 +105,8 @@ class SourceModel():
 		return len(self.sources)
 
 	def __iter__(self):
-		self._cursor = 0
-		return self
-
-	def next(self):
-		if self._cursor >= len(self.sources):
-			raise StopIteration
-		else:
-			source = self.sources[self._cursor]
-			self._cursor += 1
-			return source
+		for source in self.sources:
+			yield source
 
 	def to_json(self):
 		return jsonpickle.encode(self)

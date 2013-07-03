@@ -40,11 +40,35 @@ class GenericSource():
 			ruptures.append(rup)
 		return ruptures
 
-	def get_rupture_hypocentral_depths(self, timespan=1):
-		## rup.hypocenter.depth does not appear to have correct information
-		ruptures = self.get_ruptures_Poisson(timespan=timespan)
-		hypo_depths = [rup.surface.get_middle_point().depth for rup in ruptures]
-		return np.array(hypo_depths)
+	def get_rupture_bounds(self, rupture):
+		if isinstance(self, (PointSource, AreaSource)):
+			corner_indexes = [0,1,3,2,0]
+			lons = rupture.surface.corner_lons[corner_indexes]
+			lats = rupture.surface.corner_lats[corner_indexes]
+			depths = rupture.surface.corner_depths[corner_indexes]
+		elif isinstance(self, SimpleFaultSource):
+			mesh = rupture.surface.mesh
+			all_lons, all_lats, all_depths = mesh.lons.flatten(), mesh.lats.flatten(), mesh.depths.flatten()
+			top_edge_indexes = np.where(all_depths == rupture.surface.get_top_edge_depth())[0]
+			bottom_edge_indexes = np.where(all_depths == all_depths.max())[0]
+			edge_indexes = np.concatenate([top_edge_indexes, bottom_edge_indexes[::-1], top_edge_indexes[:1]])
+			lons = all_lons[edge_indexes]
+			lats = all_lats[edge_indexes]
+			depths = all_depths[edge_indexes]
+			#polygon = rupture.surface.mesh.get_convex_hull()
+			#lons.append(polygon.lons)
+			#lats.append(polygon.lats)
+		return lons, lats, depths
+
+	def get_rupture_centers(self, ruptures):
+		lons = np.array([rup.hypocenter.longitude for rup in ruptures])
+		lats = np.array([rup.hypocenter.latitude for rup in ruptures])
+		if isinstance(self, (PointSource, AreaSource)):
+			## rup.hypocenter.depth does not appear to have correct information
+			depths = np.array([rup.surface.get_middle_point().depth for rup in ruptures])
+		if isinstance(self, SimpleFaultSource):
+			depths = np.array([rup.hypocenter.depth for rup in ruptures])
+		return lons, lats, depths
 
 	def plot_rupture_mags_vs_occurrence_rates(self, timespan=1):
 		ruptures = self.get_ruptures_Poisson(timespan=timespan)
@@ -92,14 +116,14 @@ class GenericSource():
 				color = 'r'
 			else:
 				color = 'b'
-			if isinstance(self, (PointSource, AreaSource)):
-				lons = rup.surface.corner_lons[corner_indexes]
-				lats = rup.surface.corner_lats[corner_indexes]
-			elif isinstance(self, SimpleFaultSource):
-				polygon = rup.surface.mesh.get_convex_hull()
-				lons, lats = polygon.lons, polygon.lats
+			lons, lats, depths = self.get_rupture_bounds(rup)
 			x, y = map(lons, lats)
 			map.plot(x, y, color)
+
+		if isinstance(self, (SimpleFaultSource, ComplexFaultSource)):
+			lons, lats, depths = self.get_rupture_bounds(ruptures[0])
+			x, y = map(lons, lats)
+			map.plot(x, y, 'm--', lw=2)
 
 		if isinstance(self, PointSource):
 			pass
@@ -624,7 +648,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, GenericSource):
 		:return:
 			Float, projected fault width in km
 		"""
-		return self.get_depth_range() * numpy.cos(numpy.radians(self.dip))
+		return self.get_width() * numpy.cos(numpy.radians(self.dip))
 
 	def get_length(self):
 		"""
