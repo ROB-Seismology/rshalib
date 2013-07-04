@@ -84,10 +84,10 @@ class GenericSource():
 		pylab.show()
 
 	def plot_3d_rupture_bounds(self, mag, strike=None, rake=None, timespan=1):
-		#from mayavi import mlab
 		import mpl_toolkits.mplot3d.axes3d as p3
 		import mapping.geo.coordtrans as coordtrans
 
+		## Generate ruptures, and filter according to magnitude bin, strike and rake
 		ruptures = self.get_ruptures_Poisson(timespan=timespan)
 		ruptures = [rup for rup in ruptures if np.allclose(rup.mag, mag)]
 		if strike is not None:
@@ -95,41 +95,67 @@ class GenericSource():
 		if rake is not None:
 			ruptures = [rup for rup in ruptures if np.allclose(rup.rake, rake)]
 
-		if isinstance(self, PointSource):
-			src_longitudes = [self.location.longitude]
-			src_latitudes = [self.location.latitude]
-		elif isinstance(self, AreaSource):
-			src_longitudes = self.polygon.lons
-			src_latitudes = self.polygon.lats
-		elif isinstance(self, SimpleFaultSource):
-			polygon = self.get_polygon()
-			src_longitudes = polygon.lons
-			src_latitudes = polygon.lats
-
 		fig = pylab.figure()
 		ax = p3.Axes3D(fig)
 		for rup in ruptures:
+			if -135 <= rup.rake <= -45:
+				color = 'g'
+			elif 45 <= rup.rake <= 135:
+				color = 'r'
+			else:
+				color = 'b'
 			lons, lats, depths = self.get_rupture_bounds(rup)
 			coord_list = zip(lons, lats)
 			utm_coord_list = coordtrans.lonlat_to_utm(coord_list)
 			x, y = zip(*utm_coord_list)
-			#mlab.plot3d(x, y, depths)
-			ax.plot3D(x, y, -depths)
+			ax.plot3D(x, y, -depths, color)
+
+		## Highlight first rupture if source is a fault
+		if isinstance(self, (SimpleFaultSource, ComplexFaultSource)):
+			lons, lats, depths = self.get_rupture_bounds(ruptures[0])
+			coord_list = zip(lons, lats)
+			utm_coord_list = coordtrans.lonlat_to_utm(coord_list)
+			x, y = zip(*utm_coord_list)
+			ax.plot3D(x, y, -depths, 'm--', lw=3)
+
+		## Plot source outline
+		if isinstance(self, PointSource):
+			src_longitudes = [self.location.longitude]
+			src_latitudes = [self.location.latitude]
+			src_depths = np.array([0.])
+		elif isinstance(self, AreaSource):
+			src_longitudes = self.polygon.lons
+			src_latitudes = self.polygon.lats
+			src_depths = np.zeros_like(src_longitudes)
+		elif isinstance(self, SimpleFaultSource):
+			polygon = self.get_polygon()
+			src_longitudes = polygon.lons
+			src_latitudes = polygon.lats
+			src_depths = np.array([pt.depth for pt in polygon])
 
 		coord_list = zip(src_longitudes, src_latitudes)
 		utm_coord_list = coordtrans.lonlat_to_utm(coord_list)
 		x, y = zip(*utm_coord_list)
-		ax.plot3D(x, y, np.zeros_like(x), 'k', lw=3)
+		ax.plot3D(x, y, -src_depths, 'k', lw=3)
 
-		#mlab.show()
+		ax.set_xlabel("Easting")
+		ax.set_ylabel("Northing")
+		ax.set_zlabel("Depth")
+		pylab.title(self.name)
 		pylab.show()
 
-	def plot_map_rupture_bounds(self, mag, timespan=1):
+	def plot_map_rupture_bounds(self, mag, strike=None, rake=None, timespan=1):
 		from mpl_toolkits.basemap import Basemap
 
+		## Generate ruptures, and filter according to magnitude bin, strike and rake
 		ruptures = self.get_ruptures_Poisson(timespan=timespan)
 		ruptures = [rup for rup in ruptures if np.allclose(rup.mag, mag)]
+		if strike is not None:
+			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.strike, strike)]
+		if rake is not None:
+			ruptures = [rup for rup in ruptures if np.allclose(rup.rake, rake)]
 
+		## Get source coordinates
 		if isinstance(self, PointSource):
 			src_longitudes = [self.location.longitude]
 			src_latitudes = [self.location.latitude]
@@ -141,14 +167,16 @@ class GenericSource():
 			src_longitudes = polygon.lons
 			src_latitudes = polygon.lats
 
+		## Determine map bounds and central longitude and latitude
 		llcrnrlon, llcrnrlat = min(src_longitudes), min(src_latitudes)
 		urcrnrlon, urcrnrlat = max(src_longitudes), max(src_latitudes)
 		lon_0 = (llcrnrlon + urcrnrlon) / 2.
 		lat_0 = (llcrnrlat + urcrnrlat) / 2.
 
+		## Initiate map
 		map = Basemap(projection="aea", resolution='i', llcrnrlon=llcrnrlon, llcrnrlat=llcrnrlat, urcrnrlon=urcrnrlon, urcrnrlat=urcrnrlat, lon_0=lon_0, lat_0=lat_0)
 
-		corner_indexes = [0,1,3,2,0]
+		## Plot ruptures
 		for rup in ruptures:
 			if -135 <= rup.rake <= -45:
 				color = 'g'
@@ -160,11 +188,13 @@ class GenericSource():
 			x, y = map(lons, lats)
 			map.plot(x, y, color)
 
+		## Highlight first rupture if source is a fault
 		if isinstance(self, (SimpleFaultSource, ComplexFaultSource)):
 			lons, lats, depths = self.get_rupture_bounds(ruptures[0])
 			x, y = map(lons, lats)
-			map.plot(x, y, 'm--', lw=2)
+			map.plot(x, y, 'm--', lw=3)
 
+		## Plot source outline
 		if isinstance(self, PointSource):
 			pass
 		elif isinstance(self, AreaSource):
