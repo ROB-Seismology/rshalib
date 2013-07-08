@@ -24,7 +24,7 @@ from ..geo import Point, Line, Polygon
 
 
 
-class GenericSource():
+class RuptureSource():
 	"""
 	Class containing methods to explore rupture data
 	independent of source type.
@@ -64,26 +64,42 @@ class GenericSource():
 		lons = np.array([rup.hypocenter.longitude for rup in ruptures])
 		lats = np.array([rup.hypocenter.latitude for rup in ruptures])
 		if isinstance(self, (PointSource, AreaSource)):
-			## rup.hypocenter.depth does not appear to have correct information
+			## rup.hypocenter does not appear to have correct depth information
 			depths = np.array([rup.surface.get_middle_point().depth for rup in ruptures])
 		if isinstance(self, SimpleFaultSource):
 			depths = np.array([rup.hypocenter.depth for rup in ruptures])
 		return lons, lats, depths
 
-	def plot_rupture_mags_vs_occurrence_rates(self, timespan=1):
+	def plot_rupture_mags_vs_occurrence_rates(self, color_param=None, timespan=1):
 		ruptures = self.get_ruptures_Poisson(timespan=timespan)
 		mags = [rup.mag for rup in ruptures]
 		occurrences = [rup.occurrence_rate for rup in ruptures]
-		pylab.plot(mags, occurrences, '.')
+		if color_param == "depth":
+			c = self.get_rupture_centers(ruptures)[2]
+			vmin, vmax = self.upper_seismogenic_depth, self.lower_seismogenic_depth
+		elif color_param == "strike":
+			c = [rup.surface.strike for rup in ruptures]
+			vmin, vmax = 0, 360
+		elif color_param == "dip":
+			c = [rup.surface.dip for rup in ruptures]
+			vmin, vmax = 0, 90
+		elif color_param == "rake":
+			c = [rup.rake for rup in ruptures]
+			vmin, vmax = -90, 90
+		else:
+			c = 'b'
+			vmin, vmax = None, None
+		print occurrence.min(), occurrence.max()
+		pylab.scatter(mags, occurrences, marker='.', c=c, cmap="jet", vmin=vmin, vmax=vmax)
 		pylab.show()
 
-	def plot_map_rupture_centers(self, timespan=1):
+	def plot_rupture_centers_map(self, timespan=1):
 		ruptures = self.get_ruptures_Poisson(timespan=timespan)
 		lons, lats, depths = self.get_rupture_centers(ruptures)
 		pylab.plot(lons, lats, '.')
 		pylab.show()
 
-	def plot_3d_rupture_bounds(self, mag, strike=None, rake=None, timespan=1):
+	def plot_rupture_bounds_3d(self, mag, strike=None, rake=None, timespan=1):
 		import mpl_toolkits.mplot3d.axes3d as p3
 		import mapping.geo.coordtrans as coordtrans
 
@@ -144,7 +160,7 @@ class GenericSource():
 		pylab.title(self.name)
 		pylab.show()
 
-	def plot_map_rupture_bounds(self, mag, strike=None, rake=None, timespan=1):
+	def plot_rupture_bounds_map(self, mag, strike=None, rake=None, timespan=1):
 		from mpl_toolkits.basemap import Basemap
 
 		## Generate ruptures, and filter according to magnitude bin, strike and rake
@@ -211,7 +227,7 @@ class GenericSource():
 		pylab.show()
 
 
-class PointSource(nhlib.source.PointSource, GenericSource):
+class PointSource(nhlib.source.PointSource, RuptureSource):
 	"""
 	Class representing a point source, corresponding to a single geographic site
 
@@ -350,7 +366,7 @@ class PointSource(nhlib.source.PointSource, GenericSource):
 		return point
 
 
-class AreaSource(nhlib.source.AreaSource, GenericSource):
+class AreaSource(nhlib.source.AreaSource, RuptureSource):
 	"""
 	Class representing an area source, i.e. a polygonal geographical region
 	where seismicity is assumed to be uniform.
@@ -476,6 +492,59 @@ class AreaSource(nhlib.source.AreaSource, GenericSource):
 		"""
 		return self.polygon.lats
 
+	def get_MFD_Johnston1994(self, min_mag=None, max_mag=None, bin_width=None, region="total"):
+		"""
+		Construct "minimum" MFD for SCR according to Johnston (1994),
+		based on surface area
+
+		:param min_mag:
+			Float, Minimum magnitude (default: None, take min_mag from current MFD).
+		:param max_mag:
+			Maximum magnitude (default: None, take max_mag from current MFD).
+		:param bin_width:
+			Float, Magnitude interval for evenly discretized magnitude frequency
+			distribution (default: None, take bin_width from current MFD.
+		:param region:
+			str, SCR region (default: "total")
+
+		:return:
+			instance of :class:`TruncatedGRMFD`
+		"""
+		if bin_width is None:
+			bin_width = self.mfd.bin_width
+		if min_mag is None:
+			min_mag = self.mfd.get_min_mag_edge()
+		if max_mag is None:
+			max_mag = self.mfd.max_mag
+
+		if region.lower() == "africa":
+			a, b, stdb = 2.46, 0.982, 0.119
+		elif region.lower() == "australia":
+			a, b, stdb = 2.29, 0.896, 0.077
+		elif region.lower() == "europe":
+			a, b, stdb = 3.32, 1.156, 0.106
+		elif region.lower() == "china":
+			a, b, stdb = 2.96, 1.029, 0.109
+		elif region.lower() == "india":
+			a, b, stdb = 3.02, 0.966, 0.154
+		elif region.lower() == "north america":
+			a, b, stdb = 1.12, 0.728, 0.067
+		elif region.lower() == "na extended":
+			a, b, stdb = 1.33, 0.747, 0.076
+		elif region.lower() == "na non-extended":
+			a, b, stdb = 1.32, 0.790, 0.158
+		elif region.lower() == "south america":
+			a, b, stdb = 3.46, 1.212, 0.270
+		elif region.lower() == "total":
+			a, b, stdb = 2.46, 0.975, 0.047
+		elif region.lower() == "total extended":
+			a, b, stdb = 2.36, 0.887, 0.054
+		elif region.lower() == "total non-extended":
+			a, b, stdb = 3.26, 1.186, 0.094
+
+		MFD = mfd.TruncatedGRMFD(min_mag, max_mag, bin_width, a, b, stdb)
+		return MFD * (self.get_area() / 1E5)
+
 	def get_MFD_FentonEtAl(self, min_mag=None, max_mag=None, bin_width=None, b_val=0.7991):
 		"""
 		Construct "minimum" MFD for SCR according to Fenton et al. (2006),
@@ -567,7 +636,7 @@ class AreaSource(nhlib.source.AreaSource, GenericSource):
 		return (centroid.GetX(), centroid.GetY())
 
 
-class SimpleFaultSource(nhlib.source.SimpleFaultSource, GenericSource):
+class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 	"""
 	Class representing a simple fault source.
 
@@ -1102,7 +1171,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, GenericSource):
 		return line
 
 
-class ComplexFaultSource(nhlib.source.ComplexFaultSource, GenericSource):
+class ComplexFaultSource(nhlib.source.ComplexFaultSource, RuptureSource):
 	"""
 	Class representing a complex fault source.
 
