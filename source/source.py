@@ -34,6 +34,16 @@ class RuptureSource():
 	number of hypocentral depths * number of nodal planes
 	"""
 	def get_ruptures_Poisson(self, timespan=1):
+		"""
+		Generate ruptures according to Poissonian temporal occurrence model
+
+		:param timespan:
+			Float, time interval for Poisson distribution, in years
+			(default: 1)
+
+		:return:
+			list of instances of :class:`ProbabilisticRupture`
+		"""
 		tom = nhlib.tom.PoissonTOM(timespan)
 		ruptures = []
 		for rup in self.iter_ruptures(tom):
@@ -41,6 +51,15 @@ class RuptureSource():
 		return ruptures
 
 	def get_rupture_bounds(self, rupture):
+		"""
+		Determine 3-D coordinates of rupture bounds
+
+		:param rupture:
+			instance of :class:`ProbabilisticRupture`
+
+		:return:
+			(lons, lats, depths) tuple of numpy float arrays
+		"""
 		if isinstance(self, (PointSource, AreaSource)):
 			corner_indexes = [0,1,3,2,0]
 			lons = rupture.surface.corner_lons[corner_indexes]
@@ -58,39 +77,53 @@ class RuptureSource():
 			#polygon = rupture.surface.mesh.get_convex_hull()
 			#lons.append(polygon.lons)
 			#lats.append(polygon.lats)
+		# TODO: ComplexFaultRupture
 		return lons, lats, depths
 
 	def get_rupture_centers(self, ruptures):
+		"""
+		Determine 3-D coordinates of rupture centers
+
+		:param ruptures:
+			list of instances of :class:`ProbabilisticRupture`
+
+		:return:
+			(lons, lats, depths) tuple of numpy float arrays
+		"""
 		lons = np.array([rup.hypocenter.longitude for rup in ruptures])
 		lats = np.array([rup.hypocenter.latitude for rup in ruptures])
 		if isinstance(self, (PointSource, AreaSource)):
 			## rup.hypocenter does not appear to have correct depth information
 			depths = np.array([rup.surface.get_middle_point().depth for rup in ruptures])
-		if isinstance(self, SimpleFaultSource):
+		if isinstance(self, (SimpleFaultSource, ComplexFaultSource)):
 			depths = np.array([rup.hypocenter.depth for rup in ruptures])
 		return lons, lats, depths
 
 	def plot_rupture_mags_vs_occurrence_rates(self, color_param=None, timespan=1):
 		ruptures = self.get_ruptures_Poisson(timespan=timespan)
-		mags = [rup.mag for rup in ruptures]
-		occurrences = [rup.occurrence_rate for rup in ruptures]
+		mags = np.array([rup.mag for rup in ruptures])
+		occurrences = np.array([rup.occurrence_rate for rup in ruptures])
 		if color_param == "depth":
 			c = self.get_rupture_centers(ruptures)[2]
 			vmin, vmax = self.upper_seismogenic_depth, self.lower_seismogenic_depth
 		elif color_param == "strike":
-			c = [rup.surface.strike for rup in ruptures]
+			c = np.array([rup.surface.get_strike() for rup in ruptures])
 			vmin, vmax = 0, 360
 		elif color_param == "dip":
-			c = [rup.surface.dip for rup in ruptures]
+			c = np.array([rup.surface.get_dip() for rup in ruptures])
 			vmin, vmax = 0, 90
 		elif color_param == "rake":
-			c = [rup.rake for rup in ruptures]
+			c = np.array([rup.rake for rup in ruptures])
 			vmin, vmax = -90, 90
 		else:
 			c = 'b'
 			vmin, vmax = None, None
-		print occurrence.min(), occurrence.max()
-		pylab.scatter(mags, occurrences, marker='.', c=c, cmap="jet", vmin=vmin, vmax=vmax)
+		ax = pylab.subplot(111)
+		pylab.scatter(mags, occurrences, marker='o', c=c, cmap="jet", vmin=vmin, vmax=vmax)
+		ax.set_yscale('log')
+		ax.set_ylim(occurrences.min(), occurrences.max())
+		pylab.xlabel("Magnitude")
+		pylab.ylabel("Occurrence rate (1/yr)")
 		pylab.show()
 
 	def plot_rupture_centers_map(self, timespan=1):
@@ -99,7 +132,7 @@ class RuptureSource():
 		pylab.plot(lons, lats, '.')
 		pylab.show()
 
-	def plot_rupture_bounds_3d(self, mag, strike=None, rake=None, timespan=1):
+	def plot_rupture_bounds_3d(self, mag, strike=None, dip=None, rake=None, fill=False, timespan=1):
 		import mpl_toolkits.mplot3d.axes3d as p3
 		import mapping.geo.coordtrans as coordtrans
 
@@ -107,7 +140,9 @@ class RuptureSource():
 		ruptures = self.get_ruptures_Poisson(timespan=timespan)
 		ruptures = [rup for rup in ruptures if np.allclose(rup.mag, mag)]
 		if strike is not None:
-			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.strike, strike)]
+			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.get_strike(), strike)]
+		if dip is not None:
+			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.get_dip(), dip)]
 		if rake is not None:
 			ruptures = [rup for rup in ruptures if np.allclose(rup.rake, rake)]
 
@@ -115,16 +150,21 @@ class RuptureSource():
 		ax = p3.Axes3D(fig)
 		for rup in ruptures:
 			if -135 <= rup.rake <= -45:
-				color = 'g'
+				color = (0.,1.,0.)
 			elif 45 <= rup.rake <= 135:
-				color = 'r'
+				color = (1.,0.,0.)
 			else:
-				color = 'b'
+				color = (0.,0.,1.)
 			lons, lats, depths = self.get_rupture_bounds(rup)
 			coord_list = zip(lons, lats)
 			utm_coord_list = coordtrans.lonlat_to_utm(coord_list)
 			x, y = zip(*utm_coord_list)
-			ax.plot3D(x, y, -depths, color)
+			ax.plot3D(x, y, -depths, color=color)
+			if fill:
+				tri = p3.art3d.Poly3DCollection([zip(x, y, -depths)])
+				tri.set_color(color + (0.05,))
+				tri.set_edgecolor('k')
+				ax.add_collection3d(tri)
 
 		## Highlight first rupture if source is a fault
 		if isinstance(self, (SimpleFaultSource, ComplexFaultSource)):
@@ -160,7 +200,7 @@ class RuptureSource():
 		pylab.title(self.name)
 		pylab.show()
 
-	def plot_rupture_bounds_map(self, mag, strike=None, rake=None, timespan=1):
+	def plot_rupture_bounds_map(self, mag, strike=None, dip=None, rake=None, timespan=1):
 		from mpl_toolkits.basemap import Basemap
 
 		## Generate ruptures, and filter according to magnitude bin, strike and rake
@@ -168,6 +208,8 @@ class RuptureSource():
 		ruptures = [rup for rup in ruptures if np.allclose(rup.mag, mag)]
 		if strike is not None:
 			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.strike, strike)]
+		if dip is not None:
+			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.get_dip(), dip)]
 		if rake is not None:
 			ruptures = [rup for rup in ruptures if np.allclose(rup.rake, rake)]
 
