@@ -2989,7 +2989,7 @@ class HazardMap(HazardResult, HazardField):
 
 		return HazardMap(model_name, filespec, sites, period, IMT, intensities, intensity_unit, timespan, poe, return_period, site_names, vs30s)
 
-	def get_residual_map(self, other_map, grid_extent=(None, None, None, None), num_grid_cells=25, interpol_method="cubic"):
+	def get_residual_map(self, other_map, grid_extent=(None, None, None, None), num_grid_cells=25, interpol_method="linear"):
 		"""
 		Compute difference with another hazard map. If sites are different,
 		the maps will be interpolated on a regular (lon, lat) grid
@@ -3002,7 +3002,7 @@ class HazardMap(HazardResult, HazardField):
 			Integer or tuple, number of grid cells in X and Y direction
 		:param method:
 			Str, interpolation method supported by griddata (either
-			"linear", "nearest" or "cubic") (default: "cubic")
+			"linear", "nearest" or "cubic") (default: "linear")
 
 		:return:
 			instance of :class:`HazardMap`
@@ -3019,7 +3019,6 @@ class HazardMap(HazardResult, HazardField):
 			latmin = max(self.latmin(), other_map.latmin())
 			latmax = min(self.latmax(), other_map.latmax())
 			grid_extent = (lonmin, lonmax, latmin, latmax)
-			print grid_extent
 			grid_lons, grid_lats = self.meshgrid(grid_extent, num_grid_cells)
 			grid_intensities1 = self.get_grid_intensities(grid_extent, num_grid_cells, interpol_method)
 			grid_intensities2 = other_map.get_grid_intensities(grid_extent, num_grid_cells, interpol_method)
