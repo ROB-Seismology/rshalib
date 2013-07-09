@@ -862,6 +862,85 @@ class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, MFD):
 		plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, fig_width=fig_width, dpi=dpi)
 
 
+class FentonEtAl2006MFD(TruncatedGRMFD):
+		"""
+		Class implementing "minimum" MFD for SCR according to Fenton et al. (2006),
+		based on surface area
+
+		:param min_mag:
+			Float, Minimum magnitude (default: None, take min_mag from current MFD).
+		:param max_mag:
+			Maximum magnitude (default: None, take max_mag from current MFD).
+		:param bin_width:
+			Float, Magnitude interval for evenly discretized magnitude frequency
+			distribution (default: None, take bin_width from current MFD.
+		:param area:
+			Float, area of region in square km
+		:param b_val:
+			Float, Parameter of the truncated gutenberg richter model.
+			(default: 0.7991)
+		"""
+		def __init__(self, min_mag, max_mag, bin_width, area, b_val=0.7991):
+			beta, std_beta = 1.84, 0.24
+			stdb = std_beta / np.log(10)
+			if b_val is None:
+				b_val = beta / np.log(10)
+			lamda = 0.004 * area / 1E6
+			try:
+				a_val = a_from_lambda(lamda, 6.0, b_val)
+			except:
+				print b_val
+				raise()
+			TruncatedGRMFD.__init__(self, min_mag, max_mag, bin_width, a_val, b_val, stdb)
+
+
+class Johnston1994MFD(TruncatedGRMFD):
+	"""
+	Class implementing the "minimum" MFD for SCR according to Johnston (1994),
+	based on surface area
+
+	:param min_mag:
+		Float, Minimum magnitude (default: None, take min_mag from current MFD).
+	:param max_mag:
+		Maximum magnitude (default: None, take max_mag from current MFD).
+	:param bin_width:
+		Float, Magnitude interval for evenly discretized magnitude frequency
+		distribution (default: None, take bin_width from current MFD.
+	:param area:
+		Float, area of region in square km
+	:param region:
+		str, SCR region (default: "total")
+	"""
+	def __init__(self, min_mag, max_mag, bin_width, area, region="total"):
+		if region.lower() == "africa":
+			a, b, stdb = 2.46, 0.982, 0.119
+		elif region.lower() == "australia":
+			a, b, stdb = 2.29, 0.896, 0.077
+		elif region.lower() == "europe":
+			a, b, stdb = 3.32, 1.156, 0.106
+		elif region.lower() == "china":
+			a, b, stdb = 2.96, 1.029, 0.109
+		elif region.lower() == "india":
+			a, b, stdb = 3.02, 0.966, 0.154
+		elif region.lower() == "north america":
+			a, b, stdb = 1.12, 0.728, 0.067
+		elif region.lower() == "na extended":
+			a, b, stdb = 1.33, 0.747, 0.076
+		elif region.lower() == "na non-extended":
+			a, b, stdb = 1.32, 0.790, 0.158
+		elif region.lower() == "south america":
+			a, b, stdb = 3.46, 1.212, 0.270
+		elif region.lower() == "total":
+			a, b, stdb = 2.46, 0.975, 0.047
+		elif region.lower() == "total extended":
+			a, b, stdb = 2.36, 0.887, 0.054
+		elif region.lower() == "total non-extended":
+			a, b, stdb = 3.26, 1.186, 0.094
+
+		a = np.log10((10**a) * (area / 1E5))
+
+		TruncatedGRMFD.__init__(self, min_mag, max_mag, bin_width, a, b, stdb)
+
 
 def sum_MFDs(mfd_list, weights=[]):
 	"""
