@@ -252,51 +252,82 @@ class HazardField:
 		"""
 		return self.latitudes.max()
 
-	def get_grid_longitudes(self, num_cells=100):
+	def get_grid_longitudes(self, lonmin=None, lonmax=None, num_cells=100):
 		"""
 		Return array of equally spaced longitudes
 
+		:param lonmin:
+			Float, minimum longitude (default: None)
+		:param lonmax:
+			Float, maximum longitude (default: None)
 		:param num_cells:
 			Integer, number of grid cells
 		"""
 		#unique_lons = list(set(self.longitudes))
 		#unique_lons.sort()
 		#return unique_lons
-		return np.linspace(self.lonmin(), self.lonmax(), num_cells)
+		if lonmin is None:
+			lonmin = self.lonmin()
+		if lonmax is None:
+			lonmax = self.lonmax()
+		return np.linspace(lonmin, lonmax, num_cells)
 
-	def get_grid_latitudes(self, num_cells=100):
+	def get_grid_latitudes(self, latmin=None, latmax=None, num_cells=100):
 		"""
 		Return array of equally spaced latitudes
 
+		:param latmin:
+			Float, minimum latitude (default: None)
+		:param latmax:
+			Float, maximum latitude (default: None)
 		:param num_cells:
 			Integer, number of grid cells
 		"""
 		#unique_lats = list(set(self.latitudes))
 		#unique_lats.sort()
 		#return unique_lats
-		return np.linspace(self.latmin(), self.latmax(), num_cells)
+		if latmin is None:
+			latmin = self.latmin()
+		if latmax is None:
+			latmax = self.latmax()
+		return np.linspace(latmin, latmax, num_cells)
 
-	def meshgrid(self, num_cells=100):
+	def meshgrid(self, extent=(None, None, None, None), num_cells=100):
 		"""
 		Return longitude and latitude matrices of the grid
 
+		:param extent:
+			(lonmin, lonmax, latmin, latmax) tuple of floats
 		:param num_cells:
-			Integer, number of grid cells in X and Y direction
+			Integer or tuple, number of grid cells in X and Y direction
 		"""
-		return np.meshgrid(self.get_grid_longitudes(num_cells), self.get_grid_latitudes(num_cells))
+		lonmin, lonmax, latmin, latmax = extent
+		if isinstance(num_cells, int):
+			num_cells = (num_cells, num_cells)
+		return np.meshgrid(self.get_grid_longitudes(lonmin, lonmax, num_cells[0]), self.get_grid_latitudes(latmin, latmax, num_cells[1]))
 
-	def get_grid_intensities(self, num_cells=100):
+	def get_grid_intensities(self, extent=(None, None, None, None), num_cells=100, method="cubic"):
 		"""
 		Convert intensities to a spatial grid (2-D array)
 
+		:param extent:
+			(lonmin, lonmax, latmin, latmax) tuple of floats
 		:param num_cells:
-			Integer, number of grid cells in X and Y direction
+			Integer or tuple, number of grid cells in X and Y direction
+		:param method:
+			Str, interpolation method supported by griddata (either
+			"linear", "nearest" or "cubic") (default: "cubic")
 		"""
 		from scipy.interpolate import griddata
 		x, y = self.longitudes, self.latitudes
-		xi, yi = self.get_grid_longitudes(num_cells), self.get_grid_latitudes(num_cells)
+		lonmin, lonmax, latmin, latmax = extent
+		if isinstance(num_cells, int):
+			num_cells = (num_cells, num_cells)
+		#xi, yi = self.get_grid_longitudes(lonmin, lonmax, num_cells[0]), self.get_grid_latitudes(latmin, latmax, num_cells[1])
+		xi, yi = self.meshgrid(extent, num_cells)
 		z = self.intensities
-		zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method='cubic')
+		#zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method='cubic')
+		zi = griddata((x, y), z, (xi, yi), method=method)
 		return zi
 
 	def get_grid_properties(self):
@@ -2925,6 +2956,91 @@ class HazardMap(HazardResult, HazardField):
 		hm = HazardMap(model_name, filespec, sites, period, IMT, intensities, intensity_unit, timespan, poe, return_period, site_names, vs30s)
 		return hm
 
+	def interpolate_map(self, grid_extent=(None, None, None, None), num_grid_cells=25, method="cubic"):
+		"""
+		Interpolate hazard map on a regular (lon, lat) grid
+
+		:param grid_extent:
+			(lonmin, lonmax, latmin, latmax) tuple of floats
+		:param num_grid_cells:
+			Integer or tuple, number of grid cells in X and Y direction
+		:param method:
+			Str, interpolation method supported by griddata (either
+			"linear", "nearest" or "cubic") (default: "cubic")
+
+		:return:
+			instance of :class:`HazardMap`
+		"""
+		grid_lons, grid_lats = self.meshgrid(grid_extent, num_grid_cells)
+		grid_intensities = self.get_grid_intensities(grid_extent, num_grid_cells, method)
+		intensities = grid_intensities.flatten()
+
+		model_name = self.model_name + " (interpolated)"
+		filespec = self.filespec
+		sites = zip(grid_lons.flatten(), grid_lats.flatten())
+		period = self.period
+		IMT = self.IMT
+		intensity_unit = self.intensity_unit
+		timespan = self.timespan
+		poe = self.poe
+		return_period = self.return_period
+		site_names = None
+		vs30s = None
+
+		return HazardMap(model_name, filespec, sites, period, IMT, intensities, intensity_unit, timespan, poe, return_period, site_names, vs30s)
+
+	def get_residual_map(self, other_map, grid_extent=(None, None, None, None), num_grid_cells=25, interpol_method="cubic"):
+		"""
+		Compute difference with another hazard map. If sites are different,
+		the maps will be interpolated on a regular (lon, lat) grid
+
+		:param other_map:
+			instance of :class:`HazardMap`
+		:param grid_extent:
+			(lonmin, lonmax, latmin, latmax) tuple of floats
+		:param num_grid_cells:
+			Integer or tuple, number of grid cells in X and Y direction
+		:param method:
+			Str, interpolation method supported by griddata (either
+			"linear", "nearest" or "cubic") (default: "cubic")
+
+		:return:
+			instance of :class:`HazardMap`
+		"""
+		if self.sites == other_map.sites:
+			residuals = self.intensities - other_map.intensities
+			sites = self.sites
+			site_names = self.site_names
+			vs30s = self.vs30s
+		else:
+			lonmin, lonmax, latmin, latmax = grid_extent
+			lonmin = max(self.lonmin(), other_map.lonmin())
+			lonmax = min(self.lonmax(), other_map.lonmax())
+			latmin = max(self.latmin(), other_map.latmin())
+			latmax = min(self.latmax(), other_map.latmax())
+			grid_extent = (lonmin, lonmax, latmin, latmax)
+			print grid_extent
+			grid_lons, grid_lats = self.meshgrid(grid_extent, num_grid_cells)
+			grid_intensities1 = self.get_grid_intensities(grid_extent, num_grid_cells, interpol_method)
+			grid_intensities2 = other_map.get_grid_intensities(grid_extent, num_grid_cells, interpol_method)
+			residuals = (grid_intensities1 - grid_intensities2).flatten()
+			residuals[np.isnan(residuals)] = 0.
+			sites = zip(grid_lons.flatten(), grid_lats.flatten())
+			site_names = None
+			vs30s = None
+
+		model_name = "Residuals (%s - %s)" % (self.model_name, other_map.model_name)
+		filespec = None
+		period = self.period
+		IMT = self.IMT
+		intensity_unit = self.intensity_unit
+		## The following values may not be correct
+		timespan = self.timespan
+		poe = self.poe
+		return_period = self.return_period
+
+		return HazardMap(model_name, filespec, sites, period, IMT, residuals, intensity_unit, timespan, poe, return_period, site_names, vs30s)
+
 	def export_VM(self, base_filespec, num_cells=100):
 		"""
 		Export hazard map to a Vertical Mapper grid
@@ -2969,10 +3085,9 @@ class HazardMap(HazardResult, HazardField):
 			be uniformly spaced in color space. If None or empty list, linear
 			normalization will be applied.
 			(default: [0., 0.02, 0.06, 0.14, 0.30, 0.90])
-		:param amin:
-			Float, minimum ground-motion level to contour (default: 0.)
-		:param amax:
-			Float, maximum ground-motion level to contour (default: None)
+		:param intensity_levels:
+			TODO
+
 		:param num_grid_cells:
 			Int, number of grid cells used for interpolating intensity grid
 			(default: 100)
@@ -3021,12 +3136,15 @@ class HazardMap(HazardResult, HazardField):
 
 		## Prepare intensity grid and contour levels
 		longitudes, latitudes = self.longitudes, self.latitudes
-		grid_lons, grid_lats = self.meshgrid(num_grid_cells)
-		intensity_grid = self.get_grid_intensities(num_grid_cells)
+		grid_lons, grid_lats = self.meshgrid(num_cells=num_grid_cells)
+		intensity_grid = self.get_grid_intensities(num_cells=num_grid_cells)
 		if not contour_interval:
 			arange = self.max() - self.min()
 			candidates = np.array([0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.08, 0.1, 0.2, 0.25, 0.4, 0.5, 0.6, 0.75, 0.8, 1.0])
-			index = np.where(arange / candidates <= 10)[0][0]
+			try:
+				index = np.where(arange / candidates <= 10)[0][0]
+			except IndexError:
+				index = 0
 			contour_interval = candidates[index]
 
 		#if intensity_levels in (None, []):
