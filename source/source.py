@@ -232,7 +232,9 @@ class RuptureSource():
 		lat_0 = (llcrnrlat + urcrnrlat) / 2.
 
 		## Initiate map
-		map = Basemap(projection="aea", resolution='i', llcrnrlon=llcrnrlon, llcrnrlat=llcrnrlat, urcrnrlon=urcrnrlon, urcrnrlat=urcrnrlat, lon_0=lon_0, lat_0=lat_0)
+		map = Basemap(projection="aea", resolution='h', llcrnrlon=llcrnrlon, llcrnrlat=llcrnrlat, urcrnrlon=urcrnrlon, urcrnrlat=urcrnrlat, lon_0=lon_0, lat_0=lat_0)
+		map.drawcoastlines()
+		map.drawcountries()
 
 		## Plot ruptures
 		for rup in ruptures:
@@ -547,7 +549,10 @@ class AreaSource(nhlib.source.AreaSource, RuptureSource):
 			Float, Magnitude interval for evenly discretized magnitude frequency
 			distribution (default: None, take bin_width from current MFD.
 		:param region:
-			str, SCR region (default: "total")
+			str, SCR region ("africa", "australia", "europe", "china", "india",
+			"north america", "na extended", "na non-extended", "south america",
+			"total", "total extended", or "total non-extended")
+			(default: "total")
 
 		:return:
 			instance of :class:`TruncatedGRMFD`
@@ -559,35 +564,9 @@ class AreaSource(nhlib.source.AreaSource, RuptureSource):
 		if max_mag is None:
 			max_mag = self.mfd.max_mag
 
-		if region.lower() == "africa":
-			a, b, stdb = 2.46, 0.982, 0.119
-		elif region.lower() == "australia":
-			a, b, stdb = 2.29, 0.896, 0.077
-		elif region.lower() == "europe":
-			a, b, stdb = 3.32, 1.156, 0.106
-		elif region.lower() == "china":
-			a, b, stdb = 2.96, 1.029, 0.109
-		elif region.lower() == "india":
-			a, b, stdb = 3.02, 0.966, 0.154
-		elif region.lower() == "north america":
-			a, b, stdb = 1.12, 0.728, 0.067
-		elif region.lower() == "na extended":
-			a, b, stdb = 1.33, 0.747, 0.076
-		elif region.lower() == "na non-extended":
-			a, b, stdb = 1.32, 0.790, 0.158
-		elif region.lower() == "south america":
-			a, b, stdb = 3.46, 1.212, 0.270
-		elif region.lower() == "total":
-			a, b, stdb = 2.46, 0.975, 0.047
-		elif region.lower() == "total extended":
-			a, b, stdb = 2.36, 0.887, 0.054
-		elif region.lower() == "total non-extended":
-			a, b, stdb = 3.26, 1.186, 0.094
+		return mfd.TruncatedGRMFD.construct_Johnston1994MFD(min_mag, max_mag, bin_width, self.get_area(), region)
 
-		MFD = mfd.TruncatedGRMFD(min_mag, max_mag, bin_width, a, b, stdb)
-		return MFD * (self.get_area() / 1E5)
-
-	def get_MFD_FentonEtAl(self, min_mag=None, max_mag=None, bin_width=None, b_val=0.7991):
+	def get_MFD_FentonEtAl2006(self, min_mag=None, max_mag=None, bin_width=None, b_val=0.7991):
 		"""
 		Construct "minimum" MFD for SCR according to Fenton et al. (2006),
 		based on surface area
@@ -612,18 +591,8 @@ class AreaSource(nhlib.source.AreaSource, RuptureSource):
 			min_mag = self.mfd.get_min_mag_edge()
 		if max_mag is None:
 			max_mag = self.mfd.max_mag
-		beta, std_beta = 1.84, 0.24
-		stdb = std_beta / np.log(10)
-		if b_val is None:
-			b_val = beta / np.log(10)
-		lamda = 0.004 * self.get_area() / 1E6
-		try:
-			a_val = mfd.a_from_lambda(lamda, 6.0, b_val)
-		except:
-			print b_val
-			raise()
-		MFD = mfd.TruncatedGRMFD(min_mag, max_mag, bin_width, a_val, b_val, stdb)
-		return MFD
+
+		return mfd.TruncatedGRMFD.construct_FentonEtAl2006MFD(min_mag, max_mag, bin_width, self.get_area(), b_val)
 
 	def to_ogr_geometry(self):
 		"""

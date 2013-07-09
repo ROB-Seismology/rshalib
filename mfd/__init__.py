@@ -6,5 +6,5 @@ import mfd
 reload(mfd)
 
 from mfd import (EvenlyDiscretizedMFD, CharacteristicMFD, TruncatedGRMFD,
-                 YoungsCoppersmith1985MFD, FentonEtAl2006MFD, Johnston1994MFD, sum_MFDs, plot_MFD, alphabetalambda,
+                 YoungsCoppersmith1985MFD, sum_MFDs, plot_MFD, alphabetalambda,
                  a_from_lambda, get_a_separation)
