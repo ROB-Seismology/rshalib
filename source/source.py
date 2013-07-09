@@ -59,6 +59,7 @@ class RuptureSource():
 
 		:return:
 			(lons, lats, depths) tuple of numpy float arrays
+			depths are in km
 		"""
 		if isinstance(self, (PointSource, AreaSource)):
 			corner_indexes = [0,1,3,2,0]
@@ -89,6 +90,7 @@ class RuptureSource():
 
 		:return:
 			(lons, lats, depths) tuple of numpy float arrays
+			depths are in km
 		"""
 		lons = np.array([rup.hypocenter.longitude for rup in ruptures])
 		lats = np.array([rup.hypocenter.latitude for rup in ruptures])
@@ -126,13 +128,27 @@ class RuptureSource():
 		pylab.ylabel("Occurrence rate (1/yr)")
 		pylab.show()
 
-	def plot_rupture_centers_map(self, timespan=1):
-		ruptures = self.get_ruptures_Poisson(timespan=timespan)
-		lons, lats, depths = self.get_rupture_centers(ruptures)
-		pylab.plot(lons, lats, '.')
-		pylab.show()
-
 	def plot_rupture_bounds_3d(self, mag, strike=None, dip=None, rake=None, fill=False, timespan=1):
+		"""
+		Plot rupture bounds in 3 dimensions.
+		Note that lon, lat coordinates are transformed to UTM coordinates
+		in order to obtain metric coordinates
+
+		:param mag:
+			Float, magnitude value (center of bin) of ruptures to plot
+		:param strike:
+			Float, strike in degrees of ruptures to plot (default: None)
+		:param dip:
+			Float, dip in degrees of ruptures to plot (default: None)
+		:param rake:
+			Float, rake in degrees of ruptures to plot (default: None)
+		:param fill:
+			Bool, whether or not to plot ruptures with a transparent fill
+			(default: False)
+		:param timespan:
+			Float, time interval for Poisson distribution, in years
+			(default: 1)
+		"""
 		import mpl_toolkits.mplot3d.axes3d as p3
 		import mapping.geo.coordtrans as coordtrans
 
@@ -146,6 +162,9 @@ class RuptureSource():
 		if rake is not None:
 			ruptures = [rup for rup in ruptures if np.allclose(rup.rake, rake)]
 
+		## Determine UTM zone and hemisphere
+		utm_spec = coordtrans.get_utm_spec(*self.get_centroid())
+
 		fig = pylab.figure()
 		ax = p3.Axes3D(fig)
 		for rup in ruptures:
@@ -157,22 +176,15 @@ class RuptureSource():
 				color = (0.,0.,1.)
 			lons, lats, depths = self.get_rupture_bounds(rup)
 			coord_list = zip(lons, lats)
-			utm_coord_list = coordtrans.lonlat_to_utm(coord_list)
+			utm_coord_list = coordtrans.lonlat_to_utm(coord_list, utm_spec)
 			x, y = zip(*utm_coord_list)
+			x, y = np.array(x) / 1000, np.array(y) / 1000
 			ax.plot3D(x, y, -depths, color=color)
 			if fill:
 				tri = p3.art3d.Poly3DCollection([zip(x, y, -depths)])
 				tri.set_color(color + (0.05,))
 				tri.set_edgecolor('k')
 				ax.add_collection3d(tri)
-
-		## Highlight first rupture if source is a fault
-		if isinstance(self, (SimpleFaultSource, ComplexFaultSource)):
-			lons, lats, depths = self.get_rupture_bounds(ruptures[0])
-			coord_list = zip(lons, lats)
-			utm_coord_list = coordtrans.lonlat_to_utm(coord_list)
-			x, y = zip(*utm_coord_list)
-			ax.plot3D(x, y, -depths, 'm--', lw=3)
 
 		## Plot source outline
 		if isinstance(self, PointSource):
@@ -190,17 +202,49 @@ class RuptureSource():
 			src_depths = np.array([pt.depth for pt in polygon])
 
 		coord_list = zip(src_longitudes, src_latitudes)
-		utm_coord_list = coordtrans.lonlat_to_utm(coord_list)
+		utm_coord_list = coordtrans.lonlat_to_utm(coord_list, utm_spec)
 		x, y = zip(*utm_coord_list)
+		x, y = np.array(x) / 1000, np.array(y) / 1000
 		ax.plot3D(x, y, -src_depths, 'k', lw=3)
 
-		ax.set_xlabel("Easting")
-		ax.set_ylabel("Northing")
-		ax.set_zlabel("Depth")
+		## Highlight first rupture if source is a fault
+		if isinstance(self, (SimpleFaultSource, ComplexFaultSource)):
+			lons, lats, depths = self.get_rupture_bounds(ruptures[0])
+			coord_list = zip(lons, lats)
+			utm_coord_list = coordtrans.lonlat_to_utm(coord_list, utm_spec)
+			x, y = zip(*utm_coord_list)
+			x, y = np.array(x) / 1000, np.array(y) / 1000
+			ax.plot3D(x, y, -depths, 'm--', lw=3)
+
+		## Plot decoration
+		ax.set_xlabel("Easting (km)")
+		ax.set_ylabel("Northing (km)")
+		ax.set_zlabel("Depth (km)")
 		pylab.title(self.name)
 		pylab.show()
 
+	def plot_rupture_centers_map(self, timespan=1):
+		ruptures = self.get_ruptures_Poisson(timespan=timespan)
+		lons, lats, depths = self.get_rupture_centers(ruptures)
+		pylab.plot(lons, lats, '.')
+		pylab.show()
+
 	def plot_rupture_bounds_map(self, mag, strike=None, dip=None, rake=None, timespan=1):
+		"""
+		Plot map showing rupture bounds.
+
+		:param mag:
+			Float, magnitude value (center of bin) of ruptures to plot
+		:param strike:
+			Float, strike in degrees of ruptures to plot (default: None)
+		:param dip:
+			Float, dip in degrees of ruptures to plot (default: None)
+		:param rake:
+			Float, rake in degrees of ruptures to plot (default: None)
+		:param timespan:
+			Float, time interval for Poisson distribution, in years
+			(default: 1)
+		"""
 		from mpl_toolkits.basemap import Basemap
 
 		## Generate ruptures, and filter according to magnitude bin, strike and rake
@@ -408,6 +452,15 @@ class PointSource(nhlib.source.PointSource, RuptureSource):
 		point.SetPoint(0, self.location.longitude, self.location.latitude)
 
 		return point
+
+	def get_centroid(self):
+		"""
+		Compute centroid of area source
+
+		:return:
+			(Float, Float) tuple: longitude, latitude of centroid
+		"""
+		return (self.location.longitude, self.location.latitude)
 
 
 class AreaSource(nhlib.source.AreaSource, RuptureSource):
@@ -1180,6 +1233,16 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 		line.AssignSpatialReference(wgs84)
 
 		return line
+
+	def get_centroid(self):
+		"""
+		Compute centroid of area source
+
+		:return:
+			(Float, Float) tuple: longitude, latitude of centroid
+		"""
+		centroid = self.to_ogr_geometry().Centroid()
+		return (centroid.GetX(), centroid.GetY())
 
 
 class ComplexFaultSource(nhlib.source.ComplexFaultSource, RuptureSource):

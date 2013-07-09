@@ -233,10 +233,12 @@ class GMPE(object):
 		except:
 			return 34
 
-	def get_epsilon(self, im, M, d, h=0., imt="PGA", T=0., imt_unit="g", soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def get_epsilon(self, iml, M, d, h=0., imt="PGA", T=0., imt_unit="g", soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
-		Determine epsilon for a given intensity measure, magnitude, and distance
+		Determine epsilon for given intensity measure level(s), magnitude, and distance
 
+		:param iml:
+			Float or numpy array, intensity measure level(s)
 		:param M:
 			Float, magnitude.
 		:param d:
@@ -258,6 +260,8 @@ class GMPE(object):
 		:param vs30:
 			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value, in seconds (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip".
 			(default: "normal").
@@ -267,10 +271,63 @@ class GMPE(object):
 		:return:
 			float array, epsilon value(s)
 		"""
-		im_med = self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
-		log_sigma = self.log_sigma(M, d, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
-		epsilon = (np.log10(im) - np.log10(im_med)) / log_sigma
+		im_med = self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+		log_sigma = self.log_sigma(M, d, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+		epsilon = (np.log10(iml) - np.log10(im_med)) / log_sigma
 		return epsilon
+
+	def get_exceedance_probability(self, iml, M, d, h=0., imt="PGA", T=0., imt_unit="g", soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, truncation_level=3):
+		"""
+		Compute probability of exceedance for given intensity measure level(s),
+		magnitude, and distance
+
+		:param iml:
+			Float or numpy array, intensity measure level(s)
+		:param M:
+			Float, magnitude.
+		:param d:
+			Float, distance in km.
+		:param h:
+			Float, depth in km. Ignored if distance metric of GMPE is epicentral
+			or Joyner-Boore (default: 0).
+		:param imt:
+			String, one of the supported intensity measure types: "PGA" or "SA"
+			(default: "SA").
+		:param T:
+			Float, spectral period of considered IMT. Ignored if IMT is
+			"PGA" or "PGV" (default: 0).
+		:param imt_unit:
+			String, unit in which intensities should be expressed, depends on
+			IMT (default: "g")
+		:param soil_type:
+			String, one of the soil types supported by the GMPE (default: "rock").
+		:param vs30:
+			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
+			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value, in seconds (default: None)
+		:param mechanism:
+			String, fault mechanism: either "normal", "reverse" or "strike-slip".
+			(default: "normal").
+		:param damping:
+			Float, damping in percent.
+
+		:return:
+			float array, probability(ies) of exceedance
+		"""
+		import scipy.stats
+		log_iml = np.log10(iml)
+		median = self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=0, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+		log_median = np.log10(median)
+		if truncation_level == 0:
+			return (log_iml > log_median) * 1.0
+		else:
+			log_sigma = self.log_sigma(M, d, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+			if truncation_level is None:
+				dist = scipy.stats.norm(log_median, log_sigma)
+			else:
+				dist = scipy.stats.truncnorm(-truncation_level, truncation_level, log_median, log_sigma)
+			return 1 - dist.cdf(log_iml)
 
 	def is_depth_dependent(self):
 		"""
@@ -281,23 +338,23 @@ class GMPE(object):
 		elif self.distance_metric in ("Epicentral", "Joyner-Boore"):
 			return False
 
-	def sigma_depends_on_magnitude(self, imt="PGA", T=0., soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def sigma_depends_on_magnitude(self, imt="PGA", T=0., soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Indicate whether or not standard deviation depends on magnitude
 		"""
-		sigma1 = self.log_sigma(self.Mmin, d=10, h=0, T=T, imt=imt, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
-		sigma2 = self.log_sigma(self.Mmax, d=10, h=0, T=T, imt=imt, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+		sigma1 = self.log_sigma(self.Mmin, d=10, h=0, T=T, imt=imt, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+		sigma2 = self.log_sigma(self.Mmax, d=10, h=0, T=T, imt=imt, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 		if np.allclose(sigma1, sigma2):
 			return False
 		else:
 			return True
 
-	def sigma_depends_on_distance(self, imt="PGA", T=0., soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def sigma_depends_on_distance(self, imt="PGA", T=0., soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Indicate whether or not standard deviation depends on magnitude
 		"""
-		sigma1 = self.log_sigma(6.0, d=self.dmin, h=0, T=T, imt=imt, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
-		sigma2 = self.log_sigma(6.0, d=self.dmax, h=0, T=T, imt=imt, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+		sigma1 = self.log_sigma(6.0, d=self.dmin, h=0, T=T, imt=imt, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+		sigma2 = self.log_sigma(6.0, d=self.dmax, h=0, T=T, imt=imt, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 		if np.allclose(sigma1, sigma2):
 			return False
 		else:
@@ -359,7 +416,7 @@ class GMPE(object):
 			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 			it takes precedence over the soil_type parameter (default: None).
 		:param kappa:
-			Float, kappa value (default: None)
+			Float, kappa value, in seconds (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip".
 			(default: "normal").
@@ -371,6 +428,7 @@ class GMPE(object):
 		intensities = [self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)[0] for T in periods]
 		intensities = np.array(intensities)
 		return (periods, intensities)
+
 
 	def get_CRISIS_periods(self):
 		"""
@@ -491,10 +549,10 @@ class GMPE(object):
 					all_periods.append(T)
 				else:
 					raise Exception("Duplicate period found: %s (%s s)" % (imt, T))
-				sigma_depends_on_magnitude = self.sigma_depends_on_magnitude(imt=imt, T=T, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+				sigma_depends_on_magnitude = self.sigma_depends_on_magnitude(imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 				if not sigma_depends_on_magnitude:
 					# Note: CRISIS does not support distance-dependent uncertainty, so we take 10 km
-					log_sigma = self.log_sigma(M=0, d=10, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+					log_sigma = self.log_sigma(M=0, d=10, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 					ln_sigma = log_sigma * np.log(10)
 				else:
 					ln_sigma = -1.0
@@ -502,16 +560,16 @@ class GMPE(object):
 				#	of.write("%s-%.3E\t%.3E\t%.2f\n" % (imt, T, ln_sigma, num_sigma*-1))
 				of.write("%.3E\t%.3E\t%.2f\n" % (T, ln_sigma, num_sigma*-1))
 				for M in Mags:
-					intensities = self.__call__(M, distances, h=h, T=T, imt=imt, epsilon=0, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+					intensities = self.__call__(M, distances, h=h, T=T, imt=imt, epsilon=0, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 					s = "\t".join(["%.4E" % val for val in intensities])
 					of.write("%s\n" % s)
 				if sigma_depends_on_magnitude:
 					for M in Mags:
-						log_sigma = self.log_sigma(M=M, d=10., h=h, T=T, imt=imt, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+						log_sigma = self.log_sigma(M=M, d=10., h=h, T=T, imt=imt, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 						ln_sigma = log_sigma * np.log(10)
 						of.write("%.3E\n" % ln_sigma)
 
-	def plot_pdf(self, M, d, h=0, imt="PGA", T=0, imt_unit="g", sigma_truncations=[2,3], soil_type="rock", vs30=None, mechanism="normal", damping=5, plot_style="lin", amax=None, fig_filespec=None, title="", lang="en"):
+	def plot_pdf(self, M, d, h=0, imt="PGA", T=0, imt_unit="g", sigma_truncations=[2,3], soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_style="lin", amax=None, fig_filespec=None, title="", lang="en"):
 		"""
 		Plot probability density function versus ground motion.
 
@@ -539,6 +597,8 @@ class GMPE(object):
 		:param vs30:
 			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value, in seconds (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip"
 			(default: "normal").
@@ -563,8 +623,8 @@ class GMPE(object):
 			sigma_truncations = [sigma_truncations]
 		colors = ("r", "g", "b", "c", "m", "y", "k")
 
-		ah_mean = self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
-		log_sigma = self.log_sigma(M, d, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+		ah_mean = self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+		log_sigma = self.log_sigma(M, d, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 		log_ah_mean = np.log10(ah_mean)
 
 		if plot_style == "lin":
@@ -639,7 +699,7 @@ class GMPE(object):
 		else:
 			pylab.show()
 
-	def plot_distance(self, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5, plot_style="loglog", amin=None, amax=None, color='k', fig_filespec=None, title="", want_minor_grid=False, legend_location=0, lang="en"):
+	def plot_distance(self, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_style="loglog", amin=None, amax=None, color='k', fig_filespec=None, title="", want_minor_grid=False, legend_location=0, lang="en"):
 		"""
 		Plot ground motion versus distance for this GMPE.
 		Horizontal axis: distances.
@@ -677,6 +737,8 @@ class GMPE(object):
 		:param vs30:
 			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value, in seconds (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip"
 			(default: "normal").
@@ -715,7 +777,7 @@ class GMPE(object):
 			String, shorthand for language of annotations. Currently only
 			"en" and "nl" are supported (default: "en").
 		"""
-		plot_distance([self], Mmin=Mmin, Mmax=Mmax, Mstep=Mstep, dmin=dmin, dmax=dmax, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping, plot_style=plot_style, amin=amin, amax=amax, colors=[color], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
+		plot_distance([self], Mmin=Mmin, Mmax=Mmax, Mstep=Mstep, dmin=dmin, dmax=dmax, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, plot_style=plot_style, amin=amin, amax=amax, colors=[color], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
 
 	def plot_spectrum(self, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_freq=False, plot_style="loglog", amin=None, amax=None, color='k', label=None, fig_filespec=None, title="", want_minor_grid=False, include_pgm=True, legend_location=None, lang="en"):
 		"""
@@ -756,7 +818,7 @@ class GMPE(object):
 			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 			it takes precedence over the soil_type parameter (default: None).
 		:param kappa:
-			Float, kappa value (default: None)
+			Float, kappa value, in seconds (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip"
 			(default: "normal").
@@ -867,7 +929,7 @@ class AmbraseysEtAl1996GMPE(GMPE):
 		## Unit conversion
 		self.imt_scaling = {"g": 1.0, "mg": 1E+3, "ms2": g, "gal": g*100, "cms2": g*100}
 
-	def __call__(self, M, d, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Return ground motion for given magnitude, distance, depth, soil type,
 		and fault mechanism.
@@ -969,7 +1031,7 @@ class AmbraseysEtAl1996GMPE(GMPE):
 
 		return y
 
-	def log_sigma(self, M=5., d=10., h=0., imt="PGA", T=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def log_sigma(self, M=5., d=10., h=0., imt="PGA", T=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Return standard deviation in log10 space
 		Note that this value is independent of data scaling (gal, g, m/s**2, ...)
@@ -994,6 +1056,8 @@ class AmbraseysEtAl1996GMPE(GMPE):
 		:param vs30:
 			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value, in seconds. Ignored in this GMPE (default: None)
 		:param mechanism:
 			String, focal mechanism. Ignored in this GMPE (default: None)
 		:param damping:
@@ -1124,7 +1188,7 @@ class BergeThierry2003GMPE(GMPE):
 		## Original unit is cm/s2 (gal)
 		self.imt_scaling = {"g": 0.01/g, "mg": 10./g, "ms2": 1E-2, "gal": 1.0, "cms2": 1.0}
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Return ground motion for given magnitude, distance, depth, soil type,
 		and fault mechanism.
@@ -1156,6 +1220,8 @@ class BergeThierry2003GMPE(GMPE):
 		:param vs30:
 			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value, in seconds. Ignored in this GMPE (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip".
 			Ignored in this GMPE.
@@ -1224,19 +1290,38 @@ class BergeThierry2003GMPE(GMPE):
 
 		return ah
 
-	def log_sigma(self, M=5., d=10., h=0., imt="PGA", T=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def log_sigma(self, M=5., d=10., h=0., imt="PGA", T=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Return standard deviation in log10 space
 		Note that this value is independent of data scaling (gal, g, m/s**2, ...)
 
+		:param M:
+			Float or float array, magnitude(s).
+			Note that if d is an array, M must be a float.
+		:param d:
+			Float or float array, distance(s) in km.
+			Note that if M is an array, d must be a float.
+		:param h:
+			Float, focal depth in km (default: 0., i.e. assume d is hypocentral
+			distance).
 		:param imt:
 			String, one of the supported intensity measure types: "PGA" or "SA"
-			(default: "PGA")
+			(default: "PGA").
 		:param T:
 			Float, spectral period of considered IMT. Ignored if IMT == "PGA"
-			(default: 0)
+			(default: 0).
+		:param soil_type:
+			String, either "rock" or "alluvium" (default: "rock"):
+				Rock: VS >= 800 m/s
+				Alluvium: 300 <= VS < 800 m/s
+		:param vs30:
+			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
+			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value, in seconds. Ignored in this GMPE (default: None)
 		:param mechanism:
-			String, focal mechanism. Ignored in this GMPE (default: None)
+			String, fault mechanism: either "normal", "reverse" or "strike-slip".
+			Ignored in this GMPE.
 		:param damping:
 			Float, damping in percent. Supported value are 5, 7, 10, and 20.
 		"""
@@ -1411,7 +1496,7 @@ class CauzziFaccioli2008GMPE(GMPE):
 		self.imt_scaling["SD"] = {"m": 1E-2, "cm": 1.0}
 		self.imt_scaling["SA"] = {"g": 0.01/g, "mg": 10./g, "ms2": 1E-2, "gal": 1.0, "cms2": 1.0}
 
-	def __call__(self, M, d, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, explicit_vs30=False, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, explicit_vs30=False, kappa=None, mechanism="normal", damping=5):
 		"""
 		Return ground motion for given magnitude, distance, depth, soil type,
 		and fault mechanism.
@@ -1446,6 +1531,8 @@ class CauzziFaccioli2008GMPE(GMPE):
 		:param explicit_vs30:
 			Bool, whether or not vs30 value must be used explicitly rather than
 			converted to soil_type (default: False)
+		:param kappa:
+			Float, kappa value, in seconds. Ignored in this GMPE (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip"
 			(default: "normal").
@@ -1559,22 +1646,43 @@ class CauzziFaccioli2008GMPE(GMPE):
 
 		return ah
 
-	def log_sigma(self, M=5., d=10., h=0., imt="PGA", T=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def log_sigma(self, M=5., d=10., h=0., imt="PGA", T=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Return standard deviation in log10 space
 		Note that this value is independent of data scaling (gal, g, m/s**2, ...)
 
+		:param M:
+			Float or float array, magnitude(s).
+			Note that if d is an array, M must be a float.
+		:param d:
+			Float or float array, distance(s) in km.
+			Note that if M is an array, d must be a float.
+		:param h:
+			Float, focal depth in km (default: 0). Ignored in this GMPE.
 		:param imt:
-			String, one of the supported intensity measure types: "PGA" or "SA"
-			(default: "PGA")
+			String, one of the supported intensity measure types: "PGA",
+			"PHV" or "SA" (default: "PGA").
 		:param T:
-			Float, spectral period of considered IMT. Ignored if IMT == "PGA"
-			(default: 0)
+			Float, spectral period of considered IMT. Ignored if IMT is
+			"PGA" or "PGV" (default: 0).
+		:param soil_type:
+			String, either "rock", "stiff" or "soft" (default: "rock"):
+				Rock: VS >= 750 m/s
+				Stiff soil: 360 <= VS < 750 m/s
+				Soft soil: VS < 360 m/s
+		:param vs30:
+			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
+			it takes precedence over the soil_type parameter (default: None).
+		:param explicit_vs30:
+			Bool, whether or not vs30 value must be used explicitly rather than
+			converted to soil_type (default: False)
+		:param kappa:
+			Float, kappa value, in seconds. Ignored in this GMPE (default: None)
 		:param mechanism:
-			String, focal mechanism. In this GMPE, standard deviation depends
-			on whether focal mechanism is specified or not (default: None).
+			String, fault mechanism: either "normal", "reverse" or "strike-slip"
+			(default: "normal").
 		:param damping:
-			Float, damping in percent. Only supported value is 5
+			Float, damping in percent. The only upported value is 5.
 		"""
 		imt = imt.upper()
 		if not self.has_imt(imt):
@@ -1742,7 +1850,7 @@ class AkkarBommer2010GMPE(GMPE):
 		self.imt_scaling["PGV"] = {"ms": 1E-2, "cms": 1.0}
 		self.imt_scaling["SA"] = self.imt_scaling["PGA"]
 
-	def __call__(self, M, d, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Return ground motion for given magnitude, distance, depth, soil type,
 		and fault mechanism.
@@ -1774,6 +1882,8 @@ class AkkarBommer2010GMPE(GMPE):
 		:param vs30:
 			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value, in seconds. Ignored in this GMPE (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip"
 			(default: "normal").
@@ -1849,21 +1959,40 @@ class AkkarBommer2010GMPE(GMPE):
 
 		return ah
 
-	def log_sigma(self, M=5., d=10., h=0., imt="PGA", T=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def log_sigma(self, M=5., d=10., h=0., imt="PGA", T=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Return standard deviation in log10 space
 		Note that this value is independent of data scaling (gal, g, m/s**2, ...)
 
+		:param M:
+			Float or float array, magnitude(s).
+			Note that if d is an array, M must be a float.
+		:param d:
+			Float or float array, distance(s) in km.
+			Note that if M is an array, d must be a float.
+		:param h:
+			Float, focal depth in km (default: 0). Ignored in this GMPE.
 		:param imt:
-			String, one of the supported intensity measure types: "PGA" or "SA"
-			(default: "PGA")
+			String, one of the supported intensity measure types: "PGA",
+			"PHV" or "SA" (default: "PGA").
 		:param T:
-			Float, spectral period of considered IMT. Ignored if IMT == "PGA"
-			(default: 0)
+			Float, spectral period of considered IMT. Ignored if IMT is
+			"PGA" or "PGV" (default: 0).
+		:param soil_type:
+			String, either "rock", "stiff" or "soft" (default: "rock"):
+				Rock: VS >= 750 m/s
+				Stiff soil: 360 <= VS < 750 m/s
+				Soft soil: VS < 360 m/s
+		:param vs30:
+			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
+			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value, in seconds. Ignored in this GMPE (default: None)
 		:param mechanism:
-			String, focal mechanism. Ignored in this GMPE (default: None)
+			String, fault mechanism: either "normal", "reverse" or "strike-slip"
+			(default: "normal").
 		:param damping:
-			Float, damping in percent. Only supported value is 5
+			Float, damping in percent. The only upported value is 5.
 		"""
 		imt = imt.upper()
 		if not self.has_imt(imt):
@@ -2074,7 +2203,7 @@ class McGuire1974GMPE(GMPE):
 		self.imt_scaling["PGD"] = {"m": 1E-2, "cm": 1.0}
 		self.imt_scaling["PSV"] = self.imt_scaling["PGV"]
 
-	def __call__(self, M, d, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type=None, vs30=None, mechanism="normal", damping=2):
+	def __call__(self, M, d, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type=None, vs30=None, kappa=None, mechanism="normal", damping=2):
 		"""
 		Return ground motion for given magnitude, distance, depth, soil type,
 		and fault mechanism.
@@ -2106,6 +2235,8 @@ class McGuire1974GMPE(GMPE):
 		:param vs30:
 			Float, shear-wave velocity in the upper 30 m (in m/s). Ignored.
 			(default: None).
+		:param kappa:
+			Float, kappa value, in seconds. Ignored in this GMPE (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip".
 			Ignored in this GMPE (default: "normal".
@@ -2141,11 +2272,20 @@ class McGuire1974GMPE(GMPE):
 		ah *= scale_factor
 		return ah
 
-	def log_sigma(self, M=5., d=10., h=0., imt="PGA", T=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def log_sigma(self, M=5., d=10., h=0., imt="PGA", T=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Return standard deviation in log10 space
 		Note that this value is independent of data scaling (gal, g, m/s**2, ...)
 
+		:param M:
+			Float or float array, magnitude(s).
+			Note that if d is an array, M must be a float.
+		:param d:
+			Float or float array, distance(s) in km.
+			Note that if M is an array, d must be a float.
+		:param h:
+			Float, focal depth in km (default: 0., i.e. assume d is hypocentral
+			distance).
 		:param imt:
 			String, one of the supported intensity measure types: "PGA", "PGV",
 			"PGD" or "PSV"
@@ -2153,8 +2293,16 @@ class McGuire1974GMPE(GMPE):
 		:param T:
 			Float, spectral period of considered IMT. Only relevant if IMT ==
 			"PSV" (default: 0).
+		:param soil_type:
+			String, zoil type. Ignored in this GMPE (default: "rock").
+		:param vs30:
+			Float, shear-wave velocity in the upper 30 m (in m/s). Ignored.
+			(default: None).
+		:param kappa:
+			Float, kappa value, in seconds. Ignored in this GMPE (default: None)
 		:param mechanism:
-			String, focal mechanism. Ignored in this GMPE (default: None)
+			String, fault mechanism: either "normal", "reverse" or "strike-slip".
+			Ignored in this GMPE (default: "normal".
 		:param damping:
 			Float, damping in percent. The only supported value is 2 (although
 			the paper also mentions undamped, 5, and 10) (default: 2).
@@ -2387,7 +2535,7 @@ class AbrahamsonSilva2008(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		if vs30 is None:
 			if soil_type == ("rock"):
 				vs30 = 800
@@ -2428,7 +2576,7 @@ class AkkarBommer2010(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -2454,7 +2602,7 @@ class AtkinsonBoore2006(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -2528,7 +2676,7 @@ class BindiEtAl2011(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -2596,7 +2744,7 @@ class BooreAtkinson2008(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -2738,13 +2886,13 @@ class Campbell2003adjusted(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5, kappa=0.03):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=0.03, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
 			if soil_type != "rock":
 				raise SoilTypeNotSupportedError(soil_type)
-		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping, kappa=kappa)
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 
 
 class CauzziFaccioli2008(NhlibGMPE):
@@ -2758,7 +2906,7 @@ class CauzziFaccioli2008(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -2785,7 +2933,7 @@ class ChiouYoungs2008(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -2808,7 +2956,7 @@ class FaccioliEtAl2010(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -2887,7 +3035,7 @@ class ToroEtAl2002adjusted(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard rock", vs30=None, mechanism="normal", damping=5, kappa=0.03):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard rock", vs30=None, kappa=0.03, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -2911,7 +3059,7 @@ class ZhaoEtAl2006Asc(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings, imt_periods)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -3069,7 +3217,7 @@ def adjust_components(component_type, periods, gm):
 	return adjusted_gm
 
 
-def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, mechanism="normal", damping=5, plot_style="loglog", amin=None, amax=None, colors=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=0, lang="en"):
+def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_style="loglog", amin=None, amax=None, colors=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=0, lang="en"):
 	"""
 	Function to plot ground motion versus distance for one or more GMPE's.
 	Horizontal axis: distances.
@@ -3109,6 +3257,8 @@ def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="
 	:param vs30:
 		Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 		it takes precedence over the soil_type parameter (default: None).
+	:param kappa:
+		Float, kappa value, in seconds (default: None)
 	:param mechanism:
 		String, fault mechanism: either "normal", "reverse" or "strike-slip"
 		(default: "normal").
@@ -3171,18 +3321,18 @@ def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="
 			dmin = 0.1
 		distances = logrange(max(dmin, gmpe.dmin), min(dmax, gmpe.dmax), 25)
 		for j, M in enumerate(Mags):
-			Avalues = gmpe(M, distances, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+			Avalues = gmpe(M, distances, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 			style = colors[i] + linestyles[j]
 			plotfunc(distances, Avalues, style, linewidth=3, label=gmpe.name+" (M=%.1f)" % M)
 			if epsilon:
 				## Fortunately, log_sigma is independent of scale factor!
 				## Thus, the following are equivalent:
-				#log_sigma = gmpe.log_sigma(M, imt=imt, T=T, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+				#log_sigma = gmpe.log_sigma(M, imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 				#Asigmavalues = 10**(np.log10(Avalues) + log_sigma)
-				Asigmavalues = gmpe(M, distances, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+				Asigmavalues = gmpe(M, distances, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 				plotfunc(distances, Asigmavalues, style, linewidth=1, label=gmpe.name+" (M=%.1f) $\pm %d \sigma$" % (M, epsilon))
 				#Asigmavalues = 10**(np.log10(Avalues) - log_sigma)
-				Asigmavalues = gmpe(M, distances, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=-epsilon, soil_type=soil_type, vs30=vs30, mechanism=mechanism, damping=damping)
+				Asigmavalues = gmpe(M, distances, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=-epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 				plotfunc(distances, Asigmavalues, style, linewidth=1, label='_nolegend_')
 
 	## Plot decoration
@@ -3261,7 +3411,7 @@ def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tma
 		Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 		it takes precedence over the soil_type parameter (default: None).
 	:param kappa:
-		Float, kappa value (default: None)
+		Float, kappa value, in seconds (default: None)
 	:param mechanism:
 		String, fault mechanism: either "normal", "reverse" or "strike-slip"
 		(default: "normal").
