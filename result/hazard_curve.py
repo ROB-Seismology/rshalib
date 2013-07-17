@@ -2956,7 +2956,7 @@ class HazardMap(HazardResult, HazardField):
 		hm = HazardMap(model_name, filespec, sites, period, IMT, intensities, intensity_unit, timespan, poe, return_period, site_names, vs30s)
 		return hm
 
-	def interpolate_map(self, grid_extent=(None, None, None, None), num_grid_cells=25, method="cubic"):
+	def interpolate_map(self, grid_extent=(None, None, None, None), num_grid_cells=50, method="cubic"):
 		"""
 		Interpolate hazard map on a regular (lon, lat) grid
 
@@ -2989,7 +2989,7 @@ class HazardMap(HazardResult, HazardField):
 
 		return HazardMap(model_name, filespec, sites, period, IMT, intensities, intensity_unit, timespan, poe, return_period, site_names, vs30s)
 
-	def get_residual_map(self, other_map, grid_extent=(None, None, None, None), num_grid_cells=25, interpol_method="linear"):
+	def get_residual_map(self, other_map, grid_extent=(None, None, None, None), num_grid_cells=50, interpol_method="linear"):
 		"""
 		Compute difference with another hazard map. If sites are different,
 		the maps will be interpolated on a regular (lon, lat) grid
@@ -3000,7 +3000,7 @@ class HazardMap(HazardResult, HazardField):
 			(lonmin, lonmax, latmin, latmax) tuple of floats
 		:param num_grid_cells:
 			Integer or tuple, number of grid cells in X and Y direction
-		:param method:
+		:param interpol_method:
 			Str, interpolation method supported by griddata (either
 			"linear", "nearest" or "cubic") (default: "linear")
 
@@ -3033,10 +3033,19 @@ class HazardMap(HazardResult, HazardField):
 		period = self.period
 		IMT = self.IMT
 		intensity_unit = self.intensity_unit
-		## The following values may not be correct
-		timespan = self.timespan
-		poe = self.poe
-		return_period = self.return_period
+
+		if self.timespan == other_map.timespan:
+			timespan = self.timespan
+		else:
+			timespan = np.nan
+		if self.poe == other_map.poe:
+			poe = self.poe
+		else:
+			poe = np.nan
+		if self.return_period == other_map.return_period:
+			return_period = self.return_period
+		else:
+			return_period = np.nan
 
 		return HazardMap(model_name, filespec, sites, period, IMT, residuals, intensity_unit, timespan, poe, return_period, site_names, vs30s)
 
@@ -3261,7 +3270,6 @@ class HazardMap(HazardResult, HazardField):
 		parallels = np.arange(first_parallel, last_parallel, dlat)
 		map.drawparallels(parallels, labels=[0,1,0,1])
 		map.drawmapboundary()
-
 
 		## Title
 		if title is None:

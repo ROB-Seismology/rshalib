@@ -455,15 +455,25 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 	"""
 	def __init__(self, char_mag, return_period, bin_width, M_sigma=0.3, num_sigma=0):
 		from matplotlib import mlab
+		from scipy.stats import norm
 		if M_sigma and num_sigma:
 			Mmin = char_mag - M_sigma * num_sigma
 			Mmax = char_mag + M_sigma * num_sigma
 			Mmin = np.floor(Mmin / bin_width) * bin_width
 			Mmax = np.ceil(Mmax / bin_width) * bin_width
-			magnitudes = np.arange(Mmin, Mmax + bin_width, bin_width)
-			probs = mlab.normpdf(magnitudes, char_mag, M_sigma)
+			magnitudes = np.arange(Mmin, Mmax, bin_width)
+			probs = mlab.normpdf(magnitudes + bin_width/2, char_mag, M_sigma)
 			probs /= np.sum(probs)
 			occurrence_rates = (1./return_period) * probs
+			## CRISIS formula
+			#EM = char_mag
+			#s = M_sigma * num_sigma
+			#Mu = Mmax
+			#M0 = Mmin
+			#probs = (norm.cdf(Mu, EM, s) - norm.cdf(magnitudes+bin_width/2, EM, s)) / (norm.cdf(Mu, EM, s) - norm.cdf(M0, EM, s))
+			#cumul_rates = (1./return_period) * probs
+			#occurrence_rates = cumul_rates[:-1] - cumul_rates[1:]
+			#occurrence_rates = np.append(occurrence_rates, cumul_rates[-1:])
 		else:
 			Mmin = M
 			occurrence_rates = [1./return_period]
@@ -831,7 +841,7 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		return mfd * (area / 1E5)
 
 
-class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, MFD):
+class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, EvenlyDiscretizedMFD):
 	"""
 	Class implementing the MFD for the 'Characteristic Earthquake Model'
 	by Youngs & Coppersmith (1985)

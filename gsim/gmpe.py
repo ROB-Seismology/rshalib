@@ -439,7 +439,7 @@ class GMPE(object):
 		if len(self.sa_periods) <= 40:
 			return self.sa_periods
 
-	def writeCRISIS_ATN(self, Mmin=None, Mmax=None, Mstep=0.5, rmin=None, rmax=None, nr=50, h=0, imt_periods={"PGA": [0]}, imt_unit="g", num_sigma=3, soil_type="rock", vs30=None, mechanism="normal", damping=5, filespec=None):
+	def writeCRISIS_ATN(self, Mmin=None, Mmax=None, Mstep=0.5, rmin=None, rmax=None, nr=50, h=0, imt_periods={"PGA": [0]}, imt_unit="g", num_sigma=3, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, filespec=None):
 		"""
 		Generate attenuation table to be used with CRISIS
 
