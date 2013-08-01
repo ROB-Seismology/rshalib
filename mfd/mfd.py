@@ -106,14 +106,26 @@ class MFD(object):
 		else:
 			return True
 
-	def to_evenly_discretized_mfd(self):
+	def to_evenly_discretized_mfd(self, max_mag=None):
 		"""
 		Convert to an EvenlyDiscretizedMFD
+
+		:param max_mag:
+			Float, maximum magnitude (default: None)
 
 		:return:
 			instance of :class:`EvenlyDiscretizedMFD`
 		"""
-		return EvenlyDiscretizedMFD(self.get_min_mag_center(), self.bin_width, list(self.occurrence_rates), Mtype=self.Mtype)
+		if max_mag is None:
+			occurrence_rates = self.occurrence_rates
+		else:
+			if max_mag <= self.max_mag:
+				occurrence_rates = self.occurrence_rates[self.get_magnitude_bin_centers() < max_mag]
+			else:
+				dmag = max_mag - self.max_mag
+				num_zeros = int(np.round(dmag / self.bin_width))
+				occurrence_rates = np.append(self.occurrence_rates, np.zeros(num_zeros))
+		return EvenlyDiscretizedMFD(self.get_min_mag_center(), self.bin_width, list(occurrence_rates), Mtype=self.Mtype)
 
 	def get_num_earthquakes(self, completeness, end_date):
 		"""
@@ -376,6 +388,100 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 				a = a2 + get_a_separation(b, dM)
 		return TruncatedGRMFD(self.get_min_mag_edge(), self.max_mag, self.bin_width, a, b, b_sigma=stdb, Mtype=self.Mtype)
 
+	def get_max_mag_observed(self):
+		"""
+		Return maximum observed magnitude (max. magnitude with non-zero
+		occurrence_rate)
+		"""
+		mag_bin_centers = self.get_magnitude_bin_centers()
+		Mmax = mag_bin_centers[self.occurrence_rates > 0][-1]
+		return Mmax
+
+	def get_EPRI_Mmax_pdf(self, Mmin=None, Mmax_obs=None, n=None, b_val=None, extended=False, dM=0.1, num_sigma=3, completeness=None, end_date=None, verbose=True):
+		"""
+		Compute Mmax distribution following EPRI (1994) method.
+
+		:param Mmin:
+			Float, lower magnitude (corresponding to lower magnitude in PSHA
+			(default: None, will use min_mag of MFD)
+		:param Mmax_obs:
+			Float: maximum observed magnitude (default: None, will use highest
+				magnitude bin center with non-zero occurrence rate)
+		:param n:
+			Int, number of earthquakes above minimu magnitude relevant for PSHA
+			(default: None, will compute this parameter from MFD)
+		:param b_val:
+			Float, b value of MFD (default: None, will compute b value from MFD
+			using Weichert method)
+		:param extended:
+			Bool, whether or not crust is extended (default: False)
+		:param num_sigma:
+			Int, number of standard deviations to consider on prior distribution
+			(default: 3)
+		:param completeness:
+			instance of :class:`Completeness` containing initial years of completeness
+			and corresponding minimum magnitudes (default: None)
+			This parameter is required if n and/or b_val have to be computed
+		:param end_date:
+			datetime.date or Int, end date of observation period corresponding to MFD
+			This parameter is required if n and/or b_val have to be computed
+		:param verbose:
+			Bool, whether or not to print additional information (default: True)
+
+		:return:
+			(magnitudes, prior, likelihood, posterior, params) tuple
+			- magnitudes: ndarray
+			- prior: ndarray, prior distribution
+			- likelihood: ndarray, likelihood distribution
+			- posterior: ndarray, posterior distribution
+			- params: (observed Mmax, n, b) tuple
+		"""
+		from matplotlib import mlab
+
+		if not Mmin:
+			Mmin = self.get_min_mag_edge()
+
+		## Global prior distributions
+		if extended:
+			mean, sigma = 6.4, 0.8
+		else:
+			mean, sigma = 6.3, 0.5
+		magnitudes = np.arange(Mmin, mean + num_sigma * sigma + dM, dM)
+		prior = mlab.normpdf(magnitudes, mean, sigma)
+		prior /= np.sum(prior)
+
+		## Regional likelihood function
+		likelihood = np.ones_like(magnitudes, dtype='d')
+		if Mmax_obs is None:
+			Mmax_obs = self.get_max_mag_observed()
+		if n is None:
+			bins_N = self.get_num_earthquakes(completeness, end_date)
+			n = np.add.reduce(bins_N[self.get_magnitude_bin_centers() > Mmin])
+		if not b_val:
+			## Set maximum magnitude of MFD to mean prior magnitude
+			imfd = self.to_evenly_discretized_mfd(max_mag=mean)
+			## Compute b value using Weichert method. Note that this will
+			## use the minimum magnitude of the MFD rather than the imposed
+			## Mmin. Weichert computations are usually more robust with the
+			## lowest minimum magnitude
+			gr_mfd = imfd.to_truncated_GR_mfd(completeness, end_date, method="Weichert", verbose=verbose)
+			b_val = gr_mfd.b_val
+		if not np.isnan(b_val):
+			beta = b_val * np.log(10)
+			if verbose:
+					print("Maximum observed magnitude: %.1f" % Mmax_obs)
+					print("n(M > Mmin): %d" % n)
+			likelihood = np.zeros_like(magnitudes)
+			likelihood[magnitudes >= Mmax_obs] = (1 - np.exp(-beta * (magnitudes[magnitudes >= Mmax_obs] - Mmin))) ** -n
+
+		## Posterior
+		posterior = prior * likelihood
+		posterior /= np.sum(posterior)
+
+		params = (Mmax_obs, n, b_val)
+
+		return magnitudes, prior, likelihood, posterior, params
+
 	def create_xml_element(self, encoding='latin1'):
 		"""
 		Create xml element (NRML evenlyDiscretizedIncrementalMFD element)
@@ -433,6 +539,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			Int, image resolution in dots per inch (default: 300)
 		"""
 		plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, fig_width=fig_width, dpi=dpi)
+
 
 
 class CharacteristicMFD(EvenlyDiscretizedMFD):
