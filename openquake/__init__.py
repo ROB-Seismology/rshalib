@@ -8,6 +8,6 @@ reload(IO)
 import config
 reload(config)
 
-from IO import parse_hazard_curves, parse_hazard_map
+from IO import parse_hazard_curves, parse_hazard_map, parse_uh_spectra, parse_disaggregation
 
 from config import OQ_Params
