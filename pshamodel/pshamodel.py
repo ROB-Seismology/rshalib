@@ -578,6 +578,8 @@ class PSHAModel(PSHAModelBase):
 		## Convert grid spacing if necessary
 		if isinstance(self.grid_spacing, (str, unicode)):
 			grid_spacing = self._get_grid_spacing_degrees()
+		else:
+			grid_spacing = self.grid_spacing
 
 		## Write input file. This will also write the site file and attenuation
 		## tables if necessary.
