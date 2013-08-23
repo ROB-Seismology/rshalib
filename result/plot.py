@@ -173,16 +173,17 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 	pylab.legend(loc=legend_location, prop=font)
 	if fixed_life_time:
 		title += "\n%s: %d %s" % ({"en": "Fixed life time", "nl": "Vaste levensduur"}[lang], fixed_life_time, {"en": "yr", "nl": "jaar"}[lang])
+	majorFormatter = FormatStrFormatter('%.1f')
 	if amax <= 1.:
 		tick_interval = 0.1
 	elif amax <= 2:
 		tick_interval = 0.2
 	elif amax <= 3:
 		tick_interval = 0.25
+		majorFormatter = FormatStrFormatter('%.2f')
 	else:
 		tick_interval = 0.5
 	majorLocator = MultipleLocator(tick_interval)
-	majorFormatter = FormatStrFormatter('%.1f')
 	minorLocator = MultipleLocator(tick_interval / 10.)
 	ax.xaxis.set_major_locator(majorLocator)
 	ax.xaxis.set_major_formatter(majorFormatter)
