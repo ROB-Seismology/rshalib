@@ -238,9 +238,9 @@ class DeaggBase(object):
 		6-tuple, containing:
 			- magnitude bin edges
 			- distance bin edges
-			- epsilon bin edges
 			- longitude bin edges
 			- latitude bin edges
+			- epsilon bin edges
 			- tectonic region types
 
 	:param deagg_matrix:
@@ -249,9 +249,9 @@ class DeaggBase(object):
 		the 6 last dimensions corresponding to:
 			- magnitude bins
 			- distance bins
-			- epsilon bins
 			- longitude bins
 			- latitude bins
+			- epsilon bins
 			- tectonic-region-type bins
 
 	:param timespan:
@@ -262,9 +262,9 @@ class DeaggBase(object):
 		self.bin_edges = bin_edges
 		assert deagg_matrix.shape[-6] == max(1, len(bin_edges[0]) - 1), "Number of magnitude bins not in accordance with specified bin edges!"
 		assert deagg_matrix.shape[-5] == max(1, len(bin_edges[1]) - 1), "Number of distance bins not in accordance with specified bin edges!"
-		assert deagg_matrix.shape[-4] == max(1, len(bin_edges[2]) - 1), "Number of epsilon bins not in accordance with specified bin edges!"
-		assert deagg_matrix.shape[-3] == max(1, len(bin_edges[3]) - 1), "Number of longitude bins not in accordance with specified bin edges!"
-		assert deagg_matrix.shape[-2] == max(1, len(bin_edges[4]) - 1), "Number of latitude bins not in accordance with specified bin edges!"
+		assert deagg_matrix.shape[-4] == max(1, len(bin_edges[2]) - 1), "Number of longitude bins not in accordance with specified bin edges!"
+		assert deagg_matrix.shape[-3] == max(1, len(bin_edges[3]) - 1), "Number of latitude bins not in accordance with specified bin edges!"
+		assert deagg_matrix.shape[-2] == max(1, len(bin_edges[4]) - 1), "Number of epsilon bins not in accordance with specified bin edges!"
 		assert deagg_matrix.shape[-1] == max(1, len(bin_edges[5])), "Number of tectonic-region-type bins not in accordance with specified bin edges!"
 		assert isinstance(deagg_matrix, (ExceedanceRateMatrix, ProbabilityMatrix)), "deagg_matrix must be instance of ExceedanceRateMatrix or ProbabilityMatrix!"
 		self.deagg_matrix = deagg_matrix
@@ -437,7 +437,7 @@ class DeaggBase(object):
 		:returns:
 			1D array, a histogram representing epsilon PMF.
 		"""
-		return self.deagg_matrix.fold_axes([-6,-5,-3,-2,-1])
+		return self.deagg_matrix.fold_axes([-6,-5,-4,-3,-1])
 
 	def get_trt_pmf(self):
 		"""
@@ -467,7 +467,7 @@ class DeaggBase(object):
 			second one -- distance histogram bins, third one -- epsilon
 			histogram bins.
 		"""
-		return self.deagg_matrix.fold_axes([-3,-2,-1])
+		return self.deagg_matrix.fold_axes([-4,-3,-1])
 
 	def get_lon_lat_pmf(self):
 		"""
@@ -477,7 +477,7 @@ class DeaggBase(object):
 			2D array, first dimension represents longitude histogram bins,
 			second one -- latitude histogram bins.
 		"""
-		return self.deagg_matrix.fold_axes([-6,-5,-4,-1])
+		return self.deagg_matrix.fold_axes([-6,-5,-2,-1])
 
 	def get_mag_lon_lat_pmf(self):
 		"""
@@ -488,7 +488,7 @@ class DeaggBase(object):
 			second one -- longitude histogram bins, third one -- latitude
 			histogram bins.
 		"""
-		return self.deagg_matrix.fold_axes([-5,-4,-1])
+		return self.deagg_matrix.fold_axes([-5,-2,-1])
 
 	def get_lon_lat_trt_pmf(self):
 		"""
@@ -498,7 +498,7 @@ class DeaggBase(object):
 			3D array, first dimension represents longitude histogram bins,
 			second one -- latitude histogram bins, third one -- trt histogram bins.
 		"""
-		return self.deagg_matrix.fold_axes([-6,-5,-4])
+		return self.deagg_matrix.fold_axes([-6,-5,-1])
 
 	def to_percent_contribution(self):
 		"""
@@ -532,9 +532,9 @@ class DeaggregationSlice(DeaggBase):
 		6-tuple, containing:
 			- magnitude bin edges
 			- distance bin edges
-			- epsilon bin edges
 			- longitude bin edges
 			- latitude bin edges
+			- epsilon bin edges
 			- tectonic region types
 
 	:param deagg_matrix:
@@ -542,9 +542,9 @@ class DeaggregationSlice(DeaggBase):
 		6-D array containing deaggregation values, with dimensions corresponding to:
 			- magnitude bins
 			- distance bins
-			- epsilon bins
 			- longitude bins
 			- latitude bins
+			- epsilon bins
 			- tectonic-region-type bins
 
 	:param site:

@@ -1007,23 +1007,27 @@ def readCRISIS_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True
 	intensities = []
 
 	f = open(filespec)
+	header_linenr = 10000
 	for linenr, line in enumerate(f):
 		## Determine return periods
-		if linenr == 15:
-			words = line.split()[3:8]
-			return_periods = [int(float(s)) for s in words]
-			return_periods = [rp for rp in return_periods if not rp == 0]
-			for rp in return_periods:
-				intensities.append([])
+		words = line.split()
+		if len(words) > 0:
+			if words[0] == "Long.":
+				header_linenr = linenr
+				words = words[3:8]
+				return_periods = [int(float(s)) for s in words]
+				return_periods = [rp for rp in return_periods if not rp == 0]
+				for rp in return_periods:
+					intensities.append([])
 
-		## Determine sites
-		if linenr > 15:
-			lon, lat, nt, a0, a1, a2, a3, a4 = line.split()[:8]
-			site = (float(lon), float(lat))
-			if not site in sites:
-				sites.append(site)
-			else:
-				continue
+			## Determine sites
+			if linenr > header_linenr:
+				lon, lat, nt, a0, a1, a2, a3, a4 = words[:8]
+				site = (float(lon), float(lat))
+				if not site in sites:
+					sites.append(site)
+				else:
+					continue
 	f.seek(0)
 
 	num_sites, num_periods, num_return_periods = len(sites), len(periods), len(return_periods)

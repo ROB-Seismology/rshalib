@@ -400,8 +400,8 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 	Plot deaggregation results
 	Parameters:
 		mr_values: 2-D array [r, m] of exceedance rates binned by distance and magnitude
-		magnitudes: array of magnitude values (lower bounds of magnitude bins)
-		distances: array of distance values (lower bounds of distance bins)
+		magnitudes: array of magnitude values (magnitude bin edges)
+		distances: array of distance values (distance bin edges)
 		return_period: return period for which deaggregation results are given
 			(mainly required to add information to plot title)
 		eps_values: array of exceedance rates by epsilon (default: None)

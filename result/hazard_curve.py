@@ -1419,8 +1419,23 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 				raise Exception("variances array has wrong shape")
 
 	def getHazardCurveField(self, period_spec=0):
-		# TODO !
-		pass
+		period_index = self.period_index(period_spec)
+		try:
+			period = self.periods[period_index]
+		except:
+			raise IndexError("Period index %s out of range" % period_index)
+		intensities = self.intensities[period_index]
+		if self._exceedance_rates != None:
+			exceedance_rates = self._exceedance_rates[:,period_index]
+			poes = None
+		else:
+			exceedance_rates = None
+			poes = self._poes[:,period_index]
+		if self.variances != None:
+			variances = self.variances[:,period_index]
+		else:
+			variances = None
+		return HazardCurveField(self.model_name, self.filespecs[period_index], self.sites, period, self.IMT, intensities, self.intensity_unit, self.timespan, poes=poes, exceedance_rates=exceedance_rates, variances=variances, site_names=self.site_names)
 
 	def getSpectralHazardCurve(self, site_spec=0):
 		"""
@@ -2108,7 +2123,7 @@ class HazardCurveField(HazardResult, HazardField):
 		return_periods = np.array(return_periods)
 		rp_intensities = np.zeros((len(return_periods), self.num_sites))
 		interpol_exceedances = 1. / return_periods
-		for i in range(num_sites):
+		for i in range(self.num_sites):
 				rp_intensities[:,i] = interpolate(self.exceedance_rates[i], self.intensities, interpol_exceedances)
 		return HazardMapSet(self.model_name, filespecs, self.sites, self.period, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_periods=return_periods, site_names=self.site_names)
 
@@ -3093,9 +3108,6 @@ class HazardMap(HazardResult, HazardField):
 			be uniformly spaced in color space. If None or empty list, linear
 			normalization will be applied.
 			(default: [0., 0.02, 0.06, 0.14, 0.30, 0.90])
-		:param intensity_levels:
-			TODO
-
 		:param num_grid_cells:
 			Int, number of grid cells used for interpolating intensity grid
 			(default: 100)
