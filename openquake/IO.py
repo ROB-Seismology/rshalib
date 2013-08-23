@@ -187,17 +187,17 @@ def parse_disaggregation(xml_filespec):
 			probs = probs[:, :, np.newaxis, np.newaxis, np.newaxis, np.newaxis]
 			bin_edges = (mag_bin_edges, dist_bin_edges, [], [], [], [])
 		if type == 'Mag,Dist,Eps':
-			probs = probs[:, :, :, np.newaxis, np.newaxis, np.newaxis]
-			bin_edges = (mag_bin_edges, dist_bin_edges, eps_bin_edges, [], [], [])
+			probs = probs[:, :, np.newaxis, np.newaxis, :, np.newaxis]
+			bin_edges = (mag_bin_edges, dist_bin_edges, [], [], eps_bin_edges, [])
 		if type == 'Lon,Lat':
-			probs = probs[np.newaxis, np.newaxis, np.newaxis, :, :, np.newaxis]
-			bin_edges = ([], [], [], lon_bin_edges, lat_bin_edges, [])
+			probs = probs[np.newaxis, np.newaxis, :, :, np.newaxis, np.newaxis]
+			bin_edges = ([], [], lon_bin_edges, lat_bin_edges, [], [])
 		if type == 'Mag,Lon,Lat':
-			probs = probs[:, np.newaxis, np.newaxis, :, :, np.newaxis]
-			bin_edges = (mag_bin_edges, [], [], lon_bin_edges, lat_bin_edges, [])
+			probs = probs[:, np.newaxis, :, :, np.newaxis, np.newaxis]
+			bin_edges = (mag_bin_edges, [], lon_bin_edges, lat_bin_edges, [], [])
 		if type == 'Lon,Lat,TRT':
-			probs = probs[np.newaxis, np.newaxis, np.newaxis, :, :, :]
-			bin_edges = ([], [], [], lon_bin_edges, lat_bin_edges, tectonic_region_types)
+			probs = probs[np.newaxis, np.newaxis, :, :, np.newaxis, :]
+			bin_edges = ([], [], lon_bin_edges, lat_bin_edges, [], tectonic_region_types)
 		deagg_matrix = ProbabilityMatrix(probs)
 		iml = disagg_matrix.get('iml')
 		deaggregation_slices[type] = DeaggregationSlice(bin_edges, deagg_matrix, site, imt, iml, period, timespan)
