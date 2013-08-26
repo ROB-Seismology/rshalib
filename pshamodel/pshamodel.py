@@ -16,7 +16,7 @@ from openquake.hazardlib.imt import PGA, SA, PGV, PGD, MMI
 
 from ..geo import *
 from ..site import *
-from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, DeaggregationSlice
+from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, ProbabilityMatrix, DeaggregationSlice
 from ..logictree import GroundMotionSystem, create_basic_seismicSourceSystem
 from ..crisis.IO import writeCRISIS2007
 from ..openquake.config import OQ_Params
@@ -469,6 +469,7 @@ class PSHAModel(PSHAModelBase):
 		#tom = nhlib.tom.PoissonTOM(self.time_span)
 		#bin_edges, deagg_matrix = nhlib.calc.disaggregation(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), tom, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
 		bin_edges, deagg_matrix = nhlib.calc.disaggregation_poissonian(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), self.time_span, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
+		deagg_matrix = ProbabilityMatrix(deagg_matrix)
 		imt_name = str(imt).split('(')[0]
 		if imt_name == "SA":
 			period = imt.period
