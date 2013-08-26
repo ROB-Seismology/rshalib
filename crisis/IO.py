@@ -198,10 +198,27 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 				# TODO: check for gsim names in attenuation
 				if gsimObj.distance_metric in ("Hypocentral", "Rupture"):
 					## Rhypo, Rrup
-					min_distance = source_model.upper_seismogenic_depth
+					## Determine minimum distance as minimum depth
+					## Make a list of sources to which curreng gsim applies
+					src_list = []
+					for src in source_model:
+						trt = src.tectonic_region_type
+						if gsim in ground_motion_model[trt]:
+							src_list.append(src)
+					min_distances = []
+					for src in src_list:
+						if isinstance(src, (PointSource, AreaSource)):
+							min_distances.append(src.hypocenter_distribution.get_min_depth())
+						elif isinstance(src, (SimpleFaultSource, ComplexFaultSource)):
+							min_distances.append(src.upper_seismogenic_depth)
+					if len(min_distances) > 0:
+						min_distance = min(min_distances)
+						min_distance = max(min_distance, 0.5)
+					else:
+						min_distance = 0.5
 				else:
 					## Repi, RJB
-					min_distance = 0.1
+					min_distance = 0.5
 				# TODO: damping?
 				gsimObj.writeCRISIS_ATN(Mmin, Mmax, Mstep, min_distance,
 										integration_distance, num_distances,
@@ -308,13 +325,19 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		min_lon, max_lon = min(lons), max(lons)
 		min_lat, max_lat = min(lats), max(lats)
 		## Round min/max lon/lat to multiples of grid_spacing
-		min_lon = np.ceil((min_lon / grid_spacing[0])) * grid_spacing[0]
-		max_lon = np.floor((max_lon / grid_spacing[0])) * grid_spacing[0]
-		min_lat = np.ceil((min_lat / grid_spacing[1])) * grid_spacing[1]
-		max_lat = np.floor((max_lat / grid_spacing[1])) * grid_spacing[1]
+		## Make sure dlon/dlat is multiple of grid_spacing
+		#min_lon = np.ceil((min_lon / grid_spacing[0])) * grid_spacing[0]
+		#max_lon = np.floor((max_lon / grid_spacing[0])) * grid_spacing[0]
+		#min_lat = np.ceil((min_lat / grid_spacing[1])) * grid_spacing[1]
+		#max_lat = np.floor((max_lat / grid_spacing[1])) * grid_spacing[1]
+		dlon, dlat = max_lon - min_lon, max_lat - min_lat
+		dlon = np.ceil((dlon / grid_spacing[0])) * grid_spacing[0]
+		dlat = np.ceil((dlat / grid_spacing[1])) * grid_spacing[1]
 		grid_origin = (min_lon, min_lat)
-		num_grid_lons = ((max_lon - min_lon) / grid_spacing[0]) + 1
-		num_grid_lats = ((max_lat - min_lat) / grid_spacing[1]) + 1
+		#num_grid_lons = ((max_lon - min_lon) / grid_spacing[0]) + 1
+		#num_grid_lats = ((max_lat - min_lat) / grid_spacing[1]) + 1
+		num_grid_lons = (dlon / grid_spacing[0])
+		num_grid_lats = (dlat / grid_spacing[1])
 		grid_numlines = (num_grid_lons, num_grid_lats)
 		of.write("%.3f,%.3f,%.3f,%.3f,%d,%d\n" % (grid_origin + grid_spacing + grid_numlines))
 	elif sites:

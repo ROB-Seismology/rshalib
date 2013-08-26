@@ -64,8 +64,7 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	for key in default_column_map:
 		if not key in column_map:
 			column_map[key] = default_column_map[key]
-	if not column_map.has_key("min_mag") or column_map["min_mag"] < min_mag:
-		column_map["min_mag"] = min_mag
+	column_map["min_mag"] = min_mag
 
 	sources = []
 	for source_rec in source_records:
