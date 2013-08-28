@@ -60,7 +60,7 @@ class PSHAModelBase(object):
 	:param num_intensities:
 		Float, defining number of intensities (default: 100).
 	:param return_periods:
-		List of floats, defing return periods.
+		List of floats, defining return periods.
 	:param time_span:
 		Float, defining time span in years (default 50.).
 	:param truncation_level:
