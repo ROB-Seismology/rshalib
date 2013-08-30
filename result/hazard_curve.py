@@ -3114,6 +3114,7 @@ class HazardMap(HazardResult, HazardField):
 		pass
 
 	def get_plot(self, region=None, projection="merc", resolution="i", grid_interval=(1., 1.), cmap="usgs", contour_interval=None, intensity_levels=[0., 0.02, 0.06, 0.14, 0.30, 0.90], num_grid_cells=100, plot_style="cont", contour_line_style=None, site_style=None, source_model="", source_model_style=None, countries_style=None, intensity_unit="g", hide_sea=False, title=None):
+		# TODO: update docstring
 		"""
 		Plot hazard map
 
@@ -3263,7 +3264,8 @@ class HazardMap(HazardResult, HazardField):
 
 		color_map_theme = ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax)
 		continuous = {"cont": True, "disc": False}[plot_style]
-		grid_style = GridStyle(color_map_theme=color_map_theme, continuous=continuous, line_style=contour_line_style, contour_levels=contour_levels, label_format='%.2f')
+		colorbar_style = ColorbarStyle(location="bottom", format="%.2f")
+		grid_style = GridStyle(color_map_theme=color_map_theme, continuous=continuous, line_style=contour_line_style, contour_levels=contour_levels)
 		grid_data = GridData(grid_lons, grid_lats, intensity_grid)
 		layer = MapLayer(grid_data, grid_style, legend_label=cbar_label)
 		map_layers.append(layer)
@@ -3294,7 +3296,9 @@ class HazardMap(HazardResult, HazardField):
 		if title is None:
 			title = "%s\n%.4G yr return period" % (self.model_name, self.return_period)
 
-		map = LayeredBasemap(map_layers, region, projection, title, grid_interval=grid_interval, resolution=resolution, annot_axes="SE", legend_location=0)
+		legend_style = LegendStyle(location=0)
+
+		map = LayeredBasemap(map_layers, region, projection, title, grid_interval=grid_interval, resolution=resolution, annot_axes="SE", legend_style=legend_style)
 		return map
 
 	def plot(self, cmap="usgs", contour_interval=None, intensity_levels=[0., 0.02, 0.06, 0.14, 0.30, 0.90], num_grid_cells=100, plot_style="cont", site_symbol=".", site_color="w", site_size=6, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
