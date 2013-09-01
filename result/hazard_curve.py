@@ -3260,7 +3260,12 @@ class HazardMap(HazardResult, HazardField):
 			imt_label = "%s (%s s)" % (self.IMT, self.period)
 		else:
 			imt_label = self.IMT
-		cbar_label = '%s (%s)' % (imt_label, intensity_unit)
+		intensity_unit_label = "%s" % intensity_unit
+		if intensity_unit == "ms2":
+			intensity_unit_label = "$m/s^2$"
+		elif intensity_unit == "cms2":
+			intensity_unit_label = "$cm/s^2$"
+		cbar_label = '%s (%s)' % (imt_label, intensity_unit_label)
 
 		color_map_theme = ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax)
 		continuous = {"cont": True, "disc": False}[plot_style]
