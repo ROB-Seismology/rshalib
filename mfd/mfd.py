@@ -397,27 +397,41 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		Mmax = mag_bin_centers[self.occurrence_rates > 0][-1]
 		return Mmax
 
-	def get_EPRI_Mmax_pdf(self, Mmin=None, Mmax_obs=None, n=None, b_val=None, extended=False, dM=0.1, num_sigma=3, completeness=None, end_date=None, verbose=True):
+	def get_Bayesian_Mmax_pdf(self, prior_model="CEUS_COMP", Mmax_obs=None, n=None, Mmin_n=4.5, b_val=None, bin_width=None, truncation=(5.5, 8.25), completeness=None, end_date=None, verbose=True):
 		"""
-		Compute Mmax distribution following EPRI (1994) method.
+		Compute Mmax distribution following Bayesian approach.
 
-		:param Mmin:
-			Float, lower magnitude (corresponding to lower magnitude in PSHA
-			(default: None, will use min_mag of MFD)
+		:param prior_model:
+			String, indicating which prior model should be considered, one of:
+			- "EPRI_extended": extended crust in EPRI (1994)
+			- "EPRI_non_extended": non-extended crust in EPRI (1994)
+			- "CEUS_COMP": composite prior in CEUS (2012)
+			- "CEUS_MESE": Mesozoic and younger extension in CEUS (2012)
+			- "CEUS_NMESE": Non-Mesozoic and younger extension in CEUS (2012)
+			(default: "CEUS_COMP")
 		:param Mmax_obs:
 			Float: maximum observed magnitude (default: None, will use highest
 				magnitude bin center with non-zero occurrence rate)
 		:param n:
 			Int, number of earthquakes above minimu magnitude relevant for PSHA
-			(default: None, will compute this parameter from MFD)
+			(default: None, will compute this parameter from MFD and Mmin)
+		:param Mmin_n:
+			Float, lower magnitude, used to count n, the number of earthquakes
+			between Mmin and Mmax_obs (corresponds to lower magnitude in PSHA).
+			If None, will use min_mag of MFD.
+			(default: 4.5)
 		:param b_val:
 			Float, b value of MFD (default: None, will compute b value from MFD
 			using Weichert method)
-		:param extended:
-			Bool, whether or not crust is extended (default: False)
-		:param num_sigma:
-			Int, number of standard deviations to consider on prior distribution
-			(default: 3)
+		:param bin_width:
+			Float, magnitude bin width. If None, will take bin_width from MFD
+			(default: None)
+		:param truncation:
+			Int or tuple, representing truncation of prior distribution.
+			If int, truncation is interpreted as the number of standard deviations.
+			If tuple, elements are interpreted as minimum and maximum magnitude of
+			the distribution
+			(default: (5.5, 8.25), corresponding to the truncation applied in CEUS)
 		:param completeness:
 			instance of :class:`Completeness` containing initial years of completeness
 			and corresponding minimum magnitudes (default: None)
@@ -429,24 +443,37 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			Bool, whether or not to print additional information (default: True)
 
 		:return:
-			(magnitudes, prior, likelihood, posterior, params) tuple
-			- magnitudes: ndarray
-			- prior: ndarray, prior distribution
-			- likelihood: ndarray, likelihood distribution
-			- posterior: ndarray, posterior distribution
+			(prior, likelihood, posterior, params) tuple
+			- prior: instance of :class:`NumericPMF`, prior distribution
+			- likelihood: instance of :class:`NumericPMF`, likelihood distribution
+			- posterior: instance of :class:`NumericPMF`, posterior distribution
 			- params: (observed Mmax, n, b) tuple
 		"""
 		from matplotlib import mlab
-
-		if not Mmin:
-			Mmin = self.get_min_mag_edge()
+		from scitools.numpytools import seq
+		from ..pmf import NumericPMF
 
 		## Global prior distributions
-		if extended:
+		if prior_model == "EPRI_extended":
 			mean, sigma = 6.4, 0.8
-		else:
+		elif prior_model == "EPRI_non_extended":
 			mean, sigma = 6.3, 0.5
-		magnitudes = np.arange(Mmin, mean + num_sigma * sigma + dM, dM)
+		elif prior_model == "CEUS_COMP":
+			mean, sigma = 7.2, 0.64
+		elif prior_model == "CEUS_MESE":
+			mean, sigma = 7.35, 0.75
+		elif prior_model == "CEUS_NMESE":
+			mean, sigma = 6.7, 0.61
+
+		if not bin_width:
+			bin_width = self.bin_width
+
+		if isinstance(truncation, (int, float)):
+			Mmin, Mmax = mean - truncation * sigma, mean + truncation * sigma
+		else:
+			Mmin, Mmax = truncation[:2]
+
+		magnitudes = seq(Mmin, Mmax, bin_width)
 		prior = mlab.normpdf(magnitudes, mean, sigma)
 		prior /= np.sum(prior)
 
@@ -455,8 +482,11 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		if Mmax_obs is None:
 			Mmax_obs = self.get_max_mag_observed()
 		if n is None:
+			if not Mmin_n:
+				Mmin_n = self.get_min_mag_edge()
+
 			bins_N = self.get_num_earthquakes(completeness, end_date)
-			n = np.add.reduce(bins_N[self.get_magnitude_bin_centers() > Mmin])
+			n = np.add.reduce(bins_N[self.get_magnitude_bin_centers() > Mmin_n])
 		if not b_val:
 			## Set maximum magnitude of MFD to mean prior magnitude
 			imfd = self.to_evenly_discretized_mfd(max_mag=mean)
@@ -469,8 +499,8 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		if not np.isnan(b_val):
 			beta = b_val * np.log(10)
 			if verbose:
-					print("Maximum observed magnitude: %.1f" % Mmax_obs)
-					print("n(M > Mmin): %d" % n)
+				print("Maximum observed magnitude: %.1f" % Mmax_obs)
+				print("n(M > Mmin): %d" % n)
 			likelihood = np.zeros_like(magnitudes)
 			likelihood[magnitudes >= Mmax_obs] = (1 - np.exp(-beta * (magnitudes[magnitudes >= Mmax_obs] - Mmin))) ** -n
 
@@ -478,9 +508,13 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		posterior = prior * likelihood
 		posterior /= np.sum(posterior)
 
+		## Replace zero probabilities with very small values to avoid error in PMF
+		prior_pmf = NumericPMF.from_values_and_weights(magnitudes, prior.clip(1E-8))
+		likelihood_pmf = NumericPMF.from_values_and_weights(magnitudes, likelihood.clip(1E-8))
+		posterior_pmf = NumericPMF.from_values_and_weights(magnitudes, posterior.clip(1E-8))
 		params = (Mmax_obs, n, b_val)
 
-		return magnitudes, prior, likelihood, posterior, params
+		return prior_pmf, likelihood_pmf, posterior_pmf, params
 
 	def create_xml_element(self, encoding='latin1'):
 		"""

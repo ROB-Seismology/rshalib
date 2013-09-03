@@ -20,10 +20,131 @@ import openquake.hazardlib as nhlib
 from ..nrml import ns
 from ..nrml.common import *
 from ..geo import NodalPlane
+from ..utils import interpolate
 
 
+class PMF(nhlib.pmf.PMF):
+	def __init__(self, data):
+		super(PMF, self).__init__(data)
 
-class NodalPlaneDistribution(nhlib.pmf.PMF):
+	@classmethod
+	def from_values_and_weights(cls, values, weights):
+		weights = np.array([Decimal(w) for w in weights])
+		weights /= sum(weights)
+		## If sum is not one, adjust last weight
+		if sum(weights) != 1.0:
+			weights[-1] = Decimal(1.0) - sum(weights[:-1])
+
+		data = zip(weights, values)
+		return cls(data)
+
+	@property
+	def weights(self):
+		return np.array([item[0] for item in self.data])
+
+	@property
+	def values(self):
+		return np.array([item[1] for item in self.data])
+
+	def __len__(self):
+		return len(self.data)
+
+
+class NumericPMF(PMF):
+	"""
+	Class representing a PMF where values correspond to numbers,
+	possibly with regular spacing
+	"""
+	def __init__(self, data):
+		super(NumericPMF, self).__init__(data)
+
+	def min(self):
+		return self.values[np.where(self.weights > 1E-8)].min()
+
+	def max(self):
+		return self.values.max()
+
+	def get_mean(self):
+		"""
+		Return weighted mean of PMF
+		"""
+		return np.average(self.values, weights=self.weights)
+
+	def get_percentiles(self, percentiles, resolution=100):
+		"""
+		Compute weighted percentiles of PMF
+
+		:param percentiles:
+			list or array of percentiles in the range 0-1 or 0-100
+			(determined automatically from max. value)
+		:param resolution:
+			int, resolution
+
+		:return:
+			array containing interpolated values corresponding to
+			percentile intercepts
+		"""
+		percentiles = np.array(percentiles, 'f')
+		if percentiles.max() > 1:
+			percentiles /= 100.
+		values = self.values
+		weights = self.weights.astype('d')
+		#bins_N, bins_values = np.histogram(values, bins=resolution, weights=weights, density=False)
+		#cdf = np.add.accumulate(bins_N)
+		#percentile_intercepts = interpolate(cdf, bins_values[:-1], percentiles)
+		cdf = np.add.accumulate(weights)
+		percentile_intercepts = interpolate(cdf, values, percentiles)
+		return percentile_intercepts
+
+	def rebin_equal_weight(self, bin_width, num_bins=5):
+		"""
+		Rebin PMF into bins with (approximately) equal weight,
+		such that bin values are a multiple of bin_width
+
+		:param bin_width:
+			Float, bin width used for rounding bin values.
+			It is supposed that the PMF values have the same bin width
+		:param num_bins:
+			Int, maximum number of bins in output PMF
+
+		:return:
+			instance of :class:`PMF` or subclass
+		"""
+		values = self.values
+		weights = self.weights.astype('d')
+		cumul_weights = np.add.accumulate(weights)
+		start_index = max(0, np.where(weights > 1E-6)[0][0] - 1)
+		bin_edge_indexes = [start_index]
+		avg_prob = 1.0 / num_bins
+		n = 1
+		for i in range(bin_edge_indexes[-1]+1, len(values)):
+			if cumul_weights[i] >= n * avg_prob:
+				bin_edge_indexes.append(i)
+				n = np.floor(cumul_weights[i] / avg_prob) + 1
+				continue
+
+		bin_edges = values[bin_edge_indexes]
+		bin_centers = bin_edges[:-1] + (bin_edges[1:] - bin_edges[:-1]) / 2
+		bin_centers_rounded = np.ceil(bin_centers / bin_width) * bin_width
+
+		## This may yield identical values
+		#percentiles = np.linspace(0., 1., num_bins+1)
+		#bin_edges = self.get_percentiles(percentiles)
+		#bin_edges_rounded = np.round(bin_edges / bin_width) * bin_width
+		#bin_edges_rounded = np.unique(bin_edges_rounded)
+		#bin_centers = bin_edges[:-1] + (bin_edges[1:] - bin_edges[:-1]) / 2.
+		#bin_centers_rounded = np.round(bin_centers / bin_width) * bin_width
+		#bin_centers_rounded = np.unique(bin_centers_rounded)
+		#bin_edge_indexes = np.round((bin_edges_rounded - values[0]) / bin_width).astype('i')
+
+		bin_cumul_weights = cumul_weights[bin_edge_indexes]
+		bin_weights = bin_cumul_weights[1:] - bin_cumul_weights[:-1]
+		bin_weights = bin_weights.clip(1E-8)
+
+		return self.from_values_and_weights(bin_centers_rounded, bin_weights)
+
+
+class NodalPlaneDistribution(PMF):
 	"""
 	Class representing a nodal-plane distribution
 
@@ -114,7 +235,7 @@ class NodalPlaneDistribution(nhlib.pmf.PMF):
 			print "   %3d  %2d %4d %.4f" % (nodal_plane.strike, nodal_plane.dip, nodal_plane.rake, weight)
 
 
-class HypocentralDepthDistribution(nhlib.pmf.PMF):
+class HypocentralDepthDistribution(PMF):
 	"""
 	Class representing a hypocentral depth distribution
 
