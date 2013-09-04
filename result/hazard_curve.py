@@ -3303,7 +3303,7 @@ class HazardMap(HazardResult, HazardField):
 
 		legend_style = LegendStyle(location=0)
 
-		map = LayeredBasemap(map_layers, region, projection, title, grid_interval=grid_interval, resolution=resolution, annot_axes="SE", legend_style=legend_style)
+		map = LayeredBasemap(map_layers, title, projection, region=region, grid_interval=grid_interval, resolution=resolution, annot_axes="SE", legend_style=legend_style)
 		return map
 
 	def plot(self, cmap="usgs", contour_interval=None, intensity_levels=[0., 0.02, 0.06, 0.14, 0.30, 0.90], num_grid_cells=100, plot_style="cont", site_symbol=".", site_color="w", site_size=6, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
