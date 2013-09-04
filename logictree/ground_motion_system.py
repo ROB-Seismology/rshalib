@@ -3,18 +3,21 @@ import openquake.hazardlib as nhlib
 from logictree import LogicTreeBranch, LogicTreeBranchSet, LogicTreeBranchingLevel, LogicTree
 
 
+
 class GroundMotionSystem(LogicTree):
 	"""
 	Class representing Ground Motion System
 	Inherits from LogicTree class
-	Arguments:
-		ID: identifier
-		gmpe_system_dict: dictionary with tectonic region types as keys and
-			lists of GMPE models known by OQ as values
+
+	:param ID:
+		string, identifier
+	:param gmpe_system_def:
+		dictionary with tectonic region types as keys and instances of
+		:class:`PMF` as values, containing GMPE models and their weights
 	"""
-	def __init__(self, ID, gmpe_system_dict):
+	def __init__(self, ID, gmpe_system_def):
 		LogicTree.__init__(self, ID, [])
-		self.gmpe_system_dict = gmpe_system_dict
+		self.gmpe_system_def = gmpe_system_def
 		self._construct_lt()
 
 	def _construct_lt(self):
@@ -27,7 +30,7 @@ class GroundMotionSystem(LogicTree):
 			branchSet = LogicTreeBranchSet(branchSetID, "gmpeModel", [], applyToTectonicRegionType=tectonicRegionType)
 			branchingLevelID = "lbl%02d" % i
 			branchingLevel = LogicTreeBranchingLevel(branchingLevelID, [branchSet])
-			for j, (gmpe, weight) in enumerate(self.gmpe_system_dict[tectonicRegionType].items()):
+			for j, (weight, gmpe) in enumerate(self.gmpe_system_def[tectonicRegionType].data):
 				branchID = "lbl%02d_lb%02d" % (i, j)
 				#branch = LogicTreeBranch(branchID, nhlib.gsim.get_available_gsims()[gmpe], weight)
 				branch = LogicTreeBranch(branchID, gmpe, weight)
@@ -50,61 +53,53 @@ class GroundMotionSystem(LogicTree):
 		"""
 		Return list of tectonic region types in the ground motion system
 		"""
-		return self.gmpe_system_dict.keys()
+		return self.gmpe_system_def.keys()
 
-	@property
-	def GMPEModels(self, tectonicRegionType):
+	def get_gmpe_names(self, tectonicRegionType):
 		"""
-		Return list of GMPE models for a specific tectonic region type
-		Argument:
-			tectonicRegionType: tectonic region type (string)
-		"""
-		return self.gmpe_system_dict[tectonicRegionType].keys()
+		Return list of GMPE model names for a specific tectonic region type
 
-	@property
-	def GMPEModelWeights(self, tectonicRegionType):
+		:param tectonicRegionType:
+			string, tectonic region type
+		"""
+		return self.gmpe_system_def[tectonicRegionType].values
+
+	def get_gmpe_weights(self, tectonicRegionType):
 		"""
 		Return list of GMPE model weights for a specific tectonic region type
-		Argument:
-			tectonicRegionType: tectonic region type (string)
-		"""
-		return self.gmpe_system_dict[tectonicRegionType].values()
 
-	@property
-	def AllGMPEModels(self):
+		:param tectonicRegionType:
+			string, tectonic region type
+		"""
+		return self.gmpe_system_def[tectonicRegionType].weights
+
+	def get_unique_gmpe_names(self):
 		"""
 		Return sorted list of all GMPE models in the ground motion system
 		"""
 		gmpe_models = set()
-		for trt in self.gmpe_system_dict.keys():
-			for gmpe in self.gmpe_system_dict[trt]:
+		for trt in self.gmpe_system_def.keys():
+			for gmpe in self.get_gmpe_names(trt):
 				gmpe_models.add(gmpe)
-		gmpe_models = list(gmpe_models)
-		gmpe_models.sort()
-		return gmpe_models
+		return sorted(gmpe_models)
 
+	def get_optimized_system(self, source_models):
+		"""
+		Return an optimized ground motion system where unused tectonic
+		region types are removed
 
-def optimize_gmpeSystemDict(gmpeSystemDict, sourceModels):
-	"""
-	Remove unused tectonicRegionTypes from gmpeSystemDict based on sourceModels
-	"""
-	optimized_gmpeSystemDict = {}
-	usedTectonicRegionTypes = []
-	for sourceModel in sourceModels:
-		for sourceObj in sourceModel.sources:
-			if not sourceObj.tectonic_region_type in usedTectonicRegionTypes:
-				usedTectonicRegionTypes.append(sourceObj.tectonic_region_type)
-	for tectonicRegionType in usedTectonicRegionTypes:
-			optimized_gmpeSystemDict[tectonicRegionType] = gmpeSystemDict[tectonicRegionType]
+		:param source_models:
+			list with instances of :class:`SourceModel`
 
-	return optimized_gmpeSystemDict
-
-
-def optimize_GroundMotionSystem(gmpeSystem, sourceModels):
-	"""
-	Remove unused tectonicRegionTypes from gmpeSystem based on sourceModels
-	"""
-	optimized_gmpeSystemDict = optimize_gmpeSystemDict(gmpeSystem.gmpe_system_dict, sourceModels)
-	return GroundMotionSystem(gmpeSystem.ID, optimized_gmpeSystemDict)
-
+		:return:
+			instance of :class:`GroundMotionSystem`
+		"""
+		optimized_gmpe_system_def = {}
+		used_trts = set()
+		for source_model in source_models:
+			for src in source_model.sources:
+				used_trts.add(src.tectonic_region_type)
+		for trt in used_trts:
+			optimized_gmpe_system_def[trt] = self.gmpe_system_def[trt]
+		return GroundMotionSystem(self.ID, optimized_gmpe_system_def)
 

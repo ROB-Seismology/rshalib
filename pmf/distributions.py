@@ -23,12 +23,24 @@ from ..geo import NodalPlane
 from ..utils import interpolate
 
 
+
 class PMF(nhlib.pmf.PMF):
 	def __init__(self, data):
 		super(PMF, self).__init__(data)
 
 	@classmethod
 	def from_values_and_weights(cls, values, weights):
+		"""
+		Construct new PMF from list of values and weights
+
+		:param values:
+			list or array of values (can be any type)
+		:param weights:
+			list or array of corresponding weights
+
+		:return:
+			new instance of same class
+		"""
 		weights = np.array([Decimal(w) for w in weights])
 		weights /= sum(weights)
 		## If sum is not one, adjust last weight
@@ -44,7 +56,7 @@ class PMF(nhlib.pmf.PMF):
 
 	@property
 	def values(self):
-		return np.array([item[1] for item in self.data])
+		return [item[1] for item in self.data]
 
 	def __len__(self):
 		return len(self.data)
@@ -57,6 +69,10 @@ class NumericPMF(PMF):
 	"""
 	def __init__(self, data):
 		super(NumericPMF, self).__init__(data)
+
+	@property
+	def values(self):
+		return np.array([item[1] for item in self.data])
 
 	def min(self):
 		return self.values[np.where(self.weights > 1E-8)].min()
@@ -89,9 +105,6 @@ class NumericPMF(PMF):
 			percentiles /= 100.
 		values = self.values
 		weights = self.weights.astype('d')
-		#bins_N, bins_values = np.histogram(values, bins=resolution, weights=weights, density=False)
-		#cdf = np.add.accumulate(bins_N)
-		#percentile_intercepts = interpolate(cdf, bins_values[:-1], percentiles)
 		cdf = np.add.accumulate(weights)
 		percentile_intercepts = interpolate(cdf, values, percentiles)
 		return percentile_intercepts
@@ -105,37 +118,27 @@ class NumericPMF(PMF):
 			Float, bin width used for rounding bin values.
 			It is supposed that the PMF values have the same bin width
 		:param num_bins:
-			Int, maximum number of bins in output PMF
+			Int, number of bins in output PMF
 
 		:return:
 			instance of :class:`PMF` or subclass
+			Note that actual number of bins may be less than specified
+			if one or more bins have much higher weight than the average.
 		"""
 		values = self.values
 		weights = self.weights.astype('d')
 		cumul_weights = np.add.accumulate(weights)
 		start_index = max(0, np.where(weights > 1E-6)[0][0] - 1)
-		bin_edge_indexes = [start_index]
-		avg_prob = 1.0 / num_bins
-		n = 1
-		for i in range(bin_edge_indexes[-1]+1, len(values)):
-			if cumul_weights[i] >= n * avg_prob:
-				bin_edge_indexes.append(i)
-				n = np.floor(cumul_weights[i] / avg_prob) + 1
-				continue
+		bin_edge_indexes = set([start_index])
+		for bin_edge_weight in np.linspace(1.0/num_bins, 1.0, num_bins):
+			index = np.argmin(np.abs(cumul_weights - bin_edge_weight))
+			bin_edge_indexes.add(index)
+			print index
+		bin_edge_indexes = sorted(bin_edge_indexes)
 
 		bin_edges = values[bin_edge_indexes]
 		bin_centers = bin_edges[:-1] + (bin_edges[1:] - bin_edges[:-1]) / 2
 		bin_centers_rounded = np.ceil(bin_centers / bin_width) * bin_width
-
-		## This may yield identical values
-		#percentiles = np.linspace(0., 1., num_bins+1)
-		#bin_edges = self.get_percentiles(percentiles)
-		#bin_edges_rounded = np.round(bin_edges / bin_width) * bin_width
-		#bin_edges_rounded = np.unique(bin_edges_rounded)
-		#bin_centers = bin_edges[:-1] + (bin_edges[1:] - bin_edges[:-1]) / 2.
-		#bin_centers_rounded = np.round(bin_centers / bin_width) * bin_width
-		#bin_centers_rounded = np.unique(bin_centers_rounded)
-		#bin_edge_indexes = np.round((bin_edges_rounded - values[0]) / bin_width).astype('i')
 
 		bin_cumul_weights = cumul_weights[bin_edge_indexes]
 		bin_weights = bin_cumul_weights[1:] - bin_cumul_weights[:-1]
@@ -157,7 +160,7 @@ class NodalPlaneDistribution(PMF):
 		if len(nodal_planes) != len(weights):
 			raise Exception("Number of weights and number of nodal planes must be identical!")
 		self.nodal_planes = nodal_planes
-		self.weights = np.array(weights)
+		#self.weights = np.array(weights)
 		data = zip(weights, nodal_planes)
 		super(NodalPlaneDistribution, self).__init__(data)
 
@@ -248,7 +251,7 @@ class HypocentralDepthDistribution(PMF):
 		if len(hypo_depths) != len(weights):
 			raise Exception("Number of weights and number of hypocentral depths must be identical!")
 		self.hypo_depths = np.array(hypo_depths)
-		self.weights = np.array(weights)
+		#self.weights = np.array(weights)
 		data = zip(weights, hypo_depths)
 		super(HypocentralDepthDistribution, self).__init__(data)
 
@@ -368,7 +371,7 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 	return NodalPlaneDistribution(nodal_planes, nodal_plane_weights)
 
 
-def get_normal_distribution(min, max, num_bins, sigma_range=2):
+def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4):
 	"""
 	Get normal distribution with bin centers as values.
 
@@ -380,12 +383,15 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2):
 		Integer with number of bins for distribution.
 	:param sigma_range:
 		Sigma range for distribution between min and max values (Default: 2).
-	:return values:
-		Numpy array with distribution values, centers of bins (length = num_bins).
-	:return weights:
-		Numpy array with weights of distribution values
+	:param precision:
+		Integer, decimal precision of weights
+
+	:return:
+		tuple (values, weights)
+		- values: Numpy array with distribution values, centers of bins (length = num_bins).
+		- weights: Numpy array with weights of distribution values
 	"""
-	#decimal.getcontext().prec = 4
+	decimal.getcontext().prec = precision
 	val_range = max - min
 	mean = (min + max) / 2.
 	if val_range == 0. or num_bins == 1.:
@@ -409,7 +415,7 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2):
 	return bin_centers, weights
 
 
-def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2):
+def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2, precision=4):
 	"""
 	Get normal distribution with bin edges as values.
 
@@ -421,12 +427,15 @@ def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2):
 		Integer with number of bins for distribution.
 	:param sigma_range:
 		Sigma range for distribution between min and max values (Default: 2).
-	:return values:
-		Numpy array with distribution values, edges of bins (length = num_bins).
-	:return weights:
-		Numpy array with weights of distribution values
+	:param precision:
+		Integer, decimal precision of weights
+
+	:return:
+		tuple (values, weights)
+		- values: Numpy array with distribution values, edges of bins (length = num_bins).
+		- weights: Numpy array with weights of distribution values
 	"""
-	#decimal.getcontext().prec = 4
+	decimal.getcontext().prec = precision
 	val_range = max - min
 	mean = (min + max) / 2.
 	sigma = val_range / (sigma_range * 2)
@@ -434,13 +443,14 @@ def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2):
 	weights = stats.distributions.norm.pdf(bin_edges, loc=mean, scale=sigma)
 	weights = np.array([Decimal(w) for w in weights])
 	weights /= sum(weights)
+
 	## Check if and set sum == 1
 	if sum(weights) != 1.0:
 		weights[-1] = 1 - sum(weights[:-1])
 	return bin_edges, weights
 
 
-def get_uniform_distribution(min, max, delta):
+def get_uniform_distribution(min, max, delta, precision=4):
 	"""
 	Get uniform distribution.
 
@@ -448,13 +458,15 @@ def get_uniform_distribution(min, max, delta):
 		Float for minimum value of distribution.
 	:param max:
 		Float for maximum value of distribution.
-
 	:param delta:
 		Float for step between distribution values.
-	:return values:
-		Numpy array with distribution values (equally spaced by delta from min to max).
-	:return weights:
-		Numpy array with weights of distribution values. See get_uniform_weights.
+	:param precision:
+		Integer, decimal precision of weights
+
+	:return:
+		tuple (values, weights)
+		- values: Numpy array with distribution values (equally spaced by delta from min to max).
+		- weights: Numpy array with weights of distribution values. See get_uniform_weights.
 	"""
 	if delta == 0:
 		values = [np.mean([min, max])]
@@ -463,20 +475,23 @@ def get_uniform_distribution(min, max, delta):
 		max = min + np.floor((max - min) / delta) * delta
 		values = np.arange(min, max+1, delta)
 		#values = np.arange(min, max+delta, delta)
-	weights = get_uniform_weights(len(values))
+	weights = get_uniform_weights(len(values), precision)
 	return values, weights
 
 
-def get_uniform_weights(num_weights):
+def get_uniform_weights(num_weights, precision=4):
 	"""
 	Get uniform weights.
 
 	:param num_weights:
-		Integer with number of weights.
+		Integer, number of weights.
+	:param precision:
+		Integer, decimal precision (default: 4)
+
 	:return:
 		Numpy array (length equal to num_weights) of equal weights summing up to 1.0.
 	"""
-	#decimal.getcontext().prec = 4
+	decimal.getcontext().prec = precision
 	weights = np.array([Decimal(1) for i in range(num_weights)])
 	weights /= Decimal(num_weights)
 
