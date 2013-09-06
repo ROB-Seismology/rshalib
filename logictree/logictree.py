@@ -11,30 +11,29 @@ import pprint
 from lxml import etree
 from decimal import Decimal
 
+import openquake.engine.input.logictree as oqlt
 from ..nrml import ns
 from ..nrml.common import *
-from ..pmf.distributions import get_uniform_weights
+from ..pmf import *
 
 
 ### Logic Tree elements
 
 # TODO: elaborate validation
 
-class LogicTreeBranch():
+class LogicTreeBranch(oqlt.Branch):
 	"""
 	Class representing a logic-tree branch
 	Arguments:
-		ID: identifier
-		uncertaintyModel: string identifying an uncertainty model; the content
-			of the string varies with the uncertaintyType attribute value of the
-			parent branchSet
-		uncertaintyWeight: specifying the probability/weight associated to
-			the uncertaintyModel
+		branch_id: identifier
+		value: string identifying an uncertainty model; the content
+			of the string varies with the uncertainty_type attribute value of the
+			parent branch_set
+		weight: specifying the probability/weight associated to
+			the value
 	"""
-	def __init__(self, ID, uncertaintyModel, uncertaintyWeight):
-		self.ID = ID
-		self.uncertaintyModel = uncertaintyModel
-		self.uncertaintyWeight = uncertaintyWeight
+	def __init__(self, branch_id, weight, value):
+		super(LogicTreeBranch, self).__init__(branch_id, weight, value)
 
 	def validate(self):
 		pass
@@ -43,15 +42,15 @@ class LogicTreeBranch():
 		"""
 		Create xml element (NRML logicTreeBranch element)
 		"""
-		lb_elem = etree.Element(ns.LOGICTREE_BRANCH, branchID=self.ID)
+		lb_elem = etree.Element(ns.LOGICTREE_BRANCH, branchid=self.branch_id)
 		um_elem = etree.SubElement(lb_elem, ns.UNCERTAINTY_MODEL)
-		um_elem.text = xmlstr(self.uncertaintyModel)
+		um_elem.text = xmlstr(self.value)
 		uw_elem = etree.SubElement(lb_elem, ns.UNCERTAINTY_WEIGHT)
-		uw_elem.text = str(self.uncertaintyWeight)
+		uw_elem.text = str(self.weight)
 		return lb_elem
 
 
-class LogicTreeBranchSet():
+class LogicTreeBranchSet(oqlt.BranchSet):
 	"""
 	Class representing a logic-tree branch set.
 	A LogicTreeBranchSet defines a particular epistemic uncertainty inside
@@ -59,9 +58,9 @@ class LogicTreeBranchSet():
 	There is no restriction on the number of branches in a branch set, as
 	long as their uncertainty weights sum to 1.0
 	Arguments:
-		ID: identifier
-		uncertaintyType: required attribute
-			Possible values for the uncertaintyType attribute are:
+		id: identifier
+		uncertainty_type: required attribute
+			Possible values for the uncertainty_type attribute are:
 			- gmpeModel: identifying epistemic uncertainties on ground motion
 				prediction equations
 			- sourceModel: identifying epistemic uncertainties on source models
@@ -78,12 +77,12 @@ class LogicTreeBranchSet():
 		branches: list of LogicTreeBranch objects
 		applyToBranches: optional attribute, specifying to which logicTreeBranch
 			elements (one or more) in the previous branching level, the branch set
-			is linked to. Given as a string of space-separated branch ID's, or
+			is linked to. Given as a string of space-separated branch id's, or
 			the keyword "ALL", which means that the branch set is linked to all
 			branches in the previous branching level (default: "")
 		applyToSources: optional attribute, specifying to which source in a
 			source model the uncertainty applies to. Specified as a string of
-			space-separated source IDs (default: "")
+			space-separated source ids (default: "")
 		applyToSourceType: optional attribute, specifying to which source type
 			the uncertainty applies to. Only one source typology can be defined:
 			area, point, simpleFault or complexFault (default: "")
@@ -92,31 +91,77 @@ class LogicTreeBranchSet():
 			region type can be defined: Active Shallow Crust, Stable Shallow Crust,
 			Subduction Interface, Subduction IntraSlab or Volcanic (default: "")
 	"""
-	def __init__(self, ID, uncertaintyType, branches, applyToBranches="", applyToSources="", applyToSourceType="", applyToTectonicRegionType=""):
-		self.ID = ID
-		self.uncertaintyType = uncertaintyType
+	def __init__(self, id, uncertainty_type, branches, applyToBranches=[], applyToSources=[], applyToSourceType="", applyToTectonicRegionType=""):
+		# TODO: are applyToBranches and applyToSources strings or lists?
+		filters = {}
+		filters["applyToBranches"] = self.applyToBranches = applyToBranches
+		filters["applyToSources"] = self.applyToSources = applyToSources
+		filters["applyToSourceType"] = self.applyToSourceType = applyToSourceType
+		filters["applyToTectonicRegionType"] = self.applyToTectonicRegionType = applyToTectonicRegionType
+		super(LogicTreeBranchSet, self).__init__(uncertainty_type, filters)
+		self.id = id
 		self.branches = branches
-		self.applyToBranches = applyToBranches
-		self.applyToSources = applyToSources
-		self.applyToSourceType = applyToSourceType
-		self.applyToTectonicRegionType = applyToTectonicRegionType
+
+	def __iter__(self):
+		return iter(self.branches)
+
+	@classmethod
+	def from_PMF(cls, id, pmf, applyToBranches=[], applyToSources=[], applyToSourceType="", applyToTectonicRegionType=""):
+		"""
+		Construct branch set from a PMF
+
+		:param id:
+			String, branch set identifier
+		:param pmf:
+			instance of :class:`PMF`
+		:param applyToBranches:
+		:param applyToSources:
+		:param applyToSourceType:
+		:param applyToTectonicRegionType:
+			See class constructor
+		"""
+		if isinstance(pmf, GMPEPMF):
+			uncertainty_type = "gmpeModel"
+		elif isinstance(pmf, SourceModelPMF):
+			uncertainty_type = "sourceModel"
+		elif isinstance(pmf, MmaxPMF):
+			if pmf.absolute:
+				uncertainty_type = "maxMagGRAbsolute"
+			else:
+				uncertainty_type = "maxMagGRRelative"
+		elif isinstance(pmf, MFDPMF):
+			if pmf.is_bGRRelative():
+				uncertainty_type = "bGRRelative"
+			elif pmf.is_abGRAbsolute():
+				uncertainty_type = "abGRAbsolute"
+			elif pmf.is_incrementalMFDRates():
+				# TODO: not yet implemented in OQ
+				pass
+
+		# TODO: implement different formatting, e.g. for abGRAbsolute, sourceModel, incrementalMFDRates
+		branches = []
+		for i, (weight, model) in enumerate(pmf.data):
+			branch_id = "%s_b%02d" % (id, i)
+			branch = LogicTreeBranch(branch_id, weight, model)
+			branches.append(branch)
+		return LogicTreeBranchSet(id, uncertainty_type, branches, applyToBranches=applyToBranches, applyToSources=applyToSources, applyToSourceType=applyToSourceType, applyToTectonicRegionType=applyToTectonicRegionType)
 
 	def validate_weights(self):
 		"""
 		Check if weights of child branches sums up to 1.0
 		"""
-		weights = [branch.uncertaintyWeight for branch in self.branches]
+		weights = [branch.weight for branch in self.branches]
 		if abs(Decimal(1.0) - numpy.add.reduce(weights)) > 1E-3:
-			raise NRMLError("BranchSet %s: branches do not sum to 1.0" % self.ID)
+			raise NRMLError("BranchSet %s: branches do not sum to 1.0" % self.id)
 
 	def validate_unc_type(self):
 		"""
 		Validate uncertainty type
 		"""
-		if self.uncertaintyType not in ENUM_OQ_UNCERTAINTYTYPES:
-			raise NRMLError("BranchSet %s: uncertainty type %s not supported!" % (self.ID, self.uncertaintyType))
-		if self.uncertaintyType == "gmpeModel" and not self.applyToTectonicRegionType:
-			raise NRMLError("BranchSet %s: applyToTectonicRegionType must be defined if uncertaintyType is gmpeModel" % self.ID)
+		if self.uncertainty_type not in ENUM_OQ_UNCERTAINTYTYPES:
+			raise NRMLError("BranchSet %s: uncertainty type %s not supported!" % (self.id, self.uncertainty_type))
+		if self.uncertainty_type == "gmpeModel" and not self.applyToTectonicRegionType:
+			raise NRMLError("BranchSet %s: applyToTectonicRegionType must be defined if uncertainty_type is gmpeModel" % self.id)
 
 	def validate(self):
 		"""
@@ -131,15 +176,15 @@ class LogicTreeBranchSet():
 		"""
 		Create xml element (NRML logicTreeBranchSet element)
 		"""
-		lbs_elem = etree.Element(ns.LOGICTREE_BRANCHSET, branchSetID=self.ID, uncertaintyType=self.uncertaintyType)
-		if self.applyToBranches:
-			lbs_elem.set("applyToBranches", self.applyToBranches)
-		if self.applyToSources:
-			lbs_elem.set("applyToSources", self.applyToSources)
-		if self.applyToSourceType:
-			lbs_elem.set("applyToSourceType", self.applyToSourceType)
-		if self.applyToTectonicRegionType:
-			lbs_elem.set("applyToTectonicRegionType", self.applyToTectonicRegionType)
+		lbs_elem = etree.Element(ns.LOGICTREE_BRANCHSET, branch_setid=self.id, uncertainty_type=self.uncertainty_type)
+		if self.filters["applyToBranches"]:
+			lbs_elem.set("applyToBranches", " ".join(map(str, self.filters["applyToBranches"])))
+		if self.filters["applyToSources"]:
+			lbs_elem.set("applyToSources", " ".join(map(str, self.filters["applyToSources"])))
+		if self.filters["applyToSourceType"]:
+			lbs_elem.set("applyToSourceType", self.filters["applyToSourceType"])
+		if self.filters["applyToTectonicRegionType"]:
+			lbs_elem.set("applyToTectonicRegionType", self.filters["applyToTectonicRegionType"])
 		for branch in self.branches:
 			lb_elem = branch.create_xml_element()
 			lbs_elem.append(lb_elem)
@@ -154,32 +199,35 @@ class LogicTreeBranchingLevel():
 	There are no restrictions on the number of branch sets that can be defined
 	inside a branching level.
 	Arguments:
-		ID: identifier
-		branchSets: list of LogicTreeBranchSet objects
+		id: identifier
+		branch_sets: list of LogicTreeBranchSet objects
 	"""
-	def __init__(self, ID, branchSets):
-		self.ID = ID
-		self.branchSets = branchSets
+	def __init__(self, id, branch_sets):
+		self.id = id
+		self.branch_sets = branch_sets
+
+	def __iter__(self):
+		return iter(self.branch_sets)
 
 	def validate(self):
 		"""
 		Validate
 		"""
-		for branchSet in self.branchSets:
-			branchSet.validate()
+		for branch_set in self.branch_sets:
+			branch_set.validate()
 
 	def create_xml_element(self):
 		"""
 		Create xml element (NRML logicTreeBranchingLevel element)
 		"""
-		lbl_elem = etree.Element(ns.LOGICTREE_BRANCHINGLEVEL, branchingLevelID=self.ID)
-		for branchSet in self.branchSets:
-			lbs_elem = branchSet.create_xml_element()
+		lbl_elem = etree.Element(ns.LOGICTREE_BRANCHINGLEVEL, branchingLevelid=self.id)
+		for branch_set in self.branch_sets:
+			lbs_elem = branch_set.create_xml_element()
 			lbl_elem.append(lbs_elem)
 		return lbl_elem
 
 
-class LogicTree():
+class LogicTree(object):
 	"""
 	Class representing a logic tree
 	A LogicTree is defined as a sequence of LogicTreeBranchingLevel objects.
@@ -188,27 +236,34 @@ class LogicTree():
 	in the sequence represents the first level in the tree, the second object
 	the second level in the tree, and so on.
 	Arguments:
-		ID: identifier
-		branchingLevels: list of LogicTreeBranchingLevel objects
+		id: identifier
+		branching_levels: list of LogicTreeBranchingLevel objects
 	"""
-	def __init__(self, ID, branchingLevels):
-		self.ID = ID
-		self.branchingLevels = branchingLevels
+	def __init__(self, id, branching_levels):
+		self.id = id
+		self.branching_levels = branching_levels
+
+	def __iter__(self):
+		return iter(self.branching_levels)
+
+	@property
+	def root_branchset(self):
+		return self.branching_levels[0].branch_sets[0]
 
 	def validate(self):
 		"""
 		Validate
 		"""
-		for branchingLevel in self.branchingLevels:
-			branchingLevel.validate()
+		for branching_level in self.branching_levels:
+			branching_level.validate()
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
 		Create xml element (NRML root element)
 		"""
-		lt_elem = etree.Element(ns.LOGICTREE, logicTreeID=self.ID)
-		for branchingLevel in self.branchingLevels:
-			lbl_elem = branchingLevel.create_xml_element()
+		lt_elem = etree.Element(ns.LOGICTREE, logicTreeid=self.id)
+		for branching_level in self.branching_levels:
+			lbl_elem = branching_level.create_xml_element()
 			lt_elem.append(lbl_elem)
 		return lt_elem
 
@@ -247,6 +302,36 @@ class LogicTree():
 		"""
 		print self.get_xml_string(encoding=encoding, pretty_print=pretty_print)
 
+	def connect_branches(self):
+		"""
+		Connect all branches and branch sets of the logic tree in a chain.
+		The child_branchset property of each branch is set to the branch set
+		in the subsequent branching level that points to this branch through
+		its "applyToBranches" filter.
+		All branches are collected in a flat list that is set as the branches
+		property of the logic tree.
+		"""
+		## Store all branches in self.branches,
+		## and set child_branchset of every branch
+		all_branches = [self.root_branchset.branches]
+		for branching_level in self.branching_levels[1:]:
+			level_branches = []
+			for branch_set in branching_level.branch_sets:
+				connecting_branch_ids = branch_set.filters["applyToBranches"]
+				if not connecting_branch_ids:
+					connecting_branch_ids = [branch.branch_id for branch in all_branches[-1]]
+				for branch in all_branches[-1]:
+					if branch.branch_id in connecting_branch_ids:
+						branch.child_branchset = branch_set
+				level_branches.extend(branch_set.branches)
+			all_branches.append(level_branches)
+
+		## Flatten branches list
+		self.branches = sum(all_branches, [])
+
+		# TODO: write alternative version, with child_branchset as dictionary
+
+
 
 if __name__ == '__main__':
 	from configobj import ConfigObj
@@ -263,50 +348,50 @@ if __name__ == '__main__':
 	#ssd = {}
 	ssd = ConfigObj(indent_type="	")
 
-	sourceModelID = "SourceModel01"
-	ssd[sourceModelID] = {}
-	ssd[sourceModelID]["weight"] = 1.0
-	ssd[sourceModelID]["xml_file"] = "TwoZoneModel.xml"
-	ssd[sourceModelID]["sources"] = {}
+	sourceModelid = "SourceModel01"
+	ssd[sourceModelid] = {}
+	ssd[sourceModelid]["weight"] = 1.0
+	ssd[sourceModelid]["xml_file"] = "TwoZoneModel.xml"
+	ssd[sourceModelid]["sources"] = {}
 	I = 2
 	for i in range(I):
-		sourceID = "Source%02d" % (i+1)
-		ssd[sourceModelID]["sources"][sourceID] = {}
-		ssd[sourceModelID]["sources"][sourceID]["uncertainty_levels"] = ["Mmax", "MFD", "Dip", "Depth"]
-		ssd[sourceModelID]["sources"][sourceID]["unc_type"] = "absolute"
-		ssd[sourceModelID]["sources"][sourceID]["models"] = {}
+		sourceid = "Source%02d" % (i+1)
+		ssd[sourceModelid]["sources"][sourceid] = {}
+		ssd[sourceModelid]["sources"][sourceid]["uncertainty_levels"] = ["Mmax", "MFD", "Dip", "Depth"]
+		ssd[sourceModelid]["sources"][sourceid]["unc_type"] = "absolute"
+		ssd[sourceModelid]["sources"][sourceid]["models"] = {}
 		J = 2
 		for j in range(J):
-			MmaxID = "Mmax%02d" % (j+1)
-			ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID] = {}
-			ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["Mmax"] = 6.7
-			ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["weight"] = 1.0 / J
-			ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["unc_type"] = "absolute"
-			ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"] = {}
+			Mmaxid = "Mmax%02d" % (j+1)
+			ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid] = {}
+			ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["Mmax"] = 6.7
+			ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["weight"] = 1.0 / J
+			ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["unc_type"] = "absolute"
+			ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"] = {}
 			K = 2
 			for k in range(K):
-				mfdID = "MFD%02d" % (k+1)
-				ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID] = {}
-				ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["a"] = 2.4
-				ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["b"] = 0.89
-				ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["Mmin"] = 4.0
-				ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["weight"] = 1.0 / K
+				mfdid = "MFD%02d" % (k+1)
+				ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid] = {}
+				ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["a"] = 2.4
+				ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["b"] = 0.89
+				ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["Mmin"] = 4.0
+				ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["weight"] = 1.0 / K
 
-	ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["models"] = {}
+	ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["models"] = {}
 	L = 2
 	for l in range(L):
-		DipID = "Dip%02d" % (l+1)
-		ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["models"][DipID] = {}
-		ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["models"][DipID]["dip"] = 2.4
-		ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["models"][DipID]["weight"] = 1.0 / L
+		Dipid = "Dip%02d" % (l+1)
+		ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["models"][Dipid] = {}
+		ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["models"][Dipid]["dip"] = 2.4
+		ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["models"][Dipid]["weight"] = 1.0 / L
 
-	ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["models"][DipID]["models"] = {}
+	ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["models"][Dipid]["models"] = {}
 	M = 2
 	for m  in range(M):
-		DepthID = "Depth%02d" % (m+1)
-		ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["models"][DipID]["models"][DepthID] = {}
-		ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["models"][DipID]["models"][DepthID]["depth"] = 20
-		ssd[sourceModelID]["sources"][sourceID]["models"][MmaxID]["models"][mfdID]["models"][DipID]["models"][DepthID]["weight"] = 1.0 / M
+		Depthid = "Depth%02d" % (m+1)
+		ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["models"][Dipid]["models"][Depthid] = {}
+		ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["models"][Dipid]["models"][Depthid]["depth"] = 20
+		ssd[sourceModelid]["sources"][sourceid]["models"][Mmaxid]["models"][mfdid]["models"][Dipid]["models"][Depthid]["weight"] = 1.0 / M
 
 	source_system_lt = SeismicSourceSystem_v2("lt0", ssd)
 	#source_system_lt.print_xml()
@@ -314,12 +399,12 @@ if __name__ == '__main__':
 	source_system_lt.export_cfg(r"C:\Temp\source_model_system.cfg")
 	print
 	source_system_lt.print_system_dict()
-	print source_system_lt.getNumberOfBranches(sourceModelID, sourceID)
+	print source_system_lt.getNumberOfBranches(sourceModelid, sourceid)
 	"""
 
 	## Test walk_ssd_branches function
 	"""
-	topLevel = source_system_lt.source_system_dict[sourceModelID]["sources"][sourceID]["models"]
+	topLevel = source_system_lt.source_system_dict[sourceModelid]["sources"][sourceid]["models"]
 	for info in source_system_lt.walk_ssd_end_branches(topLevel):
 		print info
 	"""

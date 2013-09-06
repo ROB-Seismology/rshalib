@@ -61,6 +61,10 @@ class PMF(nhlib.pmf.PMF):
 	def __len__(self):
 		return len(self.data)
 
+	def __iter__(self):
+		for value, weight in self.data:
+			yield (nodal_plane, weight)
+
 
 class NumericPMF(PMF):
 	"""
@@ -147,6 +151,127 @@ class NumericPMF(PMF):
 		return self.from_values_and_weights(bin_centers_rounded, bin_weights)
 
 
+class GMPEPMF(PMF):
+	"""
+	Class representing GMPE uncertainties to be used in a logic tree
+
+	:param gmpe_names:
+		list of GMPE names
+	:param weights:
+		list of corresponding weights
+	"""
+	def __init__(self, gmpe_names, weights):
+		if len(gmpe_names) != len(weights):
+			raise Exception("Number of weights and number of GMPE names must be identical!")
+		data = zip(weights, gmpe_names)
+		super(GMPEPMF, self).__init__(data)
+
+	@property
+	def gmpe_names(self):
+		return self.values
+
+
+class SourceModelPMF(PMF):
+	"""
+	Class representing source-model uncertainties to be used in a logic tree
+
+	:param source_models:
+		list of instances of :class:`SourceModel`
+	:param weights:
+		list of corresponding weights
+	"""
+	def __init__(self, source_models, weights):
+		if len(source_models) != len(weights):
+			raise Exception("Number of weights and number of source models must be identical!")
+		data = zip(weights, source_models)
+		super(SourceModelPMF, self).__init__(data)
+
+	@property
+	def source_models(self):
+		return self.values
+
+
+class MmaxPMF(NumericPMF):
+	"""
+	Class representing Mmax uncertainties to be used in a logic tree
+
+	:param max_mags:
+		list of Mmax values
+	:param weights:
+		list of corresponding weights
+	:param absolute:
+		Bool, whether Mmax values are absolute (True) or relative (False) values
+	"""
+	def __init__(self, max_mags, weights, absolute):
+		if len(max_mags) != len(weights):
+			raise Exception("Number of weights and number of magnitudes must be identical!")
+		data = zip(weights, max_mags)
+		super(MmaxPMF, self).__init__(data)
+		self.absolute = absolute
+
+	@property
+	def max_mags(self):
+		return self.values
+
+
+class MFDPMF(PMF):
+	"""
+	Class representing MFD uncertainties to be used in a logic tree
+
+	:param mfd_values:
+		list with MFD values, either:
+		- relative increments to a b value
+		- (a, b) tuples
+		- arrays of incremental occurrence rates
+	:param weights:
+		list of corresponding weights
+	"""
+	def __init__(self, mfd_values, weights):
+		if len(mfd_values) != len(weights):
+			raise Exception("Number of weights and number of MFD values must be identical!")
+		data = zip(weights, mfd_values)
+		super(MFDPMF, self).__init__(data)
+
+	@property
+	def mfd_values(self):
+		return self.values
+
+	def is_bGRRelative(self):
+		"""
+		Determine whether MFD values are relative b values
+		"""
+		if isinstance(self.values[0], (int, float)):
+			return True
+		else:
+			return False
+
+	def is_abGRAbsolute(self):
+		"""
+		Determine whether MFD values are absolute (a, b) values
+		"""
+		try:
+			if len(self.values[0]) == 2:
+				return True
+			else:
+				return False
+		except:
+			return False
+
+	def is_incrementalMFDRates(self):
+		"""
+		Determine whether MFD values are incremental occurrence rates
+		for an EvenlyDiscretizedMFD. If the length of items in MFD values
+		is larger than two, they are considered to be occurrence rates.
+		"""
+		try:
+			if len(self.values[0]) > 2:
+				return True
+			else:
+				return False
+		except:
+			return False
+
+
 class NodalPlaneDistribution(PMF):
 	"""
 	Class representing a nodal-plane distribution
@@ -159,10 +284,12 @@ class NodalPlaneDistribution(PMF):
 	def __init__(self, nodal_planes, weights):
 		if len(nodal_planes) != len(weights):
 			raise Exception("Number of weights and number of nodal planes must be identical!")
-		self.nodal_planes = nodal_planes
-		#self.weights = np.array(weights)
 		data = zip(weights, nodal_planes)
 		super(NodalPlaneDistribution, self).__init__(data)
+
+	@property
+	def nodal_planes(self):
+		return self.values
 
 	def __iter__(self):
 		for nodal_plane, weight in zip(self.nodal_planes, self.weights):

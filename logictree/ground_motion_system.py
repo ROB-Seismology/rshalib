@@ -9,16 +9,24 @@ class GroundMotionSystem(LogicTree):
 	Class representing Ground Motion System
 	Inherits from LogicTree class
 
-	:param ID:
+	A ground motion system has the following constraints:
+	- Only one branch set can be defined per branching level.
+	- Each branch set must define uncertainties of type gmpeModel.
+	- All branch sets must define the applyToTectonicRegionType attribute.
+		This is the only attribute allowed.
+	- Each branch set must refer to a different tectonic region type.
+
+	:param id:
 		string, identifier
 	:param gmpe_system_def:
 		dictionary with tectonic region types as keys and instances of
 		:class:`PMF` as values, containing GMPE models and their weights
 	"""
-	def __init__(self, ID, gmpe_system_def):
-		LogicTree.__init__(self, ID, [])
+	def __init__(self, id, gmpe_system_def):
+		LogicTree.__init__(self, id, [])
 		self.gmpe_system_def = gmpe_system_def
 		self._construct_lt()
+		self.connect_branches()
 
 	def _construct_lt(self):
 		"""
@@ -26,16 +34,11 @@ class GroundMotionSystem(LogicTree):
 		This method is called during initialization
 		"""
 		for i, tectonicRegionType in enumerate(self.tectonicRegionTypes):
-			branchSetID = "lbs01"
-			branchSet = LogicTreeBranchSet(branchSetID, "gmpeModel", [], applyToTectonicRegionType=tectonicRegionType)
-			branchingLevelID = "lbl%02d" % i
-			branchingLevel = LogicTreeBranchingLevel(branchingLevelID, [branchSet])
-			for j, (weight, gmpe) in enumerate(self.gmpe_system_def[tectonicRegionType].data):
-				branchID = "lbl%02d_lb%02d" % (i, j)
-				#branch = LogicTreeBranch(branchID, nhlib.gsim.get_available_gsims()[gmpe], weight)
-				branch = LogicTreeBranch(branchID, gmpe, weight)
-				branchSet.branches.append(branch)
-			self.branchingLevels.append(branchingLevel)
+			branchingLevelID = "bl%02d" % i
+			branchSetID = "%s_bs01" % branchingLevelID
+			branch_set = LogicTreeBranchSet.from_PMF(branchSetID, self.gmpe_system_def[tectonicRegionType], applyToTectonicRegionType=tectonicRegionType)
+			branching_level = LogicTreeBranchingLevel(branchingLevelID, [branch_set])
+			self.branching_levels.append(branching_level)
 
 	def validate(self):
 		"""

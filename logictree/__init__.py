@@ -15,4 +15,4 @@ from logictree import LogicTreeBranch, LogicTreeBranchSet, LogicTreeBranchingLev
 
 from ground_motion_system import GroundMotionSystem
 
-from seismic_source_system import SeismicSourceSystem_v1, SeismicSourceSystem_v2, SymmetricRelativeSeismicSourceSystem, create_basic_seismicSourceSystem
+from seismic_source_system import SeismicSourceSystem, SeismicSourceSystem_v1, SeismicSourceSystem_v2, SymmetricRelativeSeismicSourceSystem, create_basic_seismicSourceSystem

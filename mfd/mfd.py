@@ -444,14 +444,14 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 
 		:return:
 			(prior, likelihood, posterior, params) tuple
-			- prior: instance of :class:`NumericPMF`, prior distribution
-			- likelihood: instance of :class:`NumericPMF`, likelihood distribution
-			- posterior: instance of :class:`NumericPMF`, posterior distribution
+			- prior: instance of :class:`MmaxPMF`, prior distribution
+			- likelihood: instance of :class:`MmaxPMF`, likelihood distribution
+			- posterior: instance of :class:`MmaxPMF`, posterior distribution
 			- params: (observed Mmax, n, b) tuple
 		"""
 		from matplotlib import mlab
 		from scitools.numpytools import seq
-		from ..pmf import NumericPMF
+		from ..pmf import MmaxPMF
 
 		## Global prior distributions
 		if prior_model == "EPRI_extended":
@@ -509,9 +509,9 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		posterior /= np.sum(posterior)
 
 		## Replace zero probabilities with very small values to avoid error in PMF
-		prior_pmf = NumericPMF.from_values_and_weights(magnitudes, prior.clip(1E-8))
-		likelihood_pmf = NumericPMF.from_values_and_weights(magnitudes, likelihood.clip(1E-8))
-		posterior_pmf = NumericPMF.from_values_and_weights(magnitudes, posterior.clip(1E-8))
+		prior_pmf = MmaxPMF.from_values_and_weights(magnitudes, prior.clip(1E-8))
+		likelihood_pmf = MmaxPMF.from_values_and_weights(magnitudes, likelihood.clip(1E-8))
+		posterior_pmf = MmaxPMF.from_values_and_weights(magnitudes, posterior.clip(1E-8))
 		params = (Mmax_obs, n, b_val)
 
 		return prior_pmf, likelihood_pmf, posterior_pmf, params
