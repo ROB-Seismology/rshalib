@@ -2874,6 +2874,41 @@ class BooreAtkinson2008(NhlibGMPE):
 			self.plot_distance(7.0, 7.0, 1.0, imt="SA", T=T, vs30=vs30, mechanism="strike-slip", imt_unit="cms2", amin=amin, amax=amax, plot_style="loglog", dmin=0.5, dmax=200)
 
 
+class BooreAtkinson2008Prime(NhlibGMPE):
+	def __init__(self):
+		name, short_name = "BooreAtkinson2008Prime", "BA_2008'"
+		distance_metric = "Joyner-Boore"
+		#Mmin, Mmax = 4.27, 7.9
+		#dmin, dmax = 0., 280.
+		Mmin, Mmax = 5.0, 8.0
+		dmin, dmax = 4., 200.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+		"""
+		"""
+		if vs30 is None:
+			if soil_type == "rock":
+				vs30 = 760.
+			else:
+				raise SoilTypeNotSupportedError(soil_type)
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
+
+	def plot_Figure7(self, period=0.3):
+		"""
+		Plot figure 7 in Atkinson and Boore (2011).
+		
+		:param period:
+			float, 0.3 or 1. (default: 0.3)
+		
+		NOTE: hack is required: unspecified rake must be used
+		"""
+		plot_distance([self, BooreAtkinson2008()], Mmin=4., Mmax=4., Mstep=1., dmin=1., dmax=200., h=0, imt="SA", T=period, imt_unit="cms2", mechanism="normal", damping=5, plot_style="loglog", amin={0.3: 0.01, 1.: 0.001}[period], amax={0.3: 1000, 1.: 100}[period], want_minor_grid=True)
+
+
 class Campbell2003(NhlibGMPE):
 	def __init__(self):
 		name, short_name = "Campbell2003", "C_2003"
