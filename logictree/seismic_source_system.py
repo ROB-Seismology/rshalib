@@ -69,7 +69,7 @@ class SeismicSourceSystem(LogicTree):
 				branching_level_id = "bl01"
 				# TODO: check branching_level_id
 				#branch_set_id = "%s_bs00" % branching_level_id
-				branch_set_id = "None__None__%s" % unc_type
+				branch_set_id = "None_None_%s" % unc_type
 				branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc2_pmf_dict[None], applyToBranches=applyToBranches, applyToSources=applyToSources)
 				branching_level = LogicTreeBranchingLevel(branching_level_id, [branch_set])
 				branching_levels.append(branching_level)
@@ -97,7 +97,7 @@ class SeismicSourceSystem(LogicTree):
 					except:
 						branch_set_nr = 0
 					#branch_set_id = "%s_bs%02d" % (branching_level_id, branch_set_nr)
-					branch_set_id = "%s__%s__%s" % (sm_name, src_id, unc_type)
+					branch_set_id = "%s_%s_%s" % (sm_name, src_id, unc_type)
 					branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc2_pmf_dict[src_id], applyToBranches=applyToBranches, applyToSources=applyToSources)
 					try:
 						branching_level = branching_levels[branching_level_nr]
@@ -124,6 +124,7 @@ class SeismicSourceSystem(LogicTree):
 				for prev_level_sm_name in bl_branch_ids.keys():
 					if len(bl_branch_ids) == 1:
 						applyToBranches = []
+						branch_set_id = "%s_None_%s" % (prev_level_sm_name, unc_type)
 					else:
 						other_sm_names = bl_branch_ids.keys()
 						other_sm_names.remove(prev_level_sm_name)
@@ -131,11 +132,11 @@ class SeismicSourceSystem(LogicTree):
 						if (num_branching_levels == len(bl_branch_ids[prev_level_sm_name])).all():
 							## Same branching level for different source models
 							applyToBranches = []
-							branch_set_id = "None__None__%s" % (unc_type)
+							branch_set_id = "None_None_%s" % (unc_type)
 						else:
 							## Branching level different for different source models
 							applyToBranches = bl_branch_ids[prev_level_sm_name][-1]
-							branch_set_id = "%s__None__%s" % (prev_level_sm_name, unc_type)
+							branch_set_id = "%s_None_%s" % (prev_level_sm_name, unc_type)
 
 					branching_level_nr = len(bl_branch_ids[prev_level_sm_name]) + 1
 					branching_level_id = "bl%02d" % branching_level_nr
@@ -178,7 +179,7 @@ class SeismicSourceSystem(LogicTree):
 					except:
 						branch_set_nr = 0
 					#branch_set_id = "%s_bs%02d" % (branching_level_id, branch_set_nr)
-					branch_set_id = "%s__%s__%s" % (sm_name, src_id, unc_type)
+					branch_set_id = "%s_%s_%s" % (sm_name, src_id, unc_type)
 					branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc3_pmf_dict[src_id], applyToBranches=applyToBranches, applyToSources=applyToSources)
 					try:
 						branching_level = branching_levels[branching_level_nr]

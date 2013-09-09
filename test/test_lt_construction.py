@@ -53,10 +53,10 @@ for sm in source_models:
 ## Mix of the above:
 ## - relative uncertainties for all sources in a source model in first level
 ## - relative uncertainties for all source models in second level
-#Mmax_pmf_dict = {}
-#for sm in source_models:
-#	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}
-#MFD_pmf_dict = {None: {None: rshalib.pmf.MFDPMF([-0.1, 0.1], [0.4, 0.6])}}
+Mmax_pmf_dict = {}
+for sm in source_models:
+	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}
+MFD_pmf_dict = {None: {None: rshalib.pmf.MFDPMF([-0.1, 0.1], [0.4, 0.6])}}
 ## This doesn't / shouldn't work
 ## - relative uncertainties for all source models in a source model in first level
 ## - relative uncertainties for all sources in second level
@@ -68,7 +68,7 @@ for sm in source_models:
 
 ## Construct logic tree
 source_model_lt = rshalib.logictree.SeismicSourceSystem.from_independent_uncertainty_levels("lt", source_model_pmf, Mmax_pmf_dict, MFD_pmf_dict)
-#print source_model_lt.are_branch_ids_unique()
+print source_model_lt.are_branch_ids_unique()
 #source_model_lt.print_xml()
 source_model_lt.write_xml(r"C:\Temp\seismic_source_system.xml")
 source_model_lt.plot_diagram()
@@ -78,10 +78,11 @@ source_model_lt2 = SourceModelLogicTree(None, basepath=r"C:\Temp", filename="sei
 from hazard.psha.Projects.SHRE_NPP.params.gmpe import gmpe_system
 #gmpe_system.plot_diagram()
 
-ltp = LogicTreeProcessor(None, source_model_lt=source_model_lt2, gmpe_lt=gmpe_system)
-#for i in range(10):
-#	value, path = ltp.sample_source_model_logictree(i)
-#	print value, path
+ltp = LogicTreeProcessor(None, source_model_lt=source_model_lt, gmpe_lt=gmpe_system)
+for i in range(3):
+	value, path = ltp.sample_source_model_logictree(i)
+	print value, path
+	source_model_lt.plot_diagram(highlight_path=path)
 
-for i, (smlt_path_weight, smlt_path) in enumerate(ltp.source_model_lt.root_branchset.enumerate_paths()):
-	print i, smlt_path_weight, [branch.branch_id for branch in smlt_path]
+#for i, (smlt_path_weight, smlt_path) in enumerate(ltp.source_model_lt.root_branchset.enumerate_paths()):
+#	print i, smlt_path_weight, [branch.branch_id for branch in smlt_path]

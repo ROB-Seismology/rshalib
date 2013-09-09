@@ -479,10 +479,13 @@ class LogicTree(object):
 					pos[branch.branch_id] = (l+1+0.5, ymin + b*(dy/(num_branches-1)))
 		return pos
 
-	def plot_diagram(self):
+	def plot_diagram(self, highlight_path=[]):
 		"""
 		Plot diagram of logic tree using networkx or pygraphviz.
 		Requires branches to be connected.
+
+		:param highlight_path:
+			list of strings: branch ID's of path to highlight
 		"""
 		import networkx as nx
 		import matplotlib.pyplot as plt
@@ -512,6 +515,14 @@ class LogicTree(object):
 		nx.draw_networkx_nodes(graph, pos, nodelist=gmpe_branchset_nodes, node_shape='>', node_color='blue', node_size=500)
 		nx.draw_networkx_nodes(graph, pos, nodelist=branch_nodes, node_color='white', node_size=250)
 		nx.draw_networkx_edges(graph, pos)
+		if highlight_path:
+			for branch_id in highlight_path:
+				branch = self.get_branch_by_id(branch_id)
+				parent_branchset_id = branch.parent_branchset.id
+				nx.draw_networkx_edges(graph, pos, edgelist=[(parent_branchset_id, branch_id)], edge_color='r', width=3)
+				if branch.child_branchset:
+					child_branchset_id = branch.child_branchset.id
+					nx.draw_networkx_edges(graph, pos, edgelist=[(branch_id, child_branchset_id)], edge_color='r', width=3)
 		labels = {}
 		for branch_id in branch_nodes:
 			labels[branch_id] = branch_id
