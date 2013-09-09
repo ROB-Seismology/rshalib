@@ -6,7 +6,7 @@ Classes representing NRML elements used in OpenQuake logic trees
 to generate xml elements that can be used to build a NRML document
 """
 
-import numpy
+import numpy as np
 import pprint
 from lxml import etree
 from decimal import Decimal
@@ -32,8 +32,9 @@ class LogicTreeBranch(oqlt.Branch):
 		weight: specifying the probability/weight associated to
 			the value
 	"""
-	def __init__(self, branch_id, weight, value):
+	def __init__(self, branch_id, weight, value, parent_branchset=None):
 		super(LogicTreeBranch, self).__init__(branch_id, weight, value)
+		self.parent_branchset = parent_branchset
 
 	def validate(self):
 		pass
@@ -42,9 +43,13 @@ class LogicTreeBranch(oqlt.Branch):
 		"""
 		Create xml element (NRML logicTreeBranch element)
 		"""
-		lb_elem = etree.Element(ns.LOGICTREE_BRANCH, branchid=self.branch_id)
+		lb_elem = etree.Element(ns.LOGICTREE_BRANCH, branchID=self.branch_id)
 		um_elem = etree.SubElement(lb_elem, ns.UNCERTAINTY_MODEL)
-		um_elem.text = xmlstr(self.value)
+		if hasattr(self.value, '__iter__'):
+			value = "  ".join(map(str, self.value))
+		else:
+			value = self.value
+		um_elem.text = xmlstr(value)
 		uw_elem = etree.SubElement(lb_elem, ns.UNCERTAINTY_WEIGHT)
 		uw_elem.text = str(self.weight)
 		return lb_elem
@@ -105,6 +110,9 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 	def __iter__(self):
 		return iter(self.branches)
 
+	def __len__(self):
+		return len(self.branches)
+
 	@classmethod
 	def from_PMF(cls, id, pmf, applyToBranches=[], applyToSources=[], applyToSourceType="", applyToTectonicRegionType=""):
 		"""
@@ -138,20 +146,29 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 				# TODO: not yet implemented in OQ
 				pass
 
-		# TODO: implement different formatting, e.g. for abGRAbsolute, sourceModel, incrementalMFDRates
 		branches = []
 		for i, (weight, model) in enumerate(pmf.data):
-			branch_id = "%s_b%02d" % (id, i)
-			branch = LogicTreeBranch(branch_id, weight, model)
+			if isinstance(pmf, SourceModelPMF):
+				## Models can be SourceModel objects or source model names
+				if not isinstance(model, (str, unicode)):
+					model = model.name
+				## Add .xml extension if necessary
+				if not model[-4:] == ".xml":
+					model += ".xml"
+			branch_id = "%s%02d" % (id, i+1)
+			branch = LogicTreeBranch(branch_id, weight, model, parent_branchset=None)
 			branches.append(branch)
-		return LogicTreeBranchSet(id, uncertainty_type, branches, applyToBranches=applyToBranches, applyToSources=applyToSources, applyToSourceType=applyToSourceType, applyToTectonicRegionType=applyToTectonicRegionType)
+		branchset = LogicTreeBranchSet(id, uncertainty_type, branches, applyToBranches=applyToBranches, applyToSources=applyToSources, applyToSourceType=applyToSourceType, applyToTectonicRegionType=applyToTectonicRegionType)
+		for branch in branchset:
+			branch.parent_branchset = branchset
+		return branchset
 
 	def validate_weights(self):
 		"""
 		Check if weights of child branches sums up to 1.0
 		"""
 		weights = [branch.weight for branch in self.branches]
-		if abs(Decimal(1.0) - numpy.add.reduce(weights)) > 1E-3:
+		if abs(Decimal(1.0) - np.add.reduce(weights)) > 1E-3:
 			raise NRMLError("BranchSet %s: branches do not sum to 1.0" % self.id)
 
 	def validate_unc_type(self):
@@ -176,7 +193,7 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		"""
 		Create xml element (NRML logicTreeBranchSet element)
 		"""
-		lbs_elem = etree.Element(ns.LOGICTREE_BRANCHSET, branch_setid=self.id, uncertainty_type=self.uncertainty_type)
+		lbs_elem = etree.Element(ns.LOGICTREE_BRANCHSET, branchSetID=self.id, uncertaintyType=self.uncertainty_type)
 		if self.filters["applyToBranches"]:
 			lbs_elem.set("applyToBranches", " ".join(map(str, self.filters["applyToBranches"])))
 		if self.filters["applyToSources"]:
@@ -209,6 +226,9 @@ class LogicTreeBranchingLevel():
 	def __iter__(self):
 		return iter(self.branch_sets)
 
+	def __len__(self):
+		return len(self.branch_sets)
+
 	def validate(self):
 		"""
 		Validate
@@ -220,7 +240,7 @@ class LogicTreeBranchingLevel():
 		"""
 		Create xml element (NRML logicTreeBranchingLevel element)
 		"""
-		lbl_elem = etree.Element(ns.LOGICTREE_BRANCHINGLEVEL, branchingLevelid=self.id)
+		lbl_elem = etree.Element(ns.LOGICTREE_BRANCHINGLEVEL, branchingLevelID=self.id)
 		for branch_set in self.branch_sets:
 			lbs_elem = branch_set.create_xml_element()
 			lbl_elem.append(lbs_elem)
@@ -261,7 +281,7 @@ class LogicTree(object):
 		"""
 		Create xml element (NRML root element)
 		"""
-		lt_elem = etree.Element(ns.LOGICTREE, logicTreeid=self.id)
+		lt_elem = etree.Element(ns.LOGICTREE, logicTreeID=self.id)
 		for branching_level in self.branching_levels:
 			lbl_elem = branching_level.create_xml_element()
 			lt_elem.append(lbl_elem)
@@ -310,6 +330,7 @@ class LogicTree(object):
 		its "applyToBranches" filter.
 		All branches are collected in a flat list that is set as the branches
 		property of the logic tree.
+		Connected branches are required for the logic tree processor.
 		"""
 		## Store all branches in self.branches,
 		## and set child_branchset of every branch
@@ -330,6 +351,172 @@ class LogicTree(object):
 		self.branches = sum(all_branches, [])
 
 		# TODO: write alternative version, with child_branchset as dictionary
+		# TODO: adjust oq-engine logictree to parse xml files, not necessarily
+		# read from dbase
+
+	def are_branch_ids_unique(self):
+		"""
+		Determine whether or not all branch ID's are unique
+
+		:return:
+			Bool
+		"""
+		branch_ids = []
+		for branching_level in self:
+			for branch_set in branching_level:
+				for branch in branch_set:
+					if branch.branch_id in branch_ids:
+						return False
+					else:
+						branch_ids.append(branch.branch_id)
+		return True
+
+	def get_branching_level_index(self, branchset):
+		"""
+		Determine which branching level the given branchset belongs to.
+
+		:param branchset:
+			instance of :class:`LogicTreeBranchSet`
+
+		:return:
+			Int
+		"""
+		for i, branching_level in enumerate(self):
+			for bs in branching_level:
+				if bs.id == branchset.id:
+					return i
+
+	def get_branch_by_id(self, branch_id):
+		"""
+		Return branch with given ID.
+
+		:param branch_id:
+			string, branch ID
+
+		:return:
+			instance of :class:`LogicTreeBranch`
+		"""
+		for branching_level in self:
+			for branchset in branching_level:
+				for branch in branchset:
+					if branch.branch_id == branch_id:
+						return branch
+
+	def get_parent_branches(self, branchset):
+		"""
+		Return list with parent branches of given branchset
+		:param branchset:
+			instance of :class:`LogicTreeBranchSet`
+
+		:return:
+			list with instances of :class:`LogicTreeBranch`
+		"""
+		applyToBranches = branchset.filters["applyToBranches"]
+		if applyToBranches:
+			branches = [self.get_branch_by_id(branch_id) for branch_id in applyToBranches]
+		else:
+			branches = []
+			if branchset != self.root_branchset:
+				parent_bl_index = self.get_branching_level_index(branchset) - 1
+				parent_bl = self.branching_levels[parent_bl_index]
+				for bs in parent_bl:
+					branches.extend(bs.branches)
+		return branches
+
+	def get_branchsets(self, unc_class=None):
+		"""
+		Return a list of all branch sets in the logic tree
+
+		:param unc_class:
+			string, uncertainty class: "gmpe", "source_model", "mfd", "mmax"
+			(default: None)
+
+		:return:
+			list with instances of :class:`LogicTreeBranchSet`
+		"""
+		branchsets = []
+		for branching_level in self:
+			if not unc_class:
+				branchsets.extend(branching_level.branch_sets)
+			else:
+				unc_types = {"gmpe": ["gmpeModel"], "source_model": ["sourceModel"], "mfd": ["abGRAbsolute", "bGRRelative", "incrementalMFDRates"], "mmax": ["maxMagGRRelative", "maxMagGRAbsolute"]}[unc_class]
+				for branchset in branching_level:
+					if branchset.uncertainty_type in unc_types:
+						branchsets.append(branchset)
+		return branchsets
+
+	def _calc_diagram_positions(self):
+		"""
+		Compute x and y positions of branchsets and branches in networkx diagram.
+		Helper function for func:`plot_diagram`
+
+		:return:
+			dict {id: (x,y)}
+		"""
+		pos = {}
+		pos[self.root_branchset.id] = (0, 0.5)
+		num_branches = len(self.root_branchset)
+		for b, branch in enumerate(self.root_branchset):
+			pos[branch.branch_id] = (0.5, 1./num_branches/2 + b*(1./num_branches))
+		for l, branching_level in enumerate(self.branching_levels[1:]):
+			num_branchsets = len(branching_level)
+			for s, branchset in enumerate(branching_level):
+				num_branches = len(branchset)
+				parent_branches = self.get_parent_branches(branchset)
+				parent_branch_y = np.array([pos[pb.branch_id][1] for pb in parent_branches], dtype='f')
+				y = parent_branch_y.mean()
+				if len(parent_branches) > 1:
+					ymin, ymax = parent_branch_y.min(), parent_branch_y.max()
+				else:
+					ymin = y - (1. / num_branchsets) + 1./num_branchsets/4
+					ymax = y + (1. / num_branchsets) - 1./num_branchsets/4
+					dy = float(ymax - ymin)
+					ymin, ymax = ymin + dy/(num_branches-1)/2, ymax-dy/(num_branches-1)/2
+				pos[branchset.id] = (l+1, y)
+				for b, branch in enumerate(branchset):
+					dy = float(ymax - ymin)
+					#pos[branch.branch_id] = (l+1+0.5, ymin + dy/num_branches/2 + b*(dy/num_branches))
+					pos[branch.branch_id] = (l+1+0.5, ymin + b*(dy/(num_branches-1)))
+		return pos
+
+	def plot_diagram(self):
+		"""
+		Plot diagram of logic tree using networkx or pygraphviz.
+		Requires branches to be connected.
+		"""
+		import networkx as nx
+		import matplotlib.pyplot as plt
+		all_branches = self.branches
+		all_branchsets = self.get_branchsets()
+		mfd_branchsets = self.get_branchsets("mfd")
+		mmax_branchsets = self.get_branchsets("mmax")
+		gmpe_branchsets = self.get_branchsets("gmpe")
+
+		graph = nx.Graph()
+		branchset_nodes = [branchset.id for branchset in all_branchsets]
+		mfd_branchset_nodes = [branchset.id for branchset in mfd_branchsets]
+		mmax_branchset_nodes = [branchset.id for branchset in mmax_branchsets]
+		gmpe_branchset_nodes = [branchset.id for branchset in gmpe_branchsets]
+		branch_nodes = [branch.branch_id for branch in all_branches]
+		graph.add_nodes_from(branchset_nodes)
+		graph.add_nodes_from(branch_nodes)
+		for branch in self.branches:
+			graph.add_edge(branch.parent_branchset.id, branch.branch_id)
+			if branch.child_branchset:
+				graph.add_edge(branch.branch_id, branch.child_branchset.id)
+
+		pos = self._calc_diagram_positions()
+		nx.draw_networkx_nodes(graph, pos, nodelist=[self.root_branchset.id], node_shape='>', node_color='red', node_size=500)
+		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_branchset_nodes, node_shape='>', node_color='yellow', node_size=500)
+		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_branchset_nodes, node_shape='>', node_color='green', node_size=500)
+		nx.draw_networkx_nodes(graph, pos, nodelist=gmpe_branchset_nodes, node_shape='>', node_color='blue', node_size=500)
+		nx.draw_networkx_nodes(graph, pos, nodelist=branch_nodes, node_color='white', node_size=250)
+		nx.draw_networkx_edges(graph, pos)
+		labels = {}
+		for branch_id in branch_nodes:
+			labels[branch_id] = branch_id
+		nx.draw_networkx_labels(graph, pos, labels=labels, size=8, verticalalignment="bottom")
+		plt.show()
 
 
 

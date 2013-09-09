@@ -163,7 +163,7 @@ class GMPEPMF(PMF):
 	def __init__(self, gmpe_names, weights):
 		if len(gmpe_names) != len(weights):
 			raise Exception("Number of weights and number of GMPE names must be identical!")
-		data = zip(weights, gmpe_names)
+		data = data = PMF.from_values_and_weights(gmpe_names, weights).data
 		super(GMPEPMF, self).__init__(data)
 
 	@property
@@ -183,7 +183,7 @@ class SourceModelPMF(PMF):
 	def __init__(self, source_models, weights):
 		if len(source_models) != len(weights):
 			raise Exception("Number of weights and number of source models must be identical!")
-		data = zip(weights, source_models)
+		data = PMF.from_values_and_weights(source_models, weights).data
 		super(SourceModelPMF, self).__init__(data)
 
 	@property
@@ -205,7 +205,7 @@ class MmaxPMF(NumericPMF):
 	def __init__(self, max_mags, weights, absolute):
 		if len(max_mags) != len(weights):
 			raise Exception("Number of weights and number of magnitudes must be identical!")
-		data = zip(weights, max_mags)
+		data = data = PMF.from_values_and_weights(max_mags, weights).data
 		super(MmaxPMF, self).__init__(data)
 		self.absolute = absolute
 
@@ -229,7 +229,7 @@ class MFDPMF(PMF):
 	def __init__(self, mfd_values, weights):
 		if len(mfd_values) != len(weights):
 			raise Exception("Number of weights and number of MFD values must be identical!")
-		data = zip(weights, mfd_values)
+		data = data = PMF.from_values_and_weights(mfd_values, weights).data
 		super(MFDPMF, self).__init__(data)
 
 	@property

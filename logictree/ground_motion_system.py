@@ -35,7 +35,8 @@ class GroundMotionSystem(LogicTree):
 		"""
 		for i, tectonicRegionType in enumerate(self.tectonicRegionTypes):
 			branchingLevelID = "bl%02d" % i
-			branchSetID = "%s_bs01" % branchingLevelID
+			#branchSetID = "%s_bs01" % branchingLevelID
+			branchSetID = "".join([word[0].upper() for word in tectonicRegionType.split()])
 			branch_set = LogicTreeBranchSet.from_PMF(branchSetID, self.gmpe_system_def[tectonicRegionType], applyToTectonicRegionType=tectonicRegionType)
 			branching_level = LogicTreeBranchingLevel(branchingLevelID, [branch_set])
 			self.branching_levels.append(branching_level)
