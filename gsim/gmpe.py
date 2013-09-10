@@ -699,24 +699,23 @@ class GMPE(object):
 		else:
 			pylab.show()
 
-	def plot_distance(self, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_style="loglog", amin=None, amax=None, color='k', fig_filespec=None, title="", want_minor_grid=False, legend_location=0, lang="en"):
+	def plot_distance(self, mags, dmin=None, dmax=None, distance_metric=None, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_style="loglog", amin=None, amax=None, color='k', fig_filespec=None, title="", want_minor_grid=False, legend_location=0, lang="en"):
 		"""
 		Plot ground motion versus distance for this GMPE.
 		Horizontal axis: distances.
 		Vertical axis: ground motion values.
 
-		:param Mmin:
-			Float, lower magnitude to plot.
-		:param Mmax:
-			Float, upper magnitude to plot.
-		:param Mstep:
-			Float, magnitude step to plot magnitudes between Mmin and Mmax.
+		:param mags:
+			list of floats, magnitudes to plot
 		:param dmin:
 			Float, lower distance in km. If None, use the lower bound of the
 			distance range of each GMPE (default: None).
 		:param dmax:
 			Float, upper distance in km. If None, use the lower bound of the
 			valid distance range of each GMPE (default: None).
+		:param distance_metric:
+			str, distance_metric to plot (options: "rjb", "rrup")
+			(default: None, distance metrics of gmpes are used)
 		:param h:
 			Float, depth in km. Ignored if distance metric of GMPE is epicentral
 			or Joyner-Boore (default: 0).
@@ -777,20 +776,16 @@ class GMPE(object):
 			String, shorthand for language of annotations. Currently only
 			"en" and "nl" are supported (default: "en").
 		"""
-		plot_distance([self], Mmin=Mmin, Mmax=Mmax, Mstep=Mstep, dmin=dmin, dmax=dmax, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, plot_style=plot_style, amin=amin, amax=amax, colors=[color], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
+		plot_distance([self], mags=mags, dmin=dmin, dmax=dmax, distance_metric=distance_metric, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, plot_style=plot_style, amin=amin, amax=amax, colors=[color], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
 
-	def plot_spectrum(self, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_freq=False, plot_style="loglog", amin=None, amax=None, color='k', label=None, fig_filespec=None, title="", want_minor_grid=False, include_pgm=True, legend_location=None, lang="en"):
+	def plot_spectrum(self, mags, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_freq=False, plot_style="loglog", amin=None, amax=None, color='k', label=None, fig_filespec=None, title="", want_minor_grid=False, include_pgm=True, legend_location=None, lang="en"):
 		"""
 		Plot ground motion spectrum for this GMPE.
 		Horizontal axis: spectral periods or frequencies.
 		Vertical axis: ground motion values.
 
-		:param Mmin:
-			Float, lower magnitude to plot.
-		:param Mmax:
-			Float, upper magnitude to plot.
-		:param Mstep:
-			Float, magnitude step to plot magnitudes between Mmin and Mmax.
+		:param mags:
+			list of floats, magnitudes to plot
 		:param d:
 			Float, distance in km.
 		:param h:
@@ -870,7 +865,7 @@ class GMPE(object):
 			Tmin = self.Tmin(imt)
 		if Tmax is None:
 			Tmax = self.Tmax(imt)
-		plot_spectrum([self], Mmin=Mmin, Mmax=Mmax, Mstep=Mstep, d=d, h=h, imt=imt, Tmin=Tmin, Tmax=Tmax, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, include_pgm=include_pgm, plot_freq=plot_freq, plot_style=plot_style, amin=amin, amax=amax, colors=[color], labels=[label], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
+		plot_spectrum([self], mags=mags, d=d, h=h, imt=imt, Tmin=Tmin, Tmax=Tmax, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, include_pgm=include_pgm, plot_freq=plot_freq, plot_style=plot_style, amin=amin, amax=amax, colors=[color], labels=[label], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
 
 
 class Ambraseys1995DDGMPE(GMPE):
@@ -1170,7 +1165,7 @@ class AmbraseysEtAl1996GMPE(GMPE):
 		"""
 		Plot Figure 4 in the paper of Ambraseys et al. (1996)
 		"""
-		self.plot_distance(Mmin=5, Mmax=7, Mstep=1, dmin=1, dmax=1E3, amin=1E-3, amax=1)
+		self.plot_distance(mags=[5., 6., 7.], dmin=1, dmax=1E3, amin=1E-3, amax=1)
 
 	def plot_Figure17(self, soil_type="rock"):
 		"""
@@ -1179,7 +1174,7 @@ class AmbraseysEtAl1996GMPE(GMPE):
 		:param soil_type:
 			String, either "rock", "stiff" or "soft" (default: "rock").
 		"""
-		self.plot_spectrum(Mmin=5, Mmax=5, Mstep=1, d=10, plot_style="lin", Tmin=0, Tmax=2.0, amax=0.4, include_pgm=False, soil_type=soil_type, want_minor_grid=True)
+		self.plot_spectrum(mags=[5.], d=10, plot_style="lin", Tmin=0, Tmax=2.0, amax=0.4, include_pgm=False, soil_type=soil_type, want_minor_grid=True)
 
 	def plot_Figure18(self, soil_type="rock"):
 		"""
@@ -1188,7 +1183,7 @@ class AmbraseysEtAl1996GMPE(GMPE):
 		:param soil_type:
 			String, either "rock", "stiff" or "soft" (default: "rock").
 		"""
-		self.plot_spectrum(Mmin=7, Mmax=7, Mstep=1, d=10, plot_style="lin", Tmin=0, Tmax=2.0, amax=1.15, include_pgm=False, soil_type=soil_type, want_minor_grid=True)
+		self.plot_spectrum(mags=[7.], d=10, plot_style="lin", Tmin=0, Tmax=2.0, amax=1.15, include_pgm=False, soil_type=soil_type, want_minor_grid=True)
 
 	def plot_Figure19(self, soil_type="rock"):
 		"""
@@ -1197,7 +1192,7 @@ class AmbraseysEtAl1996GMPE(GMPE):
 		:param soil_type:
 			String, either "rock", "stiff" or "soft" (default: "rock").
 		"""
-		self.plot_spectrum(Mmin=7, Mmax=7, Mstep=1, d=40, plot_style="lin", Tmin=0, Tmax=2.0, amax=0.37, include_pgm=False, soil_type=soil_type, want_minor_grid=True)
+		self.plot_spectrum(mags=[7.], d=40, plot_style="lin", Tmin=0, Tmax=2.0, amax=0.37, include_pgm=False, soil_type=soil_type, want_minor_grid=True)
 
 
 class BergeThierry2003GMPE(GMPE):
@@ -1441,7 +1436,7 @@ class BergeThierry2003GMPE(GMPE):
 		:param soil_type:
 			String, either "rock" or "alluvium" (default: "rock").
 		"""
-		self.plot_spectrum(Mmin=6.5, Mmax=6.5, Mstep=1, d=20, plot_style="loglog", plot_freq=True, Tmin=1E-2, Tmax=10, amin=1E-2, amax=10, include_pgm=False, soil_type=soil_type, want_minor_grid=True)
+		self.plot_spectrum(mags=[6.5], d=20, plot_style="loglog", plot_freq=True, Tmin=1E-2, Tmax=10, amin=1E-2, amax=10, include_pgm=False, soil_type=soil_type, want_minor_grid=True)
 
 	def plot_Figure7(self, soil_type="rock"):
 		"""
@@ -1450,19 +1445,19 @@ class BergeThierry2003GMPE(GMPE):
 		:param soil_type:
 			String, either "rock" or "alluvium" (default: "rock").
 		"""
-		self.plot_spectrum(Mmin=5.5, Mmax=5.5, Mstep=1, d=20, plot_style="loglog", plot_freq=True, Tmin=1E-2, Tmax=10, amin=1E-2, amax=10, include_pgm=False, soil_type=soil_type, want_minor_grid=True)
+		self.plot_spectrum(mags=[5.5], d=20, plot_style="loglog", plot_freq=True, Tmin=1E-2, Tmax=10, amin=1E-2, amax=10, include_pgm=False, soil_type=soil_type, want_minor_grid=True)
 
 	def plot_Figure10(self):
 		"""
 		Plot Figure 10 in the paper of Berge-Thierry et al. (2003)
 		"""
-		self.plot_spectrum(Mmin=6.0, Mmax=6.0, Mstep=1, d=30, plot_style="loglog", plot_freq=True, Tmin=1E-2, Tmax=10, epsilon=1, amin=1E-4, amax=5, include_pgm=False, soil_type="rock", want_minor_grid=True)
+		self.plot_spectrum(mags=[6.], d=30, plot_style="loglog", plot_freq=True, Tmin=1E-2, Tmax=10, epsilon=1, amin=1E-4, amax=5, include_pgm=False, soil_type="rock", want_minor_grid=True)
 
 	def plot_Figure11(self):
 		"""
 		Plot Figure 11 in the paper of Berge-Thierry et al. (2003)
 		"""
-		self.plot_spectrum(Mmin=6.0, Mmax=6.0, Mstep=1, d=30, plot_style="loglog", plot_freq=True, Tmin=1E-2, Tmax=10, epsilon=1, amin=1E-4, amax=5, include_pgm=False, soil_type="alluvium", want_minor_grid=True)
+		self.plot_spectrum(mags=[6.], d=30, plot_style="loglog", plot_freq=True, Tmin=1E-2, Tmax=10, epsilon=1, amin=1E-4, amax=5, include_pgm=False, soil_type="alluvium", want_minor_grid=True)
 
 
 class CauzziFaccioli2008GMPE(GMPE):
@@ -1802,7 +1797,7 @@ class CauzziFaccioli2008GMPE(GMPE):
 		elif M == 7.:
 			amax = 30
 		title = "Cauzzi & Faccioli (2008) - Figure 4"
-		self.plot_spectrum(Mmin=M, Mmax=M, Mstep=1, d=d, imt="SD", imt_unit="cm", Tmin=0.05, Tmax=20, plot_style="linlin", amin=0, amax=amax, mechanism=None,want_minor_grid=True, title=title, legend_location=1)
+		self.plot_spectrum(mags=[M], d=d, imt="SD", imt_unit="cm", Tmin=0.05, Tmax=20, plot_style="linlin", amin=0, amax=amax, mechanism=None,want_minor_grid=True, title=title, legend_location=1)
 
 	def plot_Figure13(self, M=5.):
 		"""
@@ -1825,14 +1820,14 @@ class CauzziFaccioli2008GMPE(GMPE):
 		else:
 			dmin, dmax = 10., 100.
 			amin, amax = 0.01, 5.
-		self.plot_distance(Mmin=M, Mmax=M, Mstep=1., dmin=dmin, dmax=dmax, epsilon=1, amin=amin, amax=amax, mechanism="strike-slip", plot_style="loglog", imt_unit="ms2", want_minor_grid=True)
+		self.plot_distance(mags=[M], dmin=dmin, dmax=dmax, epsilon=1, amin=amin, amax=amax, mechanism="strike-slip", plot_style="loglog", imt_unit="ms2", want_minor_grid=True)
 
 	def plot_Ameri_Figure11(self):
 		"""
 		Plot Figure 11 in the report by Ameri et al.
 		"Strong-motion parameters of the Mw=6.3 Abruzzo (Central Italy) earthquake"
 		"""
-		self.plot_distance(Mmin=6.3, Mmax=6.3, Mstep=1., dmin=1., dmax=200, amin=0.01, amax=50, imt_unit="ms2", plot_style="loglog", epsilon=1, want_minor_grid=True)
+		self.plot_distance(mags=[6.3], dmin=1., dmax=200, amin=0.01, amax=50, imt_unit="ms2", plot_style="loglog", epsilon=1, want_minor_grid=True)
 
 
 class AkkarBommer2010GMPE(GMPE):
@@ -2101,13 +2096,13 @@ class AkkarBommer2010GMPE(GMPE):
 		"""
 		Plot Figure 9 in the paper of Akkar & Bommer (2010)
 		"""
-		self.plot_spectrum(Mmin=5.0, Mmax=7.6, Mstep=1.3, d=10, plot_style="lin", plot_freq=False, Tmin=0, Tmax=3, epsilon=0, amin=0, amax=625, imt_unit="cms2", include_pgm=False, soil_type="rock", mechanism="strike-slip", want_minor_grid=False, legend_location=1)
+		self.plot_spectrum(mags=[5., 6.3, 7.6], d=10, plot_style="lin", plot_freq=False, Tmin=0, Tmax=3, epsilon=0, amin=0, amax=625, imt_unit="cms2", include_pgm=False, soil_type="rock", mechanism="strike-slip", want_minor_grid=False, legend_location=1)
 
 	def plot_Figure10(self):
 		"""
 		Plot Figure 10 in the paper of Akkar & Bommer (2010)
 		"""
-		self.plot_spectrum(Mmin=5.0, Mmax=7.6, Mstep=1.3, d=10, plot_style="lin", plot_freq=False, Tmin=0, Tmax=3, epsilon=1, amin=0, amax=1250, imt_unit="cms2", include_pgm=False, soil_type="rock", mechanism="strike-slip", want_minor_grid=False, legend_location=1)
+		self.plot_spectrum(mags=[5., 6.3, 7.6], d=10, plot_style="lin", plot_freq=False, Tmin=0, Tmax=3, epsilon=1, amin=0, amax=1250, imt_unit="cms2", include_pgm=False, soil_type="rock", mechanism="strike-slip", want_minor_grid=False, legend_location=1)
 
 	def plot_Figure11(self, soil_type="rock", mechanism="strike-slip"):
 		"""
@@ -2119,7 +2114,7 @@ class AkkarBommer2010GMPE(GMPE):
 			String, fault mechanism: either "normal", "reverse" or "strike-slip"
 			(default: strike-slip)
 		"""
-		self.plot_distance(Mmin=5, Mmax=7.6, Mstep=2.6, dmin=1, dmax=1E2, amin=1E-1, amax=100, imt="PGV", imt_unit="cms", plot_style="loglog", soil_type=soil_type, mechanism=mechanism, want_minor_grid=True)
+		self.plot_distance(mags=[5., 7.6], dmin=1, dmax=1E2, amin=1E-1, amax=100, imt="PGV", imt_unit="cms", plot_style="loglog", soil_type=soil_type, mechanism=mechanism, want_minor_grid=True)
 
 
 class BommerEtAl2011GMPE(AkkarBommer2010GMPE):
@@ -2199,7 +2194,7 @@ class BommerEtAl2011GMPE(AkkarBommer2010GMPE):
 			String, fault mechanism: either "normal", "reverse" or "strike-slip"
 			(default: strike-slip)
 		"""
-		self.plot_spectrum(Mmin=5.5, Mmax=7.5, Mstep=1.0, d=10, plot_style="loglin", plot_freq=False, Tmin=0.01, Tmax=3, epsilon=0, amin=0, amax=0.8, imt_unit="g", include_pgm=True, soil_type=soil_type, mechanism=mechanism, want_minor_grid=False, legend_location=0)
+		self.plot_spectrum(mags=[5.5, 6.5, 7.5], d=10, plot_style="loglin", plot_freq=False, Tmin=0.01, Tmax=3, epsilon=0, amin=0, amax=0.8, imt_unit="g", include_pgm=True, soil_type=soil_type, mechanism=mechanism, want_minor_grid=False, legend_location=0)
 
 	def plot_Figure4b(self, d=5., soil_type="rock", mechanism="reverse"):
 		"""
@@ -2213,7 +2208,7 @@ class BommerEtAl2011GMPE(AkkarBommer2010GMPE):
 			String, fault mechanism: either "normal", "reverse" or "strike-slip"
 			(default: strike-slip)
 		"""
-		self.plot_spectrum(Mmin=6.5, Mmax=6.5, Mstep=1, d=d, plot_style="loglin", plot_freq=False, Tmin=0.01, Tmax=3, epsilon=0, amin=0, amax=1.0, imt_unit="g", include_pgm=True, soil_type=soil_type, mechanism=mechanism, want_minor_grid=False, legend_location=0)
+		self.plot_spectrum(mags=[6.5], d=d, plot_style="loglin", plot_freq=False, Tmin=0.01, Tmax=3, epsilon=0, amin=0, amax=1.0, imt_unit="g", include_pgm=True, soil_type=soil_type, mechanism=mechanism, want_minor_grid=False, legend_location=0)
 
 
 AkkarBommer2010SHAREGMPE = BommerEtAl2011GMPE
@@ -2631,7 +2626,7 @@ class AbrahamsonSilva2008(NhlibGMPE):
 		:param T:
 			Float, spectral period, either 0. or 1. (default: 1.)
 		"""
-		self.plot_distance(5., 8., 1., plot_style="loglog", amin=0.001, amax=1, dmin=1, dmax=200, mechanism="strike-slip", vs30=760.)
+		self.plot_distance(mags=[5., 6., 7., 8.], plot_style="loglog", amin=0.001, amax=1, dmin=1, dmax=200, mechanism="strike-slip", vs30=760.)
 
 	def plot_Figure7_Abrahamson_2008(self):
 		"""
@@ -2639,7 +2634,7 @@ class AbrahamsonSilva2008(NhlibGMPE):
 		Note that the figure does not match, because they use RJB distance,
 		and we ignore hanging-wall effects (and possibly other reasons...)
 		"""
-		self.plot_spectrum(5.0, 8.0, 1.0, 10., Tmin=0.01, Tmax=10, amin=1E-3, amax=1, mechanism="strike-slip", vs30=760.)
+		self.plot_spectrum(mags=[5., 6., 7., 8.], d=10., Tmin=0.01, Tmax=10, amin=1E-3, amax=1, mechanism="strike-slip", vs30=760.)
 
 
 class AkkarBommer2010(NhlibGMPE):
@@ -2706,7 +2701,7 @@ class AtkinsonBoore2006(NhlibGMPE):
 			amin, amax = 1E-2, 1E+3
 		else:
 			amin, amax = 1E-1, 1E+4
-		self.plot_distance(5., 8., 1., imt=imt, T=T, plot_style="loglog", vs30=1999., imt_unit="cms2", amin=amin, amax=amax)
+		self.plot_distance(mags=[5., 6., 7., 8.], imt=imt, T=T, plot_style="loglog", vs30=1999., imt_unit="cms2", amin=amin, amax=amax)
 
 	def plot_Figure_Boore_notes(self, T=0.2):
 		"""
@@ -2740,6 +2735,39 @@ class AtkinsonBoore2006(NhlibGMPE):
 		pylab.xlabel("V30")
 		pylab.ylabel("y (cm/s2)")
 		pylab.show()
+
+
+class AtkinsonBoore2006Prime(NhlibGMPE):
+	def __init__(self):
+		name, short_name = "AtkinsonBoore2006Prime", "AB_2006'"
+		distance_metric = "Rupture"
+		Mmin, Mmax = 3.5, 8.0
+		dmin, dmax = 1., 1000.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+		"""
+		"""
+		if vs30 is None:
+			if soil_type == "hard rock":
+				vs30 = 2000.
+			elif soil_type == "rock":
+				vs30 = 760.
+			else:
+				raise SoilTypeNotSupportedError(soil_type)
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
+
+	def plot_Figure10(self, period=0.1):
+		"""
+		Plot figure 10 in Atkinson and Boore (2011).
+		
+		:param period:
+			float, 0.1 or 1. (default: 0.1)
+		"""
+		self.plot_distance(mags=[5., 6., 7.5], dmin=5., dmax=500., distance_metric="Joyner-Boore", h=0, imt="SA", T=period, imt_unit="cms2", mechanism="normal", damping=5, plot_style="loglog", amin={0.1: 0.5, 1.: 0.2}[period], amax={0.1: 5000, 1.: 2000}[period], want_minor_grid=True)
 
 
 class BindiEtAl2011(NhlibGMPE):
@@ -2785,7 +2813,7 @@ class BindiEtAl2011(NhlibGMPE):
 		if imt == "SA":
 			T = 1.
 		title = "Bindi et al. (2011) - Figure 11 - soil type %s" % soil_type
-		self.plot_distance(6.3, 6.3, 1, 0, 300, imt=imt, T=T, imt_unit="ms2", epsilon=1, soil_type=soil_type, amin=0.01, amax=50., color="r", want_minor_grid=True, title=title)
+		self.plot_distance(mags=[6.3], dmin=0, dmax=300, imt=imt, T=T, imt_unit="ms2", epsilon=1, soil_type=soil_type, amin=0.01, amax=50., color="r", want_minor_grid=True, title=title)
 
 	def plotFigure12(self, imt="PGA", soil_type="A"):
 		"""
@@ -2805,7 +2833,7 @@ class BindiEtAl2011(NhlibGMPE):
 			T = 1.
 			amax = 2
 		title = "Bindi et al. (2011) - Figure 12 - soil type %s" % soil_type
-		self.plot_distance(4.6, 4.6, 1, 0, 300, imt=imt, T=T, imt_unit="ms2", epsilon=1, soil_type=soil_type, amin=0.001, amax=amax, color="r", want_minor_grid=True, title=title)
+		self.plot_distance(mags=[4.6], dmin=0, dmax=300, imt=imt, T=T, imt_unit="ms2", epsilon=1, soil_type=soil_type, amin=0.001, amax=amax, color="r", want_minor_grid=True, title=title)
 
 
 class BooreAtkinson2008(NhlibGMPE):
@@ -2840,7 +2868,7 @@ class BooreAtkinson2008(NhlibGMPE):
 		:param r:
 			Float, distance, either 0., 30. or 200.
 		"""
-		self.plot_spectrum(5.0, 8.0, 1.0, r, soil_type="rock", Tmin=1E-2, Tmax=10, amin=1E-2, amax=2000, imt_unit="cms2", mechanism="strike-slip")
+		self.plot_spectrum(mags=[5., 6., 7., 8.], dmin=1., dmax=r, soil_type="rock", Tmin=1E-2, Tmax=10, amin=1E-2, amax=2000, imt_unit="cms2", mechanism="strike-slip")
 
 	def plot_Figure11(self, T=0.2):
 		"""
@@ -2855,7 +2883,7 @@ class BooreAtkinson2008(NhlibGMPE):
 			amin, amax = 1, 1E4
 		elif T == 3.0:
 			amin, amax = 0.05, 500
-		self.plot_distance(5.0, 8.0, 1.0, imt="SA", T=T, soil_type="rock", mechanism="strike-slip", imt_unit="cms2", amin=amin, amax=amax, plot_style="loglog", dmin=0.05, dmax=400)
+		self.plot_distance(mags=[5., 6., 7., 8.], imt="SA", T=T, soil_type="rock", mechanism="strike-slip", imt_unit="cms2", amin=amin, amax=amax, plot_style="loglog", dmin=0.05, dmax=400)
 
 	def plot_Figure12(self, T=0.2):
 		"""
@@ -2871,7 +2899,7 @@ class BooreAtkinson2008(NhlibGMPE):
 		elif T == 3.0:
 			amin, amax = 5, 500
 		for vs30 in (180, 250, 360):
-			self.plot_distance(7.0, 7.0, 1.0, imt="SA", T=T, vs30=vs30, mechanism="strike-slip", imt_unit="cms2", amin=amin, amax=amax, plot_style="loglog", dmin=0.5, dmax=200)
+			self.plot_distance(mags=[7.], imt="SA", T=T, vs30=vs30, mechanism="strike-slip", imt_unit="cms2", amin=amin, amax=amax, plot_style="loglog", dmin=0.5, dmax=200)
 
 
 class BooreAtkinson2008Prime(NhlibGMPE):
@@ -2880,8 +2908,8 @@ class BooreAtkinson2008Prime(NhlibGMPE):
 		distance_metric = "Joyner-Boore"
 		#Mmin, Mmax = 4.27, 7.9
 		#dmin, dmax = 0., 280.
-		Mmin, Mmax = 5.0, 8.0
-		dmin, dmax = 4., 200.
+		Mmin, Mmax = 4.0, 8.0
+		dmin, dmax = 0.0, 200.
 		Mtype = "MW"
 		dampings = [5.]
 
@@ -2904,9 +2932,10 @@ class BooreAtkinson2008Prime(NhlibGMPE):
 		:param period:
 			float, 0.3 or 1. (default: 0.3)
 		
-		NOTE: hack is required: unspecified rake must be used
+		NOTE: hack is required: unspecified rake must be used (see commented
+		line in hazardlib files of BooreAtkinson2008 and BooreAtkinson2008Prime)
 		"""
-		plot_distance([self, BooreAtkinson2008()], Mmin=4., Mmax=4., Mstep=1., dmin=1., dmax=200., h=0, imt="SA", T=period, imt_unit="cms2", mechanism="normal", damping=5, plot_style="loglog", amin={0.3: 0.01, 1.: 0.001}[period], amax={0.3: 1000, 1.: 100}[period], want_minor_grid=True)
+		plot_distance([self, BooreAtkinson2008()], mags=[4.], dmin=1., dmax=200., h=0, imt="SA", T=period, imt_unit="cms2", mechanism="normal", damping=5, plot_style="loglog", amin={0.3: 0.01, 1.: 0.001}[period], amax={0.3: 1000, 1.: 100}[period], want_minor_grid=True)
 
 
 class Campbell2003(NhlibGMPE):
@@ -2941,7 +2970,7 @@ class Campbell2003(NhlibGMPE):
 			amin, amax = 1E-5, 1E0
 		else:
 			amin, amax = 1E-4, 1E1
-		self.plot_distance(5.0, 8.0, 1.0, imt=imt, T=T, soil_type="hard rock", dmin=1, amin=amin, amax=amax)
+		self.plot_distance(mags=[5., 6., 7., 8.], imt=imt, T=T, soil_type="hard rock", dmin=1, amin=amin, amax=amax)
 
 	def plot_Figure3(self, r=3.):
 		"""
@@ -2951,13 +2980,13 @@ class Campbell2003(NhlibGMPE):
 		:param r:
 			Float, either 3. or 30.
 		"""
-		self.plot_spectrum(5.0, 8.0, 1.0, r, soil_type="hard rock", Tmin=1E-3, Tmax=1E1, amin=1E-3, amax=1E+1)
+		self.plot_spectrum(mags=[5., 6., 7., 8.], d=r, soil_type="hard rock", Tmin=1E-3, Tmax=1E1, amin=1E-3, amax=1E+1)
 
 	def plot_Figure13b_Drouet(self):
 		"""
 		Plot Figure 13b in the SHARE report by Drouet et al.
 		"""
-		self.plot_spectrum(6, 6, 1, 20., soil_type="hard rock", Tmin=1E-2, Tmax=8, imt_unit="ms2", amin=0.1, amax=10, plot_style="loglog")
+		self.plot_spectrum(mags=[6.], d=20., soil_type="hard rock", Tmin=1E-2, Tmax=8, imt_unit="ms2", amin=0.1, amax=10, plot_style="loglog")
 
 
 class Campbell2003SHARE(NhlibGMPE):
@@ -2984,7 +3013,7 @@ class Campbell2003SHARE(NhlibGMPE):
 		Plot Figure 13b in the SHARE report by Drouet et al.
 		Seems to correspond more or less with kappa = 0.03
 		"""
-		self.plot_spectrum(6, 6, 1, 20., soil_type="rock", Tmin=1E-2, Tmax=8, imt_unit="ms2", amin=0.1, amax=10, plot_style="loglog")
+		self.plot_spectrum(mags=[6.], d=20., soil_type="rock", Tmin=1E-2, Tmax=8, imt_unit="ms2", amin=0.1, amax=10, plot_style="loglog")
 
 
 class Campbell2003adjusted(NhlibGMPE):
@@ -3106,7 +3135,7 @@ class ToroEtAl2002(NhlibGMPE):
 		"""
 		Plot Figure 13a in the SHARE report by Drouet et al.
 		"""
-		self.plot_spectrum(6, 6, 1, 20., Tmin=1E-2, Tmax=8, imt_unit="ms2", amin=0.1, amax=10, plot_style="loglog", soil_type="hard rock")
+		self.plot_spectrum(mags=[6.], d=20., Tmin=1E-2, Tmax=8, imt_unit="ms2", amin=0.1, amax=10, plot_style="loglog", soil_type="hard rock")
 
 
 class ToroEtAl2002SHARE(NhlibGMPE):
@@ -3133,7 +3162,7 @@ class ToroEtAl2002SHARE(NhlibGMPE):
 		Plot Figure 13a in the SHARE report by Drouet et al.
 		Not sure which kappa value this should correspond to (it should be 0.03)
 		"""
-		self.plot_spectrum(6, 6, 1, 20., Tmin=1E-2, Tmax=8, imt_unit="ms2", amin=0.1, amax=10, plot_style="loglog", soil_type="rock")
+		self.plot_spectrum(mags=[6.], d=20., Tmin=1E-2, Tmax=8, imt_unit="ms2", amin=0.1, amax=10, plot_style="loglog", soil_type="rock")
 
 
 class ToroEtAl2002adjusted(NhlibGMPE):
@@ -3191,7 +3220,7 @@ class ZhaoEtAl2006Asc(NhlibGMPE):
 		"""
 		Plot Figure 2a in the paper of Zhao et al. (2006)
 		"""
-		self.plot_distance(7., 7., 1., mechanism="strike-slip", soil_type="SC II", epsilon=1, dmin=0.3, dmax=400, amin=2E-3, amax=3.0, plot_style="loglog")
+		self.plot_distance(mags=[7.], mechanism="strike-slip", soil_type="SC II", epsilon=1, dmin=0.3, dmax=400, amin=2E-3, amax=3.0, plot_style="loglog")
 
 	def plot_Figure3a(self):
 		"""
@@ -3199,7 +3228,7 @@ class ZhaoEtAl2006Asc(NhlibGMPE):
 		Note that it is not possible to exactly reproduce the figure, which uses
 		"mean site conditions"
 		"""
-		self.plot_distance(5., 8., 1., mechanism="strike-slip", soil_type="SC II", dmin=1, dmax=400, amin=5E-4, amax=3.0, plot_style="loglog")
+		self.plot_distance(mags=[5., 6., 7., 8.], mechanism="strike-slip", soil_type="SC II", dmin=1, dmax=400, amin=5E-4, amax=3.0, plot_style="loglog")
 
 
 def adjust_hard_rock_to_rock(imt, periods, gm, gm_logsigma=None):
@@ -3329,7 +3358,35 @@ def adjust_components(component_type, periods, gm):
 	return adjusted_gm
 
 
-def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_style="loglog", amin=None, amax=None, colors=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=0, lang="en"):
+def convert_distance_metric(distances, metric_from, metric_to, mag):
+	"""
+	Adjust distance metric between rjb and rrup according to
+	Atkinson and Boore (2011).
+	Conversion are valid for magnitudes from 4 to 8, focal depths from 8 to 12,
+	and dips from 45 to 90. Hypocenter is assumed to be at center of rupture.
+	
+	:param distances:
+		np array, distances to convert
+	:param metric_from:
+		str, distance metric of distances
+	:param metric_to:
+		str, distance metric to convert distances to
+	:param mag:
+		float, magnitude to use for conversion
+	"""
+	if metric_from == None or metric_from == metric_to:
+		return distances
+	else:
+		ztor = 21. - 2.5 * mag
+		if metric_from == "Rupture" and metric_to == "Joyner-Boore":
+			return np.sqrt(distances ** 2 - ztor ** 2)
+		elif metric_from == "Joyner-Boore" and metric_to == "Rupture":
+			return np.sqrt(distances ** 2 + ztor ** 2)
+		else:
+			raise "conversion not supported" # TODO: support other conversion
+
+
+def plot_distance(gmpe_list, mags, dmin=None, dmax=None, distance_metric=None, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_style="loglog", amin=None, amax=None, colors=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=0, lang="en"):
 	"""
 	Function to plot ground motion versus distance for one or more GMPE's.
 	Horizontal axis: distances.
@@ -3337,18 +3394,17 @@ def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="
 
 	:param gmpe_list:
 		list of GMPE objects.
-	:param Mmin:
-		Float, lower magnitude to plot.
-	:param Mmax:
-		Float, upper magnitude to plot.
-	:param Mstep:
-		Float, magnitude step to plot magnitudes between Mmin and Mmax.
+	:param mags:
+		list of floats, magnitudes to plot
 	:param dmin:
 		Float, lower distance in km. If None, use the lower bound of the
 		distance range of each GMPE (default: None).
 	:param dmax:
 		Float, upper distance in km. If None, use the lower bound of the
 		valid distance range of each GMPE (default: None).
+	:param distance_metric:
+		str, distance_metric to plot (options: "Joyner-Boore", "Rupture")
+		(default: None, distance metrics of gmpes are used)
 	:param h:
 		Float, depth in km. Ignored if distance metric of GMPE is epicentral
 		or Joyner-Boore (default: 0).
@@ -3409,7 +3465,6 @@ def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="
 		String, shorthand for language of annotations. Currently only
 		"en" and "nl" are supported (default: "en").
 	"""
-	Mags = np.arange(Mmin, Mmax+Mstep, Mstep)
 	linestyles = ("", "--", ":", "-.")
 	if not colors:
 		colors = ("k", "r", "g", "b", "c", "m", "y")
@@ -3432,8 +3487,9 @@ def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="
 		if dmin == 0:
 			dmin = 0.1
 		distances = logrange(max(dmin, gmpe.dmin), min(dmax, gmpe.dmax), 25)
-		for j, M in enumerate(Mags):
-			Avalues = gmpe(M, distances, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+		for j, M in enumerate(mags):
+			converted_distances = convert_distance_metric(distances, distance_metric, gmpe.distance_metric, M)
+			Avalues = gmpe(M, converted_distances, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 			style = colors[i] + linestyles[j]
 			plotfunc(distances, Avalues, style, linewidth=3, label=gmpe.name+" (M=%.1f)" % M)
 			if epsilon:
@@ -3441,20 +3497,23 @@ def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="
 				## Thus, the following are equivalent:
 				#log_sigma = gmpe.log_sigma(M, imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 				#Asigmavalues = 10**(np.log10(Avalues) + log_sigma)
-				Asigmavalues = gmpe(M, distances, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+				Asigmavalues = gmpe(M, converted_distances, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 				plotfunc(distances, Asigmavalues, style, linewidth=1, label=gmpe.name+" (M=%.1f) $\pm %d \sigma$" % (M, epsilon))
 				#Asigmavalues = 10**(np.log10(Avalues) - log_sigma)
-				Asigmavalues = gmpe(M, distances, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=-epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+				Asigmavalues = gmpe(M, converted_distances, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=-epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 				plotfunc(distances, Asigmavalues, style, linewidth=1, label='_nolegend_')
 
 	## Plot decoration
-	distance_metrics = set()
-	for gmpe in gmpe_list:
-		distance_metrics.add(gmpe.distance_metric)
-	if len(distance_metrics) > 1:
-		pylab.xlabel("Distance (km)", fontsize="x-large")
+	if distance_metric:
+		pylab.xlabel(" ".join([distance_metric, "distance (km)"]), fontsize="x-large")
 	else:
-		pylab.xlabel(" ".join([gmpe.distance_metric, "distance (km)"]), fontsize="x-large")
+		distance_metrics = set()
+		for gmpe in gmpe_list:
+			distance_metrics.add(gmpe.distance_metric)
+		if len(distance_metrics) > 1:
+			pylab.xlabel("Distance (km)", fontsize="x-large")
+		else:
+			pylab.xlabel(" ".join([gmpe.distance_metric, "distance (km)"]), fontsize="x-large")
 	imt_label = get_imt_label(imt, lang.lower()) + " (%s)" % imt_unit_to_plot_label.get(imt_unit, imt_unit)
 	pylab.ylabel(imt_label, fontsize="x-large")
 	pylab.grid(True)
@@ -3482,7 +3541,7 @@ def plot_distance(gmpe_list, Mmin, Mmax, Mstep, dmin=None, dmax=None, h=0, imt="
 		pylab.show()
 
 
-def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, include_pgm=True, plot_freq=False, plot_style="loglog", amin=None, amax=None, colors=None, labels=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=None, lang="en"):
+def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, include_pgm=True, plot_freq=False, plot_style="loglog", amin=None, amax=None, colors=None, labels=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=None, lang="en"):
 	"""
 	Function to plot ground motion spectrum for one or more GMPE's.
 	Horizontal axis: spectral periods or frequencies.
@@ -3490,12 +3549,8 @@ def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tma
 
 	:param gmpe_list:
 		list of GMPE objects.
-	:param Mmin:
-		Float, lower magnitude to plot.
-	:param Mmax:
-		Float, upper magnitude to plot.
-	:param Mstep:
-		Float, magnitude step to plot magnitudes between Mmin and Mmax.
+	:param mags:
+		lsit of floats, magnitudes to plot
 	:param d:
 		Float, distance in km.
 	:param h:
@@ -3571,7 +3626,6 @@ def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tma
 		String, shorthand for language of annotations. Currently only
 		"en" and "nl" are supported (default: "en").
 	"""
-	Mags = np.arange(Mmin, Mmax+Mstep, Mstep)
 	linestyles = ("", "--", ":", "-.")
 	if not colors:
 		colors = ("k", "r", "g", "b", "c", "m", "y")
@@ -3596,7 +3650,7 @@ def plot_spectrum(gmpe_list, Mmin, Mmax, Mstep, d, h=0, imt="SA", Tmin=None, Tma
 			xvalues = freqs
 		else:
 			xvalues = periods
-		for j, M in enumerate(Mags):
+		for j, M in enumerate(mags):
 			periods, Avalues = gmpe.get_spectrum(M, d, h=h, imt=imt, imt_unit=imt_unit, epsilon=0, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 			#Asigma_values = gmpe.get_spectrum(M, d, h=h, imt=imt, imt_unit=imt_unit, epsilon=num_sigma, soil_type=soil_type, mechanism=mechanism, damping=damping)
 			Asigma_values = np.array([gmpe.log_sigma(M, d, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)[0] for T in periods])
@@ -3717,3 +3771,4 @@ def get_imt_label(imt, lang="en"):
 
 if __name__ == "__main__":
 	pass
+
