@@ -3267,10 +3267,10 @@ class HazardMap(HazardResult, HazardField):
 			intensity_unit_label = "$cm/s^2$"
 		cbar_label = '%s (%s)' % (imt_label, intensity_unit_label)
 
-		color_map_theme = ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax)
+		colorbar_style = ColorbarStyle(location="bottom", format="%.2f", ticks=contour_levels)
+		color_map_theme = ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax, colorbar_style=colorbar_style)
 		continuous = {"cont": True, "disc": False}[plot_style]
-		colorbar_style = ColorbarStyle(location="bottom", format="%.2f")
-		grid_style = GridStyle(color_map_theme=color_map_theme, continuous=continuous, line_style=contour_line_style, contour_levels=contour_levels)
+		grid_style = GridStyle(color_map_theme=color_map_theme, continuous=continuous, line_style=contour_line_style, contour_levels=contour_levels, colorbar_style=colorbar_style)
 		grid_data = GridData(grid_lons, grid_lats, intensity_grid)
 		layer = MapLayer(grid_data, grid_style, legend_label=cbar_label)
 		map_layers.append(layer)

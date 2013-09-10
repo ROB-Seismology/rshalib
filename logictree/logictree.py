@@ -24,13 +24,20 @@ from ..pmf import *
 class LogicTreeBranch(oqlt.Branch):
 	"""
 	Class representing a logic-tree branch
-	Arguments:
-		branch_id: identifier
-		value: string identifying an uncertainty model; the content
-			of the string varies with the uncertainty_type attribute value of the
-			parent branch_set
-		weight: specifying the probability/weight associated to
-			the value
+
+	:param branch_id:
+		string, identifier
+	:param value:
+		single value (string, float, tuple) or dictionary {src_id: value}
+		identifying an uncertainty model; the content varies with the
+		uncertainty_type attribute value of the parent branch_set.
+		If value is a dictionary, this implies that uncertainties for
+		the different sources (keys) are correlated.
+		Evidently, this is also the case if value is a single value, and
+		the applyToSources property of the parent branchset contains more
+		than 1 source ID (or is an empty list).
+	:param weight:
+		Decimal, specifying the probability/weight associated to the value
 	"""
 	def __init__(self, branch_id, weight, value, parent_branchset=None):
 		super(LogicTreeBranch, self).__init__(branch_id, weight, value)
@@ -99,7 +106,7 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 	def __init__(self, id, uncertainty_type, branches, applyToBranches=[], applyToSources=[], applyToSourceType="", applyToTectonicRegionType=""):
 		# TODO: are applyToBranches and applyToSources strings or lists?
 		filters = {}
-		filters["applyToBranches"] = self.applyToBranches = applyToBranches
+		self.applyToBranches = applyToBranches
 		filters["applyToSources"] = self.applyToSources = applyToSources
 		filters["applyToSourceType"] = self.applyToSourceType = applyToSourceType
 		filters["applyToTectonicRegionType"] = self.applyToTectonicRegionType = applyToTectonicRegionType
@@ -112,6 +119,62 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 
 	def __len__(self):
 		return len(self.branches)
+
+	@classmethod
+	def from_PMF_dict(cls, id, pmf_dict, applyToBranches=[], applyToSourceType="", applyToTectonicRegionType=""):
+		"""
+		Construct branch set from a PMF dictionary, defining correlated
+		uncertainties for a number of sources.
+		The applyToSources attribute will be automatically set from the
+		keys of pmf_dict
+
+		:param id:
+			String, branch set identifier
+		:param pmf_dict:
+			dict, mapping source ID's to instances of :class:`PMF`
+			Note that the number of uncertainties and their weights must
+			be identical for the different sources.
+		:param applyToBranches:
+		:param applyToSourceType:
+		:param applyToTectonicRegionType:
+			See class constructor
+		"""
+		pmf = pmf_dict[pmf_dict.keys()[0]]
+		if isinstance(pmf, (GMPEPMF, SourceModelPMF)):
+			raise Exception("Not supported for this uncertainty type!")
+		elif isinstance(pmf, MmaxPMF):
+			if pmf.absolute:
+				uncertainty_type = "maxMagGRAbsolute"
+			else:
+				uncertainty_type = "maxMagGRRelative"
+		elif isinstance(pmf, MFDPMF):
+			if pmf.is_bGRRelative():
+				uncertainty_type = "bGRRelative"
+			elif pmf.is_abGRAbsolute():
+				uncertainty_type = "abGRAbsolute"
+			elif pmf.is_incrementalMFDRates():
+				# TODO: not yet implemented in OQ
+				uncertainty_type = "incrementalMFDRates"
+
+		applyToSources = pmf_dict.keys()
+		branches = []
+		# TODO: add check to assure that number of uncertainties is the same for each source
+		for s, src_id in enumerate(applyToSources):
+			for i, (weight, value) in enumerate(pmf.data):
+				if s == 0:
+					value = {src_id: value}
+					branch_id = "%s%02d" % (id, i+1)
+					branch = LogicTreeBranch(branch_id, weight, value, parent_branchset=None)
+					branches.append(branch)
+				else:
+					branch = branches[i]
+					assert weight == branch.weight, "Weights for correlated uncertainties must be identical!"
+					branch.value[src_id] = value
+
+		branchset = LogicTreeBranchSet(id, uncertainty_type, branches, applyToBranches=applyToBranches, applyToSources=applyToSources, applyToSourceType=applyToSourceType, applyToTectonicRegionType=applyToTectonicRegionType)
+		for branch in branchset:
+			branch.parent_branchset = branchset
+		return branchset
 
 	@classmethod
 	def from_PMF(cls, id, pmf, applyToBranches=[], applyToSources=[], applyToSourceType="", applyToTectonicRegionType=""):
@@ -144,7 +207,7 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 				uncertainty_type = "abGRAbsolute"
 			elif pmf.is_incrementalMFDRates():
 				# TODO: not yet implemented in OQ
-				pass
+				uncertainty_type = "incrementalMFDRates"
 
 		branches = []
 		for i, (weight, model) in enumerate(pmf.data):
@@ -194,8 +257,8 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		Create xml element (NRML logicTreeBranchSet element)
 		"""
 		lbs_elem = etree.Element(ns.LOGICTREE_BRANCHSET, branchSetID=self.id, uncertaintyType=self.uncertainty_type)
-		if self.filters["applyToBranches"]:
-			lbs_elem.set("applyToBranches", " ".join(map(str, self.filters["applyToBranches"])))
+		if self.applyToBranches:
+			lbs_elem.set("applyToBranches", " ".join(map(str, self.applyToBranches)))
 		if self.filters["applyToSources"]:
 			lbs_elem.set("applyToSources", " ".join(map(str, self.filters["applyToSources"])))
 		if self.filters["applyToSourceType"]:
@@ -338,7 +401,7 @@ class LogicTree(object):
 		for branching_level in self.branching_levels[1:]:
 			level_branches = []
 			for branch_set in branching_level.branch_sets:
-				connecting_branch_ids = branch_set.filters["applyToBranches"]
+				connecting_branch_ids = branch_set.applyToBranches
 				if not connecting_branch_ids:
 					connecting_branch_ids = [branch.branch_id for branch in all_branches[-1]]
 				for branch in all_branches[-1]:
@@ -411,7 +474,7 @@ class LogicTree(object):
 		:return:
 			list with instances of :class:`LogicTreeBranch`
 		"""
-		applyToBranches = branchset.filters["applyToBranches"]
+		applyToBranches = branchset.applyToBranches
 		if applyToBranches:
 			branches = [self.get_branch_by_id(branch_id) for branch_id in applyToBranches]
 		else:
