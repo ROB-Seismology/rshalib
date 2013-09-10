@@ -73,12 +73,14 @@ for sm in source_models:
 source_model_lt = rshalib.logictree.SeismicSourceSystem.from_independent_uncertainty_levels("lt", source_model_pmf, Mmax_pmf_dict, MFD_pmf_dict, unc2_correlated=True, unc3_correlated=True)
 #print source_model_lt.are_branch_ids_unique()
 source_model_lt.print_xml()
-#source_model_lt.write_xml(r"C:\Temp\seismic_source_system.xml")
+xml_filespec = r"C:\Temp\seismic_source_system.xml"
+source_model_lt.write_xml(xml_filespec)
 source_model_lt.plot_diagram()
 
 ## Parse logic tree from NRML
-source_model_lt2 = SourceModelLogicTree(None, basepath=r"C:\Temp", filename="seismic_source_system.xml", calc_id=None, validate=False)
-
+#xml_filespec = r"C:\Users\kris\Documents\Python\GEM\oq-engine\demos\hazard\LogicTreeCase3ClassicalPSHA\source_model_logic_tree.xml"
+source_model_lt2 = rshalib.logictree.SeismicSourceSystem.parse_from_xml(xml_filespec, validate=False)
+source_model_lt2.plot_diagram()
 
 ## Sample logic tree
 from hazard.psha.Projects.SHRE_NPP.params.gmpe import gmpe_system

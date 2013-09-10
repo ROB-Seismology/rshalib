@@ -52,11 +52,20 @@ class LogicTreeBranch(oqlt.Branch):
 		"""
 		lb_elem = etree.Element(ns.LOGICTREE_BRANCH, branchID=self.branch_id)
 		um_elem = etree.SubElement(lb_elem, ns.UNCERTAINTY_MODEL)
-		if hasattr(self.value, '__iter__'):
-			value = "  ".join(map(str, self.value))
+		if isinstance(self.value, dict):
+			values = self.value.values()
 		else:
-			value = self.value
-		um_elem.text = xmlstr(value)
+			values = [self.value]
+		value_strings = []
+		for val in values:
+			if hasattr(val, '__iter__'):
+				## Tuples, lists or arrays
+				value_strings.append("  ".join(map(str, val)))
+			else:
+				## Strings, ints or floats
+				value_strings.append(str(val))
+		value_string = ";".join(value_strings)
+		um_elem.text = xmlstr(value_string)
 		uw_elem = etree.SubElement(lb_elem, ns.UNCERTAINTY_WEIGHT)
 		uw_elem.text = str(self.weight)
 		return lb_elem
@@ -131,7 +140,7 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		:param id:
 			String, branch set identifier
 		:param pmf_dict:
-			dict, mapping source ID's to instances of :class:`PMF`
+			dict, mapping source ID's to instances of :class:`MmaxPMF` or :class:`MFDPMF`
 			Note that the number of uncertainties and their weights must
 			be identical for the different sources.
 		:param applyToBranches:
@@ -566,8 +575,10 @@ class LogicTree(object):
 		branch_nodes = [branch.branch_id for branch in all_branches]
 		graph.add_nodes_from(branchset_nodes)
 		graph.add_nodes_from(branch_nodes)
+		edge_labels = {}
 		for branch in self.branches:
 			graph.add_edge(branch.parent_branchset.id, branch.branch_id)
+			edge_labels[(branch.parent_branchset.id, branch.branch_id)] = branch.weight
 			if branch.child_branchset:
 				graph.add_edge(branch.branch_id, branch.child_branchset.id)
 
@@ -586,10 +597,12 @@ class LogicTree(object):
 				if branch.child_branchset:
 					child_branchset_id = branch.child_branchset.id
 					nx.draw_networkx_edges(graph, pos, edgelist=[(branch_id, child_branchset_id)], edge_color='r', width=3)
-		labels = {}
-		for branch_id in branch_nodes:
-			labels[branch_id] = branch_id
-		nx.draw_networkx_labels(graph, pos, labels=labels, size=8, verticalalignment="bottom")
+		node_labels = {}
+		for branch in all_branches:
+			node_labels[branch.branch_id] = branch.branch_id
+			#node_labels[branch.branch_id] = branch.weight
+		nx.draw_networkx_labels(graph, pos, labels=node_labels, size=8, verticalalignment="bottom")
+		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, label_pos=0.5, font_size=10)
 		plt.show()
 
 

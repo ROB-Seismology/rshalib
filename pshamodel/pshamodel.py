@@ -656,6 +656,13 @@ class PSHAModelTree(PSHAModelBase):
 		if self.lts_sampling_method == 'enumerated':
 			self.enumerated_lts_samples = self._enumerate_lts_samples()
 
+	def plot_diagram(self):
+		"""
+		Plot a diagram of the logic tree(s) using networkx
+		"""
+		# TODO
+		pass
+
 	def run_nhlib(self, nrml_base_filespec=""):
 		"""
 		Run PSHA model with nhlib and store result in a SpectralHazardCurveFieldTree

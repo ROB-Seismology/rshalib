@@ -1,3 +1,4 @@
+import os
 import copy
 import pprint
 
@@ -16,6 +17,87 @@ from ..pmf import SourceModelPMF, MmaxPMF, MFDPMF, get_uniform_weights
 class SeismicSourceSystem(LogicTree):
 	def __init__(self, id, branching_levels):
 		super(SeismicSourceSystem, self).__init__(id, branching_levels)
+
+	@classmethod
+	def parse_from_xml(cls, xml_filespec, validate=False):
+		"""
+		Read source-model logic tree from XML file
+
+		:param xml_filespec:
+			string, full path to XML file
+		:param validate:
+			Bool, whether or not parsed XML should be validated
+			(default: False)
+
+		:return:
+			instance of :class:`SeismicSourceSystem`
+
+		Note: branching level ID's and branch set ID's cannot be recovered
+		"""
+		from openquake.engine.input.logictree import SourceModelLogicTree
+
+		## Parse using oq-engine's logictree
+		basepath, filename = os.path.split(xml_filespec)
+		smlt = SourceModelLogicTree(None, basepath=basepath, filename=filename, calc_id=None, validate=validate)
+
+		def convert_branchset(branchset):
+			## Convert oq-engine BranchSet to rshalib LogicTreeBranchSet
+			filters = branchset.filters
+			applyToSources = filters.get("applyToSources", [])
+			applyToSourceType = filters.get("applyToSourceType", [])
+			applyToTectonicRegionType = filters.get("applyToTectonicRegionType", "")
+			if hasattr(branchset, "applyToBranches"):
+				applyToBranches = branchset.applyToBranches
+			else:
+				applyToBranches = []
+			new_bs = LogicTreeBranchSet(branchset.id, branchset.uncertainty_type, branchset.branches, applyToBranches=applyToBranches, applyToSources=applyToSources, applyToSourceType=applyToSourceType, applyToTectonicRegionType=applyToTectonicRegionType)
+			for branch in new_bs:
+				branch.parent_branchset = new_bs
+			return new_bs
+
+		## Reconstruct branching levels from branches
+		branching_levels = []
+		branching_level_nr = 0
+		branching_level_id = "bl%02d" % branching_level_nr
+		branchset_id = "%s_bs00" % branching_level_id
+		smlt.root_branchset.id = branchset_id
+		branching_levels.append(LogicTreeBranchingLevel(branching_level_id, [smlt.root_branchset]))
+		branchsets = [smlt.root_branchset]
+		while branchsets:
+			branching_level_nr += 1
+			branching_level_id = "bl%02d" % branching_level_nr
+			branching_level = LogicTreeBranchingLevel(branching_level_id, [])
+			branchset_nr = 0
+			for branchset in branchsets:
+				for branch in branchset.branches:
+					child_branchset = branch.child_branchset
+					if child_branchset:
+						try:
+							index = branching_level.branch_sets.index(child_branchset)
+						except ValueError:
+							branchset_id = "%s_bs%02d" % (branching_level_id, branchset_nr)
+							child_branchset.id = branchset_id
+							child_branchset.applyToBranches = [branch.branch_id]
+							branching_level.branch_sets.append(child_branchset)
+							branchset_nr += 1
+						else:
+							branching_level.branch_sets[index].applyToBranches.append(branch.branch_id)
+
+			if len(branching_level.branch_sets) > 0:
+				branching_levels.append(branching_level)
+				branchsets = branching_level.branch_sets
+			else:
+				branchsets = []
+
+		for branching_level in branching_levels:
+			converted_branchsets = [convert_branchset(bs) for bs in branching_level.branch_sets]
+			branching_level.branch_sets = converted_branchsets
+		sss = SeismicSourceSystem(filename, branching_levels)
+		sss.connect_branches()
+		return sss
+
+	def append_uncertainty_class(self, unc_pmf_dict):
+		pass
 
 	@classmethod
 	def from_independent_uncertainty_levels(cls, sss_id, source_model_pmf, unc2_pmf_dict, unc3_pmf_dict, unc2_correlated=False, unc3_correlated=False):
@@ -236,6 +318,7 @@ class SeismicSourceSystem(LogicTree):
 		source_model_lt = SeismicSourceSystem(sss_id, branching_levels)
 		source_model_lt.connect_branches()
 		return source_model_lt
+
 
 class SeismicSourceSystem_v1(LogicTree):
 	def __init__(self, ID, source_system_dict={}, sourceModelObjs=[]):
