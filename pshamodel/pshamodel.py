@@ -9,10 +9,13 @@
 import numpy as np
 import os
 from collections import OrderedDict
+import copy
+import random
 from random import choice
 
 import openquake.hazardlib as nhlib
 from openquake.hazardlib.imt import PGA, SA, PGV, PGD, MMI
+from openquake.engine.input.logictree import LogicTreeProcessor
 
 from ..geo import *
 from ..site import *
@@ -20,6 +23,7 @@ from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poi
 from ..logictree import GroundMotionSystem, create_basic_seismicSourceSystem
 from ..crisis.IO import writeCRISIS2007
 from ..openquake.config import OQ_Params
+from ..source import SourceModel
 
 
 
@@ -644,17 +648,27 @@ class PSHAModelTree(PSHAModelBase):
 
 	See :class:`PSHAModelBase` for other arguments.
 	"""
-	def __init__(self, name, source_models, source_model_lt, ground_motion_models, output_dir, sites=[], grid_outline=[], grid_spacing=0.5, site_model=None, ref_site_params=(800., False, 100., 2.), imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200., lts_sampling_method='random', num_lts_samples=1):
+	def __init__(self, name, source_models, source_model_lt, gmpe_lt, output_dir, sites=[], grid_outline=[], grid_spacing=0.5, site_model=None, ref_site_params=(800., False, 100., 2.), imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200., num_lt_samples=1, random_seed=42):
 		"""
 		"""
 		PSHAModelBase.__init__(self, name, output_dir, sites, grid_outline, grid_spacing, site_model, ref_site_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
 		self.source_models = source_models
 		self.source_model_lt = source_model_lt
-		self.ground_motion_models = ground_motion_models
-		self.lts_sampling_method = lts_sampling_method
-		self.num_lts_samples = num_lts_samples
-		if self.lts_sampling_method == 'enumerated':
-			self.enumerated_lts_samples = self._enumerate_lts_samples()
+		self.gmpe_lt = gmpe_lt
+		#self.lts_sampling_method = lts_sampling_method
+		self.num_lt_samples = num_lt_samples
+		#if self.lts_sampling_method == 'enumerated':
+		#	self.enumerated_lts_samples = self._enumerate_lts_samples()
+		self.random_seed = random_seed
+		self.ltp = LogicTreeProcessor(None, source_model_lt=self.source_model_lt, gmpe_lt=self.gmpe_lt)
+		self._init_rnd()
+
+	def _init_rnd(self):
+		"""
+		Initialize random number generator with random seed
+		"""
+		self.rnd = random.Random()
+		self.rnd.seed(self.random_seed)
 
 	def plot_diagram(self):
 		"""
@@ -662,6 +676,88 @@ class PSHAModelTree(PSHAModelBase):
 		"""
 		# TODO
 		pass
+
+	def sample_source_model_lt(self, num_samples=1, verbose=False):
+		"""
+		Sample source-model logic tree
+
+		:param num_samples:
+			int, number of random samples
+		:param verbose:
+			bool, whether or not to print some information
+
+		:return:
+			list of instances of :class:`SourceModel`
+		"""
+		for i in range(num_samples):
+			## Generate 2nd-order random seed
+			random_seed = self.rnd.randint(-(2**31), (2**31) - 1)
+			## Call OQ logictree processor
+			sm_name, path = self.ltp.sample_source_model_logictree(random_seed)
+			if verbose:
+				print sm_name, path
+				#self.source_model_lt.plot_diagram(highlight_path=path)
+
+			## Apply uncertainties
+			modified_source_models = []
+			for sm in self.source_models:
+				if sm.name == os.path.splitext(sm_name)[0]:
+					modified_sources = []
+					for src in sm:
+						modified_src = copy.deepcopy(src)
+						apply_uncertainties = self.ltp.parse_source_model_logictree_path(path)
+						apply_uncertainties(modified_src)
+						if verbose:
+							print "  %s" % src.source_id
+							print "    %.1f %.3f %.3f" % (src.mfd.max_mag, src.mfd.a_val, src.mfd.b_val)
+							print "    %.1f %.3f %.3f" % (modified_src.mfd.max_mag, modified_src.mfd.a_val, modified_src.mfd.b_val)
+						modified_sources.append(modified_src)
+					modified_source_models.append(SourceModel(sm.name + " (lt sample %d)" % i, modified_sources))
+		return modified_source_models
+
+	def enumerate_source_model_lt(self):
+		"""
+		Enumerate source-model logic tree
+		"""
+		for smlt_path_weight, smlt_path in self.ltp.source_model_lt.root_branchset.enumerate_paths():
+			print smlt_path_weight, [branch.branch_id for branch in smlt_path]
+
+	def sample_gmpe_lt(self, num_samples=1, verbose=False):
+		"""
+		Sample GMPE logic tree
+
+		:param num_samples:
+			int, number of random samples
+		:param verbose:
+			bool, whether or not to print some information
+
+		:return:
+			list of dicts, mapping trt to gmpe names
+		"""
+		trts = self.gmpe_lt.tectonicRegionTypes
+		samples = []
+
+		for i in range(num_samples):
+			trt_gmpe_dict = {}
+			## Generate 2nd-order random seed
+			random_seed = self.rnd.randint(-(2**31), (2**31) - 1)
+			## Call OQ logictree processor
+			branch_path = self.ltp.sample_gmpe_logictree(random_seed)
+			if verbose:
+				print branch_path
+			for l, branch_id in enumerate(branch_path):
+				branch = self.gmpe_lt.get_branch_by_id(branch_id)
+				trt = trts[l]
+				trt_gmpe_dict[trt] = branch.value
+			samples.append(trt_gmpe_dict)
+			if verbose:
+				print trt_gmpe_dict
+		return trt_gmpe_dict
+
+
+	def enumerate_gmpe_lt(self):
+		for gmpelt_path_weight, gmpelt_path in self.ltp.fmpe_lt.root_branchset.enumerate_paths():
+			print gmpelt_path_weight, [branch.branch_id for branch in gmpelt_path]
 
 	def run_nhlib(self, nrml_base_filespec=""):
 		"""
@@ -708,7 +804,7 @@ class PSHAModelTree(PSHAModelBase):
 			{str, val} dict, defining respectively parameters and value for OpenQuake (default: None).
 		"""
 		## set OQ_params object and override with params from user_params
-		params = OQ_Params(calculation_mode='classical', description = self.name)
+		params = OQ_Params(calculation_mode='classical', description=self.name)
 		if user_params:
 			for key in user_params:
 				setattr(params, key, user_params[key])
@@ -738,20 +834,15 @@ class PSHAModelTree(PSHAModelBase):
 				reference_depth_to_1pt0km_per_sec=self.ref_site_params[2],
 				reference_depth_to_2pt5km_per_sec=self.ref_site_params[3])
 
-		## validate source model logic tree or create if not present and write nrml file
-		if not self.source_model_lt:
-			source_model_lt = create_basic_seismicSourceSystem(self.source_models)
-		else:
-			self.source_model_lt.validate()
-			source_model_lt = self.source_model_lt
+		## validate source model logic tree and write nrml file
+		self.source_model_lt.validate()
 		source_model_lt_file_name = 'source_model_lt.xml'
-		source_model_lt.write_xml(os.path.join(self.output_dir, source_model_lt_file_name))
+		self.source_model_lt.write_xml(os.path.join(self.output_dir, source_model_lt_file_name))
 		params.source_model_logic_tree_file = source_model_lt_file_name
 
 		## create ground motion model logic tree and write nrml file
-		ground_motion_model_lt = GroundMotionSystem('ground_motion_model_lt', self._get_openquake_trts_gsims_map_lt())
 		ground_motion_model_lt_file_name = 'ground_motion_model_lt.xml'
-		ground_motion_model_lt.write_xml(os.path.join(self.output_dir, ground_motion_model_lt_file_name))
+		self.ground_motion_model_lt.write_xml(os.path.join(self.output_dir, ground_motion_model_lt_file_name))
 		params.gsim_logic_tree_file = ground_motion_model_lt_file_name
 
 		## convert return periods and time_span to poes

@@ -5,8 +5,8 @@ import os
 import random
 import copy
 
-import hazard.rshalib as rshalib
 from openquake.engine.input.logictree import LogicTreeProcessor, SourceModelLogicTree
+import hazard.rshalib as rshalib
 
 
 ## Full logic tree, with three uncertainty levels
@@ -70,23 +70,29 @@ for sm in source_models:
 
 
 ## Construct logic tree
-source_model_lt = rshalib.logictree.SeismicSourceSystem.from_independent_uncertainty_levels("lt", source_model_pmf, Mmax_pmf_dict, MFD_pmf_dict, unc2_correlated=True, unc3_correlated=True)
+source_model_lt = rshalib.logictree.SeismicSourceSystem.from_independent_uncertainty_levels("lt", source_model_pmf, Mmax_pmf_dict, MFD_pmf_dict, unc2_correlated=False, unc3_correlated=True)
 #print source_model_lt.are_branch_ids_unique()
 source_model_lt.print_xml()
 xml_filespec = r"C:\Temp\seismic_source_system.xml"
-source_model_lt.write_xml(xml_filespec)
-source_model_lt.plot_diagram()
+#source_model_lt.write_xml(xml_filespec)
+source_model_lt.plot_diagram(branch_label="branch_id")
 
 ## Parse logic tree from NRML
-#xml_filespec = r"C:\Users\kris\Documents\Python\GEM\oq-engine\demos\hazard\LogicTreeCase3ClassicalPSHA\source_model_logic_tree.xml"
+xml_filespec = "E:\Home\_kris\Python\GEM\oq-engine\demos\hazard\LogicTreeCase3ClassicalPSHA\source_model_logic_tree.xml"
 source_model_lt2 = rshalib.logictree.SeismicSourceSystem.parse_from_xml(xml_filespec, validate=False)
-source_model_lt2.plot_diagram()
+#source_model_lt2.plot_diagram()
 
 ## Sample logic tree
-from hazard.psha.Projects.SHRE_NPP.params.gmpe import gmpe_system
-#gmpe_system.plot_diagram()
+from hazard.psha.Projects.SHRE_NPP.params.gmpe import gmpe_lt
+#gmpe_lt.plot_diagram()
 
-ltp = LogicTreeProcessor(None, source_model_lt=source_model_lt, gmpe_lt=gmpe_system)
+psha_model_tree = rshalib.pshamodel.PSHAModelTree("Test", source_models, source_model_lt, gmpe_lt, "")
+psha_model_tree.sample_source_model_lt(10, verbose=True)
+#psha_model_tree.sample_gmpe_lt(10, verbose=True)
+
+
+"""
+ltp = LogicTreeProcessor(None, source_model_lt=source_model_lt2, gmpe_lt=gmpe_system)
 rnd = random.Random()
 rnd.seed(42)
 for i in range(10):
@@ -108,3 +114,4 @@ for i in range(10):
 ## Enumerate logic tree
 #for i, (smlt_path_weight, smlt_path) in enumerate(ltp.source_model_lt.root_branchset.enumerate_paths()):
 #	print i, smlt_path_weight, [branch.branch_id for branch in smlt_path]
+"""

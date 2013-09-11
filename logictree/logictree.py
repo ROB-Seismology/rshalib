@@ -224,10 +224,12 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 				## Models can be SourceModel objects or source model names
 				if not isinstance(model, (str, unicode)):
 					model = model.name
+				branch_id = model
 				## Add .xml extension if necessary
 				if not model[-4:] == ".xml":
 					model += ".xml"
-			branch_id = "%s%02d" % (id, i+1)
+			else:
+				branch_id = "%s%02d" % (id, i+1)
 			branch = LogicTreeBranch(branch_id, weight, model, parent_branchset=None)
 			branches.append(branch)
 		branchset = LogicTreeBranchSet(id, uncertainty_type, branches, applyToBranches=applyToBranches, applyToSources=applyToSources, applyToSourceType=applyToSourceType, applyToTectonicRegionType=applyToTectonicRegionType)
@@ -340,7 +342,10 @@ class LogicTree(object):
 
 	@property
 	def root_branchset(self):
-		return self.branching_levels[0].branch_sets[0]
+		try:
+			return self.branching_levels[0].branch_sets[0]
+		except IndexError:
+			return None
 
 	def validate(self):
 		"""
@@ -477,6 +482,7 @@ class LogicTree(object):
 	def get_parent_branches(self, branchset):
 		"""
 		Return list with parent branches of given branchset
+
 		:param branchset:
 			instance of :class:`LogicTreeBranchSet`
 
@@ -495,6 +501,24 @@ class LogicTree(object):
 					branches.extend(bs.branches)
 		return branches
 
+	def get_root_branches(self, branchset):
+		"""
+		Return a list with root branches the given branch set is connected with.
+
+		:param branchset:
+			instance of :class:`LogicTreeBranchSet`
+
+		:return:
+			list with instances of :class:`LogicTreeBranch`
+		"""
+		root_branches = set()
+		for weight, branch_path in self.root_branchset.enumerate_paths():
+			root_branch = branch_path[0]
+			for branch in branch_path[1:]:
+				if branch in branchset.branches:
+					root_branches.add(root_branch)
+		return list(root_branches)
+
 	def get_branchsets(self, unc_class=None):
 		"""
 		Return a list of all branch sets in the logic tree
@@ -507,13 +531,15 @@ class LogicTree(object):
 			list with instances of :class:`LogicTreeBranchSet`
 		"""
 		branchsets = []
+		unc_types_dict = {"gmpe": ["gmpeModel"], "source_model": ["sourceModel"], "mfd": ["abGRAbsolute", "bGRRelative", "incrementalMFDRates"], "mmax": ["maxMagGRRelative", "maxMagGRAbsolute"]}
+
 		for branching_level in self:
 			if not unc_class:
 				branchsets.extend(branching_level.branch_sets)
 			else:
-				unc_types = {"gmpe": ["gmpeModel"], "source_model": ["sourceModel"], "mfd": ["abGRAbsolute", "bGRRelative", "incrementalMFDRates"], "mmax": ["maxMagGRRelative", "maxMagGRAbsolute"]}[unc_class]
 				for branchset in branching_level:
-					if branchset.uncertainty_type in unc_types:
+					unc_type = branchset.uncertainty_type
+					if unc_type == unc_class or unc_type in unc_types_dict.get(unc_class, []):
 						branchsets.append(branchset)
 		return branchsets
 
@@ -551,26 +577,34 @@ class LogicTree(object):
 					pos[branch.branch_id] = (l+1+0.5, ymin + b*(dy/(num_branches-1)))
 		return pos
 
-	def plot_diagram(self, highlight_path=[]):
+	def plot_diagram(self, highlight_path=[], branch_label="branch_id"):
 		"""
 		Plot diagram of logic tree using networkx or pygraphviz.
 		Requires branches to be connected.
 
 		:param highlight_path:
 			list of strings: branch ID's of path to highlight
+		:param branch_label:
+			string, branch property to label (default: "branch_id")
 		"""
 		import networkx as nx
-		import matplotlib.pyplot as plt
+		import pylab
 		all_branches = self.branches
 		all_branchsets = self.get_branchsets()
-		mfd_branchsets = self.get_branchsets("mfd")
-		mmax_branchsets = self.get_branchsets("mmax")
+		mmax_abs_branchsets = self.get_branchsets("maxMagGRAbsolute")
+		mmax_rel_branchsets = self.get_branchsets("maxMagGRRelative")
+		mfd_abs_branchsets = self.get_branchsets("abGRAbsolute")
+		mfd_rel_branchsets = self.get_branchsets("bGRRelative")
+		mfd_inc_branchsets = self.get_branchsets("incrementalMFDRates")
 		gmpe_branchsets = self.get_branchsets("gmpe")
 
 		graph = nx.Graph()
 		branchset_nodes = [branchset.id for branchset in all_branchsets]
-		mfd_branchset_nodes = [branchset.id for branchset in mfd_branchsets]
-		mmax_branchset_nodes = [branchset.id for branchset in mmax_branchsets]
+		mmax_abs_branchset_nodes = [branchset.id for branchset in mmax_abs_branchsets]
+		mmax_rel_branchset_nodes = [branchset.id for branchset in mmax_rel_branchsets]
+		mfd_abs_branchset_nodes = [branchset.id for branchset in mfd_abs_branchsets]
+		mfd_rel_branchset_nodes = [branchset.id for branchset in mfd_rel_branchsets]
+		mfd_inc_branchset_nodes = [branchset.id for branchset in mfd_inc_branchsets]
 		gmpe_branchset_nodes = [branchset.id for branchset in gmpe_branchsets]
 		branch_nodes = [branch.branch_id for branch in all_branches]
 		graph.add_nodes_from(branchset_nodes)
@@ -578,16 +612,20 @@ class LogicTree(object):
 		edge_labels = {}
 		for branch in self.branches:
 			graph.add_edge(branch.parent_branchset.id, branch.branch_id)
-			edge_labels[(branch.parent_branchset.id, branch.branch_id)] = branch.weight
+			weight_label = str(branch.weight).rstrip('0')
+			edge_labels[(branch.parent_branchset.id, branch.branch_id)] = weight_label
 			if branch.child_branchset:
 				graph.add_edge(branch.branch_id, branch.child_branchset.id)
 
 		pos = self._calc_diagram_positions()
-		nx.draw_networkx_nodes(graph, pos, nodelist=[self.root_branchset.id], node_shape='>', node_color='red', node_size=500)
-		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_branchset_nodes, node_shape='>', node_color='yellow', node_size=500)
-		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_branchset_nodes, node_shape='>', node_color='green', node_size=500)
-		nx.draw_networkx_nodes(graph, pos, nodelist=gmpe_branchset_nodes, node_shape='>', node_color='blue', node_size=500)
-		nx.draw_networkx_nodes(graph, pos, nodelist=branch_nodes, node_color='white', node_size=250)
+		nx.draw_networkx_nodes(graph, pos, nodelist=[self.root_branchset.id], node_shape='>', node_color='red', node_size=500, label="sourceModel")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_abs_branchset_nodes, node_shape='>', node_color='green', node_size=500, label="maxMagGRAbsolute")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_rel_branchset_nodes, node_shape='>', node_color='lightgreen', node_size=500, label="maxMagGRRelative")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_abs_branchset_nodes, node_shape='>', node_color='yellow', node_size=500, label="abGRAbsolute")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_rel_branchset_nodes, node_shape='>', node_color='khaki', node_size=500, label="bGRRelative")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_inc_branchset_nodes, node_shape='>', node_color='yellowgreen', node_size=500, label="incrementalMFDRates")
+		nx.draw_networkx_nodes(graph, pos, nodelist=gmpe_branchset_nodes, node_shape='>', node_color='blue', node_size=500, label="gmpeModel")
+		nx.draw_networkx_nodes(graph, pos, nodelist=branch_nodes, node_color='white', node_size=250, label="Branches")
 		nx.draw_networkx_edges(graph, pos)
 		if highlight_path:
 			for branch_id in highlight_path:
@@ -599,11 +637,18 @@ class LogicTree(object):
 					nx.draw_networkx_edges(graph, pos, edgelist=[(branch_id, child_branchset_id)], edge_color='r', width=3)
 		node_labels = {}
 		for branch in all_branches:
-			node_labels[branch.branch_id] = branch.branch_id
-			#node_labels[branch.branch_id] = branch.weight
-		nx.draw_networkx_labels(graph, pos, labels=node_labels, size=8, verticalalignment="bottom")
+			node_labels[branch.branch_id] = getattr(branch, branch_label)
+		## label offset doesn't work
+		label_offset = 0.05
+		label_pos = {}
+		for key in pos.keys():
+			x, y = pos[key]
+			label_pos[key] = (x, y+label_offset)
+		nx.draw_networkx_labels(graph, label_pos, labels=node_labels, font_size=10, horizontalalignment="left", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
 		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, label_pos=0.5, font_size=10)
-		plt.show()
+		pylab.legend(loc=2, scatterpoints=1, markerscale=0.6)
+		pylab.xlabel("Branching level")
+		pylab.show()
 
 
 

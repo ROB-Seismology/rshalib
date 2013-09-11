@@ -15,11 +15,13 @@ from ..pmf import SourceModelPMF, MmaxPMF, MFDPMF, get_uniform_weights
 
 
 class SeismicSourceSystem(LogicTree):
-	def __init__(self, id, branching_levels):
-		super(SeismicSourceSystem, self).__init__(id, branching_levels)
+	def __init__(self, id, source_model_pmf=None):
+		super(SeismicSourceSystem, self).__init__(id, [])
+		if source_model_pmf:
+			self.set_root_uncertainty_level(source_model_pmf)
 
 	@classmethod
-	def parse_from_xml(cls, xml_filespec, validate=False):
+	def parse_from_xml(cls, xml_filespec, validate=True):
 		"""
 		Read source-model logic tree from XML file
 
@@ -92,15 +94,187 @@ class SeismicSourceSystem(LogicTree):
 		for branching_level in branching_levels:
 			converted_branchsets = [convert_branchset(bs) for bs in branching_level.branch_sets]
 			branching_level.branch_sets = converted_branchsets
-		sss = SeismicSourceSystem(filename, branching_levels)
+		sss = SeismicSourceSystem(filename, None)
+		sss.branching_levels = branching_levels
 		sss.connect_branches()
 		return sss
 
-	def append_uncertainty_class(self, unc_pmf_dict):
-		pass
+	def set_root_uncertainty_level(self, source_model_pmf, overwrite=False):
+		"""
+		Set root uncertainty level (corresponding to source-model uncertainties)
+		of the logic tree.
+
+		:param source_model_pmf:
+			instance of :class:`SourceModelPMF`
+		:param overwrite:
+			Bool, indicating whether or not current branching levels should
+			be overwritten (default: False)
+		"""
+		if len(self.branching_levels) > 0 and not overwrite:
+			raise Exception("Logic tree already has root branchset")
+		else:
+			self.branching_levels = []
+		if not isinstance(source_model_pmf, SourceModelPMF):
+			raise Exception("Argument must be SourceModelPMF instance")
+		branching_level_id = "bl00"
+		#branch_set_id = "%s_bs00" % branching_level_id
+		branch_set_id = "SM"
+		branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, source_model_pmf)
+		branching_level = LogicTreeBranchingLevel(branching_level_id, [branch_set])
+		self.branching_levels.append(branching_level)
+		self.connect_branches()
+
+	def append_independent_uncertainty_level(self, unc_pmf_dict, correlated=False):
+		"""
+		Append an independent uncertainty level to the logic tree,
+		converting to the branching-level structure used by OpenQuake.
+		Independent means that the uncertainty level does not depend
+		on the previous uncertainty level (except for the source-model
+		uncertainty)
+		This method requires that the root level representing source-model
+		uncertainties is present.
+
+		:param unc_pmf_dict:
+			dictionary specifying uncertainty level, taking the following form:
+			{sm_nameN: {src_id_N: instance of :class:`MmaxPMF` or :class:`MFDPMF`}}
+		:param correlated:
+			Bool, indicating whether uncertainties in level are correlated for
+			the different sources in each source model (default: False)
+		"""
+		if self.root_branchset is None:
+			raise Exception("Root uncertainty level must be set first!")
+		source_model_names = [os.path.splitext(branch.value)[0] for branch in self.root_branchset]
+
+		## This dictionary will contain lists of branch id's in each branching
+		## level for the different source models
+		bl_branch_ids = {}
+		for root_branch in self.root_branchset:
+			sm_name = os.path.splitext(root_branch.value)[0]
+			bl_branch_ids[sm_name] = [set([root_branch.branch_id])]
+			branchset = root_branch.child_branchset
+			if branchset:
+				for weight, path in branchset.enumerate_paths():
+					for bl_index in range(1, len(path)+1):
+						branch_index = path[bl_index-1].branch_id
+						try:
+							bl_branch_ids[sm_name][bl_index].add(branch_index)
+						except IndexError:
+							bl_branch_ids[sm_name].append(set([branch_index]))
+
+		## Loop over source models
+		for sm_name, src_unc_pmf_dict in unc_pmf_dict.items():
+			## Determine uncertainty type
+			first_pmf = src_unc_pmf_dict[src_unc_pmf_dict.keys()[0]]
+			if isinstance(first_pmf, MmaxPMF):
+				unc_type = "Mmax"
+			else:
+				unc_type = "MFD"
+
+			if sm_name is None:
+				## Source model unspecified, sources must be unspecified too
+				## Only one branching level will be added
+				applyToSources = []
+				if src_unc_pmf_dict.keys() != [None]:
+					raise Exception("If source model is unspecified, then sources must be unspecified too")
+				bl_end_branch_ids = [bl_branch_ids[key][-1] for key in source_model_names]
+				if len(bl_branch_ids) == 1 or len(bl_end_branch_ids[0].difference(*bl_end_branch_ids[1:])) == 0:
+					## End branches for all source models are identical, connect with all of them
+					applyToBranches = []
+					applyToSources = []
+					branch_set_id = "None_None_%s" % (unc_type)
+					branching_level_nr = len(bl_branch_ids[bl_branch_ids.keys()[0]])
+					branching_level_id = "bl%02d" % branching_level_nr
+					branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc2_pmf_dict[None], applyToBranches=applyToBranches, applyToSources=applyToSources)
+					branching_level = LogicTreeBranchingLevel(branching_level_id, [branch_set])
+					self.branching_levels.append(branching_level)
+					for sm_name in source_model_names:
+						bl_branch_ids[sm_name].append(set([branch.branch_id for branch in branch_set]))
+				else:
+					for prev_level_sm_name in bl_branch_ids.keys():
+						## Branching level different for different source models
+						applyToBranches = bl_branch_ids[prev_level_sm_name][-1]
+						branch_set_id = "%s_None_%s" % (prev_level_sm_name, unc_type)
+						branching_level_nr = len(bl_branch_ids[prev_level_sm_name])
+						branching_level_id = "bl%02d" % branching_level_nr
+						try:
+							branch_set_nr = len(self.branching_levels[branching_level_nr])
+						except IndexError:
+							branch_set_nr = 0
+						#branch_set_id = "%s_bs%02d" % (branching_level_id, branch_set_nr)
+						branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc_pmf_dict[None], applyToBranches=applyToBranches, applyToSources=applyToSources)
+						if branch_set_nr:
+							branching_level = self.branching_levels[branching_level_nr]
+							branching_level.branch_sets.append(branch_set)
+						else:
+							branching_level = LogicTreeBranchingLevel(branching_level_id, [branch_set])
+							self.branching_levels.append(branching_level)
+						bl_branch_ids[prev_level_sm_name].append(set([branch.branch_id for branch in branch_set]))
+			else:
+				## Source model specified
+				# Note: This condition cannot be verified
+				#assert unc2_pmf_dict.keys() != [None], "If sources are specified, then source model must be specified in the previous uncertainty level"
+				last_branching_level_nr = len(bl_branch_ids[sm_name])
+				sm_index = source_model_names.index(sm_name)
+				if correlated == True:
+					## Correlated uncertainties
+					applyToBranches = bl_branch_ids[sm_name][-1]
+					applyToSources = []
+					branching_level_nr = last_branching_level_nr
+					branching_level_id = "bl%02d" % branching_level_nr
+					try:
+						branch_set_nr = len(self.branching_levels[branching_level_nr])
+					except IndexError:
+						branch_set_nr = 0
+					branch_set_id = "%s_CORR_%s" % (sm_name, unc_type)
+					branch_set = LogicTreeBranchSet.from_PMF_dict(branch_set_id, src_unc_pmf_dict, applyToBranches=applyToBranches)
+					if branch_set_nr:
+						branching_level = self.branching_levels[branching_level_nr]
+						branching_level.branch_sets.append(branch_set)
+					else:
+						branching_level = LogicTreeBranchingLevel(branching_level_id, [branch_set])
+						self.branching_levels.append(branching_level)
+					bl_branch_ids[sm_name].append(set([branch.branch_id for branch in branch_set]))
+				## Uncorrelated uncertainties
+				else:
+					for i, src_id in enumerate(src_unc_pmf_dict.keys()):
+						applyToBranches = bl_branch_ids[sm_name][-1]
+						if src_id is None:
+							## Sources unspecified
+							## Only one branching level required for this source model
+							applyToSources = []
+						else:
+							applyToSources = [src_id]
+						branching_level_nr = last_branching_level_nr + i
+						branching_level_id = "bl%02d" % branching_level_nr
+						try:
+							branch_set_nr = len(self.branching_levels[branching_level_nr])
+						except IndexError:
+							branch_set_nr = 0
+						#branch_set_id = "%s_bs%02d" % (branching_level_id, branch_set_nr)
+						branch_set_id = "%s_%s_%s" % (sm_name, src_id, unc_type)
+						branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc_pmf_dict[src_id], applyToBranches=applyToBranches, applyToSources=applyToSources)
+						if branch_set_nr:
+							branching_level = self.branching_levels[branching_level_nr]
+							branching_level.branch_sets.append(branch_set)
+						else:
+							branching_level = LogicTreeBranchingLevel(branching_level_id, [branch_set])
+							self.branching_levels.append(branching_level)
+						bl_branch_ids[sm_name].append(set([branch.branch_id for branch in branch_set]))
+						#print sm_name, src_id, branching_level_nr, len(bl_branch_ids[sm_name]), len(branching_levels)
+
+		self.connect_branches()
 
 	@classmethod
 	def from_independent_uncertainty_levels(cls, sss_id, source_model_pmf, unc2_pmf_dict, unc3_pmf_dict, unc2_correlated=False, unc3_correlated=False):
+		source_model_lt = SeismicSourceSystem(sss_id, None)
+		source_model_lt.set_root_uncertainty_level(source_model_pmf)
+		source_model_lt.append_independent_uncertainty_level(unc2_pmf_dict, correlated=unc2_correlated)
+		#assert unc2_pmf_dict.keys() != [None], "If sources are specified, then source model must be specified in the previous uncertainty level"
+		source_model_lt.append_independent_uncertainty_level(unc3_pmf_dict, correlated=unc3_correlated)
+		return source_model_lt
+
+	@classmethod
+	def from_independent_uncertainty_levels2(cls, sss_id, source_model_pmf, unc2_pmf_dict, unc3_pmf_dict, unc2_correlated=False, unc3_correlated=False):
 		"""
 		Construct seismic source system according to the original
 		OpenQuake specification from parameters specifying the three
