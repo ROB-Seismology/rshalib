@@ -12,12 +12,28 @@ import numpy as np
 from logictree import LogicTreeBranch, LogicTreeBranchSet, LogicTreeBranchingLevel, LogicTree
 from configobj import ConfigObj
 from ..pmf import SourceModelPMF, MmaxPMF, MFDPMF, get_uniform_weights
+from ..source import SourceModel
 
 
 class SeismicSourceSystem(LogicTree):
-	def __init__(self, id, source_model_pmf=None):
-		super(SeismicSourceSystem, self).__init__(id, [])
+	"""
+	Class representing Seismic Source System
+	Inherits from LogicTree class
+
+	:param ID:
+		string, identifier
+	:param source_model_pmf:
+		instance of :class:`SourceModel`or of :class:`SourceModelPMF`
+
+	After initialization, additional uncertainty levels can be
+	appended using :meth:`append_independent_uncertainty_level`
+	"""
+	def __init__(self, ID, source_model_pmf=None):
+		super(SeismicSourceSystem, self).__init__(ID, [])
 		if source_model_pmf:
+			if isinstance(source_model_pmf, SourceModel):
+				source_model = source_model_pmf
+				source_model_pmf = SourceModelPMF([source_model], [1])
 			self.set_root_uncertainty_level(source_model_pmf)
 
 	@classmethod
@@ -53,8 +69,8 @@ class SeismicSourceSystem(LogicTree):
 			else:
 				applyToBranches = []
 			new_bs = LogicTreeBranchSet(branchset.id, branchset.uncertainty_type, branchset.branches, applyToBranches=applyToBranches, applyToSources=applyToSources, applyToSourceType=applyToSourceType, applyToTectonicRegionType=applyToTectonicRegionType)
-			for branch in new_bs:
-				branch.parent_branchset = new_bs
+			for i, branch in enumerate(new_bs):
+				new_bs.branches[i] = LogicTreeBranch(branch.branch_id, branch.weight, branch.value, parent_branchset=new_bs)
 			return new_bs
 
 		## Reconstruct branching levels from branches
@@ -98,6 +114,30 @@ class SeismicSourceSystem(LogicTree):
 		sss.branching_levels = branching_levels
 		sss.connect_branches()
 		return sss
+
+	def get_bl_branch_ids(self):
+		"""
+		Construct lists of branch ID's in each branching level for each
+		root branch.
+
+		:return:
+			dict, mapping root branch ID to a list of sets containing
+			branch ID's in each branching level
+		"""
+		bl_branch_ids = {}
+		for root_branch in self.root_branchset:
+			sm_name = os.path.splitext(root_branch.value)[0]
+			bl_branch_ids[sm_name] = [set([root_branch.branch_id])]
+			branchset = root_branch.child_branchset
+			if branchset:
+				for weight, path in branchset.enumerate_paths():
+					for bl_index in range(1, len(path)+1):
+						branch_index = path[bl_index-1].branch_id
+						try:
+							bl_branch_ids[sm_name][bl_index].add(branch_index)
+						except IndexError:
+							bl_branch_ids[sm_name].append(set([branch_index]))
+		return bl_branch_ids
 
 	def set_root_uncertainty_level(self, source_model_pmf, overwrite=False):
 		"""
@@ -147,19 +187,7 @@ class SeismicSourceSystem(LogicTree):
 
 		## This dictionary will contain lists of branch id's in each branching
 		## level for the different source models
-		bl_branch_ids = {}
-		for root_branch in self.root_branchset:
-			sm_name = os.path.splitext(root_branch.value)[0]
-			bl_branch_ids[sm_name] = [set([root_branch.branch_id])]
-			branchset = root_branch.child_branchset
-			if branchset:
-				for weight, path in branchset.enumerate_paths():
-					for bl_index in range(1, len(path)+1):
-						branch_index = path[bl_index-1].branch_id
-						try:
-							bl_branch_ids[sm_name][bl_index].add(branch_index)
-						except IndexError:
-							bl_branch_ids[sm_name].append(set([branch_index]))
+		bl_branch_ids = self.get_bl_branch_ids()
 
 		## Loop over source models
 		for sm_name, src_unc_pmf_dict in unc_pmf_dict.items():
@@ -176,15 +204,17 @@ class SeismicSourceSystem(LogicTree):
 				applyToSources = []
 				if src_unc_pmf_dict.keys() != [None]:
 					raise Exception("If source model is unspecified, then sources must be unspecified too")
-				bl_end_branch_ids = [bl_branch_ids[key][-1] for key in source_model_names]
-				if len(bl_branch_ids) == 1 or len(bl_end_branch_ids[0].difference(*bl_end_branch_ids[1:])) == 0:
-					## End branches for all source models are identical, connect with all of them
+				#bl_end_branch_ids = [bl_branch_ids[key][-1] for key in source_model_names]
+				#if len(bl_branch_ids) == 1 or len(bl_end_branch_ids[0].difference(*bl_end_branch_ids[1:])) == 0:
+				num_branching_levels = [len(bl_branch_ids[key]) for key in bl_branch_ids.keys()]
+				if len(bl_branch_ids) == 1 or len(set(num_branching_levels)) == 1:
+					## Same branching level for different source models
 					applyToBranches = []
 					applyToSources = []
 					branch_set_id = "None_None_%s" % (unc_type)
 					branching_level_nr = len(bl_branch_ids[bl_branch_ids.keys()[0]])
 					branching_level_id = "bl%02d" % branching_level_nr
-					branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc2_pmf_dict[None], applyToBranches=applyToBranches, applyToSources=applyToSources)
+					branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc_pmf_dict[None], applyToBranches=applyToBranches, applyToSources=applyToSources)
 					branching_level = LogicTreeBranchingLevel(branching_level_id, [branch_set])
 					self.branching_levels.append(branching_level)
 					for sm_name in source_model_names:

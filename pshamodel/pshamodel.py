@@ -15,12 +15,11 @@ from random import choice
 
 import openquake.hazardlib as nhlib
 from openquake.hazardlib.imt import PGA, SA, PGV, PGD, MMI
-from openquake.engine.input.logictree import LogicTreeProcessor
 
 from ..geo import *
 from ..site import *
 from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, ProbabilityMatrix, DeaggregationSlice
-from ..logictree import GroundMotionSystem, create_basic_seismicSourceSystem
+from ..logictree import GroundMotionSystem, SeismicSourceSystem
 from ..crisis.IO import writeCRISIS2007
 from ..openquake.config import OQ_Params
 from ..source import SourceModel
@@ -28,6 +27,12 @@ from ..source import SourceModel
 
 
 # TODO: make distinction between imt (PGA, SA) and im (SA(0.5, 5.0), SA(1.0, 5.0))
+
+
+## Minimum and maximum values for random number generator
+MIN_SINT_32 = -(2**31)
+MAX_SINT_32 = (2**31) - 1
+
 
 class PSHAModelBase(object):
 	"""
@@ -520,7 +525,7 @@ class PSHAModel(PSHAModelBase):
 				reference_depth_to_2pt5km_per_sec=self.ref_site_params[3])
 
 		## validate source model logic tree and write nrml file
-		source_model_lt = create_basic_seismicSourceSystem([self.source_model])
+		source_model_lt = SeismicSourceSystem(self.source_model)
 		source_model_lt.validate()
 		source_model_lt_file_name = 'source_model_lt.xml'
 		source_model_lt.write_xml(os.path.join(self.output_dir, source_model_lt_file_name))
@@ -651,6 +656,7 @@ class PSHAModelTree(PSHAModelBase):
 	def __init__(self, name, source_models, source_model_lt, gmpe_lt, output_dir, sites=[], grid_outline=[], grid_spacing=0.5, site_model=None, ref_site_params=(800., False, 100., 2.), imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200., num_lt_samples=1, random_seed=42):
 		"""
 		"""
+		from openquake.engine.input.logictree import LogicTreeProcessor
 		PSHAModelBase.__init__(self, name, output_dir, sites, grid_outline, grid_spacing, site_model, ref_site_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
 		self.source_models = source_models
 		self.source_model_lt = source_model_lt
@@ -677,124 +683,278 @@ class PSHAModelTree(PSHAModelBase):
 		# TODO
 		pass
 
-	def sample_source_model_lt(self, num_samples=1, verbose=False):
+	def sample_logic_trees(self, num_samples=1):
+		"""
+		Sample both source-model and GMPE logic trees, in a way that is
+		similar to :meth:`_initialize_realizations_montecarlo` of
+		:class:`BaseHazardCalculator` in oq-engine
+
+		:param num_samples:
+			int, number of random samples
+			If zero, :meth:`enumerate_logic_trees` will be called
+			(default: 1)
+
+		:return:
+			list of instances of :class:`PSHAModel`
+		"""
+		if num_samples == 0:
+			return self.enumerate_logic_trees()
+
+		psha_models = []
+		for i in xrange(num_samples):
+			## Generate 2nd-order random seeds
+			smlt_random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
+			gmpelt_random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
+
+			## Call OQ logictree processor
+			sm_name, smlt_path = self.ltp.sample_source_model_logictree(smlt_random_seed)
+			gmpelt_path = self.ltp.sample_gmpe_logictree(gmpelt_random_seed)
+
+			## Convert to objects
+			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
+			gmpe_model = self._gmpe_sample_to_gmpe_model(path)
+
+			## Convert to PSHA model
+			name = "%s : LT sample %04d (SM: %s; GMPE: %s)" % (self.name, i, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
+			psha_model = self._get_psha_model(source_model, gmpe_model, name)
+			psha_models.append(psha_model)
+
+			## Update the seed for the next realization
+			seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
+			self.rnd.seed(seed)
+
+		return psha_models
+
+	def enumerate_logic_trees(self):
+		"""
+		Enumerate both source-model and GMPE logic trees, in a way that is
+		similar to :meth:`_initialize_realizations_enumeration` of
+		:class:`BaseHazardCalculator` in oq-engine
+
+		:return:
+			tuple of:
+			- list of instances of :class:`PSHAModel`
+			- list of corresponding weights
+		"""
+		psha_models, weights = [], []
+		for i, path_info in enumerate(self.ltp.enumerate_paths()):
+			sm_name, weight, smlt_path, gmpelt_path = path_info
+			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
+			gmpe_model = self._gmpe_sample_to_gmpe_model(path)
+			name = "%s : LT enum %04d (SM: %s; GMPE: %s)" % (self.name, i, source_model.name, gmpe_model.name)
+			psha_model = self._get_psha_model(source_model, gmpe_model, name)
+			psha_models.append(psha_model)
+			weights.append(weight)
+		return psha_models, weights
+
+	def _get_psha_model(self, source_model, gmpe_model, name):
+		"""
+		Convert a logic-tree sample, consisting of a source model and a
+		GMPE model, to a PSHAModel object.
+
+		:param source_model:
+			instance of :class:`SourceModel`
+		:param gmpe_model:
+			instance of :class:`GroundMotionModel`, mapping tectonic
+			region type to GMPE name
+		:param name:
+			string, name of PSHA model
+		"""
+		# TODO: adjust output_dir based on path
+		output_dir = self.output_dir
+		optimized_gmpe_model = gmpe_model.get_optimized_model(source_model)
+		psha_model = PSHAModel(name, source_model, optimized_gmpe_model, output_dir,
+			sites=self.sites, grid_outline=self.grid_outline, grid_spacing=self.grid_spacing,
+			site_model=self.site_model, ref_site_params=self.ref_site_params,
+			imt_periods=self.imt_periods, intensities=self.intensities,
+			min_intensities=self.min_intensities, max_intensities=self.max_intensities,
+			num_intensities=self.num_intensities, return_periods=self.return_periods,
+			time_span=self.time_span, truncation_level=self.truncation_level,
+			integration_distance=self.integration_distance)
+		return psha_model
+
+	def sample_source_model_lt(self, num_samples=1, verbose=False, show_plot=False):
 		"""
 		Sample source-model logic tree
 
 		:param num_samples:
-			int, number of random samples
+			int, number of random samples.
+			If zero, :meth:`enumerate_source_model_lt` will be called
+			(default: 1)
 		:param verbose:
 			bool, whether or not to print some information
+		:param show_plot:
+			bool, whether or not to plot a diagram of the sampled branch path
+			(default: False)
 
 		:return:
-			list of instances of :class:`SourceModel`
+			list of instances of :class:`SourceModel`, one for each sample
 		"""
-		for i in range(num_samples):
+		if num_samples == 0:
+			return self.enumerate_source_model_lt(verbose=verbose, show_plot=show_plot)
+
+		modified_source_models = []
+		for i in xrange(num_samples):
 			## Generate 2nd-order random seed
-			random_seed = self.rnd.randint(-(2**31), (2**31) - 1)
+			random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
 			## Call OQ logictree processor
 			sm_name, path = self.ltp.sample_source_model_logictree(random_seed)
 			if verbose:
 				print sm_name, path
-				#self.source_model_lt.plot_diagram(highlight_path=path)
-
+			if show_plot:
+				self.source_model_lt.plot_diagram(highlight_path=path)
 			## Apply uncertainties
-			modified_source_models = []
-			for sm in self.source_models:
-				if sm.name == os.path.splitext(sm_name)[0]:
-					modified_sources = []
-					for src in sm:
-						modified_src = copy.deepcopy(src)
-						apply_uncertainties = self.ltp.parse_source_model_logictree_path(path)
-						apply_uncertainties(modified_src)
-						if verbose:
-							print "  %s" % src.source_id
-							print "    %.1f %.3f %.3f" % (src.mfd.max_mag, src.mfd.a_val, src.mfd.b_val)
-							print "    %.1f %.3f %.3f" % (modified_src.mfd.max_mag, modified_src.mfd.a_val, modified_src.mfd.b_val)
-						modified_sources.append(modified_src)
-					modified_source_models.append(SourceModel(sm.name + " (lt sample %d)" % i, modified_sources))
+			source_model = self._smlt_sample_to_source_model(sm_name, path, verbose=verbose)
+			modified_source_models.append(source_model)
 		return modified_source_models
 
-	def enumerate_source_model_lt(self):
+	def enumerate_source_model_lt(self, verbose=False, show_plot=False):
 		"""
 		Enumerate source-model logic tree
-		"""
-		for smlt_path_weight, smlt_path in self.ltp.source_model_lt.root_branchset.enumerate_paths():
-			print smlt_path_weight, [branch.branch_id for branch in smlt_path]
 
-	def sample_gmpe_lt(self, num_samples=1, verbose=False):
+		:param verbose:
+			bool, whether or not to print some information
+		:param show_plot:
+			bool, whether or not to plot a diagram of the sampled branch path
+			(default: False)
+
+		:return:
+			tuple of:
+			- list of instances of :class:`SourceModel`, one for each sample
+			- list of corresponding weights
+		"""
+		weights, modified_source_models = [], []
+		for smlt_path_weight, smlt_branches in self.source_model_lt.root_branchset.enumerate_paths():
+			smlt_path = [branch.branch_id for branch in smlt_branches]
+			sm_name = os.path.splitext(smlt_branches[0].value)[0]
+			if verbose:
+				print smlt_path_weight, sm_name, smlt_path
+			if show_plot:
+				self.source_model_lt.plot_diagram(highlight_path=path)
+			## Apply uncertainties
+			source_model = self._smlt_sample_to_source_model(sm_name, path, verbose=verbose)
+			modified_source_models.append(source_model)
+			weights.append(weight)
+		return modified_source_models, weights
+
+	def _smlt_sample_to_source_model(self, sm_name, path, verbose=False):
+		"""
+		Convert sample from source-model logic tree to a new source model
+		object, applying the sampled uncertainties to each source.
+
+		:param sm_name:
+			string, name of source model
+		:param path:
+			list of branch ID's, representing the path through the
+			source-model logic tree
+		:param verbose:
+			bool, whether or not to print some information
+
+		:return:
+			instance of :class:`SourceModel`
+		"""
+		for sm in self.source_models:
+			if sm.name == os.path.splitext(sm_name)[0]:
+				modified_sources = []
+				for src in sm:
+					modified_src = copy.deepcopy(src)
+					apply_uncertainties = self.ltp.parse_source_model_logictree_path(path)
+					apply_uncertainties(modified_src)
+					if verbose:
+						print "  %s" % src.source_id
+						if hasattr(src.mfd, 'a_val'):
+							print "    %.1f %.3f %.3f  -->  %.1f %.3f %.3f" % (src.mfd.max_mag, src.mfd.a_val, src.mfd.b_val, modified_src.mfd.max_mag, modified_src.mfd.a_val, modified_src.mfd.b_val)
+						elif hasattr(src.mfd, 'occurrence_rates'):
+							print "    %s  -->  %s" % (src.mfd.occurrence_rates, modified_src.mfd.occurrence_rates)
+					modified_sources.append(modified_src)
+				break
+		name = " -- ".join(path)
+		return SourceModel(name, modified_sources)
+
+	def sample_gmpe_lt(self, num_samples=1, verbose=False, show_plot=False):
 		"""
 		Sample GMPE logic tree
 
 		:param num_samples:
 			int, number of random samples
+			If zero, :meth:`enumerate_gmpe_lt` will be called
+			(default: 1)
 		:param verbose:
 			bool, whether or not to print some information
+		:param show_plot:
+			bool, whether or not to plot a diagram of the sampled branch path
+			(default: False)
 
 		:return:
-			list of dicts, mapping trt to gmpe names
+			list of instances of :class:`GroundMotionModel`, one for each sample
+		"""
+		if num_samples == 0:
+			return self.enumerate_gmpe_lt(verbose=verbose, show_plot=show_plot)
+
+		gmpe_models = []
+		for i in xrange(num_samples):
+			## Generate 2nd-order random seed
+			random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
+			## Call OQ logictree processor
+			path = self.ltp.sample_gmpe_logictree(random_seed)
+			if verbose:
+				print path
+			if show_plot:
+				self.gmpe_lt.plot_diagram(highlight_path=path)
+			## Convert to GMPE model
+			gmpe_model = self._gmpe_sample_to_gmpe_model(path)
+			gmpe_models.append(gmpe_model)
+			if verbose:
+				print gmpe_model
+		return gmpe_models
+
+	def enumerate_gmpe_lt(self, verbose=False, show_plot=False):
+		"""
+		Enumerate GMPE logic tree
+
+		:param verbose:
+			bool, whether or not to print some information
+		:param show_plot:
+			bool, whether or not to plot a diagram of the sampled branch path
+			(default: False)
+
+		:return:
+			tuple of:
+			- list of instances of :class:`SourceModel`, one for each sample
+			- list of corresponding weights
+		"""
+		gmpe_models, weights = [], []
+		for gmpelt_path_weight, gmpelt_branches in self.gmpe_lt.root_branchset.enumerate_paths():
+			gmpelt_path = [branch.branch_id for branch in gmpelt_branches]
+			if verbose:
+				print gmpelt_path_weight, gmpelt_path
+			if show_plot:
+				self.gmpe_lt.plot_diagram(highlight_path=gmpelt_path)
+			gmpe_model = self._gmpe_sample_to_gmpe_model(path)
+			gmpe_models.append(gmpe_model)
+			weights.append(weight)
+		return gmpe_models, weights
+
+	def _gmpe_sample_to_gmpe_model(self, path):
+		"""
+		Convert sample from GMPE logic tree to a ground-motion model
+
+		:param path:
+			list of branch ID's, representing the path through the
+			GMPE logic tree
+
+		:return:
+			instance of :class:`GroundMotionModel', mapping tectonic
+			region type to GMPE name
 		"""
 		trts = self.gmpe_lt.tectonicRegionTypes
-		samples = []
-
-		for i in range(num_samples):
-			trt_gmpe_dict = {}
-			## Generate 2nd-order random seed
-			random_seed = self.rnd.randint(-(2**31), (2**31) - 1)
-			## Call OQ logictree processor
-			branch_path = self.ltp.sample_gmpe_logictree(random_seed)
-			if verbose:
-				print branch_path
-			for l, branch_id in enumerate(branch_path):
-				branch = self.gmpe_lt.get_branch_by_id(branch_id)
-				trt = trts[l]
-				trt_gmpe_dict[trt] = branch.value
-			samples.append(trt_gmpe_dict)
-			if verbose:
-				print trt_gmpe_dict
-		return trt_gmpe_dict
-
-
-	def enumerate_gmpe_lt(self):
-		for gmpelt_path_weight, gmpelt_path in self.ltp.fmpe_lt.root_branchset.enumerate_paths():
-			print gmpelt_path_weight, [branch.branch_id for branch in gmpelt_path]
-
-	def run_nhlib(self, nrml_base_filespec=""):
-		"""
-		Run PSHA model with nhlib and store result in a SpectralHazardCurveFieldTree
-		object.
-
-		:param nrml_base_filespec:
-			String, base file specification for NRML output file
-			(default: "").
-		"""
-		if not nrml_base_filespec:
-			os.path.join(self.output_dir, '%s' % self.name)
-		else:
-			nrml_base_filespec = os.path.splitext(nrml_base_filespec)[0]
-
-		nhlib_params = self._get_nhlib_params()
-		num_sites = len(nhlib_params["site_model"])
-		hazard_results = {}
-		psha_models = self._get_psha_models()
-		for imt, periods in self.imt_periods.items():
-			hazard_results[imt] = np.zeros((num_sites, self.num_lts_samples, len(periods), self.num_intensities))
-		psha_model_names, weights = [], []
-		filespecs = ['']*len(psha_models)
-		for j, psha_model in enumerate(psha_models):
-			print psha_model.name
-			psha_model_names.append(psha_model.name)
-			weights.append(1./len(psha_models))
-			hazard_result = psha_model.run_nhlib_poes(nhlib_params)
-			for imt in self.imt_periods.keys():
-				hazard_results[imt][:,j,:,:] = hazard_result[imt]
-		imtls = self._get_imt_intensities()
-		site_names = [site.name for site in self._get_sites()]
-		for imt, periods in self.imt_periods.items():
-			shcft = SpectralHazardCurveFieldTree(self.name, psha_model_names, filespecs, weights, self._get_sites(), periods, imt, imtls[imt], 'g', self.time_span, poes=hazard_results[imt], site_names=site_names)
-			nrml_filespec = nrml_base_filespec + '_%s.xml' % imt
-			shcft.write_nrml(nrml_filespec)
-		return shcft
+		trt_gmpe_dict = {}
+		for l, branch_id in enumerate(path):
+			branch = self.gmpe_lt.get_branch_by_id(branch_id)
+			trt = trts[l]
+			trt_gmpe_dict[trt] = branch.value
+		name = " -- ".join(path)
+		return GroundMotionModel(name, trt_gmpe_dict)
 
 	def write_openquake(self, user_params=None):
 		"""
@@ -857,6 +1017,43 @@ class PSHAModelTree(PSHAModelBase):
 		## write oq params to ini file
 		params.write_config(os.path.join(self.output_dir, 'job.ini'))
 
+	def run_nhlib(self, nrml_base_filespec=""):
+		"""
+		Run PSHA model with nhlib and store result in a SpectralHazardCurveFieldTree
+		object.
+
+		:param nrml_base_filespec:
+			String, base file specification for NRML output file
+			(default: "").
+		"""
+		if not nrml_base_filespec:
+			os.path.join(self.output_dir, '%s' % self.name)
+		else:
+			nrml_base_filespec = os.path.splitext(nrml_base_filespec)[0]
+
+		nhlib_params = self._get_nhlib_params()
+		num_sites = len(nhlib_params["site_model"])
+		hazard_results = {}
+		psha_models = self._get_psha_models()
+		for imt, periods in self.imt_periods.items():
+			hazard_results[imt] = np.zeros((num_sites, self.num_lts_samples, len(periods), self.num_intensities))
+		psha_model_names, weights = [], []
+		filespecs = ['']*len(psha_models)
+		for j, psha_model in enumerate(psha_models):
+			print psha_model.name
+			psha_model_names.append(psha_model.name)
+			weights.append(1./len(psha_models))
+			hazard_result = psha_model.run_nhlib_poes(nhlib_params)
+			for imt in self.imt_periods.keys():
+				hazard_results[imt][:,j,:,:] = hazard_result[imt]
+		imtls = self._get_imt_intensities()
+		site_names = [site.name for site in self._get_sites()]
+		for imt, periods in self.imt_periods.items():
+			shcft = SpectralHazardCurveFieldTree(self.name, psha_model_names, filespecs, weights, self._get_sites(), periods, imt, imtls[imt], 'g', self.time_span, poes=hazard_results[imt], site_names=site_names)
+			nrml_filespec = nrml_base_filespec + '_%s.xml' % imt
+			shcft.write_nrml(nrml_filespec)
+		return shcft
+
 	def write_crisis(self):
 		"""
 		Write PSHA model tree input for Crisis.
@@ -866,13 +1063,15 @@ class PSHAModelTree(PSHAModelBase):
 		gsims_dir = os.path.join(self.output_dir, 'gsims')
 		if not os.path.exists(gsims_dir):
 				os.mkdir(gsims_dir)
-		## create logic tree structure
+
+		## create directory structure for logic tree
 		for source_model in self.source_models:
 			for ground_motion_model in self.ground_motion_models:
 				dir = os.path.join(os.path.join(self.output_dir, source_model.name), ground_motion_model.name)
 				if not os.path.exists(dir):
 					os.makedirs(dir)
-		for psha_model in self._get_psha_models():
+
+		for psha_model in self.sample_logic_trees(self.num_lt_samples):
 			filespec = os.path.join(os.path.join(os.path.join(self.output_dir, psha_model.source_model.name), psha_model.ground_motion_model.name), psha_model.name + '.dat')
 			psha_model.write_crisis(filespec, gsims_dir, site_filespec)
 

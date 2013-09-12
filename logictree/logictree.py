@@ -169,6 +169,7 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		branches = []
 		# TODO: add check to assure that number of uncertainties is the same for each source
 		for s, src_id in enumerate(applyToSources):
+			pmf = pmf_dict[src_id]
 			for i, (weight, value) in enumerate(pmf.data):
 				if s == 0:
 					value = {src_id: value}
@@ -543,6 +544,14 @@ class LogicTree(object):
 						branchsets.append(branchset)
 		return branchsets
 
+	def get_num_paths(self):
+		"""
+		Return total number of paths in the logic tree.
+		"""
+		for i, (weight, path) in enumerate(self.root_branchset.enumerate_paths()):
+			pass
+		return i
+
 	def _calc_diagram_positions(self):
 		"""
 		Compute x and y positions of branchsets and branches in networkx diagram.
@@ -566,15 +575,19 @@ class LogicTree(object):
 				if len(parent_branches) > 1:
 					ymin, ymax = parent_branch_y.min(), parent_branch_y.max()
 				else:
-					ymin = y - (1. / num_branchsets) + 1./num_branchsets/4
-					ymax = y + (1. / num_branchsets) - 1./num_branchsets/4
+					ymin = y - (1. / num_branchsets) + 1./num_branchsets/4.
+					ymax = y + (1. / num_branchsets) - 1./num_branchsets/4.
 					dy = float(ymax - ymin)
-					ymin, ymax = ymin + dy/(num_branches-1)/2, ymax-dy/(num_branches-1)/2
+					if num_branches > 1:
+						ymin, ymax = ymin + dy/(num_branches-1)/2.5, ymax - dy/(num_branches-1)/2.5
 				pos[branchset.id] = (l+1, y)
 				for b, branch in enumerate(branchset):
 					dy = float(ymax - ymin)
 					#pos[branch.branch_id] = (l+1+0.5, ymin + dy/num_branches/2 + b*(dy/num_branches))
-					pos[branch.branch_id] = (l+1+0.5, ymin + b*(dy/(num_branches-1)))
+					if num_branches == 1:
+						pos[branch.branch_id] = (l+1+0.5, y)
+					else:
+						pos[branch.branch_id] = (l+1+0.5, ymin + b*(dy/(num_branches-1)))
 		return pos
 
 	def plot_diagram(self, highlight_path=[], branch_label="branch_id"):
@@ -618,7 +631,8 @@ class LogicTree(object):
 				graph.add_edge(branch.branch_id, branch.child_branchset.id)
 
 		pos = self._calc_diagram_positions()
-		nx.draw_networkx_nodes(graph, pos, nodelist=[self.root_branchset.id], node_shape='>', node_color='red', node_size=500, label="sourceModel")
+		if self.root_branchset.uncertainty_type == "sourceModel":
+			nx.draw_networkx_nodes(graph, pos, nodelist=[self.root_branchset.id], node_shape='>', node_color='red', node_size=500, label="sourceModel")
 		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_abs_branchset_nodes, node_shape='>', node_color='green', node_size=500, label="maxMagGRAbsolute")
 		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_rel_branchset_nodes, node_shape='>', node_color='lightgreen', node_size=500, label="maxMagGRRelative")
 		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_abs_branchset_nodes, node_shape='>', node_color='yellow', node_size=500, label="abGRAbsolute")
