@@ -53,27 +53,27 @@ for sm in source_models:
 #MFD_pmf_dict = {None: {None: rshalib.pmf.MFDPMF([-0.1, 0.1], [0.4, 0.6])}}
 
 ## Logic tree with relative uncertainties for all sources in MFD
-#Mmax_pmf_dict = {}#for sm in source_models:#	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}#MFD_pmf_dict = {}#for sm in source_models:Mmax_pmf_dict = {}
-#Mmax_pmf_dict = {}#for sm in source_models:#	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}#MFD_pmf_dict = {}#for sm in source_models:for sm in source_models:
-#Mmax_pmf_dict = {}#for sm in source_models:#	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}#MFD_pmf_dict = {}#for sm in source_models:	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}
-#Mmax_pmf_dict = {}#for sm in source_models:#	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}#MFD_pmf_dict = {}#for sm in source_models:MFD_pmf_dict = {}
-#Mmax_pmf_dict = {}#for sm in source_models:#	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}#MFD_pmf_dict = {}#for sm in source_models:for sm in source_models:
-#Mmax_pmf_dict = {}#for sm in source_models:#	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}#MFD_pmf_dict = {}#for sm in source_models:	MFD_pmf_dict[sm.name] = {None: rshalib.pmf.MFDPMF([-0.1, 0.1], [0.4, 0.6])}
+#Mmax_pmf_dict = {}
+#for sm in source_models:
+#	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}
+#MFD_pmf_dict = {}
+#for sm in source_models:
+#	MFD_pmf_dict[sm.name] = {None: rshalib.pmf.MFDPMF([-0.1, 0.1], [0.4, 0.6])}
 
 ## Mix of the above:
 ## - relative uncertainties for all sources in a source model in first level
 ## - relative uncertainties for all source models in second level
-Mmax_pmf_dict = {}
-for sm in source_models:
-	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}
-MFD_pmf_dict = {None: {None: rshalib.pmf.MFDPMF([-0.1, 0.1], [0.4, 0.6])}}
+#Mmax_pmf_dict = {}
+#for sm in source_models:
+#	Mmax_pmf_dict[sm.name] = {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}
+#MFD_pmf_dict = {None: {None: rshalib.pmf.MFDPMF([-0.1, 0.1], [0.4, 0.6])}}
 ## This doesn't / shouldn't work
 ## - relative uncertainties for all source models in a source model in first level
 ## - relative uncertainties for all sources in second level
-#Mmax_pmf_dict = {None: {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}}
-#MFD_pmf_dict = {}
-#for sm in source_models:
-#	MFD_pmf_dict[sm.name] = {None: rshalib.pmf.MFDPMF([-0.1, 0.1], [0.4, 0.6])}
+Mmax_pmf_dict = {None: {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}}
+MFD_pmf_dict = {}
+for sm in source_models:
+	MFD_pmf_dict[sm.name] = {None: rshalib.pmf.MFDPMF([-0.1, 0.1], [0.4, 0.6])}
 
 
 

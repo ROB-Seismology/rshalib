@@ -116,12 +116,24 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		# TODO: are applyToBranches and applyToSources strings or lists?
 		filters = {}
 		self.applyToBranches = applyToBranches
-		filters["applyToSources"] = self.applyToSources = applyToSources
-		filters["applyToSourceType"] = self.applyToSourceType = applyToSourceType
-		filters["applyToTectonicRegionType"] = self.applyToTectonicRegionType = applyToTectonicRegionType
+		filters["applyToSources"] = applyToSources
+		filters["applyToSourceType"] = applyToSourceType
+		filters["applyToTectonicRegionType"] = applyToTectonicRegionType
 		super(LogicTreeBranchSet, self).__init__(uncertainty_type, filters)
 		self.id = id
 		self.branches = branches
+
+	@property
+	def applyToSources(self):
+		return self.filters.get("applyToSources", [])
+
+	@property
+	def applyToSourceType(self):
+		return self.filters.get("applyToSourceType", "")
+
+	@property
+	def applyToTectonicRegionType(self):
+		return self.filters.get("applyToTectonicRegionType", "")
 
 	def __iter__(self):
 		return iter(self.branches)
@@ -579,6 +591,7 @@ class LogicTree(object):
 					ymax = y + (1. / num_branchsets) - 1./num_branchsets/4.
 					dy = float(ymax - ymin)
 					if num_branches > 1:
+						# TODO: optimize
 						ymin, ymax = ymin + dy/(num_branches-1)/2.5, ymax - dy/(num_branches-1)/2.5
 				pos[branchset.id] = (l+1, y)
 				for b, branch in enumerate(branchset):
