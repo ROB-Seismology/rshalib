@@ -105,5 +105,5 @@ class GroundMotionSystem(LogicTree):
 				used_trts.add(src.tectonic_region_type)
 		for trt in used_trts:
 			optimized_gmpe_system_def[trt] = self.gmpe_system_def[trt]
-		return GroundMotionSystem(self.ID, optimized_gmpe_system_def)
+		return GroundMotionSystem(self.id, optimized_gmpe_system_def)
 

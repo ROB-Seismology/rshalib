@@ -228,7 +228,6 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 			elif pmf.is_abGRAbsolute():
 				uncertainty_type = "abGRAbsolute"
 			elif pmf.is_incrementalMFDRates():
-				# TODO: not yet implemented in OQ
 				uncertainty_type = "incrementalMFDRates"
 
 		branches = []
@@ -562,7 +561,7 @@ class LogicTree(object):
 		"""
 		for i, (weight, path) in enumerate(self.root_branchset.enumerate_paths()):
 			pass
-		return i
+		return i + 1
 
 	def _calc_diagram_positions(self):
 		"""
@@ -573,10 +572,15 @@ class LogicTree(object):
 			dict {id: (x,y)}
 		"""
 		pos = {}
+
+		## Root branchset
 		pos[self.root_branchset.id] = (0, 0.5)
 		num_branches = len(self.root_branchset)
 		for b, branch in enumerate(self.root_branchset):
 			pos[branch.branch_id] = (0.5, 1./num_branches/2 + b*(1./num_branches))
+		parent_branch_dy = 1./num_branches
+
+		## Other branching levels
 		for l, branching_level in enumerate(self.branching_levels[1:]):
 			num_branchsets = len(branching_level)
 			for s, branchset in enumerate(branching_level):
@@ -592,15 +596,14 @@ class LogicTree(object):
 				else:
 					## Take into account space taken by other branches
 					## in parent_branchset
-					## Instead of 1, we need the y range of the parent branchset
 					ymin = ymean - (1. / num_branchsets) + 1./num_branchsets/4.
 					ymax = ymean + (1. / num_branchsets) - 1./num_branchsets/4.
 					dy = ymax - ymin
 					## Add some extra margin
 					if num_branches > 1:
 						# TODO: optimize
-						ymin = ymin + dy/(num_branches-1)/2.
-						ymax = ymax - dy/(num_branches-1)/2.
+						ymin = ymin + dy/3.75
+						ymax = ymax - dy/3.75
 
 				## Divide branches over available space
 				for b, branch in enumerate(branchset):
@@ -624,6 +627,8 @@ class LogicTree(object):
 		"""
 		import networkx as nx
 		import pylab
+
+		## Branches and branchsets correspond to nodes
 		all_branches = self.branches
 		all_branchsets = self.get_branchsets()
 		mmax_abs_branchsets = self.get_branchsets("maxMagGRAbsolute")
@@ -633,7 +638,6 @@ class LogicTree(object):
 		mfd_inc_branchsets = self.get_branchsets("incrementalMFDRates")
 		gmpe_branchsets = self.get_branchsets("gmpe")
 
-		graph = nx.Graph()
 		branchset_nodes = [branchset.id for branchset in all_branchsets]
 		mmax_abs_branchset_nodes = [branchset.id for branchset in mmax_abs_branchsets]
 		mmax_rel_branchset_nodes = [branchset.id for branchset in mmax_rel_branchsets]
@@ -642,8 +646,12 @@ class LogicTree(object):
 		mfd_inc_branchset_nodes = [branchset.id for branchset in mfd_inc_branchsets]
 		gmpe_branchset_nodes = [branchset.id for branchset in gmpe_branchsets]
 		branch_nodes = [branch.branch_id for branch in all_branches]
+
+		graph = nx.Graph()
+		## Add nodes
 		graph.add_nodes_from(branchset_nodes)
 		graph.add_nodes_from(branch_nodes)
+		## Add edges (= connecting lines), and collect edge labels
 		edge_labels = {}
 		for branch in self.branches:
 			graph.add_edge(branch.parent_branchset.id, branch.branch_id)
@@ -652,17 +660,24 @@ class LogicTree(object):
 			if branch.child_branchset:
 				graph.add_edge(branch.branch_id, branch.child_branchset.id)
 
+		## Compute node positions
 		pos = self._calc_diagram_positions()
+
+		## Draw branchset nodes
 		if self.root_branchset.uncertainty_type == "sourceModel":
-			nx.draw_networkx_nodes(graph, pos, nodelist=[self.root_branchset.id], node_shape='>', node_color='red', node_size=500, label="sourceModel")
-		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_abs_branchset_nodes, node_shape='>', node_color='green', node_size=500, label="maxMagGRAbsolute")
-		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_rel_branchset_nodes, node_shape='>', node_color='lightgreen', node_size=500, label="maxMagGRRelative")
-		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_abs_branchset_nodes, node_shape='>', node_color='yellow', node_size=500, label="abGRAbsolute")
-		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_rel_branchset_nodes, node_shape='>', node_color='khaki', node_size=500, label="bGRRelative")
-		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_inc_branchset_nodes, node_shape='>', node_color='yellowgreen', node_size=500, label="incrementalMFDRates")
+			nx.draw_networkx_nodes(graph, pos, nodelist=[self.root_branchset.id], node_shape='>', node_color='red', node_size=300, label="sourceModel")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_abs_branchset_nodes, node_shape='>', node_color='green', node_size=300, label="maxMagGRAbsolute")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_rel_branchset_nodes, node_shape='>', node_color='lightgreen', node_size=300, label="maxMagGRRelative")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_abs_branchset_nodes, node_shape='>', node_color='yellow', node_size=300, label="abGRAbsolute")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_rel_branchset_nodes, node_shape='>', node_color='khaki', node_size=300, label="bGRRelative")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_inc_branchset_nodes, node_shape='>', node_color='yellowgreen', node_size=300, label="incrementalMFDRates")
 		nx.draw_networkx_nodes(graph, pos, nodelist=gmpe_branchset_nodes, node_shape='>', node_color='blue', node_size=500, label="gmpeModel")
+		## Draw branch nodes
 		nx.draw_networkx_nodes(graph, pos, nodelist=branch_nodes, node_color='white', node_size=250, label="Branches")
+
+		## Draw edges
 		nx.draw_networkx_edges(graph, pos)
+		## Draw highlighted path
 		if highlight_path:
 			for branch_id in highlight_path:
 				branch = self.get_branch_by_id(branch_id)
@@ -671,10 +686,13 @@ class LogicTree(object):
 				if branch.child_branchset:
 					child_branchset_id = branch.child_branchset.id
 					nx.draw_networkx_edges(graph, pos, edgelist=[(branch_id, child_branchset_id)], edge_color='r', width=3)
+
+		## Draw node and edge labels
 		node_labels = {}
-		for branch in all_branches:
-			node_labels[branch.branch_id] = getattr(branch, branch_label)
-		## label offset doesn't work
+		if branch_label:
+			for branch in all_branches:
+				node_labels[branch.branch_id] = getattr(branch, branch_label)
+		## TODO: label offset doesn't work
 		label_offset = 0.05
 		label_pos = {}
 		for key in pos.keys():
@@ -682,8 +700,18 @@ class LogicTree(object):
 			label_pos[key] = (x, y+label_offset)
 		nx.draw_networkx_labels(graph, label_pos, labels=node_labels, font_size=10, horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
 		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, label_pos=0.5, font_size=10)
-		pylab.legend(loc=2, scatterpoints=1, markerscale=0.6)
-		pylab.xlabel("Branching level")
+
+		## Plot decoration
+		pylab.legend(loc=2, scatterpoints=1, markerscale=0.75, prop={'size': 12})
+		pylab.axis((-0.5, len(self.branching_levels), 0, 1.2))
+		pylab.xticks(range(len(self.branching_levels) + 1))
+		pylab.yticks([])
+		pylab.xlabel("Branching level", fontsize=14)
+		ax = pylab.gca()
+		for tick in ax.xaxis.get_major_ticks():
+			tick.label.set_fontsize(14)
+		pylab.grid(True, axis='x')
+		pylab.title("Logic-tree diagram", fontsize=16)
 		pylab.show()
 
 

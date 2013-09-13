@@ -660,9 +660,9 @@ class PSHAModelTree(PSHAModelBase):
 		PSHAModelBase.__init__(self, name, output_dir, sites, grid_outline, grid_spacing, site_model, ref_site_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
 		self.source_models = source_models
 		self.source_model_lt = source_model_lt
-		self.gmpe_lt = gmpe_lt
-		#self.lts_sampling_method = lts_sampling_method
+		self.gmpe_lt = gmpe_lt.get_optimized_system(self.source_models)
 		self.num_lt_samples = num_lt_samples
+		#self.lts_sampling_method = lts_sampling_method
 		#if self.lts_sampling_method == 'enumerated':
 		#	self.enumerated_lts_samples = self._enumerate_lts_samples()
 		self.random_seed = random_seed
@@ -682,6 +682,14 @@ class PSHAModelTree(PSHAModelBase):
 		"""
 		# TODO
 		pass
+
+	def get_num_paths(self):
+		"""
+		Return total number of paths in the two logic trees.
+		"""
+		num_smlt_paths = self.source_model_lt.get_num_paths()
+		num_gmpelt_paths = self.gmpe_logic_tree.get_num_paths()
+		return num_smlt_paths * num_gmpelt_paths
 
 	def sample_logic_trees(self, num_samples=1):
 		"""
@@ -832,9 +840,9 @@ class PSHAModelTree(PSHAModelBase):
 			if show_plot:
 				self.source_model_lt.plot_diagram(highlight_path=path)
 			## Apply uncertainties
-			source_model = self._smlt_sample_to_source_model(sm_name, path, verbose=verbose)
+			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
 			modified_source_models.append(source_model)
-			weights.append(weight)
+			weights.append(smlt_path_weight)
 		return modified_source_models, weights
 
 	def _smlt_sample_to_source_model(self, sm_name, path, verbose=False):
@@ -863,7 +871,7 @@ class PSHAModelTree(PSHAModelBase):
 					if verbose:
 						print "  %s" % src.source_id
 						if hasattr(src.mfd, 'a_val'):
-							print "    %.1f %.3f %.3f  -->  %.1f %.3f %.3f" % (src.mfd.max_mag, src.mfd.a_val, src.mfd.b_val, modified_src.mfd.max_mag, modified_src.mfd.a_val, modified_src.mfd.b_val)
+							print "    %.2f %.3f %.3f  -->  %.2f %.3f %.3f" % (src.mfd.max_mag, src.mfd.a_val, src.mfd.b_val, modified_src.mfd.max_mag, modified_src.mfd.a_val, modified_src.mfd.b_val)
 						elif hasattr(src.mfd, 'occurrence_rates'):
 							print "    %s  -->  %s" % (src.mfd.occurrence_rates, modified_src.mfd.occurrence_rates)
 					modified_sources.append(modified_src)

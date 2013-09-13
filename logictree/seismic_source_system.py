@@ -35,6 +35,7 @@ class SeismicSourceSystem(LogicTree):
 				source_model = source_model_pmf
 				source_model_pmf = SourceModelPMF([source_model], [1])
 			self.set_root_uncertainty_level(source_model_pmf)
+			self.source_models = source_model_pmf.source_models
 
 	@classmethod
 	def parse_from_xml(cls, xml_filespec, validate=True):
@@ -163,6 +164,7 @@ class SeismicSourceSystem(LogicTree):
 		branching_level = LogicTreeBranchingLevel(branching_level_id, [branch_set])
 		self.branching_levels.append(branching_level)
 		self.connect_branches()
+		self.source_models = source_model_pmf.source_models
 
 	def append_independent_uncertainty_level(self, unc_pmf_dict, correlated=False):
 		"""
@@ -198,14 +200,19 @@ class SeismicSourceSystem(LogicTree):
 			else:
 				unc_type = "MFD"
 
+			## TODO: Check if source ID's are in source model
+			source_model = [sm for sm in self.source_models if sm.name == sm_name][0]
+			sm_src_ids = [src.source_id for src in source_model]
+			for src_id in src_unc_pmf_dict.keys():
+				if src_id != None and src_id not in sm_src_ids:
+					raise Exception("Source %s not in source model %s!" % (src_id, sm_name))
+
 			if sm_name is None:
 				## Source model unspecified, sources must be unspecified too
 				## Only one branching level will be added
 				applyToSources = []
 				if src_unc_pmf_dict.keys() != [None]:
 					raise Exception("If source model is unspecified, then sources must be unspecified too")
-				#bl_end_branch_ids = [bl_branch_ids[key][-1] for key in source_model_names]
-				#if len(bl_branch_ids) == 1 or len(bl_end_branch_ids[0].difference(*bl_end_branch_ids[1:])) == 0:
 				num_branching_levels = [len(bl_branch_ids[key]) for key in bl_branch_ids.keys()]
 				if len(bl_branch_ids) == 1 or len(set(num_branching_levels)) == 1:
 					## Same branching level for different source models
@@ -241,8 +248,13 @@ class SeismicSourceSystem(LogicTree):
 						bl_branch_ids[prev_level_sm_name].append(set([branch.branch_id for branch in branch_set]))
 			else:
 				## Source model specified
-				# Note: This condition cannot be verified
-				#assert unc2_pmf_dict.keys() != [None], "If sources are specified, then source model must be specified in the previous uncertainty level"
+				## If other source models have same branch ID's in last
+				## branching level, then it means source model was None
+				## in previous branching level
+				bl_other_end_branch_ids = [bl_branch_ids[key][-1] for key in source_model_names if not key == sm_name]
+				bl_end_branch_ids = bl_branch_ids[sm_name][-1]
+				if len(bl_end_branch_ids.difference(*bl_other_end_branch_ids)) < len(bl_other_end_branch_ids):
+					raise Exception("Not possible to connect source model %s" % sm_name)
 				last_branching_level_nr = len(bl_branch_ids[sm_name])
 				sm_index = source_model_names.index(sm_name)
 				if correlated == True:

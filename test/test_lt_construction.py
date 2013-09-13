@@ -30,18 +30,18 @@ source_model_pmf = rshalib.pmf.SourceModelPMF(source_models, [0.5, 0.5])
 Mmax_pmf_dict = {}
 for sm in source_models:
 	Mmax_pmf_dict[sm.name] = {}
-	for src in sm:
-		Mmax_pmf_dict[sm.name][src.source_id] = rshalib.pmf.MmaxPMF([6.0, 6.5, 7.0], [0.5, 0.3, 0.2], absolute=True)
+	for i, src in enumerate(sm):
+		Mmax_pmf_dict[sm.name][src.source_id] = rshalib.pmf.MmaxPMF(np.array([6.0, 6.5, 7.0]) + i*0.01, [0.5, 0.3, 0.2], absolute=True)
 
 ## MFD
 MFD_pmf_dict = {}
 for sm in source_models:
 	MFD_pmf_dict[sm.name] = {}
-	for src in sm:
-		MFD_pmf_dict[sm.name][src.source_id] = rshalib.pmf.MFDPMF([(1.3, 1.0), (1.2, 0.9)], [0.4, 0.6])
+	for i, src in enumerate(sm):
+		MFD_pmf_dict[sm.name][src.source_id] = rshalib.pmf.MFDPMF([np.array((1.3, 1.0)) + i*0.01, np.array((1.2, 0.9)) + i*0.01], [0.4, 0.6])
 
 ## incremental MFD
-#MFD_pmf_dict[sm2.name] = {"SRC21": rshalib.pmf.MFDPMF([np.arange(1,10)[::-1]], [1]), "SRC22": rshalib.pmf.MFDPMF([np.arange(1,5)[::-1]], [1])}
+#MFD_pmf_dict[sm2.name] = {"SRC20": rshalib.pmf.MFDPMF([np.arange(1,10)[::-1]], [1]), "SRC21": rshalib.pmf.MFDPMF([np.arange(1,5)[::-1]], [1])}
 
 
 ## Basic logic tree with different source models only
@@ -80,10 +80,12 @@ for sm in source_models:
 ## Construct logic tree
 source_model_lt = rshalib.logictree.SeismicSourceSystem.from_independent_uncertainty_levels("lt", source_model_pmf, Mmax_pmf_dict, MFD_pmf_dict, unc2_correlated=False, unc3_correlated=False)
 #print source_model_lt.are_branch_ids_unique()
-#source_model_lt.print_xml()
+source_model_lt.print_xml()
 xml_filespec = r"C:\Temp\seismic_source_system.xml"
 #source_model_lt.write_xml(xml_filespec)
+print "Number of paths in logic tree: %d" % source_model_lt.get_num_paths()
 source_model_lt.plot_diagram(branch_label="branch_id")
+
 
 ## Parse logic tree from NRML
 #xml_filespec = "E:\Home\_kris\Python\GEM\oq-engine\demos\hazard\LogicTreeCase3ClassicalPSHA\source_model_logic_tree.xml"
@@ -91,38 +93,16 @@ source_model_lt2 = rshalib.logictree.SeismicSourceSystem.parse_from_xml(xml_file
 #source_model_lt2.plot_diagram()
 #source_model_lt2.write_xml(r"C:\Temp\seismic_source_system2.xml")
 
+
 ## Sample logic tree
 from hazard.psha.Projects.SHRE_NPP.params.gmpe import gmpe_lt
 #gmpe_lt.plot_diagram()
 
 random_seed = 1
 num_samples = 3
+verbose=True
+show_plot=False
 psha_model_tree = rshalib.pshamodel.PSHAModelTree("Test", source_models, source_model_lt, gmpe_lt, "", random_seed=random_seed)
-#psha_models = psha_model_tree.sample_source_model_lt(num_samples, verbose=True, show_plot=True)
-#psha_model_tree.sample_gmpe_lt(10, verbose=True)
-
-
-"""
-ltp = LogicTreeProcessor(None, source_model_lt=source_model_lt2, gmpe_lt=gmpe_system)
-rnd = random.Random()
-rnd.seed(42)
-for i in range(10):
-	sm_name, path = ltp.sample_source_model_logictree(rnd.randint(-(2 ** 31), (2 ** 31) - 1))
-	print sm_name, path
-	#source_model_lt.plot_diagram(highlight_path=path)
-
-	for sm in source_models:
-		if sm.name == os.path.splitext(sm_name)[0]:
-			for src in sm:
-				src = copy.deepcopy(src)
-				apply_uncertainties = ltp.parse_source_model_logictree_path(path)
-				print "  %s" % src.source_id
-				print "    %.1f %.3f %.3f" % (src.mfd.max_mag, src.mfd.a_val, src.mfd.b_val)
-				apply_uncertainties(src)
-				print "    %.1f %.3f %.3f" % (src.mfd.max_mag, src.mfd.a_val, src.mfd.b_val)
-
-
-## Enumerate logic tree
-#for i, (smlt_path_weight, smlt_path) in enumerate(ltp.source_model_lt.root_branchset.enumerate_paths()):
-#	print i, smlt_path_weight, [branch.branch_id for branch in smlt_path]
-"""
+#psha_models = psha_model_tree.sample_source_model_lt(num_samples, verbose=verbose, show_plot=show_plot)
+#psha_model_tree.sample_gmpe_lt(num_samples, verbose=verbose)
+psha_models, weights = psha_model_tree.enumerate_source_model_lt(verbose=verbose)
