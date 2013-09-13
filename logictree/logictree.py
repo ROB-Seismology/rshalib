@@ -583,22 +583,31 @@ class LogicTree(object):
 				num_branches = len(branchset)
 				parent_branches = self.get_parent_branches(branchset)
 				parent_branch_y = np.array([pos[pb.branch_id][1] for pb in parent_branches], dtype='f')
-				y = parent_branch_y.mean()
+				ymean = parent_branch_y.mean()
+				pos[branchset.id] = (l+1, ymean)
+
+				## Compute y range for branches
 				if len(parent_branches) > 1:
 					ymin, ymax = parent_branch_y.min(), parent_branch_y.max()
 				else:
-					ymin = y - (1. / num_branchsets) + 1./num_branchsets/4.
-					ymax = y + (1. / num_branchsets) - 1./num_branchsets/4.
-					dy = float(ymax - ymin)
+					## Take into account space taken by other branches
+					## in parent_branchset
+					## Instead of 1, we need the y range of the parent branchset
+					ymin = ymean - (1. / num_branchsets) + 1./num_branchsets/4.
+					ymax = ymean + (1. / num_branchsets) - 1./num_branchsets/4.
+					dy = ymax - ymin
+					## Add some extra margin
 					if num_branches > 1:
 						# TODO: optimize
-						ymin, ymax = ymin + dy/(num_branches-1)/2.5, ymax - dy/(num_branches-1)/2.5
-				pos[branchset.id] = (l+1, y)
+						ymin = ymin + dy/(num_branches-1)/2.
+						ymax = ymax - dy/(num_branches-1)/2.
+
+				## Divide branches over available space
 				for b, branch in enumerate(branchset):
 					dy = float(ymax - ymin)
 					#pos[branch.branch_id] = (l+1+0.5, ymin + dy/num_branches/2 + b*(dy/num_branches))
 					if num_branches == 1:
-						pos[branch.branch_id] = (l+1+0.5, y)
+						pos[branch.branch_id] = (l+1+0.5, ymean)
 					else:
 						pos[branch.branch_id] = (l+1+0.5, ymin + b*(dy/(num_branches-1)))
 		return pos
@@ -671,7 +680,7 @@ class LogicTree(object):
 		for key in pos.keys():
 			x, y = pos[key]
 			label_pos[key] = (x, y+label_offset)
-		nx.draw_networkx_labels(graph, label_pos, labels=node_labels, font_size=10, horizontalalignment="left", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
+		nx.draw_networkx_labels(graph, label_pos, labels=node_labels, font_size=10, horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
 		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, label_pos=0.5, font_size=10)
 		pylab.legend(loc=2, scatterpoints=1, markerscale=0.6)
 		pylab.xlabel("Branching level")
