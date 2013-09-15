@@ -615,7 +615,7 @@ class LogicTree(object):
 						pos[branch.branch_id] = (l+1+0.5, ymin + b*(dy/(num_branches-1)))
 		return pos
 
-	def plot_diagram(self, highlight_path=[], branch_label="branch_id"):
+	def plot_diagram(self, highlight_path=[], branch_label="branch_id", fig_filespec=None, dpi=300):
 		"""
 		Plot diagram of logic tree using networkx or pygraphviz.
 		Requires branches to be connected.
@@ -624,6 +624,11 @@ class LogicTree(object):
 			list of strings: branch ID's of path to highlight
 		:param branch_label:
 			string, branch property to label (default: "branch_id")
+		:param fig_filespec:
+			string, full path to output file. If None, diagram will be
+			displayed on screen (default: None)
+		:param dpi:
+			float, figure resolution in dots per inch (default: 300)
 		"""
 		import networkx as nx
 		import pylab
@@ -712,7 +717,12 @@ class LogicTree(object):
 			tick.label.set_fontsize(14)
 		pylab.grid(True, axis='x')
 		pylab.title("Logic-tree diagram", fontsize=16)
-		pylab.show()
+
+		if fig_filespec:
+			pylab.savefig(fig_filespec, dpi=dpi)
+			pylab.clf()
+		else:
+			pylab.show()
 
 
 

@@ -768,7 +768,7 @@ class PSHAModelTree(PSHAModelBase):
 		:param name:
 			string, name of PSHA model
 		"""
-		# TODO: adjust output_dir based on path
+		# TODO: adjust output_dir based on path?
 		output_dir = self.output_dir
 		optimized_gmpe_model = gmpe_model.get_optimized_model(source_model)
 		psha_model = PSHAModel(name, source_model, optimized_gmpe_model, output_dir,
@@ -1072,7 +1072,7 @@ class PSHAModelTree(PSHAModelBase):
 		if not os.path.exists(gsims_dir):
 				os.mkdir(gsims_dir)
 
-		## create directory structure for logic tree
+		## create directory structure for logic tree: not sure this is possible
 		for source_model in self.source_models:
 			for ground_motion_model in self.ground_motion_models:
 				dir = os.path.join(os.path.join(self.output_dir, source_model.name), ground_motion_model.name)
@@ -1082,6 +1082,8 @@ class PSHAModelTree(PSHAModelBase):
 		for psha_model in self.sample_logic_trees(self.num_lt_samples):
 			filespec = os.path.join(os.path.join(os.path.join(self.output_dir, psha_model.source_model.name), psha_model.ground_motion_model.name), psha_model.name + '.dat')
 			psha_model.write_crisis(filespec, gsims_dir, site_filespec)
+
+		# TODO: write CRISIS batch file too
 
 	def _get_psha_models(self):
 		"""
