@@ -315,6 +315,8 @@ class SeismicSourceSystem(LogicTree):
 		import networkx as nx
 		import pylab
 
+		graph = nx.Graph()
+
 		pos = {}
 		root_node = "ROOT"
 		pos[root_node] = (0, 0.5)
@@ -326,20 +328,68 @@ class SeismicSourceSystem(LogicTree):
 		all_source_nodes = sum([source_nodes[sm_name] for sm_name in source_model_nodes], [])
 		dy = 1./num_sources
 		y = dy / 2
+		sm_src_y = {}
 		for sm_name in source_nodes.keys():
+			sm_src_y[sm_name] = {}
 			ymin = y
-			for src in source_nodes[sm_name]:
-				pos[src] = (2, y)
+			for src_id in source_nodes[sm_name]:
+				pos[src_id] = (0.67, y)
+				sm_src_y[sm_name][src_id] = y
 				y += dy
 			ymax = y - dy
-			pos[sm_name] = (1, np.mean([ymin, ymax]))
+			pos[sm_name] = (0.33, np.mean([ymin, ymax]))
 
-		graph = nx.Graph()
+		x = 1
+		prev_sm_nodes = {sm_name: {src_id: [src_id] for src_id in source_nodes[sm_name]} for sm_name in source_model_nodes}
+		branchset_nodes = {"Mmax": [], "MFD": []}
+		branch_nodes = []
+		for unc_pmf_dict in unc_pmf_dicts:
+			current_sm_nodes = {}
+			for sm_name in unc_pmf_dict.keys():
+				current_sm_nodes[sm_name] = {}
+				src_unc_pmf_dict = unc_pmf_dict[sm_name]
+
+				## Determine uncertainty type
+				first_pmf = src_unc_pmf_dict[src_unc_pmf_dict.keys()[0]]
+				if isinstance(first_pmf, MmaxPMF):
+					unc_type = "Mmax"
+				else:
+					unc_type = "MFD"
+
+				if sm_name is None:
+					pass
+				else:
+					for src_id in src_unc_pmf_dict.keys():
+						if src_id is None:
+							pass
+						else:
+							current_sm_nodes[sm_name][src_id] = []
+							unc_pmf = src_unc_pmf_dict[src_id]
+							branchset = "%s_%s_%s" % (sm_name, src_id, unc_type)
+							y = sm_src_y[sm_name][src_id]
+							pos[branchset] = (x, y)
+							branchset_nodes[unc_type].append(branchset)
+							pmf_len = len(unc_pmf)
+							for i in range(pmf_len):
+								branch = "%s%02d" % (branchset, i+1)
+								branch_nodes.append(branch)
+								if pmf_len > 1:
+									pos[branch] = (x+0.5, y-dy/2+(dy/pmf_len)*(i+0.5))
+								graph.add_edge(branchset, branch)
+								current_sm_nodes[sm_name][src_id].append(branch)
+							for prev_branch in prev_sm_nodes[sm_name][src_id]:
+								graph.add_edge(prev_branch, branchset)
+			x += 1
+			prev_sm_nodes = current_sm_nodes
+
 		## Add nodes
 		graph.add_node(root_node)
 		graph.add_nodes_from(source_model_nodes)
 		for sm_name in source_nodes.keys():
 			graph.add_nodes_from(source_nodes[sm_name])
+		for unc_type in branchset_nodes.keys():
+			graph.add_nodes_from(branchset_nodes[unc_type])
+		graph.add_nodes_from(branch_nodes)
 
 		## Add edges
 		for sm_name in source_model_nodes:
@@ -349,8 +399,11 @@ class SeismicSourceSystem(LogicTree):
 
 		## Draw nodes
 		nx.draw_networkx_nodes(graph, pos, nodelist=[root_node], node_shape='>', node_color='red', node_size=300, label="ROOT")
-		nx.draw_networkx_nodes(graph, pos, nodelist=source_model_nodes, node_shape='s', node_color='purple', node_size=300, label="source models")
-		nx.draw_networkx_nodes(graph, pos, nodelist=all_source_nodes, node_shape='o', node_color='purple', node_size=300, label="sources")
+		nx.draw_networkx_nodes(graph, pos, nodelist=source_model_nodes, node_shape='o', node_color='white', node_size=300, label="source models")
+		nx.draw_networkx_nodes(graph, pos, nodelist=all_source_nodes, node_shape='s', node_color='red', node_size=300, label="sources")
+		nx.draw_networkx_nodes(graph, pos, nodelist=branchset_nodes["Mmax"], node_shape=">", node_color="green", node_size=300, label="Mmax")
+		nx.draw_networkx_nodes(graph, pos, nodelist=branchset_nodes["MFD"], node_shape=">", node_color="yellow", node_size=300, label="MFD")
+		nx.draw_networkx_nodes(graph, pos, nodelist=branch_nodes, node_shape="o", node_color="white", node_size=300, label="branches")
 
 		## Draw edges
 		nx.draw_networkx_edges(graph, pos)

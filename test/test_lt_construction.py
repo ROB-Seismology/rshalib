@@ -85,7 +85,7 @@ xml_filespec = r"C:\Temp\seismic_source_system.xml"
 #source_model_lt.write_xml(xml_filespec)
 print "Number of paths in logic tree: %d" % source_model_lt.get_num_paths()
 #source_model_lt.plot_diagram(branch_label="branch_id")
-source_model_lt.plot_uncertainty_levels_diagram(source_model_pmf, [])
+source_model_lt.plot_uncertainty_levels_diagram(source_model_pmf, [Mmax_pmf_dict, MFD_pmf_dict])
 
 
 ## Parse logic tree from NRML
