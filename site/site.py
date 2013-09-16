@@ -54,6 +54,14 @@ class PSHASite(Point):
 	def __str__(self):
 		return self.name
 
+	@property
+	def lon(self):
+		return self.longitude
+
+	@property
+	def lat(self):
+		return self.latitude
+
 	def to_soil_site(self, vs30=vs30.rock, vs30measured=False, z1pt0=100., z2pt5=2.):
 		"""
 		Convert to a SoilSite object, representing a site with

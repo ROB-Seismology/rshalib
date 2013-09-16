@@ -91,7 +91,7 @@ source_model_lt.plot_uncertainty_levels_diagram(source_model_pmf, [])
 ## Parse logic tree from NRML
 #xml_filespec = "E:\Home\_kris\Python\GEM\oq-engine\demos\hazard\LogicTreeCase3ClassicalPSHA\source_model_logic_tree.xml"
 source_model_lt2 = rshalib.logictree.SeismicSourceSystem.parse_from_xml(xml_filespec, validate=False)
-#source_model_lt2.plot_diagram()
+source_model_lt2.plot_diagram()
 #source_model_lt2.write_xml(r"C:\Temp\seismic_source_system2.xml")
 
 
