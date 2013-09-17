@@ -201,8 +201,9 @@ class MmaxPMF(NumericPMF):
 		list of corresponding weights
 	:param absolute:
 		Bool, whether Mmax values are absolute (True) or relative (False) values
+		(default: False)
 	"""
-	def __init__(self, max_mags, weights, absolute):
+	def __init__(self, max_mags, weights, absolute=True):
 		if len(max_mags) != len(weights):
 			raise Exception("Number of weights and number of magnitudes must be identical!")
 		data = data = PMF.from_values_and_weights(max_mags, weights).data

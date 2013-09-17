@@ -326,7 +326,7 @@ class SeismicSourceSystem(LogicTree):
 			num_sources += len(source_nodes[sm.name])
 		source_model_nodes = source_nodes.keys()
 		all_source_nodes = sum([source_nodes[sm_name] for sm_name in source_model_nodes], [])
-		dy = 1./num_sources
+		dy = 2./num_sources
 		y = dy / 2
 		sm_src_y = {}
 		for sm_name in source_nodes.keys():

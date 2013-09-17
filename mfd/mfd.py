@@ -509,9 +509,9 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		posterior /= np.sum(posterior)
 
 		## Replace zero probabilities with very small values to avoid error in PMF
-		prior_pmf = MmaxPMF.from_values_and_weights(magnitudes, prior.clip(1E-8))
-		likelihood_pmf = MmaxPMF.from_values_and_weights(magnitudes, likelihood.clip(1E-8))
-		posterior_pmf = MmaxPMF.from_values_and_weights(magnitudes, posterior.clip(1E-8))
+		prior_pmf = MmaxPMF(magnitudes, prior.clip(1E-8))
+		likelihood_pmf = MmaxPMF(magnitudes, likelihood.clip(1E-8))
+		posterior_pmf = MmaxPMF(magnitudes, posterior.clip(1E-8))
 		params = (Mmax_obs, n, b_val)
 
 		return prior_pmf, likelihood_pmf, posterior_pmf, params
