@@ -447,7 +447,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			- prior: instance of :class:`MmaxPMF`, prior distribution
 			- likelihood: instance of :class:`MmaxPMF`, likelihood distribution
 			- posterior: instance of :class:`MmaxPMF`, posterior distribution
-			- params: (observed Mmax, n, b) tuple
+			- params: (observed Mmax, n, a, b) tuple
 		"""
 		from matplotlib import mlab
 		from scitools.numpytools import seq
@@ -496,6 +496,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			## lowest minimum magnitude
 			gr_mfd = imfd.to_truncated_GR_mfd(completeness, end_date, method="Weichert", verbose=verbose)
 			b_val = gr_mfd.b_val
+			a_val = gr_mfd.a_val
 		if not np.isnan(b_val):
 			beta = b_val * np.log(10)
 			if verbose:
@@ -512,7 +513,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		prior_pmf = MmaxPMF(magnitudes, prior.clip(1E-8))
 		likelihood_pmf = MmaxPMF(magnitudes, likelihood.clip(1E-8))
 		posterior_pmf = MmaxPMF(magnitudes, posterior.clip(1E-8))
-		params = (Mmax_obs, n, b_val)
+		params = (Mmax_obs, n, a_val, b_val)
 
 		return prior_pmf, likelihood_pmf, posterior_pmf, params
 
