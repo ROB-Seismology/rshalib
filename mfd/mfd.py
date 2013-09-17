@@ -502,7 +502,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 				print("Maximum observed magnitude: %.1f" % Mmax_obs)
 				print("n(M > Mmin): %d" % n)
 			likelihood = np.zeros_like(magnitudes)
-			likelihood[magnitudes >= Mmax_obs] = (1 - np.exp(-beta * (magnitudes[magnitudes >= Mmax_obs] - Mmin))) ** -n
+			likelihood[magnitudes >= Mmax_obs] = (1 - np.exp(-beta * (magnitudes[magnitudes >= Mmax_obs] - Mmin_n))) ** -n
 
 		## Posterior
 		posterior = prior * likelihood

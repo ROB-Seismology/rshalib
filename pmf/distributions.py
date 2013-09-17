@@ -206,7 +206,7 @@ class MmaxPMF(NumericPMF):
 	def __init__(self, max_mags, weights, absolute=True):
 		if len(max_mags) != len(weights):
 			raise Exception("Number of weights and number of magnitudes must be identical!")
-		data = data = PMF.from_values_and_weights(max_mags, weights).data
+		data = PMF.from_values_and_weights(max_mags, weights).data
 		super(MmaxPMF, self).__init__(data)
 		self.absolute = absolute
 
