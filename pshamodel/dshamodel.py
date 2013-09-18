@@ -13,7 +13,7 @@ from openquake.hazardlib.source import Rupture
 from hazard.rshalib.geo import NodalPlane, Point, Polygon
 from hazard.rshalib.pmf import HypocentralDepthDistribution, NodalPlaneDistribution
 from hazard.rshalib.result import HazardMap
-from hazard.rshalib.site import SHASite, SiteModel, SoilSite
+from hazard.rshalib.site import SHASite, SoilSiteModel, SoilSite
 from hazard.rshalib.source import PointSource
 
 
@@ -68,7 +68,7 @@ class DSHAModel(object):
 		polygon = Polygon([Point(*site) for site in grid_outline])
 		mesh = polygon.discretize(self.grid_spacing)
 		sites = [SoilSite(site.longitude, site.latitude, vs30=800, vs30measured=False, z1pt0=100, z2pt5=1) for site in mesh] # TODO: support variable site params
-		return SiteModel("", sites)
+		return SoilSiteModel("", sites)
 	
 	def run_hazardlib(self):
 		"""

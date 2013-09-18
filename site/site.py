@@ -110,7 +110,7 @@ class SoilSite(nhlib.site.Site, SHASite):
 		SHASite.__init__(self, longitude, latitude, depth, name)
 
 
-class SiteModel(nhlib.site.SiteCollection):
+class SoilSiteModel(nhlib.site.SiteCollection):
 	"""
 	Class representing a complete site model
 
@@ -143,7 +143,7 @@ class SiteModel(nhlib.site.SiteCollection):
 		:param encoding:
 			String, unicode encoding (default: 'latin1')
 		"""
-		site_model_elem = etree.Element(ns.SITE_MODEL)
+		soil_site_model_elem = etree.Element(ns.SITE_MODEL)
 
 		for i in range(self.num_sites):
 			site_elem = etree.SubElement(site_model_elem, ns.SITE)
@@ -154,7 +154,7 @@ class SiteModel(nhlib.site.SiteCollection):
 			site_elem.set(ns.Z1PT0, str(self.z1pt0[i]))
 			site_elem.set(ns.Z2PT5, str(self.z2pt5[i]))
 
-		return site_model_elem
+		return soil_site_model_elem
 
 	def print_xml(self):
 		"""
@@ -180,7 +180,7 @@ class SiteModel(nhlib.site.SiteCollection):
 		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
 
 
-def create_site_model(name, lons_lats, grid=False, grid_spacing=0.1, vs30=vs30.rock, vs30measured=False, z1pt0=1., z2pt5=2.):
+def create_soil_site_model(name, lons_lats, grid=False, grid_spacing=0.1, vs30=vs30.rock, vs30measured=False, z1pt0=1., z2pt5=2.):
 	"""
 	Create site model from site longitudes and latitudes.
 
@@ -210,13 +210,13 @@ def create_site_model(name, lons_lats, grid=False, grid_spacing=0.1, vs30=vs30.r
 	for lon_lat in lons_lats:
 		location = Point(lon_lat[0], lon_lat[1])
 		sites.append(nhlib.site.Site(location, vs30, vs30measured, z1pt0, z2pt5))
-	site_model = SiteModel(name, sites)
-	return site_model
+	soil_site_model = SoilSiteModel(name, sites)
+	return soil_site_model
 
 
 if __name__ == '__main__':
-	#site_model = create_site_model('test', [(2.15, 49.15), (2.65, 48.65)], True)
-	#site_model.write_xml()
+	#soil_site_model = create_site_model('test', [(2.15, 49.15), (2.65, 48.65)], True)
+	#soil_site_model.write_xml()
 	Mmin, Mmax = 5.0, 7.7
 	Mmin_fault, Mmax_fault = 5.5, 6.2
 	bin_width = 0.1

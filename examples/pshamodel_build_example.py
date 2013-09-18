@@ -55,8 +55,8 @@ sites = [rshalib.site.SHASite(3.71704, 51.43233, name='Borssele')]
 
 vs30, vs30measured, z1pt0, z2pt5 = 800., True, 2., 1.
 ref_site_params = (vs30, vs30measured, z1pt0, z2pt5)
-site_model = None
-#site_model = create_site_model('test_site_model', [(3.71704, 51.43233)])
+soil_site_model = None
+#soil_site_model = create_soil_site_model('test_soil_site_model', [(3.71704, 51.43233)])
 
 ## Intensity measure type, spectral periods, and intensity levels
 imt_periods = {'PGA': [0], 'SA': [0.5, 1.]}
@@ -152,7 +152,7 @@ def create_psha_model(engine="nhlib"):
 					sites=sites,
 					grid_outline=grid_outline,
 					grid_spacing=grid_spacing,
-					site_model=site_model,
+					soil_site_model=soil_site_model,
 					imt_periods=imt_periods,
 					min_intensities=Imin,
 					max_intensities=Imax,

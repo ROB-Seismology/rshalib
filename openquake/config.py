@@ -271,13 +271,13 @@ class OQ_Params(ConfigObj):
 			if self["geometry"].has_key("sites"):
 				del self["geometry"]["sites"]
 
-	def set_site_model_or_reference_params(self, site_model_file=None, reference_vs30_value=760.0, reference_vs30_type="inferred", reference_depth_to_1pt0km_per_sec=100., reference_depth_to_2pt5km_per_sec=2.):
+	def set_soil_site_model_or_reference_params(self, soil_site_model_file=None, reference_vs30_value=760.0, reference_vs30_type="inferred", reference_depth_to_1pt0km_per_sec=100., reference_depth_to_2pt5km_per_sec=2.):
 		"""
 		Set site parameters, either as site model or as reference parameters
 
-		:param site_model_file:
+		:param soil_site_model_file:
 			String, full path specification of file containing site model.
-			If specified, site_model_file takes precedence over other parameters
+			If specified, soil_site_model_file takes precedence over other parameters
 			(default: None)
 		:param reference_vs30_value:
 			Float, reference vs30 value in m/s (default: 760.)
@@ -291,8 +291,8 @@ class OQ_Params(ConfigObj):
 			Float, reference depth to vs=2.5 km/s, specified in km
 			(default: 2.)
 		"""
-		if site_model_file:
-			self["site_params"]["site_model_file"] = site_model_file
+		if soil_site_model_file:
+			self["site_params"]["site_model_file"] = soil_site_model_file
 			## Remove reference_params keys if present
 			if self["site_params"].has_key("reference_vs30_value"):
 				del self["site_params"]["reference_vs30_value"]
@@ -304,7 +304,7 @@ class OQ_Params(ConfigObj):
 			self["site_params"]["reference_vs30_type"] = reference_vs30_type
 			self["site_params"]["reference_depth_to_1pt0km_per_sec"] = reference_depth_to_1pt0km_per_sec
 			self["site_params"]["reference_depth_to_2pt5km_per_sec"] = reference_depth_to_2pt5km_per_sec
-			## Remove site_model_file key if present
+			## Remove soil_site_model_file key if present
 			if self["site_params"].has_key("site_model_file"):
 				del self["site_params"]["site_model_file"]
 

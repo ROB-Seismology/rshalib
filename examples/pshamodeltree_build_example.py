@@ -38,8 +38,8 @@ sites = []
 sites = [SHASite(*(3.71704, 51.43233), name='Borssele_site')]
 
 ref_site_params = (800., True, 2., 1.)
-site_model = None
-#site_model = create_site_model('test_site_model', [(3.71704, 51.43233)])
+soil_site_model = None
+#soil_site_model = create_soil_site_model('test_soil_site_model', [(3.71704, 51.43233)])
 
 ## Intensity measure type, spectral periods, and intensity levels
 imt = 'SA'
@@ -99,7 +99,7 @@ ground_motion_models = [ground_motion_model1, ground_motion_model2, ground_motio
 
 source_model_lt = None
 ground_motion_model_lt = None
-site_model_lt = None
+soil_site_model_lt = None
 
 
 
@@ -110,7 +110,7 @@ if __name__ == '__main__':
 	output_folder = os.path.join(psha_model_folder, "nhlib")
 	if not os.path.exists(output_folder):
 		os.mkdir(output_folder)
-	psha_model = PSHAModel(psha_model_name, source_model, ground_motion_model1, output_dir=output_folder, sites=sites, grid_outline=grid_outline, grid_spacing=grid_spacing, site_model=site_model, imt_periods=imt_periods, time_span=50., truncation_level=3., integration_distance=200.)
+	psha_model = PSHAModel(psha_model_name, source_model, ground_motion_model1, output_dir=output_folder, sites=sites, grid_outline=grid_outline, grid_spacing=grid_spacing, soil_site_model=soil_site_model, imt_periods=imt_periods, time_span=50., truncation_level=3., integration_distance=200.)
 	shcfs = psha_model.run_nhlib_shcf(write=True)
 	shcfs['SA'].plot()
 
@@ -127,7 +127,7 @@ if __name__ == '__main__':
 #	output_folder = os.path.join(psha_model_folder, "CRISIS")
 #	if not os.path.exists(output_folder):
 #		os.mkdir(output_folder)
-#	psha_model_tree = PSHAModelTree(name, source_models, source_model_lt, ground_motion_models, output_dir=output_folder, sites=sites, site_model=site_model, imt_periods=imt_periods, time_span=50., truncation_level=3., integration_distance=200., lts_sampling_method='enumerated', num_lts_samples=2)
+#	psha_model_tree = PSHAModelTree(name, source_models, source_model_lt, ground_motion_models, output_dir=output_folder, sites=sites, soil_site_model=soil_site_model, imt_periods=imt_periods, time_span=50., truncation_level=3., integration_distance=200., lts_sampling_method='enumerated', num_lts_samples=2)
 #	psha_model_tree.run_nhlib()
 #	psha_model_tree.write_openquake(params)
 #	psha_model_tree.write_crisis()
