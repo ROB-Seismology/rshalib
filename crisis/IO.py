@@ -58,7 +58,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 	:param return_periods:
 		List, tuple or array of max. 5 return periods for computation of hazard maps
 	:param grid_outline:
-		List of (float, float) tuples or nhlib_rob.PSHASite objects, containing
+		List of (float, float) tuples or nhlib_rob.SHASite objects, containing
 		(longitude, latitude) of points defining outline of grid where hazard
 		will be computed. If only 2 points are given, they define the lower left
 		and upper richt corners. If there are more than 2 points, grid_outline
@@ -69,7 +69,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		Float or tuple of floats, defining grid spacing in degrees (in longitude
 		and latitude if tuple) (default: 0.5).
 	:param sites:
-		List of (float, float) tuples or nhlib_rob.PSHASite objects, defining
+		List of (float, float) tuples or nhlib_rob.SHASite objects, defining
 		(longitude, latitude) of sites (default: []).
 	:param sites_filespec:
 		String, full path to .ASC file containing individual sites to compute
@@ -1228,7 +1228,7 @@ def readCRISIS_DES(filespec, site, intensity=None, return_period=None, period_in
 	values = values[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 	values = ExceedanceRateMatrix(values)
 	bin_edges = (magnitudes, distances, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
-	site = PSHASite(*sites[site_nr])
+	site = SHASite(*sites[site_nr])
 	period = struc_periods[period_index]
 	imt = shcf.IMT
 	iml = intensity
@@ -1357,7 +1357,7 @@ def readCRISIS_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[
 	deagg_exceedances = deagg_exceedances[:,:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 	deagg_exceedances = ExceedanceRateMatrix(deagg_exceedances)
 	bin_edges = (magnitudes, distances, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
-	site = PSHASite(*sites[site_nr])
+	site = SHASite(*sites[site_nr])
 	imt = shcf.IMT
 	time_span = 50
 	return SpectralDeaggregationCurve(bin_edges, deagg_exceedances, site, imt, intensities, struc_periods, time_span)

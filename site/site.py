@@ -18,12 +18,11 @@ from ..geo import Point
 import vs30
 
 
-class PSHASite(Point):
+class SHASite(Point):
 	"""
 	Class representing a simple site (without soil characteristics) in SHA,
 	derived from nhlib.geo.Point, but which can also be sliced, indexed, and
 	looped over like a (longitude, latitude, depth) tuple.
-	Possible alternative name: BedrockSite, SimpleSite
 
 	:param longitude:
 		Float, longitude
@@ -35,7 +34,7 @@ class PSHASite(Point):
 		Site name (default: "")
 	"""
 	def __init__(self, longitude, latitude, depth=0.0, name=""):
-		super(PSHASite, self).__init__(longitude, latitude, depth)
+		super(SHASite, self).__init__(longitude, latitude, depth)
 		if not name:
 			if longitude < 0:
 				NorS = "S"
@@ -82,7 +81,7 @@ class PSHASite(Point):
 		return SoilSite(self.longitude, self.latitude, self.depth, vs30, vs30measured, z1pt0, z2pt5, self.name)
 
 
-class SoilSite(nhlib.site.Site, PSHASite):
+class SoilSite(nhlib.site.Site, SHASite):
 	"""
 	Class representing a site with soil characteristics.
 	This class extends :class:`nhlib.site.Site` by providing longitude,
@@ -108,7 +107,7 @@ class SoilSite(nhlib.site.Site, PSHASite):
 	def __init__(self, longitude, latitude, depth=0, vs30=vs30.rock, vs30measured=False, z1pt0=100., z2pt5=2., name=""):
 		location = Point(longitude, latitude, depth)
 		nhlib.site.Site.__init__(self, location, vs30, vs30measured, z1pt0, z2pt5)
-		PSHASite.__init__(self, longitude, latitude, depth, name)
+		SHASite.__init__(self, longitude, latitude, depth, name)
 
 
 class SiteModel(nhlib.site.SiteCollection):
@@ -133,9 +132,9 @@ class SiteModel(nhlib.site.SiteCollection):
 	def sites(self):
 		"""
 		:return:
-			list with instances of :class:`PSHASite`
+			list with instances of :class:`SHASite`
 		"""
-		return [PSHASite(pt.longitude, pt.latitude, pt.depth) for pt in self.mesh]
+		return [SHASite(pt.longitude, pt.latitude, pt.depth) for pt in self.mesh]
 
 	def create_xml_element(self, encoding='latin1'):
 		"""

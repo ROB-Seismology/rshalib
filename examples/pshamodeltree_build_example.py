@@ -35,7 +35,7 @@ grid_outline = [(2.15, 49.15), (6.95, 51.95)]
 grid_spacing = 1.0
 
 sites = []
-sites = [PSHASite(*(3.71704, 51.43233), name='Borssele_site')]
+sites = [SHASite(*(3.71704, 51.43233), name='Borssele_site')]
 
 ref_site_params = (800., True, 2., 1.)
 site_model = None

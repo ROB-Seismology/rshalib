@@ -11,7 +11,7 @@ from lxml import etree
 
 from ..nrml import ns
 from ..result import HazardCurveField, HazardMap, UHSField, DeaggregationSlice, ProbabilityMatrix
-from ..site import PSHASite
+from ..site import SHASite
 
 
 NRML = ns.NRML_NS
@@ -45,7 +45,7 @@ def parse_hazard_curves(xml_filespec):
 			intensities = np.array(e.text.split(), dtype=float)
 		if e.tag == '{%s}hazardCurve' % NRML:
 			lon_lat, poes = parse_hazard_curve(e)
-			sites.append(PSHASite(*lon_lat))
+			sites.append(SHASite(*lon_lat))
 			poess.append(poes)
 	hcf = HazardCurveField(model_name, xml_filespec, sites, period, IMT,
 		intensities, intensity_unit=intensity_unit[IMT], timespan=timespan,
@@ -92,7 +92,7 @@ def parse_hazard_map(xml_filespec):
 		if e.tag == '{%s}node' % NRML:
 			lon = float(e.get('lon'))
 			lat = float(e.get('lat'))
-			sites.append(PSHASite(lon, lat))
+			sites.append(SHASite(lon, lat))
 			iml = float(e.get('iml'))
 			intensities.append(iml)
 	hm = HazardMap(model_name, xml_filespec, sites, period, IMT,
@@ -124,7 +124,7 @@ def parse_uh_spectra(xml_filespec):
 	for uh_spectrum in uh_spectra.findall('{%s}uhs' % NRML):
 		pos = uh_spectrum.find('{%s}Point' % GML).find('{%s}pos' % GML)
 		lon, lat = map(float, pos.text.split())
-		sites.append(PSHASite(lon, lat))
+		sites.append(SHASite(lon, lat))
 		imls = uh_spectrum.find('{%s}IMLs' % NRML)
 		intensities.append(map(float, imls.text.split()))
 	uhs_field = UHSField(model_name, xml_filespec, sites, periods, IMT,
@@ -159,7 +159,7 @@ def parse_disaggregation(xml_filespec):
 		'tectonicRegionTypes').split(', ')
 	lon = float(disagg_matrices.get('lon'))
 	lat = float(disagg_matrices.get('lat'))
-	site = PSHASite(lon, lat)
+	site = SHASite(lon, lat)
 	imt = disagg_matrices.get('IMT')
 	if disagg_matrices.attrib.has_key('saPeriod'):
 		period = float(disagg_matrices.get('saPeriod'))

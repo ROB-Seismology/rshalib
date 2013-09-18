@@ -548,7 +548,7 @@ class DeaggregationSlice(DeaggBase):
 			- tectonic-region-type bins
 
 	:param site:
-		instance of :class:`PSHASite`: site where hazard was computed
+		instance of :class:`SHASite`: site where hazard was computed
 
 	:param imt:
 		str, intensity measure type
@@ -798,7 +798,7 @@ class DeaggregationCurve(DeaggBase):
 			- tectonic-region-type bins
 
 	:param site:
-		instance of :class:`PSHASite`: site where hazard was computed
+		instance of :class:`SHASite`: site where hazard was computed
 
 	:param imt:
 		str, intensity measure type
@@ -1012,7 +1012,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 			- tectonic-region-type bins
 
 	:param site:
-		instance of :class:`PSHASite`: site where hazard was computed
+		instance of :class:`SHASite`: site where hazard was computed
 
 	:param imt:
 		str, intensity measure type

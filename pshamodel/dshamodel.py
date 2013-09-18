@@ -13,7 +13,7 @@ from openquake.hazardlib.source import Rupture
 from hazard.rshalib.geo import NodalPlane, Point, Polygon
 from hazard.rshalib.pmf import HypocentralDepthDistribution, NodalPlaneDistribution
 from hazard.rshalib.result import HazardMap
-from hazard.rshalib.site import PSHASite, SiteModel, SoilSite
+from hazard.rshalib.site import SHASite, SiteModel, SoilSite
 from hazard.rshalib.source import PointSource
 
 
@@ -87,7 +87,7 @@ class DSHAModel(object):
 				intensities = gmf.getA()[:,0]
 			else:
 				intensities = gmf[:,0]
-			hms[IMT] = HazardMap("", "", sites=[PSHASite(site.location.longitude, site.location.latitude) for site in sites.__iter__()], period=period, IMT="PGA", intensities=intensities, intensity_unit="g", timespan=50, poe=[], return_period=[], site_names=None, vs30s=None)
+			hms[IMT] = HazardMap("", "", sites=[SHASite(site.location.longitude, site.location.latitude) for site in sites.__iter__()], period=period, IMT="PGA", intensities=intensities, intensity_unit="g", timespan=50, poe=[], return_period=[], site_names=None, vs30s=None)
 		return hms
 	
 	def write_openquake(self):

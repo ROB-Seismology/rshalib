@@ -50,7 +50,7 @@ grid_outline = []
 grid_spacing = '50km'
 
 #sites = []
-sites = [rshalib.site.PSHASite(3.71704, 51.43233, name='Borssele')]
+sites = [rshalib.site.SHASite(3.71704, 51.43233, name='Borssele')]
 
 
 vs30, vs30measured, z1pt0, z2pt5 = 800., True, 2., 1.

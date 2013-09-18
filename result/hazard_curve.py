@@ -17,12 +17,12 @@ from ..nrml import ns
 import stats.percentiles
 
 from ..nrml.common import *
-from ..site import PSHASite
+from ..site import SHASite
 from plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram
 from ..utils import interpolate, logrange, LevelNorm
 
 
-# TODO: use PSHASites instead of sites and site_names separately.
+# TODO: use SHASites instead of sites and site_names separately.
 
 common_plot_docstring = """
 			fig_filespec: full path to ouptut image. If None, graph will be plotted on screen
@@ -363,7 +363,7 @@ class HazardField:
 			site_index = site_spec
 		elif isinstance(site_spec, (str, unicode)):
 			site_index = self.site_names.index(site_spec)
-		elif isinstance(site_spec, (list, tuple, PSHASite)) and len(site_spec) >= 2:
+		elif isinstance(site_spec, (list, tuple, SHASite)) and len(site_spec) >= 2:
 			site_index = self.sites.index(site_spec)
 		else:
 			raise Exception("Invalid site specification: %s" % site_spec)
