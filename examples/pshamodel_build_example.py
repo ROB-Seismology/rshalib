@@ -147,7 +147,7 @@ def create_psha_model(engine="nhlib"):
 	output_folder = os.path.join(psha_model_folder, engine)
 	if not os.path.exists(output_folder):
 		os.mkdir(output_folder)
-	return rshalib.pshamodel.PSHAModel(psha_model_name, source_model, ground_motion_model,
+	return rshalib.shamodel.PSHAModel(psha_model_name, source_model, ground_motion_model,
 					output_dir=output_folder,
 					sites=sites,
 					grid_outline=grid_outline,

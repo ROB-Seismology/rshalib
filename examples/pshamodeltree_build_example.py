@@ -10,7 +10,7 @@ from hazard.psha.openquake.nhlib_nrml import *
 from hazard.psha.openquake.nhlib_rob import *
 from hazard.psha.openquake.lt_nrml import create_basic_seismicSourceSystem, GroundMotionSystem
 from hazard.psha.openquake.rob_sourceModels import *
-from hazard.psha.pshamodel import PSHAModelTree, PSHAModel
+from hazard.psha.shamodel import PSHAModelTree, PSHAModel
 
 from nhlib.imt import PGA, SA
 

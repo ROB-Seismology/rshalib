@@ -1,5 +1,5 @@
 """
-:mod: `rhlib.pshamodel` defines :class:`rhlib.pshamodel.PSHAModelBase`, :class:`rhlib.pshamodel.PSHAModel` and :class:`rhlib.pshamodel.PSHAModelTree`.
+:mod: `rshalib.shamodel` defines :class:`rshalib.shamodel.PSHAModelBase`, :class:`rshalib.shamodel.PSHAModel` and :class:`rshalib.shamodel.PSHAModelTree`.
 """
 
 # TODO: check if documentation is compatibele with Sphinx

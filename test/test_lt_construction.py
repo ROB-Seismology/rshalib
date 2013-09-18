@@ -103,7 +103,7 @@ random_seed = 1
 num_samples = 3
 verbose=True
 show_plot=False
-psha_model_tree = rshalib.pshamodel.PSHAModelTree("Test", source_models, source_model_lt, gmpe_lt, "", random_seed=random_seed)
+psha_model_tree = rshalib.shamodel.PSHAModelTree("Test", source_models, source_model_lt, gmpe_lt, "", random_seed=random_seed)
 #psha_models = psha_model_tree.sample_source_model_lt(num_samples, verbose=verbose, show_plot=show_plot)
 #psha_model_tree.sample_gmpe_lt(num_samples, verbose=verbose)
 psha_models, weights = psha_model_tree.enumerate_source_model_lt(verbose=verbose)
