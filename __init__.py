@@ -47,8 +47,8 @@ reload(result)
 import logictree
 reload(logictree)
 
-import pshamodel
-reload(pshamodel)
+import shamodel
+reload(shamodel)
 
 import rob
 reload(rob)
