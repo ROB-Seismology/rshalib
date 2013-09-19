@@ -87,19 +87,29 @@ class SHASite(Point):
 		return SoilSite(self.longitude, self.latitude, self.depth, soil_params, self.name)
 
 
-class SHASiteModel(object):
+class SHASiteModel(nhlib.geo.Mesh):
 	"""
+	??
+	
+	:param sites:
+		list of
+			(float, float) tuples
+			instances of SHASite
+			instances of SoilSite
+		instance of SHASiteModel
 	"""
 	# TODO: support names
-	# TODO: subclass from hazardlib Mesh
 	# TODO: plot method
-	# TODO: iter method
 	
-	def __init__(self, sites=None, grid_outline=None, grid_spacing=None):
+	def __init__(self, lons=None, lats=None, depths=None, sites=None, grid_outline=None, grid_spacing=None):
 		"""
 		"""
-		assert sites != None or (grid_outline != None and grid_spacing != None)
-		if sites != None:
+		if lons != None and lats != None:
+			super(SHASiteModel, self).__init__(lons, lats, depths)
+			self.sites = None
+			self.grid_outline = None
+			self.grid_spacing = None
+		elif sites != None:
 			self._set_sites(sites)
 			self.grid_outline = None
 			self.grid_spacing = None
@@ -107,21 +117,21 @@ class SHASiteModel(object):
 			self._set_grid_outline(grid_outline)
 			self._set_grid_spacing(grid_spacing)
 			self._set_grid()
-			self.sites = None
-	
-	def __len__(self):
-		"""
-		"""
-		return np.prod(self.shape)
+			self.depths = None
 	
 	def _set_sites(self, sites):
 		"""
 		"""
 		self.lons = np.zeros(len(sites))
 		self.lats = np.zeros(len(sites))
+		self.depths = np.zeros(len(sites))
 		for i in xrange(len(sites)):
 			self.lons[i] = sites[i][0]
 			self.lats[i] = sites[i][1]
+			if len(site[i]) == 3:
+				self.depths[i] = sites[i][2]
+		if np.allclose(self.depths, 0.):
+			self.depths = None
 	
 	def _set_grid_outline(self, grid_outline):
 		"""
@@ -147,13 +157,14 @@ class SHASiteModel(object):
 		if isinstance(grid_spacing, (int, float)):
 			self.grid_spacing = (grid_spacing, grid_spacing)
 		else:
+			assert grid_spacing.endswith("km")
 			self.grid_spacing = grid_spacing
 	
 	def _set_grid(self):
 		"""
 		"""
 		if isinstance(self.grid_spacing, (str, unicode)):
-			grid = Polygon([Point(lon, lat) for (lon, lat) in self.grid_outline]).discretize(float(self.grid_spacing))
+			grid = Polygon([Point(lon, lat) for (lon, lat) in self.grid_outline]).discretize(float(self.grid_spacing[:-2]))
 			self.lons = grid.lons
 			self.lats = grid.lats
 		else:
@@ -165,12 +176,6 @@ class SHASiteModel(object):
 			self.lons = grid[:,:,0]
 			self.lats = grid[:,:,1]
 	
-	@property
-	def shape(self):
-		"""
-		"""
-		return self.lons.shape
-
 	def get_sites(self):
 		"""
 		"""
