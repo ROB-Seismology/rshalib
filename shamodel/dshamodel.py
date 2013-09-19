@@ -1,5 +1,5 @@
 """
-Module :mod:`rshalib.shamodel.dshamodel` defines :class:`DSHAModel`.
+:mod:`rshalib.shamodel.dshamodel` defines :class:`rshalib.shamodel.dshamodel.DSHAModel`.
 """
 
 
@@ -10,6 +10,7 @@ from openquake.hazardlib.imt import PGA, PGD, PGV, SA
 from openquake.hazardlib.scalerel import WC1994 
 from openquake.hazardlib.source import Rupture
 
+from base import SHAModelBase
 from hazard.rshalib.geo import NodalPlane, Point, Polygon
 from hazard.rshalib.pmf import HypocentralDepthDistribution, NodalPlaneDistribution
 from hazard.rshalib.result import HazardMap
@@ -24,11 +25,11 @@ from hazard.rshalib.source import PointSource
 # TODO: complete write_openquake
 
 
-class DSHAModel(object):
+class DSHAModel(SHAModelBase):
 	"""
 	"""
 	
-	def __init__(self, rupture, gsim, truncation_level, grid_outline, grid_spacing, imts, periods, realizations=1, maximum_distance=None):
+	def __init__(self, rupture, gsim, truncation_level, imts, periods, sites=None, grid_outline=None, grid_spacing=None, realizations=1, maximum_distance=None):
 		"""
 		"""
 		self.rupture = rupture
@@ -44,6 +45,8 @@ class DSHAModel(object):
 			self.rupture_site_filter = rupture_site_distance_filter(maximum_distance)
 		else:
 			self.rupture_site_filter = rupture_site_noop_filter
+		
+		super(DSHAModel, self).__init__(sites=sites, grid_outline=grid_outline, grid_spacing=grid_spacing)
 	
 	def _get_hazardlib_imts(self):
 		"""
@@ -57,23 +60,10 @@ class DSHAModel(object):
 				imts.append(eval(imt)())
 		return imts
 	
-	def _get_hazardlib_sites(self):
-		"""
-		"""
-		if isinstance(self.grid_outline[0], float):
-			w, e, s, n = self.grid_outline
-			grid_outline = ((w, s), (e, s), (e, n), (w, n))
-		else:
-			grid_outline = self.grid_outline
-		polygon = Polygon([Point(*site) for site in grid_outline])
-		mesh = polygon.discretize(self.grid_spacing)
-		sites = [SoilSite(site.longitude, site.latitude, vs30=800, vs30measured=False, z1pt0=100, z2pt5=1) for site in mesh] # TODO: support variable site params
-		return SoilSiteModel("", sites)
-	
 	def run_hazardlib(self):
 		"""
 		"""
-		sites = self._get_hazardlib_sites()
+		sites = self.get_soil_site_model()
 		gmfs = ground_motion_fields(self.rupture, sites, self._get_hazardlib_imts(), get_available_gsims()[self.gsim](), self.truncation_level, self.realizations, self.correlation_model, self.rupture_site_filter)
 		hms = {}
 		for imt, gmf in gmfs.items(): # TODO: better implementation to handle imt as string/object
@@ -90,13 +80,13 @@ class DSHAModel(object):
 			hms[IMT] = HazardMap("", "", sites=[SHASite(site.location.longitude, site.location.latitude) for site in sites.__iter__()], period=period, IMT="PGA", intensities=intensities, intensity_unit="g", timespan=50, poe=[], return_period=[], site_names=None, vs30s=None)
 		return hms
 	
-	def write_openquake(self):
-		"""
-		"""
-		pass
+#	def write_openquake(self):
+#		"""
+#		"""
+#		pass
 
 
-def get_gmf(lon, lat, mag, depth, gmm, truncation_level=1., strike=0., dip=45., rake=0., usd=0., lsd=30., rar=1., msr=WC1994(), grid_outline=(1., 8., 49., 52.), grid_spacing=10., imts=["PGA"], periods=[], maximum_distance=None):
+def get_gmf(lon, lat, mag, depth, gmm, truncation_level=1., strike=0., dip=45., rake=0., usd=0., lsd=30., rar=1., msr=WC1994(), grid_outline=(1., 8., 49., 52.), grid_spacing="10km", imts=["PGA"], periods=[], maximum_distance=None):
 	"""
 	"""
 	nodal_plane = NodalPlane(strike, dip, rake)
@@ -104,7 +94,7 @@ def get_gmf(lon, lat, mag, depth, gmm, truncation_level=1., strike=0., dip=45., 
 	point_source = PointSource("", "", "", "", "", msr, rar, usd, lsd, hypocenter, NodalPlaneDistribution([nodal_plane], [1.]), HypocentralDepthDistribution([depth], [1.]))
 	surface = point_source._get_rupture_surface(mag, nodal_plane, hypocenter)
 	rupture = Rupture(mag, rake, "", hypocenter, surface, "")
-	dsha_model = DSHAModel(rupture, gmm, truncation_level, grid_outline, grid_spacing, imts, periods, realizations=1., maximum_distance=maximum_distance)
+	dsha_model = DSHAModel(rupture, gmm, truncation_level, imts, periods, grid_outline=grid_outline, grid_spacing=grid_spacing, realizations=1., maximum_distance=maximum_distance)
 	return dsha_model.run_hazardlib()
 
 
@@ -112,5 +102,5 @@ if __name__ == "__main__":
 	"""
 	"""
 	hm = get_gmf(lon=4.5, lat=50.5, mag=6.5, depth=10., gmm="AtkinsonBoore2006", truncation_level=1.)
-	hm["PGA"].plot(title="")
+	hm["PGA"].plot(title="") # TODO: fix colorbar ticks bug
 
