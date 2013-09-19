@@ -29,7 +29,7 @@ if not os.path.exists(psha_model_folder):
 ## Threshold magnitude
 Mmin = 4.5
 
-## Grid, sites or site model
+## Grid or sites
 grid_outline = [(2.15, 49.15), (6.95, 51.95)]
 #grid_spacing = 0.1
 grid_spacing = 1.0
@@ -37,7 +37,7 @@ grid_spacing = 1.0
 sites = []
 sites = [SHASite(*(3.71704, 51.43233), name='Borssele_site')]
 
-ref_site_params = (800., True, 2., 1.)
+ref_soil_params = (800., True, 2., 1.)
 soil_site_model = None
 #soil_site_model = create_soil_site_model('test_soil_site_model', [(3.71704, 51.43233)])
 

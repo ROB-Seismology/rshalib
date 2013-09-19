@@ -1,9 +1,10 @@
 """
 Template for building a generic simple PSHA model (no logic tree)
-that can be run in OpenQuake, nhlib or CRISIS
+that can be run in OpenQuake, hazardlib or CRISIS
 
 Don't modify this example to test something, make a copy instead!
 """
+
 
 import os
 import numpy as np
@@ -12,7 +13,6 @@ from openquake.hazardlib.imt import PGA, SA
 from openquake.hazardlib.scalerel import WC1994
 
 import hazard.rshalib as rshalib
-
 
 
 ### Model name
@@ -39,7 +39,8 @@ gmpe_truncation_level = 3
 
 ## Discretization parameters (in km)
 rupture_mesh_spacing = 5.
-area_discretization = 5.
+#area_discretization = 5.
+area_discretization = 15.
 integration_distance = 150.
 
 ## Grid, list of sites or site model
@@ -53,10 +54,8 @@ grid_spacing = '50km'
 sites = [rshalib.site.SHASite(3.71704, 51.43233, name='Borssele')]
 
 
-vs30, vs30measured, z1pt0, z2pt5 = 800., True, 2., 1.
-ref_site_params = (vs30, vs30measured, z1pt0, z2pt5)
+ref_site_params = {"vs30": 800, "vs30measured": True, "z1pt0": 100., "z2pt5": 2.}
 soil_site_model = None
-#soil_site_model = create_soil_site_model('test_soil_site_model', [(3.71704, 51.43233)])
 
 ## Intensity measure type, spectral periods, and intensity levels
 imt_periods = {'PGA': [0], 'SA': [0.5, 1.]}
@@ -153,6 +152,7 @@ def create_psha_model(engine="nhlib"):
 					grid_outline=grid_outline,
 					grid_spacing=grid_spacing,
 					soil_site_model=soil_site_model,
+					ref_soil_params=ref_soil_params,
 					imt_periods=imt_periods,
 					min_intensities=Imin,
 					max_intensities=Imax,
@@ -170,16 +170,17 @@ if __name__ == '__main__':
 	import time
 
 	## nhlib
-	"""
+	
 	psha_model = create_psha_model("nhlib")
 	start_time = time.time()
 	shcfs = psha_model.run_nhlib_shcf(write=False)
 	end_time = time.time()
 	print end_time - start_time
 	shcfs['PGA'].plot()
-	"""
+	
 
 	## nhlib deaggregation
+	"""
 	psha_model = create_psha_model("nhlib")
 	#import jsonpickle
 	#json = jsonpickle.encode(psha_model)
@@ -199,7 +200,7 @@ if __name__ == '__main__':
 	print deagg_result.matrix.shape
 	print deagg_result.matrix.max()
 	deagg_result.plot_mag_dist_pmf()
-
+	"""
 
 	## OpenQuake
 	#psha_model = create_psha_model("openquake")
