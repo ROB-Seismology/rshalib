@@ -150,12 +150,14 @@ class SHASiteModel(nhlib.geo.Mesh):
 	def _set_grid_outline(self, grid_outline):
 		"""
 		"""
-		if len(grid_outline) == 2:
+		if len(grid_outline) < 2:
+			raise Exception("")
+		elif len(grid_outline) == 2:
 			llc, urc = grid_outline
 			lrc = (urc[0], llc[1])
 			ulc = (llc[0], urc[1])
 			self.grid_outline = np.array([llc, lrc, urc, ulc])
-		if len(grid_outline) == 4 and isinstance(grid_outline[0], (int, float)):
+		elif len(grid_outline) == 4 and isinstance(grid_outline[0], (int, float)):
 			w, e, s, n = grid_outline
 			llc = (w, s)
 			lrc = (e, s)
