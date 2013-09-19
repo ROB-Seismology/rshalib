@@ -282,40 +282,6 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
 
 
-def create_soil_site_model(name, lons_lats, grid=False, grid_spacing=0.1, ref_soil_params=REF_SOIL_PARAMS):
-	"""
-	Create site model from site longitudes and latitudes.
-
-	:param lons_lats:
-		List with (lon, lat) tuples for sites.
-	:param grid:
-		Boolean, if True lons_lats contains only two elements (left and lower right corner) from which rectangular grid is created.
-	:param vs30:
-		See class Site (Default: value defined in vs30.rock).
-	:param vs30measured:
-		See class Site (Default: False).
-	:param z1pt0:
-		See class Site (Default: 1.).
-	:param z2pt5:
-		See class Site (Default: 2.).
-	"""
-	sites = []
-	if grid:
-		min_lon, max_lon = lons_lats[0][0], lons_lats[1][0]
-		min_lat, max_lat = lons_lats[1][1], lons_lats[0][1]
-		lons = np.arange(min_lon, max_lon, grid_spacing)
-		lats = np.arange(min_lat, max_lat, grid_spacing)
-		lons_lats = []
-		for lat in lats[::-1]:
-			for lon in lons:
-				lons_lats.append((lon, lat))
-	for lon_lat in lons_lats:
-		location = Point(lon_lat[0], lon_lat[1])
-		sites.append(nhlib.site.Site(location, **ref_soil_params))
-	soil_site_model = SoilSiteModel(name, sites)
-	return soil_site_model
-
-
 if __name__ == '__main__':
 	#soil_site_model = create_site_model('test', [(2.15, 49.15), (2.65, 48.65)], True)
 	#soil_site_model.write_xml()

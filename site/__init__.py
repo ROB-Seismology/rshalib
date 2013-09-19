@@ -9,5 +9,5 @@ import site
 reload(site)
 
 from ref_soil_params import REF_SOIL_PARAMS
-from site import SHASite, SHASiteModel, SoilSite, SoilSiteModel, create_soil_site_model
+from site import SHASite, SHASiteModel, SoilSite, SoilSiteModel
 
