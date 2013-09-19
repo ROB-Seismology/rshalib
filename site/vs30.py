@@ -1,5 +1,8 @@
 """
-Vs30 for different soil classes
+Vs30 in m/s for different soil classes.
 """
-rock = 800.
-classA = rock
+
+
+ROCK = 800.
+CLASSA = ROCK
+

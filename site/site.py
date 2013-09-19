@@ -8,14 +8,20 @@ Thus, objects instantiated from these classes can be used directly in nhlib,
 as well as to generate input files for OpenQuake.
 """
 
+
+# TODO: add kappa and thickness as soil_params
+
+
+import numpy as np
+
 from lxml import etree
 
 import openquake.hazardlib as nhlib
 
+from ref_soil_params import REF_SOIL_PARAMS
+from ..geo import Point, Polygon
 from ..nrml import ns
 from ..nrml.common import *
-from ..geo import Point
-import vs30
 
 
 class SHASite(Point):
@@ -61,7 +67,7 @@ class SHASite(Point):
 	def lat(self):
 		return self.latitude
 
-	def to_soil_site(self, vs30=vs30.rock, vs30measured=False, z1pt0=100., z2pt5=2.):
+	def to_soil_site(self, soil_params=REF_SOIL_PARAMS):
 		"""
 		Convert to a SoilSite object, representing a site with
 		soil characteristics
@@ -78,7 +84,103 @@ class SHASite(Point):
 		:return:
 			instance of :class:`SoilSite`
 		"""
-		return SoilSite(self.longitude, self.latitude, self.depth, vs30, vs30measured, z1pt0, z2pt5, self.name)
+		return SoilSite(self.longitude, self.latitude, self.depth, soil_params, self.name)
+
+
+class SHASiteModel(object):
+	"""
+	"""
+	# TODO: support names
+	# TODO: subclass from hazardlib Mesh
+	# TODO: plot method
+	# TODO: iter method
+	
+	def __init__(self, sites=None, grid_outline=None, grid_spacing=None):
+		"""
+		"""
+		assert sites != None or (grid_outline != None and grid_spacing != None)
+		if sites != None:
+			self._set_sites(sites)
+			self.grid_outline = None
+			self.grid_spacing = None
+		else:
+			self._set_grid_outline(grid_outline)
+			self._set_grid_spacing(grid_spacing)
+			self._set_grid()
+			self.sites = None
+	
+	def __len__(self):
+		"""
+		"""
+		return np.prod(self.shape)
+	
+	def _set_sites(self, sites):
+		"""
+		"""
+		self.lons = np.zeros(len(sites))
+		self.lats = np.zeros(len(sites))
+		for i in xrange(len(sites)):
+			self.lons[i] = sites[i][0]
+			self.lats[i] = sites[i][1]
+	
+	def _set_grid_outline(self, grid_outline):
+		"""
+		"""
+		if len(grid_outline) == 2:
+			llc, urc = grid_outline
+			lrc = (urc[0], llc[1])
+			ulc = (llc[0], urc[1])
+			self.grid_outline = np.array([llc, lrc, urc, ulc])
+		if len(grid_outline) == 4 and isinstance(grid_outline[0], (int, float)):
+			w, e, s, n = grid_outline
+			llc = (w, s)
+			lrc = (e, s)
+			urc = (e, n)
+			ulc = (w, n)
+			self.grid_outline = np.array([llc, lrc, urc, ulc])
+		else:
+			self.grid_outline = np.array([(point[0], point[1]) for point in grid_outline])
+	
+	def _set_grid_spacing(self, grid_spacing):
+		"""
+		"""
+		if isinstance(grid_spacing, (int, float)):
+			self.grid_spacing = (grid_spacing, grid_spacing)
+		else:
+			self.grid_spacing = grid_spacing
+	
+	def _set_grid(self):
+		"""
+		"""
+		if isinstance(self.grid_spacing, (str, unicode)):
+			grid = Polygon([Point(lon, lat) for (lon, lat) in self.grid_outline]).discretize(float(self.grid_spacing))
+			self.lons = grid.lons
+			self.lats = grid.lats
+		else:
+			slons = np.arange(self.grid_outline[:,0].min(), self.grid_outline[:,0].max(),
+				self.grid_spacing[0]) + self.grid_spacing[0] / 2.
+			slats = np.arange(self.grid_outline[:,1].min(), self.grid_outline[:,1].max(),
+				self.grid_spacing[1]) + self.grid_spacing[1] / 2.
+			grid = np.dstack(np.meshgrid(slons, slats[::-1]))
+			self.lons = grid[:,:,0]
+			self.lats = grid[:,:,1]
+	
+	@property
+	def shape(self):
+		"""
+		"""
+		return self.lons.shape
+
+	def get_sites(self):
+		"""
+		"""
+		return [SHASite(self.lons[i], self.lats[i]) for i in np.ndindex(self.shape)]
+	
+	def to_soil_site_model(self, ref_soil_params=REF_SOIL_PARAMS):
+		"""
+		"""
+		soil_sites = [SoilSite(self.lons[i], self.lats[i], soil_params=ref_soil_params) for i in np.ndindex(self.shape)]
+		return SoilSiteModel("", soil_sites)
 
 
 class SoilSite(nhlib.site.Site, SHASite):
@@ -104,9 +206,9 @@ class SoilSite(nhlib.site.Site, SHASite):
 	:param name:
 		Site name (default: "")
 	"""
-	def __init__(self, longitude, latitude, depth=0, vs30=vs30.rock, vs30measured=False, z1pt0=100., z2pt5=2., name=""):
+	def __init__(self, longitude, latitude, depth=0, soil_params=REF_SOIL_PARAMS, name=""):
 		location = Point(longitude, latitude, depth)
-		nhlib.site.Site.__init__(self, location, vs30, vs30measured, z1pt0, z2pt5)
+		nhlib.site.Site.__init__(self, location, **soil_params)
 		SHASite.__init__(self, longitude, latitude, depth, name)
 
 
@@ -180,7 +282,7 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
 
 
-def create_soil_site_model(name, lons_lats, grid=False, grid_spacing=0.1, vs30=vs30.rock, vs30measured=False, z1pt0=1., z2pt5=2.):
+def create_soil_site_model(name, lons_lats, grid=False, grid_spacing=0.1, ref_soil_params=REF_SOIL_PARAMS):
 	"""
 	Create site model from site longitudes and latitudes.
 
@@ -209,7 +311,7 @@ def create_soil_site_model(name, lons_lats, grid=False, grid_spacing=0.1, vs30=v
 				lons_lats.append((lon, lat))
 	for lon_lat in lons_lats:
 		location = Point(lon_lat[0], lon_lat[1])
-		sites.append(nhlib.site.Site(location, vs30, vs30measured, z1pt0, z2pt5))
+		sites.append(nhlib.site.Site(location, **ref_soil_params))
 	soil_site_model = SoilSiteModel(name, sites)
 	return soil_site_model
 
