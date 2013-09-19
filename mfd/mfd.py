@@ -15,6 +15,8 @@ from ..nrml import ns
 from ..nrml.common import *
 
 
+# TODO: add method to sample magnitudes over a given time interval
+# (should be in oq-hazardlib somewhere)
 
 class MFD(object):
 	"""
@@ -497,6 +499,8 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			gr_mfd = imfd.to_truncated_GR_mfd(completeness, end_date, method="Weichert", verbose=verbose)
 			b_val = gr_mfd.b_val
 			a_val = gr_mfd.a_val
+		else:
+			a_val = None
 		if not np.isnan(b_val):
 			beta = b_val * np.log(10)
 			if verbose:
@@ -504,6 +508,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 				print("n(M > Mmin): %d" % n)
 			likelihood = np.zeros_like(magnitudes)
 			likelihood[magnitudes >= Mmax_obs] = (1 - np.exp(-beta * (magnitudes[magnitudes >= Mmax_obs] - Mmin_n))) ** -n
+		## If b value is NaN, likelihood = ones, and posterior = prior
 
 		## Posterior
 		posterior = prior * likelihood
