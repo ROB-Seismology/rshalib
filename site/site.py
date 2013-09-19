@@ -98,7 +98,8 @@ class SHASiteModel(nhlib.geo.Mesh):
 			instances of SoilSite
 		instance of SHASiteModel
 	"""
-	# TODO: support names
+	# TODO: support model name + export
+	# TODO: support site names + export
 	# TODO: plot method
 	
 	def __init__(self, lons=None, lats=None, depths=None, sites=None, grid_outline=None, grid_spacing=None):
@@ -118,6 +119,19 @@ class SHASiteModel(nhlib.geo.Mesh):
 			self._set_grid_spacing(grid_spacing)
 			self._set_grid()
 			self.depths = None
+	
+	def __iter__(self):
+		"""
+		"""
+		lons = self.lons.flat
+		lats = self.lats.flat
+		if self.depths != None:
+			depths = self.depths.flat
+			for i in xrange(len(self)):
+				yield (lons[i], lats[i], depths[i])
+		else:
+			for i in xrange(len(self)):
+				yield (lons[i], lats[i])
 	
 	def _set_sites(self, sites):
 		"""
@@ -179,13 +193,12 @@ class SHASiteModel(nhlib.geo.Mesh):
 	def get_sites(self):
 		"""
 		"""
-		return [SHASite(self.lons[i], self.lats[i]) for i in np.ndindex(self.shape)]
+		return [SHASite(*point) for point in self]
 	
 	def to_soil_site_model(self, ref_soil_params=REF_SOIL_PARAMS):
 		"""
 		"""
-		soil_sites = [SoilSite(self.lons[i], self.lats[i], soil_params=ref_soil_params) for i in np.ndindex(self.shape)]
-		return SoilSiteModel("", soil_sites)
+		return SoilSiteModel("", [SoilSite(*point, soil_params=ref_soil_params) for point in self])
 
 
 class SoilSite(nhlib.site.Site, SHASite):
