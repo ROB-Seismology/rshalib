@@ -54,7 +54,7 @@ class PSHAModelBase(object):
 		(default: 0.5).
 	:param soil_site_model:
 		:class:`SoilSiteModel` object.
-	:param ref_site_params:
+	:param ref_soil_params:
 		(float, boolean, float, float) tuple, defining (vs30, vs30measured, z1pt0, z2pt5) as reference site parameters (default: (800., False, 100., 1.)).
 	:param imt_periods:
 		Dictionary mapping intensity measure types (e.g. "PGA", "SA", "PGV", "PGD") to lists or arrays of periods in seconds (float values).
@@ -79,7 +79,7 @@ class PSHAModelBase(object):
 	"""
 	# TODO: consider grid_outline to be tuple
 
-	def __init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_site_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance):
+	def __init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance):
 		"""
 		"""
 		self.name = name
@@ -93,7 +93,7 @@ class PSHAModelBase(object):
 		else:
 			## Grid spacing as string or tuple
 			self.grid_spacing = grid_spacing
-		self.ref_site_params = ref_site_params
+		self.ref_soil_params = ref_soil_params
 		self.imt_periods = imt_periods
 		self.intensities = intensities
 		if self.intensities:
@@ -211,11 +211,11 @@ class PSHAModelBase(object):
 
 	def _get_nhlib_ref_soil_site_model(self):
 		"""
-		Return SoilSiteModel object with ref_site_params for sites.
+		Return SoilSiteModel object with ref_soil_params for sites.
 		"""
 		sites = []
 		for site in self._get_sites():
-			sites.append(nhlib.site.Site(Point(*site), *self.ref_site_params))
+			sites.append(nhlib.site.Site(Point(*site), **self.ref_soil_params))
 		soil_site_model = SoilSiteModel('ref_soil_site_model', sites)
 		return soil_site_model
 
@@ -366,12 +366,12 @@ class PSHAModel(PSHAModelBase):
 	See :class:`PSHAModelBase` for other arguments.
 	"""
 
-	def __init__(self, name, source_model, ground_motion_model, output_dir, sites=[], grid_outline=[], grid_spacing=0.5, soil_site_model=None, ref_site_params=(800., False, 100., 2.), imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200.):
+	def __init__(self, name, source_model, ground_motion_model, output_dir, sites=[], grid_outline=[], grid_spacing=0.5, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200.):
 
 		"""
 		"""
 		# TODO: consider moving 'name' parameter to third position, to be in accordance with order of parameters in docstring.
-		PSHAModelBase.__init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_site_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
+		PSHAModelBase.__init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
 		self.source_model = source_model
 		self.ground_motion_model = ground_motion_model
 
@@ -470,7 +470,7 @@ class PSHAModel(PSHAModelBase):
 		if not mag_bin_width:
 			mag_bin_width = self.source_model[0].mfd.bin_width
 		site = self._get_sites()[site_index]
-		nhlib_site = nhlib.site.Site(Point(*site), *self.ref_site_params)
+		nhlib_site = nhlib.site.Site(Point(*site), **self.ref_soil_params)
 		#imt = self._get_nhlib_imts()
 		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
 		rsdf = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
@@ -519,10 +519,10 @@ class PSHAModel(PSHAModelBase):
 			params.set_soil_site_model_or_reference_params(soil_site_model_file=self.soil_site_model.name + '.xml')
 		else:
 			params.set_soil_site_model_or_reference_params(
-				reference_vs30_value=self.ref_site_params[0],
-				reference_vs30_type={True: 'measured', False:'inferred'}[self.ref_site_params[1]],
-				reference_depth_to_1pt0km_per_sec=self.ref_site_params[2],
-				reference_depth_to_2pt5km_per_sec=self.ref_site_params[3])
+				reference_vs30_value=self.ref_soil_params["vs30"],
+				reference_vs30_type={True: 'measured', False:'inferred'}[self.ref_soil_params["vs30measured"]],
+				reference_depth_to_1pt0km_per_sec=self.ref_soil_params["z1pt5"],
+				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"])
 
 		## validate source model logic tree and write nrml file
 		source_model_lt = SeismicSourceSystem(self.source_model)
@@ -593,7 +593,7 @@ class PSHAModel(PSHAModelBase):
 
 		## Write input file. This will also write the site file and attenuation
 		## tables if necessary.
-		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.sites, site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_site_params[0], output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
+		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.sites, site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
 
 		## Return name of output file
 		return filespec
@@ -653,11 +653,11 @@ class PSHAModelTree(PSHAModelBase):
 
 	See :class:`PSHAModelBase` for other arguments.
 	"""
-	def __init__(self, name, source_models, source_model_lt, gmpe_lt, output_dir, sites=[], grid_outline=[], grid_spacing=0.5, soil_site_model=None, ref_site_params=(800., False, 100., 2.), imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200., num_lt_samples=1, random_seed=42):
+	def __init__(self, name, source_models, source_model_lt, gmpe_lt, output_dir, sites=[], grid_outline=[], grid_spacing=0.5, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200., num_lt_samples=1, random_seed=42):
 		"""
 		"""
 		from openquake.engine.input.logictree import LogicTreeProcessor
-		PSHAModelBase.__init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_site_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
+		PSHAModelBase.__init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
 		self.source_models = source_models
 		self.source_model_lt = source_model_lt
 		self.gmpe_lt = gmpe_lt.get_optimized_system(self.source_models)
@@ -773,7 +773,7 @@ class PSHAModelTree(PSHAModelBase):
 		optimized_gmpe_model = gmpe_model.get_optimized_model(source_model)
 		psha_model = PSHAModel(name, source_model, optimized_gmpe_model, output_dir,
 			sites=self.sites, grid_outline=self.grid_outline, grid_spacing=self.grid_spacing,
-			soil_site_model=self.soil_site_model, ref_site_params=self.ref_site_params,
+			soil_site_model=self.soil_site_model, ref_soil_params=self.ref_soil_params,
 			imt_periods=self.imt_periods, intensities=self.intensities,
 			min_intensities=self.min_intensities, max_intensities=self.max_intensities,
 			num_intensities=self.num_intensities, return_periods=self.return_periods,
@@ -997,10 +997,10 @@ class PSHAModelTree(PSHAModelBase):
 			params.set_soil_site_model_or_reference_params(soil_site_model_file=self.soil_site_model.name + '.xml')
 		else:
 			params.set_soil_site_model_or_reference_params(
-				reference_vs30_value=self.ref_site_params[0],
-				reference_vs30_type={True: 'measured', False:'inferred'}[self.ref_site_params[1]],
-				reference_depth_to_1pt0km_per_sec=self.ref_site_params[2],
-				reference_depth_to_2pt5km_per_sec=self.ref_site_params[3])
+				reference_vs30_value=self.ref_soil_params["vs30"],
+				reference_vs30_type={True: 'measured', False:'inferred'}[self.ref_soil_params["vs30measured"]],
+				reference_depth_to_1pt0km_per_sec=self.ref_soil_params["z1pt0"],
+				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"])
 
 		## validate source model logic tree and write nrml file
 		self.source_model_lt.validate()
@@ -1093,7 +1093,7 @@ class PSHAModelTree(PSHAModelBase):
 		for i in range(self.num_lts_samples):
 			source_model, ground_motion_model = self._sample_lts()
 			name = source_model.name + '_' + ground_motion_model.name
-			psha_models.append(PSHAModel(name, source_model, ground_motion_model, self.output_dir, self.sites, self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_site_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance))
+			psha_models.append(PSHAModel(name, source_model, ground_motion_model, self.output_dir, self.sites, self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance))
 		return psha_models
 
 	def _get_used_trts(self):
