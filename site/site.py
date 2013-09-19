@@ -123,7 +123,7 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 	def __init__(self, name, sites):
 		self.name = name
 		self.num_sites = len(sites)
-		super(SiteModel, self).__init__(sites=sites)
+		super(SoilSiteModel, self).__init__(sites=sites)
 
 	def __len__(self):
 		return self.num_sites
