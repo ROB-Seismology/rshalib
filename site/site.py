@@ -146,7 +146,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 		for i in xrange(len(sites)):
 			self.lons[i] = sites[i][0]
 			self.lats[i] = sites[i][1]
-			if len(site[i]) == 3:
+			if len(sites[i]) == 3:
 				self.depths[i] = sites[i][2]
 		if np.allclose(self.depths, 0.):
 			self.depths = None
@@ -177,7 +177,8 @@ class SHASiteModel(nhlib.geo.Mesh):
 		if isinstance(grid_spacing, (int, float)):
 			self.grid_spacing = (grid_spacing, grid_spacing)
 		else:
-			assert grid_spacing.endswith("km")
+			if isinstance(grid_spacing, (str, unicode)):
+				 assert grid_spacing.endswith("km")
 			self.grid_spacing = grid_spacing
 	
 	def _set_grid(self):
@@ -224,16 +225,51 @@ class SHASiteModel(nhlib.geo.Mesh):
 		else:
 			return None
 	
-	def get_sites(self, clip=False):
+	def get_geographic_distance(self, lon, lat):
 		"""
+		Get the geographic distance each site in the model to a given site.
+		
+		:param lon:
+			float, lon of site
+		:param lat:
+			float, lat of site
+		
+		:return:
+			np array like self.shape, distances in km
 		"""
-		if clip == True:
-			return [SHASite(*point) for point in self.clip()]
+		return geodetic_distance(lon, lat, self.lons, self.lats)
+	
+	def get_closest_site(self, lon, lat, index=False):
+		"""
+		Get the closest site of the model to a given site. Depth is ignored!
+		
+		:param lon:
+			float, lon of site.
+		:param lat:
+			float, lat of site.
+		:param index:
+			bool, give index instead of site (default: False)
+		
+		:return:
+			tuple (int, int) or int, index of site
+		"""
+		i = self._geodetic_min_distance(type(self)(np.array([lon]), np.array([lat])), True)
+		i = np.unravel_index(i, self.shape)
+		if index == True:
+			return i
 		else:
-			return [SHASite(*point) for point in self]
+			if self.depths != None:
+				depth = self.depths[i]
+			else:
+				depth = None
+			return SHASite(self.lons[i], self.lats[i], depth)
 	
 	def clip(self):
 		"""
+		Clip the site model by the grid outline if it is a degree spaced grid.
+
+		:return:
+			instance of SHASiteModel
 		"""
 		if len(self.shape) != 2:
 			return self
@@ -247,22 +283,30 @@ class SHASiteModel(nhlib.geo.Mesh):
 				depths = None
 			return type(self)(lons=lons, lats=lats, depths=depths)
 	
-	def get_geographic_distance(self, lon, lat):
+	def get_sites(self, clip=False):
 		"""
-		Get the geographic distance of a site to each site in the model.
+		Get sites of site model.
 		
-		:param lon:
-			float, lon of site
-		:param lat:
-			float, lat of site
+		:param clip:
+			bool, clip site model or not (default: False)
 		
 		:return:
-			np array like self.shape, distances in km
+			list of instances of SHASite
 		"""
-		return geodetic_distance(lon, lat, self.lons, self.lats)
+		if clip == True:
+			return [SHASite(*point) for point in self.clip()]
+		else:
+			return [SHASite(*point) for point in self]
 	
 	def to_soil_site_model(self, ref_soil_params=REF_SOIL_PARAMS):
 		"""
+		Get soil site model from site model with reference soil parameters for each site.
+		
+		:param ref_soil_params:
+			dict, reference value for each soil parameter needed by soil site model (default: defaults specified as REF_SOIL_PARAMS in ref_soil_params module)
+		
+		:return:
+			instance of SoilSiteModel
 		"""
 		return SoilSiteModel("", [SoilSite(*point, soil_params=ref_soil_params) for point in self])
 	
