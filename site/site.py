@@ -93,32 +93,34 @@ class SHASite(Point):
 class SHASiteModel(nhlib.geo.Mesh):
 	"""
 	??
-	
-	:param sites:
-		list of
-			(float, float) tuples
-			instances of SHASite
-			instances of SoilSite
-		instance of SHASiteModel
 	"""
 	# TODO: support model name + export
-	# TODO: support site names + export
 	# TODO: complete plot method
 	# TODO: test clip method
 	
-	def __init__(self, lons=None, lats=None, depths=None, sites=None, grid_outline=None, grid_spacing=None):
+	def __init__(self, lons=None, lats=None, depths=None, sites=None, names=None, grid_outline=None, grid_spacing=None):
 		"""
+		:param sites:
+			list of
+				(float, float) tuples
+				instances of SHASite
+				instances of SoilSite
+			instance of SHASiteModel
 		"""
-		if lons != None and lats != None:
+		if lons != None and lats != None: ## lons and lats (and depths)
 			super(SHASiteModel, self).__init__(lons, lats, depths)
 			self.sites = None
+			self.names = None
 			self.grid_outline = None
 			self.grid_spacing = None
-		elif sites != None:
+		elif sites != None: ## sites (and names)
+			assert names == None or len(names) == len(sites)
+			self.names = names
 			self._set_sites(sites)
 			self.grid_outline = None
 			self.grid_spacing = None
-		else:
+		else: ## grid outline and grid spacing
+			self.names = None
 			self._set_grid_outline(grid_outline)
 			self._set_grid_spacing(grid_spacing)
 			self._set_grid()
@@ -143,13 +145,18 @@ class SHASiteModel(nhlib.geo.Mesh):
 		self.lons = np.zeros(len(sites))
 		self.lats = np.zeros(len(sites))
 		self.depths = np.zeros(len(sites))
+		names = [""] * len(sites)
 		for i in xrange(len(sites)):
 			self.lons[i] = sites[i][0]
 			self.lats[i] = sites[i][1]
 			if len(sites[i]) == 3:
 				self.depths[i] = sites[i][2]
+			if hasattr(sites[i], "name"):
+				names[i] = site.name
 		if np.allclose(self.depths, 0.):
 			self.depths = None
+		if len(set(names)) != 1:
+			self.names = names
 	
 	def _set_grid_outline(self, grid_outline):
 		"""
@@ -169,7 +176,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			ulc = (w, n)
 			self.grid_outline = np.array([llc, lrc, urc, ulc])
 		else:
-			self.grid_outline = np.array([(point[0], point[1]) for point in grid_outline])
+			self.grid_outline = np.array([(site[0], site[1]) for site in grid_outline])
 	
 	def _set_grid_spacing(self, grid_spacing):
 		"""
@@ -239,9 +246,9 @@ class SHASiteModel(nhlib.geo.Mesh):
 		"""
 		return geodetic_distance(lon, lat, self.lons, self.lats)
 	
-	def get_closest_site(self, lon, lat, index=False):
+	def get_site(self, lon, lat, index=False):
 		"""
-		Get the closest site of the model to a given site. Depth is ignored!
+		Get (closest) site.
 		
 		:param lon:
 			float, lon of site.
@@ -253,16 +260,19 @@ class SHASiteModel(nhlib.geo.Mesh):
 		:return:
 			tuple (int, int) or int, index of site
 		"""
-		i = self._geodetic_min_distance(type(self)(np.array([lon]), np.array([lat])), True)[0]
-		i = np.unravel_index(i, self.shape)
-		if index == True:
-			return i
-		else:
+		i = np.unravel_index(self._geodetic_min_distance(type(self)(np.array([lon]), np.array([lat])), True)[0], self.shape)
+		if index == False:
 			if self.depths != None:
 				depth = self.depths[i]
 			else:
 				depth = None
-			return SHASite(self.lons[i], self.lats[i], depth)
+			if self.names != None:
+				name = self.names[i]
+			else:
+				name = ""
+			return SHASite(self.lons[i], self.lats[i], depth, name)
+		else:
+			return i
 	
 	def clip(self):
 		"""
@@ -294,35 +304,45 @@ class SHASiteModel(nhlib.geo.Mesh):
 			list of instances of SHASite
 		"""
 		if clip == True:
-			return [SHASite(*point) for point in self.clip()]
+			site_model = self.clip()
 		else:
-			return [SHASite(*point) for point in self]
+			site_model = self
+		sites = []
+		for i, point in enumerate(site_model):
+			if self.names != None:
+				name = self.names[i]
+			else:
+				name = ""
+			sites.append(SHASite(*point, name=name))
+		return sites
 	
-	def to_soil_site_model(self, ref_soil_params=REF_SOIL_PARAMS):
+	def to_soil_site_model(self, name="", ref_soil_params=REF_SOIL_PARAMS):
 		"""
 		Get soil site model from site model with reference soil parameters for each site.
 		
+		:param name:
+			str, name of soil site model (default: "")
 		:param ref_soil_params:
 			dict, reference value for each soil parameter needed by soil site model (default: defaults specified as REF_SOIL_PARAMS in ref_soil_params module)
 		
 		:return:
 			instance of SoilSiteModel
 		"""
-		return SoilSiteModel("", [SoilSite(*point, soil_params=ref_soil_params) for point in self])
+		return SoilSiteModel(name, [site.to_soil_site(ref_soil_params) for site in self.get_sites])
 	
-	def plot(self):
-		"""
-		"""
-		from mapping.Basemap.LayeredBasemap import MapLayer, LayeredBasemap
-		from mapping.Basemap.data_types import MultiPointData, BuiltinData
-		from mapping.Basemap.styles import PointStyle, LineStyle
+#	def plot(self):
+#		"""
+#		"""
+#		from mapping.Basemap.LayeredBasemap import MapLayer, LayeredBasemap
+#		from mapping.Basemap.data_types import MultiPointData, BuiltinData
+#		from mapping.Basemap.styles import PointStyle, LineStyle
 		
-		map_layers = []
-		map_layers.extend([MapLayer(data=MultiPointData(self.lons, self.lats), style=PointStyle(shape=".", size=5))])
-		map_layers.extend([MapLayer(BuiltinData("coastlines"), LineStyle()), MapLayer(BuiltinData("countries"), LineStyle())])
-		map = LayeredBasemap(layers=map_layers, region=self.region, projection="merc",
-			resolution="i", title="Test")
-		map.plot()
+#		map_layers = []
+#		map_layers.extend([MapLayer(data=MultiPointData(self.lons, self.lats), style=PointStyle(shape=".", size=5))])
+#		map_layers.extend([MapLayer(BuiltinData("coastlines"), LineStyle()), MapLayer(BuiltinData("countries"), LineStyle())])
+#		map = LayeredBasemap(layers=map_layers, region=self.region, projection="merc",
+#			resolution="i", title="Test")
+#		map.plot()
 
 
 class SoilSite(nhlib.site.Site, SHASite):
