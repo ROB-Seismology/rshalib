@@ -3113,7 +3113,7 @@ class HazardMap(HazardResult, HazardField):
 		# TODO!
 		pass
 
-	def get_plot(self, region=None, projection="merc", resolution="i", grid_interval=(1., 1.), cmap="usgs", contour_interval=None, intensity_levels=[0., 0.02, 0.06, 0.14, 0.30, 0.90], num_grid_cells=100, plot_style="cont", contour_line_style=None, site_style=None, source_model="", source_model_style=None, countries_style=None, intensity_unit="g", hide_sea=False, title=None):
+	def get_plot(self, region=None, projection="merc", resolution="i", grid_interval=(1., 1.), cmap="usgs", norm=None, contour_interval=None, num_grid_cells=100, plot_style="cont", contour_line_style="default", site_style="default", source_model="", source_model_style="default", countries_style="default", intensity_unit="g", hide_sea=False, title=None):
 		# TODO: update docstring
 		"""
 		Plot hazard map
@@ -3172,23 +3172,26 @@ class HazardMap(HazardResult, HazardField):
 		:param dpi:
 			Int, image resolution in dots per inch (default: 300)
 		"""
-		from mapping.Basemap.LayeredBasemap import *
+		import mapping.Basemap.LayeredBasemap as lbm
+
+		#TODO: coastline_style
 
 		## Construct default styles:
-		if not site_style:
-			site_style = PointStyle(shape=".", line_color="w", size=6)
-		if not source_model_style:
-			source_model_style = PolygonStyle(line_width=2, fill_color="none")
-		if not countries_style:
-			countries_style = LineStyle(line_width=2, line_color="w")
-		if not contour_line_style:
-			contour_label_style = TextStyle(font_size=10)
-			contour_line_style = LineStyle(label_style=contour_label_style)
+		if site_style == "default":
+			site_style = lbm.PointStyle(shape=".", line_color="w", size=6)
+		if source_model_style == "default":
+			source_model_style = lbm.PolygonStyle(line_width=2, fill_color="none")
+		if countries_style == "default":
+			countries_style = lbm.LineStyle(line_width=2, line_color="w")
+		if contour_line_style == "default":
+			contour_label_style = lbm.TextStyle(font_size=10)
+			contour_line_style = lbm.LineStyle(label_style=contour_label_style)
 
 		## Prepare intensity grid and contour levels
 		longitudes, latitudes = self.longitudes, self.latitudes
 		grid_lons, grid_lats = self.meshgrid(num_cells=num_grid_cells)
 		intensity_grid = self.get_grid_intensities(num_cells=num_grid_cells, intensity_unit=intensity_unit)
+		# TODO: option to use contour levels as defined in norm
 		if not contour_interval:
 			arange = self.max() - self.min()
 			candidates = np.array([0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.08, 0.1, 0.2, 0.25, 0.4, 0.5, 0.6, 0.75, 0.8, 1.0])
@@ -3205,10 +3208,15 @@ class HazardMap(HazardResult, HazardField):
 		amin = np.floor(self.min(intensity_unit) / contour_interval) * contour_interval
 		amax = np.ceil(self.max(intensity_unit) / contour_interval) * contour_interval
 
-		contour_levels = np.arange(amin, amax+contour_interval, contour_interval)
-		## Sometimes, there is an empty contour interval at the end
-		if len(contour_levels) > 1 and contour_levels[-2] > self.max():
-			contour_levels = contour_levels[:-1]
+		if contour_interval != None:
+			contour_levels = np.arange(amin, amax+contour_interval, contour_interval)
+			## Sometimes, there is an empty contour interval at the end
+			if len(contour_levels) > 1 and contour_levels[-2] > self.max():
+				contour_levels = contour_levels[:-1]
+		elif contour_interval == 0:
+			contour_levels = []
+		else:
+			contour_levels = None
 
 		## Compute map limits
 		if not region:
@@ -3216,46 +3224,21 @@ class HazardMap(HazardResult, HazardField):
 			urcrnrlon, urcrnrlat = max(longitudes), max(latitudes)
 			region = (llcrnrlon, urcrnrlon, llcrnrlat, urcrnrlat)
 
-		## Color map
-		if cmap == "usgs":
-			usgs_rgb = [(255, 255, 255),
-						(230, 230, 230),
-						(200, 200, 200),
-						(231, 255, 255),
-						(215, 255, 255),
-						(198, 255, 255),
-						(151, 255, 241),
-						(151, 254, 199),
-						(200, 255, 153),
-						(202, 254, 83),
-						(251, 250, 100),
-						(255, 238, 0),
-						(254, 225, 1),
-						(255, 200, 1),
-						(255, 94, 0),
-						(254, 0, 2),
-						(200, 121, 20),
-						(151, 74, 20)]
-			num_colors = len(usgs_rgb)
-			cmap_limits = np.linspace(0, 1, num_colors)
-			usgs_cdict = {'red': [], 'green': [], 'blue': []}
-			for i in range(num_colors):
-				r, g, b = np.array(usgs_rgb[i]) / 255.
-				usgs_cdict['red'].append((cmap_limits[i], r, r))
-				usgs_cdict['green'].append((cmap_limits[i], g, g))
-				usgs_cdict['blue'].append((cmap_limits[i], b, b))
-			cmap = matplotlib.colors.LinearSegmentedColormap('usgs', usgs_cdict, 256)
-		elif isinstance(cmap, str):
-			cmap = cm.get_cmap(cmap)
+		## Color map and norm
+		if isinstance(cmap, str):
+			if cmap.lower() in ("usgs", "share", "gshap"):
+				cmap_name = cmap
+				cmap = lbm.cm.get_cmap("hazard", cmap_name)
+				if norm is None:
+					norm = lbm.cm.get_norm("hazard", cmap_name)
+			else:
+				cmap = matplotlib.cm.get_cmap(cmap)
 
-		map_layers = []
+		if isinstance(norm, str):
+			if norm.lower() in ("usgs", "share", "gshap"):
+				norm = lbm.cm.get_norm("hazard", norm)
 
 		## Intensity grid
-		if intensity_levels in (None, []):
-			norm = matplotlib.colors.Normalize(amin, amax)
-		else:
-			norm = LevelNorm(intensity_levels)
-
 		if self.IMT == "SA":
 			imt_label = "%s (%s s)" % (self.IMT, self.period)
 		else:
@@ -3267,43 +3250,45 @@ class HazardMap(HazardResult, HazardField):
 			intensity_unit_label = "$cm/s^2$"
 		cbar_label = '%s (%s)' % (imt_label, intensity_unit_label)
 
-		colorbar_style = ColorbarStyle(location="bottom", format="%.2f", ticks=contour_levels)
-		color_map_theme = ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax, colorbar_style=colorbar_style)
-		continuous = {"cont": True, "disc": False}[plot_style]
-		grid_style = GridStyle(color_map_theme=color_map_theme, color_gradient="continuous", line_style=contour_line_style, contour_levels=contour_levels)
-		grid_data = GridData(grid_lons, grid_lats, intensity_grid)
-		layer = MapLayer(grid_data, grid_style, legend_label=cbar_label)
+		map_layers = []
+		colorbar_style = lbm.ColorbarStyle(location="bottom", format="%.2f", ticks=contour_levels)
+		color_map_theme = lbm.ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax, colorbar_style=colorbar_style)
+		color_gradient = {"cont": "continuous", "disc": "discontinuous"}[plot_style]
+		grid_style = lbm.GridStyle(color_map_theme=color_map_theme, color_gradient=color_gradient, line_style=contour_line_style, contour_levels=contour_levels)
+		grid_data = lbm.GridData(grid_lons, grid_lats, intensity_grid)
+		layer = lbm.MapLayer(grid_data, grid_style, legend_label=cbar_label)
 		map_layers.append(layer)
 
 		## Intensity data points
 		if site_style:
-			site_data = MultiPointData(longitudes, latitudes)
-			map_layers.append(MapLayer(site_data, site_style))
+			site_data = lbm.MultiPointData(longitudes, latitudes)
+			map_layers.append(lbm.MapLayer(site_data, site_style))
 
 		if hide_sea:
-			continent_style = FocmecStyle(fill_color=(1, 1, 1, 0), bg_color=(1, 1, 1, 1), line_width=0, line_color="none")
-			data = BuiltinData("continents")
-			map_layers.append(MapLayer(data, continent_style))
+			continent_style = lbm.FocmecStyle(fill_color=(1, 1, 1, 0), bg_color=(1, 1, 1, 1), line_width=0, line_color="none")
+			data = lbm.BuiltinData("continents")
+			map_layers.append(lbm.MapLayer(data, continent_style))
 
 		## Coastlines and national boundaries
-		map_layers.append(MapLayer(BuiltinData("coastlines"), countries_style))
-		map_layers.append(MapLayer(BuiltinData("countries"), countries_style))
+		if countries_style:
+			map_layers.append(lbm.MapLayer(lbm.BuiltinData("coastlines"), countries_style))
+			map_layers.append(lbm.MapLayer(lbm.BuiltinData("countries"), countries_style))
 
 		## Source model
-		if source_model:
+		if source_model and source_model_style:
 			from eqcatalog.source_models import rob_source_models_dict
 			gis_filespec = rob_source_models_dict[source_model].gis_filespec
-			gis_data = GisData(gis_filespec)
-			gis_style = CompositeStyle(polygon_style=source_model_style)
-			map_layers.append(MapLayer(gis_data, gis_style, legend_label={"polygons": "Source model"}))
+			gis_data = lbm.GisData(gis_filespec)
+			gis_style = lbm.CompositeStyle(polygon_style=source_model_style)
+			map_layers.append(lbm.MapLayer(gis_data, gis_style, legend_label={"polygons": "Source model"}))
 
 		## Title
 		if title is None:
 			title = "%s\n%.4G yr return period" % (self.model_name, self.return_period)
 
-		legend_style = LegendStyle(location=0)
+		legend_style = lbm.LegendStyle(location=0)
 
-		map = LayeredBasemap(map_layers, title, projection, region=region, grid_interval=grid_interval, resolution=resolution, annot_axes="SE", legend_style=legend_style)
+		map = lbm.LayeredBasemap(map_layers, title, projection, region=region, grid_interval=grid_interval, resolution=resolution, annot_axes="SE", legend_style=legend_style)
 		return map
 
 	def plot(self, cmap="usgs", contour_interval=None, intensity_levels=[0., 0.02, 0.06, 0.14, 0.30, 0.90], num_grid_cells=100, plot_style="cont", site_symbol=".", site_color="w", site_size=6, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
