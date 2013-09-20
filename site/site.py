@@ -253,7 +253,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 		:return:
 			tuple (int, int) or int, index of site
 		"""
-		i = self._geodetic_min_distance(type(self)(np.array([lon]), np.array([lat])), True)
+		i = self._geodetic_min_distance(type(self)(np.array([lon]), np.array([lat])), True)[0]
 		i = np.unravel_index(i, self.shape)
 		if index == True:
 			return i
