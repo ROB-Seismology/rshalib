@@ -15,8 +15,11 @@ as well as to generate input files for OpenQuake.
 import numpy as np
 
 from lxml import etree
+from scitools.numpytools import seq
 
 import openquake.hazardlib as nhlib
+
+from openquake.hazardlib.geo.geodetic import geodetic_distance
 
 from ref_soil_params import REF_SOIL_PARAMS
 from ..geo import Point, Polygon
@@ -100,7 +103,8 @@ class SHASiteModel(nhlib.geo.Mesh):
 	"""
 	# TODO: support model name + export
 	# TODO: support site names + export
-	# TODO: plot method
+	# TODO: complete plot method
+	# TODO: test clip method
 	
 	def __init__(self, lons=None, lats=None, depths=None, sites=None, grid_outline=None, grid_spacing=None):
 		"""
@@ -184,23 +188,97 @@ class SHASiteModel(nhlib.geo.Mesh):
 			self.lons = grid.lons
 			self.lats = grid.lats
 		else:
-			slons = np.arange(self.grid_outline[:,0].min(), self.grid_outline[:,0].max(),
-				self.grid_spacing[0]) + self.grid_spacing[0] / 2.
-			slats = np.arange(self.grid_outline[:,1].min(), self.grid_outline[:,1].max(),
-				self.grid_spacing[1]) + self.grid_spacing[1] / 2.
+			slons = seq(self.grid_outline[:,0].min(), self.grid_outline[:,0].max(), self.grid_spacing[0])
+			slats = seq(self.grid_outline[:,1].min(), self.grid_outline[:,1].max(), self.grid_spacing[1])
 			grid = np.dstack(np.meshgrid(slons, slats[::-1]))
 			self.lons = grid[:,:,0]
 			self.lats = grid[:,:,1]
 	
-	def get_sites(self):
+	@property
+	def region(self):
+		"""
+		:return:
+			(float, float, float, float) tuple, (w, e, s, n) of bounding box
+		"""
+		return (self.lons.min(), self.lons.max(), self.lats.min(), self.lats.max())
+	
+	@property
+	def slons(self):
+		"""
+		:return:
+			1d np array, set of lons if model is a lon lat grid, otherwise None
+		"""
+		if len(self.shape) == 2:
+			return self.lons[0,:]
+		else:
+			return None
+	
+	@property
+	def slats(self):
+		"""
+		:return:
+			1d np array, set of lats if model is a lon lat grid, otherwise None
+		"""
+		if len(self.shape) == 2:
+			return self.lats[:,0][::-1]
+		else:
+			return None
+	
+	def get_sites(self, clip=False):
 		"""
 		"""
-		return [SHASite(*point) for point in self]
+		if clip == True:
+			return [SHASite(*point) for point in self.clip()]
+		else:
+			return [SHASite(*point) for point in self]
+	
+	def clip(self):
+		"""
+		"""
+		if len(self.shape) != 2:
+			return self
+		else:
+			mask = Polygon([Point(*point) for point in self.grid_outline]).intersects(self)
+			lons = self.lons[mask]
+			lats = self.lats[mask]
+			if self.depths != None:
+				depths = self.depths[mask]
+			else:
+				depths = None
+			return type(self)(lons=lons, lats=lats, depths=depths)
+	
+	def get_geographic_distance(self, lon, lat):
+		"""
+		Get the geographic distance of a site to each site in the model.
+		
+		:param lon:
+			float, lon of site
+		:param lat:
+			float, lat of site
+		
+		:return:
+			np array like self.shape, distances in km
+		"""
+		return geodetic_distance(lon, lat, self.lons, self.lats)
 	
 	def to_soil_site_model(self, ref_soil_params=REF_SOIL_PARAMS):
 		"""
 		"""
 		return SoilSiteModel("", [SoilSite(*point, soil_params=ref_soil_params) for point in self])
+	
+	def plot(self):
+		"""
+		"""
+		from mapping.Basemap.LayeredBasemap import MapLayer, LayeredBasemap
+		from mapping.Basemap.data_types import MultiPointData, BuiltinData
+		from mapping.Basemap.styles import PointStyle, LineStyle
+		
+		map_layers = []
+		map_layers.extend([MapLayer(data=MultiPointData(self.lons, self.lats), style=PointStyle(shape=".", size=5))])
+		map_layers.extend([MapLayer(BuiltinData("coastlines"), LineStyle()), MapLayer(BuiltinData("countries"), LineStyle())])
+		map = LayeredBasemap(layers=map_layers, region=self.region, projection="merc",
+			resolution="i", title="Test")
+		map.plot()
 
 
 class SoilSite(nhlib.site.Site, SHASite):
