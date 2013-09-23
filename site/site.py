@@ -92,34 +92,58 @@ class SHASite(Point):
 
 class SHASiteModel(nhlib.geo.Mesh):
 	"""
-	??
+	Class representing a site model. Subclasses from :class:`openquake.hazardlib.geo.Mesh`.
 	"""
-	# TODO: support model name + export
-	# TODO: complete plot method
-	# TODO: test clip method
 	
-	def __init__(self, lons=None, lats=None, depths=None, sites=None, names=None, grid_outline=None, grid_spacing=None):
+	# TODO: add method plot
+	
+	def __init__(self, name="", lons=None, lats=None, depths=None, sites=None, names=None, grid_outline=None, grid_spacing=None):
 		"""
+		SiteModel is initiated by (1) lons and lats (and depths), (2) sites (and names) or (3) grid outline and grid spacing. Priority is given in this order.
+		
+		:param name:
+			str, name of site model (default: "")
+		:param lons:
+			nd np array, lons of sites (default: None)
+		:param lats:
+			nd np array, lats of sites (default: None)
+		:param depths:
+			nd np array, depths of sites (default: None, zero depths)
 		:param sites:
-			list of
-				(float, float) tuples
-				instances of SHASite
-				instances of SoilSite
-			instance of SHASiteModel
+			list of (float, float) tuples, (lon, lat) for each site
+			or list of instances of SHASite
+			or list of instances of SoilSite
+			or instance of SHASiteModel
+			(default: None)
+		:param names:
+			list of str, names of sites (length must equal that of sites)
+			(default: None)
+		:param grid_outline
+			list of (float, float) tuples, (lon, lat) for each site of grid outline (if two these are llc and urc)
+			or list of instances of SHASite
+			or list of instances of SoilSite
+			or instance of SHASiteModel
+			or (float, float, float, float) tuple, (w, e, s, n) boundary of grid
+			(default: None)
+		:param grid_spacing:
+			float, grid spacing in degrees for both lon and lats
+			or (float, float) tuple, grid spacing in degrees for lon and lat separatly
+			or str, grid spacing in km (string must end with "km")
+			(default: None)
 		"""
-		if lons != None and lats != None: ## lons and lats (and depths)
+		if lons != None and lats != None: ## (1) lons and lats (and depths)
 			super(SHASiteModel, self).__init__(lons, lats, depths)
 			self.sites = None
 			self.names = None
 			self.grid_outline = None
 			self.grid_spacing = None
-		elif sites != None: ## sites (and names)
+		elif sites != None: ## (2) sites (and names)
 			assert names == None or len(names) == len(sites)
 			self.names = names
 			self._set_sites(sites)
 			self.grid_outline = None
 			self.grid_spacing = None
-		else: ## grid outline and grid spacing
+		else: ## (3) grid outline and grid spacing
 			self.names = None
 			self._set_grid_outline(grid_outline)
 			self._set_grid_spacing(grid_spacing)
@@ -128,6 +152,8 @@ class SHASiteModel(nhlib.geo.Mesh):
 	
 	def __iter__(self):
 		"""
+		:return:
+			iterator, (lon, lat) or (lon, lat, depth) for each site
 		"""
 		lons = self.lons.flat
 		lats = self.lats.flat
@@ -141,6 +167,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 	
 	def _set_sites(self, sites):
 		"""
+		Sets lons, lats (and depths and names) from sites. Handles (lon, lat) or (lon, lat, depth) tuples, instances of SHASite, instances of Soilsites or instance of SHASiteModel.
 		"""
 		self.lons = np.zeros(len(sites))
 		self.lats = np.zeros(len(sites))
@@ -160,6 +187,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 	
 	def _set_grid_outline(self, grid_outline):
 		"""
+		Sets grid_outline.
 		"""
 		if len(grid_outline) < 2:
 			raise Exception("")
@@ -180,6 +208,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 	
 	def _set_grid_spacing(self, grid_spacing):
 		"""
+		Sets grid_spacing.
 		"""
 		if isinstance(grid_spacing, (int, float)):
 			self.grid_spacing = (grid_spacing, grid_spacing)
@@ -190,6 +219,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 	
 	def _set_grid(self):
 		"""
+		Sets lons and lats by grid_outline and grid_spacing.
 		"""
 		if isinstance(self.grid_spacing, (str, unicode)):
 			grid = Polygon([Point(lon, lat) for (lon, lat) in self.grid_outline]).discretize(float(self.grid_spacing[:-2]))
@@ -376,7 +406,7 @@ class SoilSite(nhlib.site.Site, SHASite):
 
 class SoilSiteModel(nhlib.site.SiteCollection):
 	"""
-	Class representing a complete site model
+	Class representing a soil site model.
 
 	:param name:
 		String, site model name
