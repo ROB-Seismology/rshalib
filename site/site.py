@@ -97,7 +97,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 	
 	# TODO: add method plot
 	
-	def __init__(self, name="", lons=None, lats=None, depths=None, sites=None, names=None, grid_outline=None, grid_spacing=None):
+	def __init__(self, lons=None, lats=None, depths=None, sites=None, names=None, grid_outline=None, grid_spacing=None):
 		"""
 		SiteModel is initiated by (1) lons and lats (and depths), (2) sites (and names) or (3) grid outline and grid spacing. Priority is given in this order.
 		
@@ -290,7 +290,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 		:return:
 			tuple (int, int) or int, index of site
 		"""
-		i = np.unravel_index(self._geodetic_min_distance(type(self)(np.array([lon]), np.array([lat])), True)[0], self.shape)
+		i = np.unravel_index(self._geodetic_min_distance(type(self)(lons=np.array([lon]), lats=np.array([lat])), True)[0], self.shape)
 		if index == False:
 			if self.depths != None:
 				depth = self.depths[i]
