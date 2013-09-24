@@ -6,3 +6,7 @@ import pshamodel
 reload(pshamodel)
 
 from pshamodel import PSHAModel, PSHAModelTree
+
+import dshamodel
+reload(dshamodel)
+from dshamodel import DSHAModel
