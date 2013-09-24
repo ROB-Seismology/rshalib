@@ -15,8 +15,6 @@ from ..nrml import ns
 from ..nrml.common import *
 
 
-# TODO: add method to sample magnitudes over a given time interval
-# (should be in oq-hazardlib somewhere)
 
 class MFD(object):
 	"""
@@ -146,6 +144,40 @@ class MFD(object):
 		magnitudes = self.get_magnitude_bin_edges()
 		timespans = completeness.get_completeness_timespans(magnitudes, end_date)
 		return self.occurrence_rates * timespans
+
+	def sample_Poisson(self, timespan, random_seed):
+		"""
+		Generate random timings for each magnitude bin according to a
+		Poisson process.
+
+		See: http://preshing.com/20111007/how-to-generate-random-timings-for-a-poisson-process/
+
+		:param timespan:
+			int, time span (in years) in which random timings are generated
+		:param random_seed:
+			int, seed for the random number generator
+
+		:return:
+			nested list with inter-event times for each magnitude bin
+		"""
+		import random
+		rnd = random.Random()
+		rnd.seed(random_seed)
+
+		inter_event_times = []
+		for mag, rate in self.get_annual_occurrence_rates():
+			## Should we re-initialize random number generator for each bin?
+			inter_event_times.append([])
+			total_time, next_event_time = 0, 0
+			while total_time <= timespan:
+				if next_event_time:
+					inter_event_times[-1].append(next_event_time)
+				#prob = rnd.random()
+				#next_event_time = -np.log(1.0 - prob) / rate
+				next_event_time = random.expovariate(rate)
+				total_time += next_event_time
+
+		return inter_event_times
 
 
 class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
