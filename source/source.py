@@ -995,7 +995,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 		MFD = CharacteristicMFD(max_mag, return_period, bin_width, M_sigma=M_sigma, num_sigma=num_sigma)
 		return MFD
 
-	def get_MFD_Anderson_Luco(self, min_mag=None, max_mag=None, bin_width=None, b_val=None, aseismic_coef=0., strain_drop=None, mu=3E+10, arbitrary_surface=False):
+	def get_MFD_Anderson_Luco(self, min_mag=None, max_mag=None, bin_width=None, b_val=None, aseismic_coef=0., strain_drop=None, mu=3E+10, arbitrary_surface=True):
 		"""
 		Compute MFD according to Anderson & Luco (1983), based on slip rate
 
@@ -1014,13 +1014,15 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 			(default: 0.)
 		:param strain_drop:
 			Float, strain drop (dimensionless), this is the ratio between
-			rupture displacement and rupture length. If not provided, it will
-			be computed from Mmax (default: None)
+			rupture displacement and rupture length. This parameter is only
+			required if :param:`arbitrary_surface` is set to True.
+			If not provided, it will be computed from Mmax
+			(default: None)
 		:param mu:
 			rigidity or shear modulus in N/m**2 (default: 3E+10)
 		:param arbitrary_surface:
 			Boolean indicating whether rupture surface is arbitrary or
-			corresponds to max_mag (default: False)
+			corresponds to max_mag (default: True)
 
 		:return:
 			instance of :class:`TruncatedGRMFD`
@@ -1034,7 +1036,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 		if max_mag is None:
 			#max_mag = self.mfd.max_mag - bin_width / 2.
 			max_mag = self.mfd.max_mag
-		if not strain_drop:
+		if not strain_drop and not arbitrary_surface:
 			strain_drop = self.get_Mmax_strain_drop()
 		## For seismic moment in units of dyn-cm
 		c, d = 16.05, 1.5
