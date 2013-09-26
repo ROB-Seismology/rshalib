@@ -77,7 +77,7 @@ class PSHAModelBase(object):
 	:param integration_distance:
 		Float, defining integration distance in km (default: 200.).
 	"""
-	
+
 	def __init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance):
 		"""
 		"""
@@ -498,7 +498,7 @@ class PSHAModel(PSHAModelBase):
 		## set OQ_params object and override with params from user_params
 		params = OQ_Params(calculation_mode=calculation_mode, description=self.name)
 		params.mean_hazard_curves = False
-#		params.quantile_hazard_curves = []
+		params.quantile_hazard_curves = []
 		if user_params:
 			for key in user_params:
 				setattr(params, key, user_params[key])
@@ -527,28 +527,29 @@ class PSHAModel(PSHAModelBase):
 				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"])
 
 		## validate source model logic tree and write nrml file
-		source_model_lt = SeismicSourceSystem(self.source_model)
+		source_model_lt = SeismicSourceSystem(self.source_model.name, self.source_model)
 		source_model_lt.validate()
 		source_model_lt_file_name = 'source_model_lt.xml'
 		source_model_lt.write_xml(os.path.join(self.output_dir, source_model_lt_file_name))
 		params.source_model_logic_tree_file = source_model_lt_file_name
 
 		## create ground_motion_model logic tree and write nrml file
-		ground_motion_model_lt = GroundMotionSystem(self.ground_motion_model.name, self._get_openquake_trts_gsims_map())
+		ground_motion_model_lt = self.ground_motion_model.get_optimized_model(self.source_model).to_ground_motion_system()
 		ground_motion_model_lt_file_name = 'ground_motion_model_lt.xml'
 		ground_motion_model_lt.write_xml(os.path.join(self.output_dir, ground_motion_model_lt_file_name))
 		params.gsim_logic_tree_file = ground_motion_model_lt_file_name
 
 		## convert return periods and time_span to poes
 		if not self.return_periods in ([], None):
-			params.poes_hazard_maps = Poisson(life_time=self.time_span, return_period=self.return_periods)
+			params.poes = Poisson(life_time=self.time_span, return_period=self.return_periods)
 
 		## set other params
 		params.intensity_measure_types_and_levels = self._get_openquake_imts()
 		params.investigation_time = self.time_span
 		params.truncation_level = self.truncation_level
 		params.maximum_distance = self.integration_distance
-		
+		params.number_of_logic_tree_samples = 0
+
 		if calculation_mode == "disaggregation":
 			params.poes_disagg = kwargs["poes_disagg"]
 			params.mag_bin_width = kwargs["mag_bin_width"]
@@ -614,16 +615,6 @@ class PSHAModel(PSHAModelBase):
 		"""
 		#return {trt: NHLIB_GSIMS_MAP[self.ground_motion_model[trt]]() for trt in self._get_used_trts()}
 		return {trt: nhlib.gsim.get_available_gsims()[self.ground_motion_model[trt]]() for trt in self._get_used_trts()}
-
-	def _get_openquake_trts_gsims_map(self):
-		"""
-		Return {str: {str: 1.}} dict, defining respectively tectonic region types, gsim and gsim weight for OpenQuake.
-		"""
-		trts = self._get_used_trts()
-		trts_gsims_map = {}
-		for trt in trts:
-			trts_gsims_map[trt] = {self.ground_motion_model[trt]: 1.}
-		return trts_gsims_map
 
 	def _get_used_trts(self):
 		"""
@@ -1024,7 +1015,7 @@ class PSHAModelTree(PSHAModelBase):
 		params.gsim_logic_tree_file = ground_motion_model_lt_file_name
 
 		## convert return periods and time_span to poes
-		params.poes_hazard_maps = Poisson(life_time=self.time_span, return_period=self.return_periods)
+		params.poes = Poisson(life_time=self.time_span, return_period=self.return_periods)
 
 		## set other params
 		params.intensity_measure_types_and_levels = self._get_openquake_imts()

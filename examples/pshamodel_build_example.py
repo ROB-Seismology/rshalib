@@ -54,7 +54,7 @@ grid_spacing = '50km'
 sites = [rshalib.site.SHASite(3.71704, 51.43233, name='Borssele')]
 
 
-ref_site_params = {"vs30": 800, "vs30measured": True, "z1pt0": 100., "z2pt5": 2.}
+ref_soil_params = {"vs30": 800, "vs30measured": True, "z1pt0": 100., "z2pt5": 2.}
 soil_site_model = None
 
 ## Intensity measure type, spectral periods, and intensity levels
@@ -170,14 +170,14 @@ if __name__ == '__main__':
 	import time
 
 	## nhlib
-	
+
 	psha_model = create_psha_model("nhlib")
 	start_time = time.time()
 	shcfs = psha_model.run_nhlib_shcf(write=False)
 	end_time = time.time()
 	print end_time - start_time
 	shcfs['PGA'].plot()
-	
+
 
 	## nhlib deaggregation
 	"""
@@ -205,7 +205,7 @@ if __name__ == '__main__':
 	## OpenQuake
 	#psha_model = create_psha_model("openquake")
 	#OQparams = create_oq_params()
-	#psha_model.write_openquake(OQparams)
+	#psha_model.write_openquake(user_params=OQparams)
 
 	## Crisis
 	#import rshalib.crisis.IO as IO

@@ -86,9 +86,11 @@ class OQ_Params(ConfigObj):
 			#Output_params["quantile_hazard_curves"] = [0.05, 0.16, 0.50, 0.84, 0.95]
 			Output_params["quantile_hazard_curves"] = "0.05, 0.16, 0.50, 0.84, 0.95"
 			Output_params.comments["quantile_hazard_curves"] = ["List of quantiles to compute"]
-			Output_params["poes_hazard_maps"] = "0.1"
+			Output_params["hazard_maps"] = True
+			Output_params["uniform_hazard_spectra"] = True
+			Output_params["poes"] = "0.1"
 			# TODO: 0.1 = 10 percent?
-			Output_params.comments["poes_hazard_maps"] = ["List of POEs to use for computing hazard maps"]
+			Output_params.comments["poes"] = ["List of POEs to use for computing hazard maps"]
 
 			# TODO: the following output params are probably for event-based only
 			EventBasedOutput_params = ConfigObj()
@@ -145,8 +147,8 @@ class OQ_Params(ConfigObj):
 			if key == "calculation_mode":
 				raise ConfigError("Calculation mode cannot be changed after initialization")
 			## POES and QUANTILE_LEVELS don't follow the rules...
-			elif key == "poes_hazard_maps":
-				self["output"]["poes_hazard_maps"] = " ".join(map(str, value))
+			elif key == "poes":
+				self["output"]["poes"] = " ".join(map(str, value))
 			elif key == "quantile_hazard_curves" and self["general"]["calculation_mode"] == "classical":
 				self["output"]["quantile_hazard_curves"] = ", ".join(map(str, value))
 			elif key == "percentiles" and self["general"]["calculation_mode"] == "classical":

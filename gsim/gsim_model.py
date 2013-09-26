@@ -56,6 +56,21 @@ class GroundMotionModel(object):
 			optimized_trts_gsims_map[trt] = self.trts_gsims_map[trt]
 		return GroundMotionModel(self.name, optimized_trts_gsims_map)
 
+	def to_ground_motion_system(self):
+		"""
+		Convert to a ground-motion logic tree
+
+		:return:
+			instance of :class:`GroundMotionSystem`
+		"""
+		from ..pmf import GMPEPMF
+		from ..logictree import GroundMotionSystem
+		gmpe_system_def = {}
+		for trt, gsim in self.trts_gsims_map.items():
+			gmpe_system_def[trt] = GMPEPMF([gsim], [1])
+		return GroundMotionSystem(self.name, gmpe_system_def)
+
+
 
 if __name__ == '__main__':
 	pass

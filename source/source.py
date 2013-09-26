@@ -967,7 +967,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 		:return:
 			Float, maximum magnitude
 		"""
-		from nhlib.scalerel.wc1994 import WC1994
+		from openquake.hazardlib.scalerel.wc1994 import WC1994
 		wc = WC1994()
 		max_mag = wc.get_median_mag(self.get_area(), self.rake)
 		return max_mag
