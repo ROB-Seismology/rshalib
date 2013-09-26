@@ -3178,7 +3178,7 @@ class HazardMap(HazardResult, HazardField):
 
 		## Construct default styles:
 		if site_style == "default":
-			site_style = lbm.PointStyle(shape=".", line_color="w", size=6)
+			site_style = lbm.PointStyle(shape="x", line_color="w", size=6)
 		if source_model_style == "default":
 			source_model_style = lbm.PolygonStyle(line_width=2, fill_color="none")
 		if countries_style == "default":

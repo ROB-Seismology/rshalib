@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-I/O classes and functions for OpenQuake (tested for version 1.0.0). 
+I/O classes and functions for OpenQuake (tested for version 1.0.0).
 """
 
 
@@ -22,10 +22,10 @@ intensity_unit = {'PGD': 'cm', 'PGV': 'cms', 'PGA': 'g', 'SA': 'g'}
 def parse_hazard_curves(xml_filespec):
 	"""
 	Parse OpenQuake nrml xml hazard curve file (= hazard curve field).
-	
+
 	:param xml_filespec:
 		String, filespec of file to parse.
-	
+
 	:return:
 		instance of :class:`HazardCurveField`
 	"""
@@ -69,10 +69,10 @@ def parse_hazard_curve(hazard_curve):
 def parse_hazard_map(xml_filespec):
 	"""
 	Parse OpenQuake nrml xml hazard map file.
-	
+
 	:param xml_filespec:
 		String, filespec of file to parse.
-	
+
 	:return:
 		instance of :class:`HazardMap`
 	"""
@@ -104,10 +104,10 @@ def parse_hazard_map(xml_filespec):
 def parse_uh_spectra(xml_filespec):
 	"""
 	Parse OpenQuake nrml xml uniform hazard spectra file.
-	
+
 	:param xml_filespec:
 		String, filespec of file to parse.
-	
+
 	:return:
 		instance of :class:`UHSField`
 	"""
@@ -136,10 +136,10 @@ def parse_uh_spectra(xml_filespec):
 def parse_disaggregation(xml_filespec):
 	"""
 	Parse OpenQuake nrml xml disaggregation file.
-	
+
 	:param xml_filespec:
 		String, filespec of file to parse.
-	
+
 	:return:
 		dict {disaggregatuin type: instance of :class:`DeaggregationSlice`}
 	"""
@@ -204,22 +204,22 @@ def parse_disaggregation(xml_filespec):
 	return deaggregation_slices
 
 
-#def rename_output_files(dir):
-#	"""
-#	"""
-#	for name in os.listdir(dir):
-#		filespec = os.path.join(dir, name)
-#		if os.path.splitext(name)[-1] == ".xml":
-#			if name.startswith('hazard-map'):
-#				hm = parse_hazard_map(filespec)
-#				new_filespec = os.path.join(dir, 'hazard-map_%.fyr_%s(%s).xml' % (hm.return_period, hm.IMT, hm.period))
-#				if new_filespec != filespec:
-#					os.rename(filespec, new_filespec)
-#			if name.startswith('hazard-curve'):
-#				hc = parse_hazard_curve(filespec)
-#				new_filespec = os.path.join(dir, 'hazard-curve_%s(%s).xml' % (hc.IMT, hc.period))
-#				if new_filespec != filespec:
-#					os.rename(filespec, new_filespec)
+def rename_output_files(dir):
+	"""
+	"""
+	for name in os.listdir(dir):
+		filespec = os.path.join(dir, name)
+		if os.path.splitext(name)[-1] == ".xml":
+			if name.startswith('hazard-map'):
+				hm = parse_hazard_map(filespec)
+				new_filespec = os.path.join(dir, 'hazard-map_%.fyr_%s(%s).xml' % (hm.return_period, hm.IMT, hm.period))
+				if new_filespec != filespec:
+					os.rename(filespec, new_filespec)
+			if name.startswith('hazard-curve'):
+				hc = parse_hazard_curve(filespec)
+				new_filespec = os.path.join(dir, 'hazard-curve_%s(%s).xml' % (hc.IMT, hc.period))
+				if new_filespec != filespec:
+					os.rename(filespec, new_filespec)
 
 
 if __name__ == "__main__":
