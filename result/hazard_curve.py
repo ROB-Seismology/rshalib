@@ -3077,7 +3077,7 @@ class HazardMap(HazardResult, HazardField):
 			poe = self.poe
 		else:
 			poe = np.nan
-		if self.return_period == other_map.return_period:
+		if round(self.return_period) == round(other_map.return_period):
 			return_period = self.return_period
 		else:
 			return_period = np.nan
@@ -3178,7 +3178,7 @@ class HazardMap(HazardResult, HazardField):
 
 		## Construct default styles:
 		if site_style == "default":
-			site_style = lbm.PointStyle(shape="x", line_color="w", size=6)
+			site_style = lbm.PointStyle(shape="x", line_color="w", size=2.5)
 		if source_model_style == "default":
 			source_model_style = lbm.PolygonStyle(line_width=2, fill_color="none")
 		if countries_style == "default":
@@ -3279,7 +3279,7 @@ class HazardMap(HazardResult, HazardField):
 			from eqcatalog.source_models import rob_source_models_dict
 			gis_filespec = rob_source_models_dict[source_model].gis_filespec
 			gis_data = lbm.GisData(gis_filespec)
-			gis_style = lbm.CompositeStyle(polygon_style=source_model_style)
+			gis_style = lbm.CompositeStyle(polygon_style=source_model_style, line_style=source_model_style.to_line_style())
 			map_layers.append(lbm.MapLayer(gis_data, gis_style, legend_label={"polygons": "Source model"}))
 
 		## Title
