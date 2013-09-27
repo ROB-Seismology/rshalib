@@ -95,14 +95,12 @@ class SHASiteModel(nhlib.geo.Mesh):
 	Class representing a site model. Subclasses from :class:`openquake.hazardlib.geo.Mesh`.
 	"""
 	
-	# TODO: add method plot
+	# TODO: split into class for sites and class for grid?
 	
 	def __init__(self, lons=None, lats=None, depths=None, sites=None, names=None, grid_outline=None, grid_spacing=None):
 		"""
 		SiteModel is initiated by (1) lons and lats (and depths), (2) sites (and names) or (3) grid outline and grid spacing. Priority is given in this order.
-		
-		:param name:
-			str, name of site model (default: "")
+
 		:param lons:
 			nd np array, lons of sites (default: None)
 		:param lats:
@@ -120,10 +118,8 @@ class SHASiteModel(nhlib.geo.Mesh):
 			(default: None)
 		:param grid_outline
 			list of (float, float) tuples, (lon, lat) for each site of grid outline (if two these are llc and urc)
-			or list of instances of SHASite
-			or list of instances of SoilSite
-			or instance of SHASiteModel
-			or (float, float, float, float) tuple, (w, e, s, n) boundary of grid
+			or list of instances of (subclasses) of :class:`rshalib.geo.Point`
+			or (float, float, float, float) tuple, (w lon, e lon, s lat, n lat)
 			(default: None)
 		:param grid_spacing:
 			float, grid spacing in degrees for both lon and lats
@@ -262,7 +258,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 		else:
 			return None
 	
-	def get_geographic_distance(self, lon, lat):
+	def get_geographic_distances(self, lon, lat):
 		"""
 		Get the geographic distance each site in the model to a given site.
 		
@@ -360,19 +356,19 @@ class SHASiteModel(nhlib.geo.Mesh):
 		"""
 		return SoilSiteModel(name, [site.to_soil_site(ref_soil_params) for site in self.get_sites])
 	
-#	def plot(self):
-#		"""
-#		"""
-#		from mapping.Basemap.LayeredBasemap import MapLayer, LayeredBasemap
-#		from mapping.Basemap.data_types import MultiPointData, BuiltinData
-#		from mapping.Basemap.styles import PointStyle, LineStyle
+	def plot(self):
+		"""
+		"""
+		from mapping.Basemap.LayeredBasemap import MapLayer, LayeredBasemap
+		from mapping.Basemap.data_types import MultiPointData, BuiltinData
+		from mapping.Basemap.styles import PointStyle, LineStyle
 		
-#		map_layers = []
-#		map_layers.extend([MapLayer(data=MultiPointData(self.lons, self.lats), style=PointStyle(shape=".", size=5))])
-#		map_layers.extend([MapLayer(BuiltinData("coastlines"), LineStyle()), MapLayer(BuiltinData("countries"), LineStyle())])
-#		map = LayeredBasemap(layers=map_layers, region=self.region, projection="merc",
-#			resolution="i", title="Test")
-#		map.plot()
+		map_layers = []
+		map_layers.extend([MapLayer(data=MultiPointData(self.lons, self.lats), style=PointStyle(shape=".", size=5))])
+		map_layers.extend([MapLayer(BuiltinData("coastlines"), LineStyle()), MapLayer(BuiltinData("countries"), LineStyle())])
+		map = LayeredBasemap(layers=map_layers, region=self.region, projection="merc",
+			resolution="i", title="Test")
+		map.plot()
 
 
 class SoilSite(nhlib.site.Site, SHASite):
