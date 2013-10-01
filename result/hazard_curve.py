@@ -3251,12 +3251,12 @@ class HazardMap(HazardResult, HazardField):
 		cbar_label = '%s (%s)' % (imt_label, intensity_unit_label)
 
 		map_layers = []
-		colorbar_style = lbm.ColorbarStyle(location="bottom", format="%.2f", ticks=contour_levels)
+		colorbar_style = lbm.ColorbarStyle(location="bottom", format="%.2f", ticks=contour_levels, title=cbar_label)
 		color_map_theme = lbm.ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax, colorbar_style=colorbar_style)
 		color_gradient = {"cont": "continuous", "disc": "discontinuous"}[plot_style]
 		grid_style = lbm.GridStyle(color_map_theme=color_map_theme, color_gradient=color_gradient, line_style=contour_line_style, contour_levels=contour_levels)
 		grid_data = lbm.GridData(grid_lons, grid_lats, intensity_grid)
-		layer = lbm.MapLayer(grid_data, grid_style, legend_label=cbar_label)
+		layer = lbm.MapLayer(grid_data, grid_style)
 		map_layers.append(layer)
 
 		## Intensity data points
