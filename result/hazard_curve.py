@@ -335,7 +335,6 @@ class HazardField:
 		lonmin, lonmax, latmin, latmax = extent
 		if isinstance(num_cells, int):
 			num_cells = (num_cells, num_cells)
-		#xi, yi = self.get_grid_longitudes(lonmin, lonmax, num_cells[0]), self.get_grid_latitudes(latmin, latmax, num_cells[1])
 		xi, yi = self.meshgrid(extent, num_cells)
 		z = self.get_intensities(intensity_unit=intensity_unit)
 		#zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method='cubic')
@@ -3113,7 +3112,7 @@ class HazardMap(HazardResult, HazardField):
 		# TODO!
 		pass
 
-	def get_plot(self, region=None, projection="merc", resolution="i", grid_interval=(1., 1.), cmap="usgs", norm=None, contour_interval=None, num_grid_cells=100, plot_style="cont", contour_line_style="default", site_style="default", source_model="", source_model_style="default", countries_style="default", intensity_unit="g", hide_sea=False, title=None):
+	def get_plot(self, region=None, projection="merc", resolution="i", grid_interval=(1., 1.), cmap="usgs", norm=None, contour_interval=None, num_grid_cells=100, plot_style="cont", contour_line_style="default", site_style="default", source_model="", source_model_style="default", countries_style="default", coastline_style="default", intensity_unit="g", hide_sea=False, title=None):
 		# TODO: update docstring
 		"""
 		Plot hazard map
@@ -3174,8 +3173,6 @@ class HazardMap(HazardResult, HazardField):
 		"""
 		import mapping.Basemap.LayeredBasemap as lbm
 
-		#TODO: coastline_style
-
 		## Construct default styles:
 		if site_style == "default":
 			site_style = lbm.PointStyle(shape="x", line_color="w", size=2.5)
@@ -3183,6 +3180,8 @@ class HazardMap(HazardResult, HazardField):
 			source_model_style = lbm.PolygonStyle(line_width=2, fill_color="none")
 		if countries_style == "default":
 			countries_style = lbm.LineStyle(line_width=2, line_color="w")
+		if coastline_style == "default":
+			coastline_style = lbm.LineStyle(line_width=2, line_color="w")
 		if contour_line_style == "default":
 			contour_label_style = lbm.TextStyle(font_size=10)
 			contour_line_style = lbm.LineStyle(label_style=contour_label_style)
@@ -3201,10 +3200,6 @@ class HazardMap(HazardResult, HazardField):
 				index = 0
 			contour_interval = candidates[index]
 
-		#if intensity_levels in (None, []):
-		#	amin, amax = 0., self.max()
-		#else:
-		#	amin, amax = intensity_levels[0], intensity_levels[-1]
 		amin = np.floor(self.min(intensity_unit) / contour_interval) * contour_interval
 		amax = np.ceil(self.max(intensity_unit) / contour_interval) * contour_interval
 
@@ -3270,8 +3265,9 @@ class HazardMap(HazardResult, HazardField):
 			map_layers.append(lbm.MapLayer(data, continent_style))
 
 		## Coastlines and national boundaries
+		if coastline_style:
+			map_layers.append(lbm.MapLayer(lbm.BuiltinData("coastlines"), coastline_style))
 		if countries_style:
-			map_layers.append(lbm.MapLayer(lbm.BuiltinData("coastlines"), countries_style))
 			map_layers.append(lbm.MapLayer(lbm.BuiltinData("countries"), countries_style))
 
 		## Source model
