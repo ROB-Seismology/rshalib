@@ -990,12 +990,12 @@ class DeaggregationCurve(DeaggBase):
 					## Compute epsilon and suppose it is epsilon_PGA
 					epsilon = gmpe.get_epsilon(sa[k], M, R, imt=self.imt, T=T, vs30=vs30)
 					## Compute PGA corresponding to epsilon
-					pga[k,:,r] = gmpe(M, R, imt=self.imt, T=T, epsilon=epsilon, vs30=vs30)
+					pga[k,:,r] = gmpe(M, R, imt="PGA", T=0, epsilon=epsilon, vs30=vs30)
 					## Compute SA given PGA
 					ln_sa_given_pga, sigma_ln_sa_given_pga = calc_ln_SA_given_PGA(pga[k,:,r], M, R, T, vs30, gmpe_name)
 					## Compute epsilon of SA given PGA
 					epsilon_sa_given_pga = (ln_sa[k] - ln_sa_given_pga) / sigma_ln_sa_given_pga
-					## Compute probability that SA is greater than sa given PGA
+					## Compute probability that SA is equal to (or greater than?) sa given PGA
 					prob_sa_given_pga[k,:,r] = scipy.stats.norm.pdf(epsilon_sa_given_pga)
 					#prob_sa_given_pga[k,:,r] = 1.0 - scipy.stats.norm.cdf(epsilon_sa_given_pga)
 
