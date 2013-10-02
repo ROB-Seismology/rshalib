@@ -935,7 +935,8 @@ class DeaggregationCurve(DeaggBase):
 		:return:
 			instance of :class:`DeaggregationCurve`
 		"""
-		from hazard.psha.CAVfiltering import calc_ln_PGA_given_SA, calc_CAV_exceedance_prob
+		import scipy.stats
+		from hazard.psha.CAVfiltering import calc_ln_SA_given_PGA, calc_CAV_exceedance_prob
 
 		num_intensities = len(self.intensities)
 
@@ -956,22 +957,57 @@ class DeaggregationCurve(DeaggBase):
 			CAV_exceedance_probs = CAV_exceedance_probs[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 
 		elif self.imt == "SA":
+			from ..gsim import gmpe as gmpe_module
+			gmpe = getattr(gmpe_module, gmpe_name)()
+
 			## Compute PGA given SA
+			"""
 			pga_given_sa = np.zeros((num_intensities, self.nmags, self.ndists), 'd')
+			prob_pga_given_sa = np.ones((num_intensities, self.nmags, self.ndists), 'd')
 			T = self.period
 			for k in range(num_intensities):
 				sa = intensities[k]
+				ln_sa = np.log(sa)
 				for r in range(self.ndists):
 					R = self.dist_bin_centers[r]
-					ln_pga_values = calc_ln_PGA_given_SA(sa, self.mag_bin_centers, R, T, vs30, gmpe_name)[0]
-					pga_given_sa[k,:,r] = np.exp(ln_pga_values)
+					ln_pga_given_sa, sigma_ln_pga_given_sa = calc_ln_PGA_given_SA(sa, self.mag_bin_centers, R, T, vs30, gmpe_name)
+					# Note: ln_sa in line below is not correct
+					epsilon_pga_given_sa = (ln_sa - ln_pga_given_sa) / sigma_ln_pga_given_sa
+					prob_pga_given_sa[k,:,r] = scipy.stats.norm.pdf(epsilon_pga_given_sa)
+					#prob_pga_given_sa[k,:,r] = 1.0 - scipy.stats.norm.cdf(epsilon_pga_given_sa)
+					pga_given_sa[k,:,r] = np.exp(ln_pga_given_sa)
+			"""
+
+			pga = np.zeros((num_intensities, self.nmags, self.ndists), 'd')
+			prob_sa_given_pga = np.ones((num_intensities, self.nmags, self.ndists), 'd')
+			T = self.period
+			sa = intensities
+			ln_sa = np.log(sa)
+			for k in range(num_intensities):
+				for r in range(self.ndists):
+					R = self.dist_bin_centers[r]
+					M = self.mag_bin_centers
+					## Compute epsilon and suppose it is epsilon_PGA
+					epsilon = gmpe.get_epsilon(sa[k], M, R, imt=self.imt, T=T, vs30=vs30)
+					## Compute PGA corresponding to epsilon
+					pga[k,:,r] = gmpe(M, R, imt=self.imt, T=T, epsilon=epsilon, vs30=vs30)
+					## Compute SA given PGA
+					ln_sa_given_pga, sigma_ln_sa_given_pga = calc_ln_SA_given_PGA(pga[k,:,r], M, R, T, vs30, gmpe_name)
+					## Compute epsilon of SA given PGA
+					epsilon_sa_given_pga = (ln_sa[k] - ln_sa_given_pga) / sigma_ln_sa_given_pga
+					## Compute probability that SA is greater than sa given PGA
+					prob_sa_given_pga[k,:,r] = scipy.stats.norm.pdf(epsilon_sa_given_pga)
+					#prob_sa_given_pga[k,:,r] = 1.0 - scipy.stats.norm.cdf(epsilon_sa_given_pga)
 
 			## Calculate CAV exceedance probabilities corresponding to PGA
 			CAV_exceedance_probs = np.zeros((num_intensities, self.nmags, self.ndists), 'd')
 			for k in range(num_intensities):
 				for r in range(self.ndists):
-					zk = pga_given_sa[k,:,r]
+					#zk = pga_given_sa[k,:,r]
+					zk = pga[k,:,r]
 					CAV_exceedance_probs[k,:,r] = calc_CAV_exceedance_prob(zk, self.mag_bin_centers, vs30, CAVmin)
+			#CAV_exceedance_probs *= prob_pga_given_sa
+			CAV_exceedance_probs *= prob_sa_given_pga
 			CAV_exceedance_probs = CAV_exceedance_probs[:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 
 		## Calculate filtered occurrence rates
