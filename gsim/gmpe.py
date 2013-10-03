@@ -329,6 +329,69 @@ class GMPE(object):
 				dist = scipy.stats.truncnorm(-truncation_level, truncation_level, log_median, log_sigma)
 			return 1 - dist.cdf(log_iml)
 
+	def get_exceedance_probability_cav(self, iml, M, d, h=0., imt="PGA", T=0., imt_unit="g", soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, truncation_level=3, correlation_model="EUS"):
+		import scipy.stats
+		from scitools.numpytools import seq
+		from ..utils import interpolate
+		from ..cav import calc_CAV_exceedance_prob
+
+		## TODO: if soil_type is used, convert to vs30
+		if soil_type == "rock":
+			vs30 = 800
+
+		if imt == "PGA":
+			cav_exceedance_prob = calc_CAV_exceedance_prob(iml, M, vs30, CAVmin=0.16, duration_dependent=True)
+			pga_exceedance_prob = self.get_exceedance_probability(iml, M, d, h=h, imt="PGA", T=0., imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, truncation_level=truncation_level)
+			exceedance_prob = cav_exceedance_prob * pga_exceedance_prob
+
+		else:
+			dist = scipy.stats.truncnorm(-truncation_level, truncation_level)
+
+			## Correlation coefficients between PGA and SA (Table 3-1)
+			b1_freqs = np.array([0.5, 1, 2.5, 5, 10, 20, 25, 35])
+			b1_WUS = np.array([0.59, 0.59, 0.6, 0.633, 0.787, 0.931, 0.956, 0.976])
+			b1_EUS = np.array([0.5, 0.55, 0.6, 0.75, 0.88, 0.9, 0.91, 0.93])
+			if correlation_model == "WUS":
+				b1 = interpolate(1./b1_freqs, b1_WUS, [T])[0]
+			elif correlation_model == "EUS":
+				b1 = interpolate(1./b1_freqs, b1_EUS, [T])[0]
+
+			## Loop over eps_pga
+			depsilon = 0.1
+			exceedance_prob = 0
+			for eps_pga in seq(-truncation_level, truncation_level, depsilon):
+				prob_eps = dist.pdf(eps_pga) * depsilon
+
+				## Determine PGA corresponding to eps_pga
+				pga = self.__call__(M, d, h=h, imt="PGA", T=0, epsilon=eps_pga, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+
+				## CAV exceedance probability for PGA
+				cav_exceedance_prob = calc_CAV_exceedance_prob(pga, M, vs30, CAVmin=0.16, duration_dependent=True)
+
+				## Determine median SA and sigma
+				sa_med = self.__call__(M, d, h=h, imt="SA", T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+				sigma_log_sa = self.log_sigma(M, d, h=h, imt="SA", T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+				sigma_ln_sa = np.log(10) * sigma_log_sa
+
+				## Determine epsilon value of SA, and sigma
+				## Eq. 3-1
+				eps_sa = b1 * eps_pga
+				## Eq. 3-2
+				ln_sa_given_pga = np.log(sa_med) + eps_sa * sigma_ln_sa
+				## Eq. 3-3
+				sigma_ln_sa_given_pga = np.sqrt(1 - b1**2) * sigma_ln_sa
+
+				## Determine probability of exceedance of SA given PGA
+				## Eq. 4-3
+				eps_sa_prime = (np.log(iml) - ln_sa_given_pga) / sigma_ln_sa_given_pga
+				## Eq. 4-2
+				prob_sa_given_pga = 1.0 - scipy.stats.norm.cdf(eps_sa_prime)
+
+				exceedance_prob += (prob_eps * cav_exceedance_prob * prob_sa_given_pga)
+
+		return exceedance_prob
+
+
 	def is_depth_dependent(self):
 		"""
 		Indicate whether or not GMPE depends on depth of the source
@@ -2763,7 +2826,7 @@ class AtkinsonBoore2006Prime(NhlibGMPE):
 	def plot_Figure10(self, period=0.1):
 		"""
 		Plot figure 10 in Atkinson and Boore (2011).
-		
+
 		:param period:
 			float, 0.1 or 1. (default: 0.1)
 		"""
@@ -2928,10 +2991,10 @@ class BooreAtkinson2008Prime(NhlibGMPE):
 	def plot_Figure7(self, period=0.3):
 		"""
 		Plot figure 7 in Atkinson and Boore (2011).
-		
+
 		:param period:
 			float, 0.3 or 1. (default: 0.3)
-		
+
 		NOTE: hack is required: unspecified rake must be used (see commented
 		line in hazardlib files of BooreAtkinson2008 and BooreAtkinson2008Prime)
 		"""
@@ -3364,7 +3427,7 @@ def convert_distance_metric(distances, metric_from, metric_to, mag):
 	Atkinson and Boore (2011).
 	Conversion are valid for magnitudes from 4 to 8, focal depths from 8 to 12,
 	and dips from 45 to 90. Hypocenter is assumed to be at center of rupture.
-	
+
 	:param distances:
 		np array, distances to convert
 	:param metric_from:

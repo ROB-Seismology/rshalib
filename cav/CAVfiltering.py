@@ -228,11 +228,11 @@ def calc_ln_SA_given_PGA(pga, M, R, T, vs30, gmpe_name, correlation_model="EUS")
 	# Note1: distance should be in same metric as GMPE. This may depend
 	# on implementation of deaggregation!
 	# Note2: we should include mechanism in addition to vs30
-	import hazard.rshalib as rshalib
+	from ..gsim.gmpe import gmpe as gmpe_module
 	import geosurvey.cwp as cwp
 
 	## Determine median spectral acceleration and sigma
-	gmpe = getattr(rshalib.gsim.gmpe, gmpe_name)()
+	gmpe = getattr(gmpe_module, gmpe_name)()
 	sa_med = gmpe(M, R, imt="SA", T=T, vs30=vs30)
 	sigma_log_sa = gmpe.log_sigma(M, R, imt="SA", T=T, vs30=vs30)
 	sigma_ln_sa = np.log(10) * sigma_log_sa
@@ -287,11 +287,11 @@ def calc_ln_PGA_given_SA(sa, M, R, T, vs30, gmpe_name, correlation_model="EUS"):
 	# Note1: distance should be in same metric as GMPE. This may depend
 	# on implementation of deaggregation!
 	# Note2: we should include mechanism in addition to vs30
-	import hazard.rshalib as rshalib
+	from ..gsim import gmpe as gmpe_module
 	import geosurvey.cwp as cwp
 
 	## Determine median spectral acceleration and sigma
-	gmpe = getattr(rshalib.gsim.gmpe, gmpe_name)()
+	gmpe = getattr(gmpe_module, gmpe_name)()
 	pga_med = gmpe(M, R, imt="PGA", T=0, vs30=vs30)
 	sigma_log_pga = gmpe.log_sigma(M, R, imt="PGA", T=0, vs30=vs30)
 	sigma_ln_pga = np.log(10) * sigma_log_pga
