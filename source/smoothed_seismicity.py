@@ -2,9 +2,12 @@
 """
 
 
+import matplotlib
 import numpy as np
 import ogr
 import osr
+
+from scipy.stats import norm
 
 from openquake.hazardlib.geo.geodetic import geodetic_distance, point_at
 
@@ -14,6 +17,7 @@ from hazard.rshalib.geo import Point
 from hazard.rshalib.mfd import EvenlyDiscretizedMFD, TruncatedGRMFD
 from hazard.rshalib.source import PointSource, SourceModel
 from mapping.Basemap.LayeredBasemap import *
+from mapping.Basemap.cm.norm import PiecewiseLinearNorm
 from mapping.geo.coordtrans import wgs84, get_utm_spec, get_utm_srs
 
 
@@ -145,8 +149,9 @@ class SmoothedSeismicity(object):
 		self.smoothing_limit = smoothing_limit
 		
 		self._set_smoothing_bandwidths()
-		self._validate_smoothed_region()
+#		self._validate_smoothed_region()
 		self._smooth()
+		self._set_cum_occs()
 		self._set_inc_occ_rates()
 		self._set_cum_occ_rates()
 		self._set_trt_data()
@@ -165,30 +170,30 @@ class SmoothedSeismicity(object):
 				lon = self.catalog.lons[i]
 				lat = self.catalog.lats[i]
 				distances = sorted(self.catalog.get_epicentral_distances(lon, lat))
-				smoothing_distance = distances[self.smoothing_number]
-				smoothing_distance = max([smoothing_distance, self.smoothing_bandwidth])
-				self.smoothing_bandwidths[i] = smoothing_distance
+				smoothing_bandwidth = distances[self.smoothing_number]
+				smoothing_bandwidth = max([smoothing_bandwidth, self.smoothing_bandwidth])
+				self.smoothing_bandwidths[i] = smoothing_bandwidth
 		else:
 			self.smoothing_bandwidths = None
 	
-	def _validate_smoothed_region(self):
-		"""
-		"""
-		for i in xrange(len(self.catalog)):
-			lon = self.catalog.lons[i]
-			lat = self.catalog.lats[i]
-			if self.smoothing_number:
-				smoothing_distance = self.smoothing_limit * self.smoothing_bandwidths[i]
-			else:
-				smoothing_distance = self.smoothing_limit * self.smoothing_bandwidth
-			w = point_at(lon, lat, 270., smoothing_distance)[0]
-			e = point_at(lon, lat, 090., smoothing_distance)[0]
-			s = point_at(lon, lat, 180., smoothing_distance)[1]
-			n = point_at(lon, lat, 000., smoothing_distance)[1]
-			assert self.grid.region[0] < w or np.allclose(self.grid.region[0], w)
-			assert self.grid.region[1] > e or np.allclose(self.grid.region[1], e)
-			assert self.grid.region[2] < s or np.allclose(self.grid.region[2], s)
-			assert self.grid.region[3] > n or np.allclose(self.grid.region[3], n)
+#	def _validate_smoothed_region(self):
+#		"""
+#		"""
+#		for i in xrange(len(self.catalog)):
+#			lon = self.catalog.lons[i]
+#			lat = self.catalog.lats[i]
+#			if self.smoothing_number:
+#				smoothing_distance = self.smoothing_distances[i]
+#			else:
+#				smoothing_distance = self.smoothing_distance
+#			w = point_at(lon, lat, 270., smoothing_distance)[0]
+#			e = point_at(lon, lat, 090., smoothing_distance)[0]
+#			s = point_at(lon, lat, 180., smoothing_distance)[1]
+#			n = point_at(lon, lat, 000., smoothing_distance)[1]
+#			assert self.grid.region[0] < w or np.allclose(self.grid.region[0], w)
+#			assert self.grid.region[1] > e or np.allclose(self.grid.region[1], e)
+#			assert self.grid.region[2] < s or np.allclose(self.grid.region[2], s)
+#			assert self.grid.region[3] > n or np.allclose(self.grid.region[3], n)
 	
 	def _smooth(self):
 		"""
@@ -203,11 +208,27 @@ class SmoothedSeismicity(object):
 			distances = self.grid.get_distances(lon, lat)
 			if self.smoothing_number:
 				smoothing_bandwidth = self.smoothing_bandwidths[i]
-			indices = np.where(distances <= smoothing_bandwidth * self.smoothing_limit)
-			inc_occ = self.smoothing_kernel(distances[indices], 0, smoothing_bandwidth)
+			if self.smoothing_limit:
+				indices = np.where(distances <= smoothing_bandwidth * self.smoothing_limit)
+			else:
+				indices = np.where(distances)
+			if self.smoothing_kernel == "uniform":
+				inc_occ = np.ones_like(distances[indices])
+			if self.smoothing_kernel == "reciprocal":
+				inc_occ = 1. / distances[indices]
+			if self.smoothing_kernel == "normal":
+				inc_occ = norm.pdf(distances[indices], 0, smoothing_bandwidth)
 			inc_occ /= inc_occ.sum()
 			k = np.abs(self.mag_bins - mag).argmin()
 			self.inc_occs[:,:,k][indices] += inc_occ
+	
+	def _set_cum_occs(self):
+		"""
+		:set cum_occs:
+			3d np array (~ self.shape)
+		"""
+		self.cum_occs = np.add.accumulate(self.inc_occs[:,:,::-1], 2)[:,:,::-1]
+		self.cum_occs[np.where(self.cum_occs[:,:,0] == 0)] = [np.nan] * len(self.mag_bins)
 	
 	def _set_inc_occ_rates(self):
 		"""
@@ -222,6 +243,7 @@ class SmoothedSeismicity(object):
 			3d np array (~ self.shape)
 		"""
 		self.cum_occ_rates = np.add.accumulate(self.inc_occ_rates[:,:,::-1], 2)[:,:,::-1]
+		self.cum_occ_rates[np.where(self.cum_occ_rates[:,:,0] == 0)] = [np.nan] * len(self.mag_bins)
 	
 #	def _set_trts(self):
 #		"""
@@ -376,7 +398,7 @@ class SmoothedSeismicity(object):
 				smrs_est[i] = mfd_est._get_total_moment_rate()
 		return smrs_est
 	
-	def to_source_model(self, trt, rms, msr, rar, usd, lsd, npd, hdd):
+	def to_source_model(self, source_model_name, trt, rms, msr, rar, usd, lsd, npd, hdd):
 		"""
 		Get source model from smoothed seismicity.
 		
@@ -393,18 +415,27 @@ class SmoothedSeismicity(object):
 				name = str((lon, lat))
 				point = Point(lon, lat)
 				point_sources.append(PointSource(id, name, trt, mfd, rms, msr, rar, usd, lsd, point, npd, hdd))
-		return SourceModel(name, point_sources)
+		return SourceModel(source_model_name, point_sources)
 	
-	def plot_map(self, data=None, grid=None, catalog=None, builtin=True, region=None, title=""):
+	def plot_map(self, data=None, grid=None, catalog=None, builtin=True, region=None, title="", label="", fig_filespec=""):
 		"""
 		"""
 		map_layers = []
 		if data != None:
 			dd = GridData(self.grid.lons, self.grid.lats[::-1], data[::-1])
+#			vmin = np.nanmin(data)
+#			vmax = np.nanmax(data)
+#			norm = PiecewiseLinearNorm([-2.0, +2.0])
 			ds = GridStyle(
-				color_map_theme=ThematicStyleColormap(),
+#				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label, ticks=[-2.0, -1.6, -1.2, -0.8, -0.4, 0.0, 0.4, 0.8, 1.2, 1.6, 2.0])),
+				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label, ticks=sequence(-4., 1.6, 0.4))),
+#				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label)),
 				color_gradient="discontinuous",
-				colorbar_style=ColorbarStyle())
+#				contour_levels=[-2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+#				contour_levels=[-3.0, -2.8, -2.6, -2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+#				contour_levels=sequence(-6.2, -0.6, 0.2)
+				contour_levels=sequence(-4., 1.6, 0.2)
+				)
 			map_layers.append(MapLayer(dd, ds))
 		if grid:
 			gd = MultiPointData(self.grid.lons, self.grid.lats)
@@ -420,7 +451,9 @@ class SmoothedSeismicity(object):
 			map_layers.extend([coastline_layer, countries_layer])
 		region = region or self.grid.region
 		map = LayeredBasemap(layers=map_layers, region=region, projection="merc", resolution="i", title=title, legend_style=LegendStyle())
-		map.plot()
+		map.plot(
+			fig_filespec=fig_filespec
+			)
 
 
 def sequence(min, max, step):
