@@ -19,6 +19,8 @@ Models built with rshalib can be:
 	- exported to Openquake NRML format
 """
 
+import cav
+reload(cav)
 
 import utils
 reload(utils)
