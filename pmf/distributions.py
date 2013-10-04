@@ -113,7 +113,7 @@ class NumericPMF(PMF):
 		percentile_intercepts = interpolate(cdf, values, percentiles)
 		return percentile_intercepts
 
-	def rebin_equal_weight(self, bin_width, num_bins=5):
+	def rebin_equal_weight(self, bin_width, num_bins=5, precision=4):
 		"""
 		Rebin PMF into bins with (approximately) equal weight,
 		such that bin values are a multiple of bin_width
@@ -123,6 +123,8 @@ class NumericPMF(PMF):
 			It is supposed that the PMF values have the same bin width
 		:param num_bins:
 			Int, number of bins in output PMF
+		:param precision:
+			Integer, decimal precision of weights (default: 4)
 
 		:return:
 			instance of :class:`PMF` or subclass
@@ -148,7 +150,10 @@ class NumericPMF(PMF):
 		bin_weights = bin_cumul_weights[1:] - bin_cumul_weights[:-1]
 		bin_weights = bin_weights.clip(1E-8)
 
-		return self.from_values_and_weights(bin_centers_rounded, bin_weights)
+		decimal.getcontext().prec = precision
+		bin_weights = np.array([Decimal(val) for val in bin_weights])
+
+		return self.__class__(bin_centers_rounded, bin_weights)
 
 
 class GMPEPMF(PMF):
@@ -512,7 +517,7 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4):
 	:param sigma_range:
 		Sigma range for distribution between min and max values (Default: 2).
 	:param precision:
-		Integer, decimal precision of weights
+		Integer, decimal precision of weights (default: 4)
 
 	:return:
 		tuple (values, weights)

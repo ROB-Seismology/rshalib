@@ -329,7 +329,8 @@ class GMPE(object):
 				dist = scipy.stats.truncnorm(-truncation_level, truncation_level, log_median, log_sigma)
 			return 1 - dist.cdf(log_iml)
 
-	def get_exceedance_probability_cav(self, iml, M, d, h=0., imt="PGA", T=0., imt_unit="g", soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, truncation_level=3, correlation_model="EUS"):
+	def get_exceedance_probability_cav(self, iml, M, d, h=0., imt="PGA", T=0., imt_unit="g", soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, truncation_level=3, cav_min=0.16, depsilon=0.1, correlation_model="EUS"):
+		# TODO: docstring
 		import scipy.stats
 		from scitools.numpytools import seq
 		from ..utils import interpolate
@@ -340,11 +341,13 @@ class GMPE(object):
 			vs30 = 800
 
 		if imt == "PGA":
-			cav_exceedance_prob = calc_CAV_exceedance_prob(iml, M, vs30, CAVmin=0.16, duration_dependent=True)
+			# TODO: need explicit loop over eps_pga as well
+			cav_exceedance_prob = calc_CAV_exceedance_prob(iml, M, vs30, CAVmin=cav_min, duration_dependent=True)
 			pga_exceedance_prob = self.get_exceedance_probability(iml, M, d, h=h, imt="PGA", T=0., imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, truncation_level=truncation_level)
 			exceedance_prob = cav_exceedance_prob * pga_exceedance_prob
 
 		else:
+			# TODO: constrain iml between (-truncation_level, truncation_level)
 			dist = scipy.stats.truncnorm(-truncation_level, truncation_level)
 
 			## Correlation coefficients between PGA and SA (Table 3-1)
@@ -357,7 +360,6 @@ class GMPE(object):
 				b1 = interpolate(1./b1_freqs, b1_EUS, [T])[0]
 
 			## Loop over eps_pga
-			depsilon = 0.1
 			exceedance_prob = 0
 			for eps_pga in seq(-truncation_level, truncation_level, depsilon):
 				prob_eps = dist.pdf(eps_pga) * depsilon

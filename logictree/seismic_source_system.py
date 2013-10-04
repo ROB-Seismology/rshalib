@@ -311,13 +311,14 @@ class SeismicSourceSystem(LogicTree):
 	## Note: in the case of dependent uncertainties (e.g., MFD depends on Mmax),
 	## we need to alternate the two uncertainties for each source
 
-	def plot_uncertainty_levels_diagram(self, source_model_pmf, unc_pmf_dicts, fig_filespec=None, dpi=300):
+	def plot_uncertainty_levels_diagram(self, source_model_pmf, unc_pmf_dicts, branch_labels=True, fig_filespec=None, dpi=300):
 		import networkx as nx
 		import pylab
 
 		graph = nx.Graph()
 
 		pos = {}
+		edge_labels = {}
 		root_node = "ROOT"
 		pos[root_node] = (0, 0.5)
 		source_nodes, num_sources = {}, 0
@@ -376,6 +377,8 @@ class SeismicSourceSystem(LogicTree):
 								if pmf_len > 1:
 									pos[branch] = (x+0.5, y-dy/2+(dy/pmf_len)*(i+0.5))
 								graph.add_edge(branchset, branch)
+								weight_label = str(unc_pmf.weights[i]).rstrip('0')
+								edge_labels[(branchset, branch)] = weight_label
 								current_sm_nodes[sm_name][src_id].append(branch)
 							for prev_branch in prev_sm_nodes[sm_name][src_id]:
 								graph.add_edge(prev_branch, branchset)
@@ -399,7 +402,7 @@ class SeismicSourceSystem(LogicTree):
 
 		## Draw nodes
 		nx.draw_networkx_nodes(graph, pos, nodelist=[root_node], node_shape='>', node_color='red', node_size=300, label="ROOT")
-		nx.draw_networkx_nodes(graph, pos, nodelist=source_model_nodes, node_shape='o', node_color='white', node_size=300, label="source models")
+		nx.draw_networkx_nodes(graph, pos, nodelist=source_model_nodes, node_shape='o', node_color='white', node_size=300, label="_nolegend_")
 		nx.draw_networkx_nodes(graph, pos, nodelist=all_source_nodes, node_shape='s', node_color='red', node_size=300, label="sources")
 		nx.draw_networkx_nodes(graph, pos, nodelist=branchset_nodes["Mmax"], node_shape=">", node_color="green", node_size=300, label="Mmax")
 		nx.draw_networkx_nodes(graph, pos, nodelist=branchset_nodes["MFD"], node_shape=">", node_color="yellow", node_size=300, label="MFD")
@@ -409,13 +412,14 @@ class SeismicSourceSystem(LogicTree):
 		nx.draw_networkx_edges(graph, pos)
 
 		## Draw labels
-		nx.draw_networkx_labels(graph, pos, font_size=10, horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
-		nx.draw_networkx_labels(graph, pos, font_size=10, horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
+		if branch_labels:
+			nx.draw_networkx_labels(graph, pos, font_size=10, horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
+		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=10, horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
 
 		## Plot decoration
 		pylab.legend(loc=2, scatterpoints=1, markerscale=0.75, prop={'size': 12})
 		#pylab.axis((-0.5, len(self.branching_levels), 0, 1.2))
-		#pylab.xticks(range(len(self.branching_levels) + 1))
+		pylab.xticks(range(len(unc_pmf_dicts) + 2))
 		pylab.yticks([])
 		pylab.xlabel("Uncertainty level", fontsize=14)
 		ax = pylab.gca()
