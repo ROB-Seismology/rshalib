@@ -340,15 +340,34 @@ class GMPE(object):
 		if soil_type == "rock":
 			vs30 = 800
 
+		dist = scipy.stats.truncnorm(-truncation_level, truncation_level)
+		eps_pga_list = seq(-truncation_level, truncation_level, depsilon)
+		prob_eps_list = dist.pdf(eps_pga_list) * depsilon
+
 		if imt == "PGA":
+			"""
 			# TODO: need explicit loop over eps_pga as well
 			cav_exceedance_prob = calc_CAV_exceedance_prob(iml, M, vs30, CAVmin=cav_min, duration_dependent=True)
 			pga_exceedance_prob = self.get_exceedance_probability(iml, M, d, h=h, imt="PGA", T=0., imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, truncation_level=truncation_level)
 			exceedance_prob = cav_exceedance_prob * pga_exceedance_prob
+			"""
+			## Pre-calculate CAV exceedance probabilities
+			pga_eps_pga_list = np.zeros_like(eps_pga_list)
+			cav_exceedance_prob = np.zeros_like(eps_pga_list)
+			for e, eps_pga in enumerate(eps_pga_list):
+				## Determine PGA corresponding to eps_pga
+				pga = self.__call__(M, d, h=h, imt="PGA", T=0, epsilon=eps_pga, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+				pga_eps_pga_list[e] = pga
+				## CAV exceedance probability for PGA
+				cav_exceedance_prob[e] = calc_CAV_exceedance_prob(pga, M, vs30, CAVmin=0.16, duration_dependent=True)
+			exceedance_prob = np.zeros_like(iml)
+			for i in range(len(iml)):
+				for e, eps_pga in enumerate(eps_pga_list):
+					if pga_eps_pga_list[e] > iml[i]:
+						exceedance_prob[i] += (prob_eps_list[e] * cav_exceedance_prob[e])
 
 		else:
 			# TODO: constrain iml between (-truncation_level, truncation_level)
-			dist = scipy.stats.truncnorm(-truncation_level, truncation_level)
 
 			## Correlation coefficients between PGA and SA (Table 3-1)
 			b1_freqs = np.array([0.5, 1, 2.5, 5, 10, 20, 25, 35])
@@ -361,9 +380,7 @@ class GMPE(object):
 
 			## Loop over eps_pga
 			exceedance_prob = 0
-			for eps_pga in seq(-truncation_level, truncation_level, depsilon):
-				prob_eps = dist.pdf(eps_pga) * depsilon
-
+			for e, eps_pga in enumerate(eps_pga_list):
 				## Determine PGA corresponding to eps_pga
 				pga = self.__call__(M, d, h=h, imt="PGA", T=0, epsilon=eps_pga, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 
@@ -389,7 +406,7 @@ class GMPE(object):
 				## Eq. 4-2
 				prob_sa_given_pga = 1.0 - scipy.stats.norm.cdf(eps_sa_prime)
 
-				exceedance_prob += (prob_eps * cav_exceedance_prob * prob_sa_given_pga)
+				exceedance_prob += (prob_eps_list[e] * cav_exceedance_prob * prob_sa_given_pga)
 
 		return exceedance_prob
 
