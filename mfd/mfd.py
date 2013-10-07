@@ -1189,7 +1189,7 @@ def sum_MFDs(mfd_list, weights=[]):
 	return EvenlyDiscretizedMFD(min_mag+bin_width/2, bin_width, list(occurrence_rates), Mtype)
 
 
-def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_inc=[], completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, fig_width=0, dpi=300):
+def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_inc=[], completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", legend_location=1, fig_filespec=None, fig_width=0, dpi=300):
 	"""
 	Plot one or more magnitude-frequency distributions
 
@@ -1225,6 +1225,8 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 		String, plot title (default: "")
 	:param lang:
 		String, language of plot axis labels (default: "en")
+	:param legend_location:
+		int or str, matplotlib specification for legend location (default: 1)
 	:param fig_filespec:
 		String, full path to output image file, if None plot to screen
 		(default: None)
@@ -1247,7 +1249,9 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 		cumul_or_inc = [cumul_or_inc] * len(mfd_list)
 
 	## Plot
-	fig = pylab.figure()
+	## Line below removed because matplotlib crashes if this function is
+	## called more than once
+	#fig = pylab.figure()
 
 	for i, mfd in enumerate(mfd_list):
 		color = colors[i % len(colors)]
@@ -1359,7 +1363,7 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 	pylab.title(title, fontsize='x-large')
 	pylab.grid(True)
 	font = FontProperties(size='medium')
-	pylab.legend(loc=1, prop=font)
+	pylab.legend(loc=legend_location, prop=font)
 	ax = pylab.gca()
 	for label in ax.get_xticklabels() + ax.get_yticklabels():
 		label.set_size('large')
