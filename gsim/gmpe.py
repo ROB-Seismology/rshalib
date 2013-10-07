@@ -292,12 +292,12 @@ class GMPE(object):
 			or Joyner-Boore (default: 0).
 		:param imt:
 			String, one of the supported intensity measure types: "PGA" or "SA"
-			(default: "SA").
+			(default: "PGA").
 		:param T:
 			Float, spectral period of considered IMT. Ignored if IMT is
 			"PGA" or "PGV" (default: 0).
 		:param imt_unit:
-			String, unit in which intensities should be expressed, depends on
+			String, unit in which intensities are expressed, depends on
 			IMT (default: "g")
 		:param soil_type:
 			String, one of the soil types supported by the GMPE (default: "rock").
@@ -310,10 +310,13 @@ class GMPE(object):
 			String, fault mechanism: either "normal", "reverse" or "strike-slip".
 			(default: "normal").
 		:param damping:
-			Float, damping in percent.
+			Float, damping in percent (default: 5.).
+		:param truncation_level:
+			Float, number of standard deviations at which to truncate GMPE
+			(default: 3)
 
 		:return:
-			float array, probability(ies) of exceedance
+			float array, probability(ies) of exceedance for each iml
 		"""
 		import scipy.stats
 		log_iml = np.log10(iml)
@@ -329,8 +332,56 @@ class GMPE(object):
 				dist = scipy.stats.truncnorm(-truncation_level, truncation_level, log_median, log_sigma)
 			return 1 - dist.cdf(log_iml)
 
-	def get_exceedance_probability_cav(self, iml, M, d, h=0., imt="PGA", T=0., imt_unit="g", soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, truncation_level=3, cav_min=0.16, depsilon=0.1, correlation_model="EUS"):
-		# TODO: docstring
+	def get_exceedance_probability_cav(self, iml, M, d, h=0., imt="PGA", T=0., imt_unit="g", soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, truncation_level=3, cav_min=0.16, depsilon=0.02, eps_correlation_model="EUS"):
+		"""
+		Compute joint probability of exceeding a given intensity level
+		and exceeding a minimum CAV value
+
+		:param iml:
+			Float or numpy array, intensity measure level(s)
+		:param M:
+			Float, magnitude.
+		:param d:
+			Float, distance in km.
+		:param h:
+			Float, depth in km. Ignored if distance metric of GMPE is epicentral
+			or Joyner-Boore (default: 0).
+		:param imt:
+			String, one of the supported intensity measure types: "PGA" or "SA"
+			(default: "PGA").
+		:param T:
+			Float, spectral period of considered IMT. Ignored if IMT is
+			"PGA" or "PGV" (default: 0).
+		:param imt_unit:
+			String, unit in which intensities are expressed, depends on
+			IMT (default: "g")
+		:param soil_type:
+			String, one of the soil types supported by the GMPE (default: "rock").
+		:param vs30:
+			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
+			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value, in seconds (default: None)
+		:param mechanism:
+			String, fault mechanism: either "normal", "reverse" or "strike-slip".
+			(default: "normal").
+		:param damping:
+			Float, damping in percent (default: 5.).
+		:param truncation_level:
+			Float, number of standard deviations at which to truncate GMPE
+			(default: 3).
+		:param cav_min:
+			Float, CAV threshold (default: 0.16 g.s).
+		:param depsilon:
+			Float, bin width used to discretize epsilon pga. Should be
+			sufficiently small for PGA (default: 0.02).
+		:param eps_correlation_model:
+			Str, name of model used for correlation of epsilon values
+			of PGA and SA, either "WUS" or "EUS" (default: "EUS").
+
+		:return:
+			float array, joint probability(ies) for each iml
+		"""
 		import scipy.stats
 		from scitools.numpytools import seq
 		from ..utils import interpolate
@@ -340,31 +391,31 @@ class GMPE(object):
 		if soil_type == "rock":
 			vs30 = 800
 
+		iml = np.asarray(iml)
 		dist = scipy.stats.truncnorm(-truncation_level, truncation_level)
 		eps_pga_list = seq(-truncation_level, truncation_level, depsilon)
 		prob_eps_list = dist.pdf(eps_pga_list) * depsilon
 
+		## Pre-calculate CAV exceedance probabilities for epsilon PGA
+		pga_eps_pga_list = np.zeros_like(eps_pga_list)
+		cav_exceedance_prob = np.zeros_like(eps_pga_list)
+		for e, eps_pga in enumerate(eps_pga_list):
+			## Determine PGA corresponding to eps_pga
+			pga = self.__call__(M, d, h=h, imt="PGA", T=0, epsilon=eps_pga, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+			pga_eps_pga_list[e] = pga
+			## CAV exceedance probability for PGA
+			cav_exceedance_prob[e] = calc_CAV_exceedance_prob(pga, M, vs30, CAVmin=0.16, duration_dependent=True)
+
 		if imt == "PGA":
-			"""
-			# TODO: need explicit loop over eps_pga as well
-			cav_exceedance_prob = calc_CAV_exceedance_prob(iml, M, vs30, CAVmin=cav_min, duration_dependent=True)
-			pga_exceedance_prob = self.get_exceedance_probability(iml, M, d, h=h, imt="PGA", T=0., imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, truncation_level=truncation_level)
-			exceedance_prob = cav_exceedance_prob * pga_exceedance_prob
-			"""
-			## Pre-calculate CAV exceedance probabilities
-			pga_eps_pga_list = np.zeros_like(eps_pga_list)
-			cav_exceedance_prob = np.zeros_like(eps_pga_list)
-			for e, eps_pga in enumerate(eps_pga_list):
-				## Determine PGA corresponding to eps_pga
-				pga = self.__call__(M, d, h=h, imt="PGA", T=0, epsilon=eps_pga, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
-				pga_eps_pga_list[e] = pga
-				## CAV exceedance probability for PGA
-				cav_exceedance_prob[e] = calc_CAV_exceedance_prob(pga, M, vs30, CAVmin=0.16, duration_dependent=True)
+			## The following is not correct (no explicit integration over epsilon)
+			#cav_exceedance_prob = calc_CAV_exceedance_prob(iml, M, vs30, CAVmin=cav_min, duration_dependent=True)
+			#pga_exceedance_prob = self.get_exceedance_probability(iml, M, d, h=h, imt="PGA", T=0., imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, truncation_level=truncation_level)
+			#exceedance_prob = cav_exceedance_prob * pga_exceedance_prob
+
+			## Integrate explicitly over epsilon
 			exceedance_prob = np.zeros_like(iml)
-			for i in range(len(iml)):
-				for e, eps_pga in enumerate(eps_pga_list):
-					if pga_eps_pga_list[e] > iml[i]:
-						exceedance_prob[i] += (prob_eps_list[e] * cav_exceedance_prob[e])
+			for e in range(len((eps_pga_list))):
+				exceedance_prob[pga_eps_pga_list[e] > iml] += (prob_eps_list[e] * cav_exceedance_prob[e])
 
 		else:
 			# TODO: constrain iml between (-truncation_level, truncation_level)
@@ -373,24 +424,25 @@ class GMPE(object):
 			b1_freqs = np.array([0.5, 1, 2.5, 5, 10, 20, 25, 35])
 			b1_WUS = np.array([0.59, 0.59, 0.6, 0.633, 0.787, 0.931, 0.956, 0.976])
 			b1_EUS = np.array([0.5, 0.55, 0.6, 0.75, 0.88, 0.9, 0.91, 0.93])
-			if correlation_model == "WUS":
+			if eps_correlation_model == "WUS":
 				b1 = interpolate(1./b1_freqs, b1_WUS, [T])[0]
-			elif correlation_model == "EUS":
+			elif eps_correlation_model == "EUS":
 				b1 = interpolate(1./b1_freqs, b1_EUS, [T])[0]
 
 			## Loop over eps_pga
 			exceedance_prob = 0
 			for e, eps_pga in enumerate(eps_pga_list):
-				## Determine PGA corresponding to eps_pga
-				pga = self.__call__(M, d, h=h, imt="PGA", T=0, epsilon=eps_pga, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
-
-				## CAV exceedance probability for PGA
-				cav_exceedance_prob = calc_CAV_exceedance_prob(pga, M, vs30, CAVmin=0.16, duration_dependent=True)
-
 				## Determine median SA and sigma
 				sa_med = self.__call__(M, d, h=h, imt="SA", T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 				sigma_log_sa = self.log_sigma(M, d, h=h, imt="SA", T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 				sigma_ln_sa = np.log(10) * sigma_log_sa
+
+				## Constrain iml between (-truncation_level, truncation_level)
+				lower_iml = 10**(np.log10(sa_med) - truncation_level * sigma_log_sa)
+				upper_iml = 10**(np.log10(sa_med) + truncation_level * sigma_log_sa)
+				iml_constrained = iml[:]
+				iml_constrained[iml < lower_iml] = np.nan
+				iml_constrained[iml > upper_iml] = np.nan
 
 				## Determine epsilon value of SA, and sigma
 				## Eq. 3-1
@@ -402,11 +454,11 @@ class GMPE(object):
 
 				## Determine probability of exceedance of SA given PGA
 				## Eq. 4-3
-				eps_sa_prime = (np.log(iml) - ln_sa_given_pga) / sigma_ln_sa_given_pga
+				eps_sa_prime = (np.log(iml_constrained) - ln_sa_given_pga) / sigma_ln_sa_given_pga
 				## Eq. 4-2
 				prob_sa_given_pga = 1.0 - scipy.stats.norm.cdf(eps_sa_prime)
 
-				exceedance_prob += (prob_eps_list[e] * cav_exceedance_prob * prob_sa_given_pga)
+				exceedance_prob += (prob_eps_list[e] * cav_exceedance_prob[e] * prob_sa_given_pga)
 
 		return exceedance_prob
 
