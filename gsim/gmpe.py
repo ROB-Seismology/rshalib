@@ -334,7 +334,7 @@ class GMPE(object):
 
 	def get_exceedance_probability_cav(self, iml, M, d, h=0., imt="PGA", T=0., imt_unit="g", soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, truncation_level=3, cav_min=0.16, depsilon=0.02, eps_correlation_model="EUS"):
 		"""
-		Compute joint probability of exceeding a given intensity level
+		Compute joint probability of exceeding given intensity level(s)
 		and exceeding a minimum CAV value
 
 		:param iml:
@@ -418,7 +418,7 @@ class GMPE(object):
 				exceedance_prob[pga_eps_pga_list[e] > iml] += (prob_eps_list[e] * cav_exceedance_prob[e])
 
 		else:
-			# TODO: constrain iml between (-truncation_level, truncation_level)
+			sa_exceedance_prob = self.get_exceedance_probability(iml, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, truncation_level=truncation_level)
 
 			## Correlation coefficients between PGA and SA (Table 3-1)
 			b1_freqs = np.array([0.5, 1, 2.5, 5, 10, 20, 25, 35])
@@ -429,21 +429,14 @@ class GMPE(object):
 			elif eps_correlation_model == "EUS":
 				b1 = interpolate(1./b1_freqs, b1_EUS, [T])[0]
 
+			## Determine median SA and sigma
+			sa_med = self.__call__(M, d, h=h, imt="SA", T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+			sigma_log_sa = self.log_sigma(M, d, h=h, imt="SA", T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+			sigma_ln_sa = np.log(10) * sigma_log_sa
+
 			## Loop over eps_pga
 			exceedance_prob = 0
 			for e, eps_pga in enumerate(eps_pga_list):
-				## Determine median SA and sigma
-				sa_med = self.__call__(M, d, h=h, imt="SA", T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
-				sigma_log_sa = self.log_sigma(M, d, h=h, imt="SA", T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
-				sigma_ln_sa = np.log(10) * sigma_log_sa
-
-				## Constrain iml between (-truncation_level, truncation_level)
-				lower_iml = 10**(np.log10(sa_med) - truncation_level * sigma_log_sa)
-				upper_iml = 10**(np.log10(sa_med) + truncation_level * sigma_log_sa)
-				iml_constrained = iml[:]
-				iml_constrained[iml < lower_iml] = np.nan
-				iml_constrained[iml > upper_iml] = np.nan
-
 				## Determine epsilon value of SA, and sigma
 				## Eq. 3-1
 				eps_sa = b1 * eps_pga
@@ -454,11 +447,15 @@ class GMPE(object):
 
 				## Determine probability of exceedance of SA given PGA
 				## Eq. 4-3
-				eps_sa_prime = (np.log(iml_constrained) - ln_sa_given_pga) / sigma_ln_sa_given_pga
+				eps_sa_dot = (np.log(iml) - ln_sa_given_pga) / sigma_ln_sa_given_pga
 				## Eq. 4-2
-				prob_sa_given_pga = 1.0 - scipy.stats.norm.cdf(eps_sa_prime)
+				prob_sa_given_pga = 1.0 - scipy.stats.norm.cdf(eps_sa_dot)
 
 				exceedance_prob += (prob_eps_list[e] * cav_exceedance_prob[e] * prob_sa_given_pga)
+
+			## iml values close to truncation boundaries should have lower exceecance rates
+			## This also constrains iml between (-truncation_level, truncation_level)
+			exceedance_prob = np.minimum(exceedance_prob, sa_exceedance_prob)
 
 		return exceedance_prob
 

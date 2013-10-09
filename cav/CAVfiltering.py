@@ -190,9 +190,6 @@ def calc_CAV_exceedance_prob(pga, M, vs30, CAVmin=0.16, duration_dependent=True)
 		ln_CAV, sigma_ln_CAV = calc_ln_CAV1(pga, M, vs30)
 
 	epsilon_CAV = (np.log(CAVmin) - ln_CAV[non_zero_indexes]) / sigma_ln_CAV[non_zero_indexes]
-	#sqrt2 = np.sqrt(2.0)
-	#prob = 1.0 - (0.5 * (1.0 + erf(epsilon_CAV/sqrt2)))
-	#prob = 1.0 - scipy.stats.norm.cdf(np.log(CAVmin), ln_CAV, sigma_ln_CAV)
 	prob[non_zero_indexes] = 1.0 - scipy.stats.norm.cdf(epsilon_CAV)
 
 	if scalar:
@@ -206,7 +203,7 @@ def calc_ln_SA_given_PGA(pga, M, R, T, vs30, gmpe_name, correlation_model="EUS")
 	Compute natural logarithm of SA given PGA
 	Formulas 3-1 - 3-3 in Abrahamson et al. (2006)
 	:param pga:
-		Float, peak ground acceleration in g (doesn't seem to be used !)
+		Float, peak ground acceleration in g
 	:param M:
 		Float, moment magnitude
 	:param R:

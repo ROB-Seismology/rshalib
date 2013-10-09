@@ -839,7 +839,7 @@ class PSHAModelTree(PSHAModelBase):
 			if verbose:
 				print smlt_path_weight, sm_name, smlt_path
 			if show_plot:
-				self.source_model_lt.plot_diagram(highlight_path=path)
+				self.source_model_lt.plot_diagram(highlight_path=smlt_path)
 			## Apply uncertainties
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
 			modified_source_models.append(source_model)

@@ -86,34 +86,32 @@ source_model_lt = rshalib.logictree.SeismicSourceSystem.from_independent_uncerta
 #print source_model_lt.are_branch_ids_unique()
 #source_model_lt.print_xml()
 xml_filespec = os.path.join(base_folder, "seismic_source_system.xml")
-source_model_lt.write_xml(xml_filespec)
+#source_model_lt.write_xml(xml_filespec)
 print "Number of paths in logic tree: %d" % source_model_lt.get_num_paths()
-#source_model_lt.plot_diagram(branch_label="branch_id")
-fig_filespec = os.path.join(base_folder, "LTstructure_analyst.png")
+source_model_lt.plot_diagram(branch_label="branch_id")
+#fig_filespec = os.path.join(base_folder, "LTstructure_analyst.png")
 fig_filespec = None
-source_model_lt.plot_uncertainty_levels_diagram(source_model_pmf, [Mmax_pmf_dict, MFD_pmf_dict], branch_labels=True, fig_filespec=fig_filespec)
+#source_model_lt.plot_uncertainty_levels_diagram(source_model_pmf, [Mmax_pmf_dict, MFD_pmf_dict], branch_labels=True, fig_filespec=fig_filespec)
 
 
 ## Parse logic tree from NRML
+"""
 #xml_filespec = "E:\Home\_kris\Python\GEM\oq-engine\demos\hazard\LogicTreeCase3ClassicalPSHA\source_model_logic_tree.xml"
 source_model_lt2 = rshalib.logictree.SeismicSourceSystem.parse_from_xml(xml_filespec, validate=False)
-fig_filespec = os.path.join(base_folder, "LTstructure_OQ.png")
+#fig_filespec = os.path.join(base_folder, "LTstructure_OQ.png")
 fig_filespec = None
 source_model_lt2.plot_diagram(fig_filespec=fig_filespec)
 #source_model_lt2.write_xml(r"C:\Temp\seismic_source_system2.xml")
-
+"""
 
 ## Sample logic tree
-"""
 from hazard.psha.Projects.SHRE_NPP.params.gmpe import gmpe_lt
-#gmpe_lt.plot_diagram()
 
 random_seed = 1
 num_samples = 3
-verbose=True
-show_plot=False
+verbose = True
+show_plot = True
 psha_model_tree = rshalib.shamodel.PSHAModelTree("Test", source_models, source_model_lt, gmpe_lt, "", random_seed=random_seed)
 #psha_models = psha_model_tree.sample_source_model_lt(num_samples, verbose=verbose, show_plot=show_plot)
 #psha_model_tree.sample_gmpe_lt(num_samples, verbose=verbose)
-psha_models, weights = psha_model_tree.enumerate_source_model_lt(verbose=verbose)
-"""
+psha_models, weights = psha_model_tree.enumerate_source_model_lt(verbose=verbose, show_plot=show_plot)
