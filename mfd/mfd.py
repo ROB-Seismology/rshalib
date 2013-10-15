@@ -408,19 +408,19 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		if method == "Weichert":
 			## Number of earthquakes in each bin according to completeness
 			bins_N = self.get_num_earthquakes(completeness, end_date)
-			a, b, stdb = calcGR_Weichert(magnitudes, bins_N, completeness, end_date, b_val=b_val, verbose=verbose)
+			a, b, stda, stdb = calcGR_Weichert(magnitudes, bins_N, completeness, end_date, b_val=b_val, verbose=verbose)
 		elif method[:3] == "LSQ":
 			if method == "LSQc":
 				occurrence_rates = self.get_cumulative_rates()
 			elif method == "LSQi":
 				occurrence_rates = self.occurrence_rates
-			a, b, stdb = calcGR_LSQ(magnitudes, occurrence_rates, b_val=b_val, verbose=verbose)
+			a, b, stda, stdb = calcGR_LSQ(magnitudes, occurrence_rates, b_val=b_val, verbose=verbose)
 			if method == "LSQi":
 				## Compute a value for cumulative MFD from discrete a value
 				a2 = a
 				dM = self.bin_width
 				a = a2 + get_a_separation(b, dM)
-		return TruncatedGRMFD(self.get_min_mag_edge(), self.max_mag, self.bin_width, a, b, b_sigma=stdb, Mtype=self.Mtype)
+		return TruncatedGRMFD(self.get_min_mag_edge(), self.max_mag, self.bin_width, a, b, a_sigma=stda, b_sigma=stdb, Mtype=self.Mtype)
 
 	def get_max_mag_observed(self):
 		"""
@@ -702,8 +702,10 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		of exponential distribution. It describes the relative size distribution
 		of earthquakes: a higher ``b`` value indicates a relatively larger
 		proportion of small events and vice versa.
+	:param a_sigma:
+		Float, standard deviation of the a value (default: 0).
 	:param b_sigma:
-		Float, standard deviation on the b value (default: 0).
+		Float, standard deviation of the b value (default: 0).
 	:param Mtype:
 		String, magnitude type, either "MW" or "MS" (default: "MW")
 
@@ -713,8 +715,9 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		both are divisible by ``bin_width`` just before converting a function
 		to a histogram. See :meth:`_get_min_mag_and_num_bins`.
 	"""
-	def __init__(self, min_mag, max_mag, bin_width, a_val, b_val, b_sigma=0, Mtype="MW"):
+	def __init__(self, min_mag, max_mag, bin_width, a_val, b_val, a_sigma=0, b_sigma=0, Mtype="MW"):
 		nhlib.mfd.TruncatedGRMFD.__init__(self, min_mag, max_mag, bin_width, a_val, b_val)
+		self.a_sigma = a_sigma
 		self.b_sigma = b_sigma
 		self.Mtype = Mtype
 
@@ -722,7 +725,7 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		if isinstance(other, (int, float)):
 			N0 = 10**self.a_val
 			a_val = np.log10(N0 / float(other))
-			return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, self.b_sigma, self.Mtype)
+			return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
 		else:
 			raise TypeError("Divisor must be integer or float")
 
@@ -730,7 +733,7 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		if isinstance(other, (int, float)):
 			N0 = 10**self.a_val
 			a_val = np.log10(N0 * float(other))
-			return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, self.b_sigma, self.Mtype)
+			return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
 		else:
 			raise TypeError("Multiplier must be integer or float")
 
@@ -746,7 +749,7 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 				## Note: bin width does not have to be the same here
 				N0 = 10 ** self.a_val - 10 ** other.a_val
 				a_val = np.log10(N0)
-				return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, self.b_sigma, self.Mtype)
+				return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
 		elif isinstance(other, EvenlyDiscretizedMFD):
 			return self.to_evenly_discretized_mfd().__sub__(other)
 		else:
@@ -820,7 +823,7 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		weights /= np.add.reduce(weights)
 		N0 = 10**self.a_val
 		avalues = np.log10(weights * N0)
-		return [TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, aw, self.b_val, self.b_sigma, self.Mtype) for aw in avalues]
+		return [TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, aw, self.b_val, self.a_sigma, self.b_sigma, self.Mtype) for aw in avalues]
 
 	def split(self, M):
 		"""
@@ -835,8 +838,8 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		if not self.is_magnitude_compatible(M):
 			raise Exception("Magnitude value not compatible!")
 		elif self.get_min_mag_edge() < M < self.max_mag:
-			mfd1 = TruncatedGRMFD(self.min_mag, M, self.bin_width, self.a_val, self.b_val, self.b_sigma, self.Mtype)
-			mfd2 = TruncatedGRMFD(M, self.max_mag, self.bin_width, self.a_val, self.b_val, self.b_sigma, self.Mtype)
+			mfd1 = TruncatedGRMFD(self.min_mag, M, self.bin_width, self.a_val, self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
+			mfd2 = TruncatedGRMFD(M, self.max_mag, self.bin_width, self.a_val, self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
 			return [mfd1, mfd2]
 		else:
 			raise Exception("Split magnitude not in valid range!")
@@ -937,7 +940,27 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 			max_mag = self.max_mag
 		if bin_width is None:
 			bin_width = self.bin_width
-		return TruncatedGRMFD(min_mag, max_mag, bin_width, self.a_val, self.b_val, self.b_sigma, self.Mtype)
+		return TruncatedGRMFD(min_mag, max_mag, bin_width, self.a_val, self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
+
+	def get_mfd_from_b_val(self, b_val):
+		"""
+		Construct new MFD from a given b value, assuming uncertainties
+		on a and b values are correlated. This supposes that the a and
+		b values of the current MFD correspond to the mean values, and
+		requires that the standard deviations of the a and b values are
+		nonzero.
+
+		:param b_val:
+			Float, imposed b value
+
+		:return:
+			instance of :class:`TruncatedGRMFD`
+		"""
+		if self.b_sigma == 0 or self.a_sigma == 0:
+			raise Exception("a_sigma and b_sigma must not be zero!")
+		epsilon = (b_val - self.b_val) / self.b_sigma
+		a_val = self.a_val + self.a_sigma * epsilon
+		return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, b_val, Mtype=self.Mtype)
 
 	@classmethod
 	def construct_FentonEtAl2006MFD(self, min_mag, max_mag, bin_width, area, b_val=0.7991):
@@ -966,9 +989,10 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		try:
 			a_val = a_from_lambda(lamda, 6.0, b_val)
 		except:
-			print b_val
 			raise()
-		return TruncatedGRMFD(min_mag, max_mag, bin_width, a_val, b_val, stdb)
+		# TODO: stda
+		stda = 0
+		return TruncatedGRMFD(min_mag, max_mag, bin_width, a_val, b_val, stda, stdb, Mtype="MS")
 
 	@classmethod
 	def construct_Johnston1994MFD(self, min_mag, max_mag, bin_width, area, region="total"):
@@ -1016,7 +1040,9 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		elif region.lower() == "total non-extended":
 			a, b, stdb = 3.26, 1.186, 0.094
 
-		mfd = TruncatedGRMFD(min_mag, max_mag, bin_width, a, b, stdb)
+		# TODO: stda
+		stda = 0
+		mfd = TruncatedGRMFD(min_mag, max_mag, bin_width, a, b, stda, stdb, Mtype="MW")
 		return mfd * (area / 1E5)
 
 
@@ -1173,7 +1199,7 @@ def sum_MFDs(mfd_list, weights=[]):
 			all_avals = np.array([mfd.a_val for mfd in mfd_list])
 			a = np.log10(np.add.reduce(10**all_avals * weights))
 			mfd = mfd_list[0]
-			return TruncatedGRMFD(mfd.min_mag, mfd.max_mag, mfd.bin_width, a, mfd.b_val, mfd.b_sigma, mfd.Mtype)
+			return TruncatedGRMFD(mfd.min_mag, mfd.max_mag, mfd.bin_width, a, mfd.b_val, mfd.a_sigma, mfd.b_sigma, mfd.Mtype)
 		else:
 			## TruncatedGR's can be summed after conversion to EvenlyDiscretized
 			pass
