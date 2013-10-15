@@ -354,7 +354,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 		:return:
 			instance of SoilSiteModel
 		"""
-		return SoilSiteModel(name, [site.to_soil_site(ref_soil_params) for site in self.get_sites])
+		return SoilSiteModel(name, [site.to_soil_site(ref_soil_params) for site in self.get_sites()])
 	
 	def plot(self):
 		"""
