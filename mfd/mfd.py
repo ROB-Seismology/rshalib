@@ -479,7 +479,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		:return:
 			(prior, likelihood, posterior, params) tuple
 			- prior: instance of :class:`MmaxPMF`, prior distribution
-			- likelihood: instance of :class:`MmaxPMF`, likelihood distribution
+			- likelihood: numpy array
 			- posterior: instance of :class:`MmaxPMF`, posterior distribution
 			- params: (observed Mmax, n, a, b) tuple
 		"""
@@ -548,11 +548,12 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 
 		## Replace zero probabilities with very small values to avoid error in PMF
 		prior_pmf = MmaxPMF(magnitudes, prior.clip(1E-8))
-		likelihood_pmf = MmaxPMF(magnitudes, likelihood.clip(1E-8))
+		#likelihood_pmf = MmaxPMF(magnitudes, likelihood.clip(1E-8))
+		likelihood /= np.sum(likelihood)
 		posterior_pmf = MmaxPMF(magnitudes, posterior.clip(1E-8))
 		params = (Mmax_obs, n, a_val, b_val)
 
-		return prior_pmf, likelihood_pmf, posterior_pmf, params
+		return prior_pmf, likelihood, posterior_pmf, params
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
