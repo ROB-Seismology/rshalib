@@ -504,7 +504,7 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 	return NodalPlaneDistribution(nodal_planes, nodal_plane_weights)
 
 
-def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4):
+def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4, centers=True):
 	"""
 	Get normal distribution with bin centers as values.
 
@@ -518,6 +518,10 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4):
 		Sigma range for distribution between min and max values (Default: 2).
 	:param precision:
 		Integer, decimal precision of weights (default: 4)
+	:param centers:
+		Bool, whether min and max are to be considered as bin centers
+		(True) or bin edges (False)
+		(default: True)
 
 	:return:
 		tuple (values, weights)
@@ -534,15 +538,16 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4):
 		# Assume value range corresponds to +/- sigma_range
 		sigma = val_range / (sigma_range * 2)
 		bin_width = val_range / num_bins
-		#bin_centers = np.linspace(min, max, num_bins+1)
-		bin_centers = np.linspace(min, max, num_bins)
 		dist = stats.truncnorm(-sigma_range, sigma_range, mean, sigma)
-		weights = dist.pdf(bin_centers)
-		#bin_edges = np.linspace(min, max, num_bins+1)
-		#bin_centers = bin_edges[:-1] + bin_width / 2
-		#bin_edge_probs = stats.distributions.norm.cdf(bin_edges, loc=mean, scale=sigma)
-		## Compute probability of area covered by each bin
-		#weights = bin_edge_probs[1:] - bin_edge_probs[:-1]
+		if centers:
+			bin_centers = np.linspace(min, max, num_bins)
+			weights = dist.pdf(bin_centers)
+		else:
+			bin_edges = np.linspace(min, max, num_bins+1)
+			bin_centers = bin_edges[:-1] + bin_width / 2
+			## Compute probability of area covered by each bin
+			bin_edge_probs = dist.cdf(bin_edges)
+			weights = bin_edge_probs[1:] - bin_edge_probs[:-1]
 
 		## Normalize
 		weights = np.array([Decimal(w) for w in weights])

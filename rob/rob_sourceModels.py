@@ -120,7 +120,7 @@ def create_rob_area_source(
 	strike_delta=90.,
 	dip_delta=30.,
 	nodal_plane_distribution=None,
-	hypo_num_bins=5,
+	hypo_bin_width=5,
 	hypocentral_distribution=None,
 	polygon=None,
 	area_discretization=1.,
@@ -149,8 +149,8 @@ def create_rob_area_source(
 		Float with dip delta for nodal plane distribution (default: 30.)
 	:param nodal_plane_distribution:
 		See class AreaSource (Default: None).
-	:param hypo_num_bins:
-		Integer with number of bins for hypocentral depth distribution (Default: 5)
+	:param hypo_bin_width:
+		Float, bin width (in km) for hypocentral depth distribution (Default: 5)
 	:param hypocentral_distribution:
 		See class AreaSource (Default: None).
 	:param polygon:
@@ -241,7 +241,8 @@ def create_rob_area_source(
 		min_hypo_depth = max(min_hypo_depth, upper_seismogenic_depth)
 		max_hypo_depth = source_rec.get(column_map['max_hypo_depth'], column_map['max_hypo_depth'])
 		max_hypo_depth = min(max_hypo_depth, lower_seismogenic_depth)
-		hypo_depths, weights = get_normal_distribution(min_hypo_depth, max_hypo_depth, num_bins=hypo_num_bins)
+		num_bins = (max_hypo_depth - min_hypo_depth) / hypo_bin_width + 1
+		hypo_depths, weights = get_normal_distribution(min_hypo_depth, max_hypo_depth, num_bins=num_bins)
 		hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
 
 	## polygon
