@@ -691,7 +691,7 @@ class GMPE(object):
 				#	of.write("%s-%.3E\t%.3E\t%.2f\n" % (imt, T, ln_sigma, num_sigma*-1))
 				of.write("%.3E\t%.3E\t%.2f\n" % (T, ln_sigma, num_sigma*-1))
 				for M in Mags:
-					intensities = self.__call__(M, distances, h=h, T=T, imt=imt, epsilon=0, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+					intensities = self.__call__(M, distances, h=h, T=T, imt=imt, imt_unit=imt_unit, epsilon=0, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 					s = "\t".join(["%.4E" % val for val in intensities])
 					of.write("%s\n" % s)
 				if sigma_depends_on_magnitude:
@@ -2357,7 +2357,7 @@ class McGuire1974GMPE(GMPE):
 		Distance range: 14 - 125 km
 		Intensity measure types: PGA, PGV, PGD, (P)SV
 		PSV period range: 0.1 - 8 s
-		Dampings for PSV: 2
+		Damping for PSV: 2 percent [0, 5, and 10 are also in original report, but not in 1977 publication]
 		Soil classes: None
 		Fault types: None
 	"""
@@ -2372,13 +2372,13 @@ class McGuire1974GMPE(GMPE):
 		Mmin, Mmax = 5.3, 7.6
 		dmin, dmax = 14., 125.
 		Mtype = "ML"
+		#dampings = [0, 2, 5, 10]
 		dampings = [2]
 		name = "McGuire1974"
 		short_name = "McG_1974"
 		GMPE.__init__(self, imt_periods, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings, name, short_name)
 
 		## Coefficients
-		self.dampings = [0, 2, 5, 10]
 		self.a = {}
 		self.a["PGA"] = 472
 		self.a["PGV"] = 5.64
@@ -2402,7 +2402,7 @@ class McGuire1974GMPE(GMPE):
 		## PSV: cm/sec, PGD: cm
 		self.imt_scaling = {}
 		self.imt_scaling["PGA"] = {"g": 0.01/g, "mg": 10./g, "ms2": 1E-2, "gal": 1.0}
-		self.imt_scaling["PGV"] = {"ms2": 1E-2, "cms2": 1.0}
+		self.imt_scaling["PGV"] = {"ms": 1E-2, "cms": 1.0}
 		self.imt_scaling["PGD"] = {"m": 1E-2, "cm": 1.0}
 		self.imt_scaling["PSV"] = self.imt_scaling["PGV"]
 
@@ -2466,10 +2466,10 @@ class McGuire1974GMPE(GMPE):
 			elif damping not in self.dampings:
 				raise DampingNotSupportedError(damping)
 			else:
-				psv_periods = self.periods[imt]
+				psv_periods = self.imt_periods[imt]
 				A = self.a[imt]
-				B = interpolate(psv_periods, self.b[imt], [T])[0]
-				C = interpolate(psv_periods, self.c[imt], [T])[0]
+				B = interpolate(psv_periods, self.b[imt], [T])
+				C = interpolate(psv_periods, self.c[imt], [T])
 
 		ah = A * 10**(B*M) * (d + 25)**-C
 		ah *= scale_factor
@@ -2517,7 +2517,7 @@ class McGuire1974GMPE(GMPE):
 				raise PeriodUndefinedError(imt, T)
 			elif damping not in self.dampings:
 				raise DampingNotSupportedError(damping)
-		return 1E-4
+		return np.array([1E-4])
 
 	def is_rake_dependent(self):
 		"""
