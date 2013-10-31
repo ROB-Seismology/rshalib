@@ -161,7 +161,7 @@ class PSHAModelBase(object):
 				grid_spacing_km = float(self.grid_spacing[:-2])
 				polygon = Polygon([Point(*site) for site in grid_outline])
 				mesh = polygon.discretize(grid_spacing_km)
-				sites = [PSHASite(site.longitude, site.latitude) for site in mesh]
+				sites = [SHASite(site.longitude, site.latitude) for site in mesh]
 			else:
 				# TODO: make uniform with crisis
 				grid_outline_lons = [pt[0] for pt in grid_outline]
@@ -173,7 +173,7 @@ class PSHAModelBase(object):
 				sites = []
 				for lon in longitudes:
 					for lat in latitudes:
-						sites.append(PSHASite(lon, lat))
+						sites.append(SHASite(lon, lat))
 				# TODO: remove grid points outside grid_outline !
 		return sites
 
