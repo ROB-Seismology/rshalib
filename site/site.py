@@ -173,7 +173,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			if len(sites[i]) == 3:
 				self.depths[i] = sites[i][2]
 			if hasattr(sites[i], "name"):
-				names[i] = site.name
+				names[i] = sites[i].name
 		if np.allclose(self.depths, 0.):
 			self.depths = None
 		if len(set(names)) != 1:
