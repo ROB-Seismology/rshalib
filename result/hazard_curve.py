@@ -3573,6 +3573,16 @@ class HazardMapSet(HazardResult, HazardField):
 			intensities = self.intensities[index]
 			return HazardMap(self.model_name, filespec, self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, site_names=self.site_names, vs30s=self.vs30s)
 
+	def get_max_hazard_map(self):
+		"""
+		Get hazard map with for each site the maximum value of all hazard maps in the set.
+		
+		:returns:
+			instance of :class:`HazardMap`
+		"""
+		intensities = np.amax([intensities for intensities in self.intensities], axis=0)
+		return HazardMap(self.model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=1, site_names=self.site_names, vs30s=self.vs30s)
+
 	def export_VM(self, base_filespec):
 		for hazardmap in self:
 			hazardmap.export_VM(self, base_filespec)
