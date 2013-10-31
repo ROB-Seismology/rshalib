@@ -364,7 +364,7 @@ class PSHAModel(PSHAModelBase):
 			n_epsilons = 2 * int(np.ceil(self.truncation_level))
 		if not mag_bin_width:
 			mag_bin_width = self.source_model[0].mfd.bin_width
-		site = self._get_sites()[site_index]
+		site = self.sha_site_model.get_sites()[site_index]
 		nhlib_site = nhlib.site.Site(Point(*site), **self.ref_soil_params)
 		#imt = self._get_nhlib_imts()
 		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
