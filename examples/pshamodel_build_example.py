@@ -44,14 +44,14 @@ area_discretization = 15.
 integration_distance = 150.
 
 ## Grid, list of sites or site model
-grid_outline = []
-#grid_outline = [(2.15, 49.15), (6.95, 51.95)]
+#grid_outline = []
+grid_outline = [(2.15, 49.15), (6.95, 51.95)]
 #grid_spacing = 0.1
 #grid_spacing = 1.0
-grid_spacing = '50km'
+grid_spacing = '5km'
 
-#sites = []
-sites = [rshalib.site.SHASite(3.71704, 51.43233, name='Borssele')]
+sites = []
+#sites = [rshalib.site.SHASite(3.71704, 51.43233, name='Borssele')]
 
 
 ref_soil_params = {"vs30": 800, "vs30measured": True, "z1pt0": 100., "z2pt5": 2.}
@@ -170,14 +170,14 @@ if __name__ == '__main__':
 	import time
 
 	## nhlib
-
+	"""
 	psha_model = create_psha_model("nhlib")
 	start_time = time.time()
 	shcfs = psha_model.run_nhlib_shcf(write=False)
 	end_time = time.time()
 	print end_time - start_time
 	shcfs['PGA'].plot()
-
+	"""
 
 	## nhlib deaggregation
 	"""
@@ -203,9 +203,9 @@ if __name__ == '__main__':
 	"""
 
 	## OpenQuake
-	#psha_model = create_psha_model("openquake")
-	#OQparams = create_oq_params()
-	#psha_model.write_openquake(user_params=OQparams)
+	psha_model = create_psha_model("openquake")
+	OQparams = create_oq_params()
+	psha_model.write_openquake(user_params=OQparams)
 
 	## Crisis
 	#import rshalib.crisis.IO as IO
