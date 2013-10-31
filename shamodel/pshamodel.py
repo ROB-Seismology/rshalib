@@ -1,5 +1,5 @@
 """
-:mod: `rhlib.pshamodel` defines :class:`rhlib.pshamodel.PSHAModelBase`, :class:`rhlib.pshamodel.PSHAModel` and :class:`rhlib.pshamodel.PSHAModelTree`.
+:mod:`rhsalib.shamodel.pshamodel` exports :class:`rhlib.pshamodel.PSHAModel` and :class:`rhlib.pshamodel.PSHAModelTree`
 """
 
 # TODO: check if documentation is compatibele with Sphinx
@@ -16,6 +16,7 @@ from random import choice
 import openquake.hazardlib as nhlib
 from openquake.hazardlib.imt import PGA, SA, PGV, PGD, MMI
 
+from base import SHAModelBase
 from ..geo import *
 from ..site import *
 from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, ProbabilityMatrix, DeaggregationSlice
@@ -34,28 +35,12 @@ MIN_SINT_32 = -(2**31)
 MAX_SINT_32 = (2**31) - 1
 
 
-class PSHAModelBase(object):
+class PSHAModelBase(SHAModelBase):
 	"""
-	PSHAModelBase holds common attributes and methods for :class:`PSHAModel` and :class:`PSHAModelTree`.
+	Base class for PSHA models, holding common attributes and methods.
 
-	:param name:
-		String, defining name for PSHAModel or PSHAModelTree.
 	:param output_dir:
 		String, defining full path to output directory.
-	:param sites:
-		List of (float, float) tuples, defining (longitude, latitude) of sites (default: []).
-	:param grid_outline:
-		List of (float, float) tuples, defining (longitude, latitude) of points defining grid outline (default: []).
-		Minimum number of points is two: left lower corner and upper right corner.
-	:param grid_spacing:
-		Float, defining grid spacing in degrees (same for lon and lat), or
-		Tuple of Floats, grid spacing in degrees (lon and lat separately), or
-		String, defining grid spacing in km (same for lon and lat), e.g. '10km'
-		(default: 0.5).
-	:param soil_site_model:
-		:class:`SoilSiteModel` object.
-	:param ref_soil_params:
-		{"vs30": float, "vs30measured": bool, "z1pt0": float, "z2pt5": float) dict, defining reference soil parameters (default: REF_SOIL_PARAMS).
 	:param imt_periods:
 		Dictionary mapping intensity measure types (e.g. "PGA", "SA", "PGV", "PGD") to lists or arrays of periods in seconds (float values).
 		Periods must be monotonically increasing or decreasing.
@@ -72,8 +57,6 @@ class PSHAModelBase(object):
 		List of floats, defining return periods.
 	:param time_span:
 		Float, defining time span in years (default 50.).
-	:param truncation_level:
-		Float, defining truncation level in number of standard deviations (default: 3.).
 	:param integration_distance:
 		Float, defining integration distance in km (default: 200.).
 	"""
@@ -81,18 +64,9 @@ class PSHAModelBase(object):
 	def __init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance):
 		"""
 		"""
-		self.name = name
+		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, truncation_level)
+		
 		self.output_dir = output_dir
-		self.soil_site_model = soil_site_model
-		self.sites = sites
-		self._set_grid_outline(grid_outline)
-		if isinstance(grid_spacing, (int, float)):
-			## Grid spacing in degrees
-			self.grid_spacing = (grid_spacing, grid_spacing)
-		else:
-			## Grid spacing as string or tuple
-			self.grid_spacing = grid_spacing
-		self.ref_soil_params = ref_soil_params
 		self.imt_periods = imt_periods
 		self.intensities = intensities
 		if self.intensities:
@@ -105,25 +79,7 @@ class PSHAModelBase(object):
 			self.num_intensities = num_intensities
 		self.return_periods = np.array(return_periods)
 		self.time_span = time_span
-		self.truncation_level = truncation_level
 		self.integration_distance = integration_distance
-
-	def _set_grid_outline(self, grid_outline):
-		"""
-		Set list of (float, float) tuples for grid outline, defining grid outline with at least three points.
-		"""
-		# TODO: move to validate method?
-		if len(grid_outline) == 1:
-			raise Exception("grid_outline must contain 2 points at least")
-		## Do not convert to (ll, lr, ur, ul) here because we want to pass the
-		## same grid_outline to crisis as well
-		## This functionality is now in _get_sites()
-		#if len(grid_outline) == 2:
-		#	ll, ur = grid_outline
-		#	lr = (ur[0], ll[1])
-		#	ul = (ll[0], ur[1])
-		#	grid_outline = [ll, lr, ur, ul]
-		self.grid_outline = grid_outline
 
 	def _get_intensities_limits(self, intensities_limits):
 		"""
@@ -135,47 +91,6 @@ class PSHAModelBase(object):
 		if not isinstance(intensities_limits, dict):
 			intensities_limits = {imt: [intensities_limits]*len(periods) for imt, periods in self.imt_periods.items()}
 		return intensities_limits
-
-	def _get_sites(self):
-		"""
-		Return list of sites or grid sites.
-		"""
-		if self.soil_site_model:
-			sites = self.soil_site_model.sites
-		elif self.sites:
-			sites = self.sites
-		elif self.grid_outline:
-			if len(self.grid_outline) < 2:
-				raise Exception("Grid outline should contain at least 2 points")
-			elif len(self.grid_outline) == 2:
-				## If only 2 points are given, they correspond to the lower left
-				## and upper right corners of the grid
-				ll, ur = self.grid_outline
-				lr = (ur[0], ll[1])
-				ul = (ll[0], ur[1])
-				grid_outline = [ll, lr, ur, ul]
-			else:
-				grid_outline = self.grid_outline
-
-			if isinstance(self.grid_spacing, (str, unicode)) and self.grid_spacing[-2:] == 'km':
-				grid_spacing_km = float(self.grid_spacing[:-2])
-				polygon = Polygon([Point(*site) for site in grid_outline])
-				mesh = polygon.discretize(grid_spacing_km)
-				sites = [SHASite(site.longitude, site.latitude) for site in mesh]
-			else:
-				# TODO: make uniform with crisis
-				grid_outline_lons = [pt[0] for pt in grid_outline]
-				grid_outline_lats = [pt[1] for pt in grid_outline]
-				lon_min, lon_max = min(grid_outline_lons), max(grid_outline_lons)
-				lat_min, lat_max = min(grid_outline_lats), max(grid_outline_lats)
-				longitudes = np.arange(lon_min, lon_max + float(self.grid_spacing[0]), float(self.grid_spacing[0]))
-				latitudes = np.arange(lat_min, lat_max + float(self.grid_spacing[1]), float(self.grid_spacing[1]))
-				sites = []
-				for lon in longitudes:
-					for lat in latitudes:
-						sites.append(SHASite(lon, lat))
-				# TODO: remove grid points outside grid_outline !
-		return sites
 
 	def _get_nhlib_params(self):
 		"""
@@ -189,34 +104,11 @@ class PSHAModelBase(object):
 			'rsdf': rupture_to_site distance filter
 		"""
 		nhlib_params = {}
-		nhlib_params['soil_site_model'] = self._get_nhlib_soil_site_model()
+		nhlib_params['soil_site_model'] = self.get_soil_site_model()
 		nhlib_params['imts'] = self._get_nhlib_imts()
 		nhlib_params['ssdf'] = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
 		nhlib_params['rsdf'] = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
 		return nhlib_params
-
-	def _get_nhlib_soil_site_model(self):
-		"""
-		Return :class:`SoilSitemodel` object if present, and interpolate sites or grid sites if present, or reference site model.
-		"""
-		if self.soil_site_model:
-			# TODO: implement site model filter for sites or grid (current method is incorrect)
-#			if self._get_sites():
-#				mesh = nhlib.geo.Mesh(zip(self.sites))
-#				return self.soil_site_model.get_closest_points(mesh)
-			return self.soil_site_model
-		else:
-			return self._get_nhlib_ref_soil_site_model()
-
-	def _get_nhlib_ref_soil_site_model(self):
-		"""
-		Return SoilSiteModel object with ref_soil_params for sites.
-		"""
-		sites = []
-		for site in self._get_sites():
-			sites.append(nhlib.site.Site(Point(*site), **self.ref_soil_params))
-		soil_site_model = SoilSiteModel('ref_soil_site_model', sites)
-		return soil_site_model
 
 	def _get_imt_intensities(self):
 		"""
@@ -319,12 +211,14 @@ class PSHAModelBase(object):
 		"""
 		Return grid spacing in km
 		"""
-		if isinstance(self.grid_spacing, (str, unicode)) and self.grid_spacing[-2:] == 'km':
-			grid_spacing_km = float(self.grid_spacing[:-2])
+		grid_outline = self.sha_site_model.grid_outline
+		grid_spacing = self.sha_site_model.grid_spacing
+		if isinstance(grid_spacing, (str, unicode)) and grid_spacing[-2:] == 'km':
+			grid_spacing_km = float(grid_spacing[:-2])
 		else:
-			central_latitude = np.mean([site[1] for site in self.grid_outline])
-			grid_spacing_km1 = self._degree_to_km(self.grid_spacing[0], central_latitude)
-			grid_spacing_km2 = self._degree_to_km(self.grid_spacing[1])
+			central_latitude = np.mean([site[1] for site in grid_outline])
+			grid_spacing_km1 = self._degree_to_km(grid_spacing[0], central_latitude)
+			grid_spacing_km2 = self._degree_to_km(grid_spacing[1])
 			grid_spacing_km = min(grid_spacing_km1, grid_spacing_km2)
 
 		return grid_spacing_km
@@ -333,22 +227,24 @@ class PSHAModelBase(object):
 		"""
 		Return grid spacing in degrees as a tuple
 		"""
-		central_latitude = np.mean([site[1] for site in self.grid_outline])
-		if isinstance(self.grid_spacing, (str, unicode)) and self.grid_spacing[-2:] == 'km':
-			grid_spacing_km = float(self.grid_spacing[:-2])
+		grid_outline = self.sha_site_model.grid_outline
+		grid_spacing = self.sha_site_model.grid_spacing
+		central_latitude = np.mean([site[1] for site in grid_outline])
+		if isinstance(grid_spacing, (str, unicode)) and grid_spacing[-2:] == 'km':
+			grid_spacing_km = float(grid_spacing[:-2])
 			grid_spacing_lon = self._km_to_degree(grid_spacing_km, central_latitude)
 			if adjust_lat:
 				grid_spacing_lat = self._km_to_degree(grid_spacing_km)
 				grid_spacing = (grid_spacing_lon, grid_spacing_lat)
 			else:
 				grid_spacing = (grid_spacing_lon, grid_spacing_lon)
-		elif isinstance(self.grid_spacing, (int, float)):
+		elif isinstance(grid_spacing, (int, float)):
 			if adjust_lat:
-				grid_spacing = (self.grid_spacing, self.grid_spacing * np.cos(np.radians(central_latitude)))
+				grid_spacing = (grid_spacing, grid_spacing * np.cos(np.radians(central_latitude)))
 			else:
-				grid_spacing = (self.grid_spacing, self.grid_spacing)
+				grid_spacing = (grid_spacing, grid_spacing)
 		else:
-			grid_spacing = self.grid_spacing
+			grid_spacing = grid_spacing
 
 		return grid_spacing
 
@@ -506,11 +402,11 @@ class PSHAModel(PSHAModelBase):
 		params.number_of_logic_tree_samples = 1
 
 		## set sites or grid_outline
-		if self.grid_outline:
+		if self.sha_site_model.grid_outline:
 			grid_spacing_km = self._get_grid_spacing_km()
-			params.set_grid_or_sites(grid_outline=self.grid_outline, grid_spacing=grid_spacing_km)
+			params.set_grid_or_sites(grid_outline=self.sha_site_model.grid_outline, grid_spacing=grid_spacing_km)
 		else:
-			params.set_grid_or_sites(sites=self.sites)
+			params.set_grid_or_sites(sites=self.sha_site_model.sites)
 
 		## write nrml file for source model
 		self.source_model.write_xml(os.path.join(self.output_dir, self.source_model.name + '.xml'))
@@ -979,11 +875,11 @@ class PSHAModelTree(PSHAModelBase):
 				setattr(params, key, user_params[key])
 
 		## set sites or grid_outline
-		if self.grid_outline:
+		if self.sha_site_model.grid_outline:
 			grid_spacing_km = self._get_grid_spacing_km()
-			params.set_grid_or_sites(grid_outline=self.grid_outline, grid_spacing=grid_spacing_km)
+			params.set_grid_or_sites(grid_outline=self.sha_site_model.grid_outline, grid_spacing=grid_spacing_km)
 		else:
-			params.set_grid_or_sites(sites=self.sites)
+			params.set_grid_or_sites(sites=self.sha_site_model.sites)
 
 		## write nrml files for source models
 		for source_model in self.source_models:

@@ -15,37 +15,34 @@ from openquake.hazardlib.source import Rupture
 from hazard.rshalib.geo import NodalPlane, Point
 from hazard.rshalib.pmf import HypocentralDepthDistribution, NodalPlaneDistribution
 from hazard.rshalib.result import HazardMap, HazardMapSet
+from hazard.rshalib.shamodel.base import SHAModelBase
 from hazard.rshalib.site import SHASiteModel
+from hazard.rshalib.site.ref_soil_params import REF_SOIL_PARAMS
 from hazard.rshalib.source import PointSource
 
 
 # TODO: add documentation
 
 
-class DSHAModel(object):
+class DSHAModel(SHAModelBase):
 	"""
 	"""
 	
-	def __init__(self, lons, lats, depths, mags, gsim, sites=None, grid_outline=None, grid_spacing=None, usd=0, lsd=30., imts=["PGA"], periods=[], correlation_model=None, truncation_level=0., maximum_distance=None):
+	def __init__(self, name, lons, lats, depths, mags, gsim, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, usd=0, lsd=30., imts=["PGA"], periods=[], correlation_model=None, truncation_level=0., maximum_distance=None):
 		"""
 		"""
+		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, truncation_level)
 		assert len(lons) == len(lats) == len(depths) == len(mags)
 		self.lons = lons
 		self.lats = lats
 		self.depths = depths
 		self.mags = mags
 		self.gsim = gsim
-		self.sha_site_model = SHASiteModel(
-			sites=sites,
-			grid_outline=grid_outline,
-			grid_spacing=grid_spacing,
-			)
 		self.usd = usd
 		self.lsd = lsd
 		self.imts = imts
 		self.periods = periods
 		self.correlation_model = correlation_model
-		self.truncation_level = truncation_level
 		self.maximum_distance = maximum_distance
 		self.realizations = 1. ## NOTE: only one realization possible
 
@@ -93,7 +90,7 @@ class DSHAModel(object):
 	def run_hazardlib(self):
 		"""
 		"""
-		soil_site_model = self.sha_site_model.to_soil_site_model() # NOTE: ref site effect params are used
+		soil_site_model = self.get_soil_site_model()
 		imts = self._get_hazardlib_imts()
 		gsim = get_available_gsims()[self.gsim]()
 		rsdf = self._get_hazardlib_rsdf()
@@ -140,6 +137,9 @@ if __name__ == "__main__":
 	"""
 	Test
 	"""
+	
+	name = "TestDSHAModel"
+	
 	## earthquake
 	lons =[4.5]
 	lats=[50.5]
@@ -147,11 +147,11 @@ if __name__ == "__main__":
 	mags=[6.5]
 	
 	## catalog
-	from hazard.psha.Projects.SHRE_NPP.catalog import cc_catalog
-	lons = cc_catalog.lons
-	lats = cc_catalog.lats
-	depths = [d or 10 for d in cc_catalog.get_depths()]
-	mags = cc_catalog.mags
+#	from hazard.psha.Projects.SHRE_NPP.catalog import cc_catalog
+#	lons = cc_catalog.lons
+#	lats = cc_catalog.lats
+#	depths = [d or 10 for d in cc_catalog.get_depths()]
+#	mags = cc_catalog.mags
 	
 	sites = None
 	grid_outline = (1, 8, 49, 52)
@@ -166,6 +166,7 @@ if __name__ == "__main__":
 	maximum_distance = None
 	
 	dhsa_model = DSHAModel(
+		name=name,
 		lons=lons,
 		lats=lats,
 		depths=depths,
