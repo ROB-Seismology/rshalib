@@ -95,8 +95,6 @@ class SHASiteModel(nhlib.geo.Mesh):
 	Class representing a site model. Subclasses from :class:`openquake.hazardlib.geo.Mesh`.
 	"""
 	
-	# TODO: split into class for sites and class for grid?
-	
 	def __init__(self, lons=None, lats=None, depths=None, sites=None, names=None, grid_outline=None, grid_spacing=None):
 		"""
 		SiteModel is initiated by (1) lons and lats (and depths), (2) sites (and names) or (3) grid outline and grid spacing. Priority is given in this order.
@@ -127,13 +125,13 @@ class SHASiteModel(nhlib.geo.Mesh):
 			or str, grid spacing in km (string must end with "km")
 			(default: None)
 		"""
-		if lons != None and lats != None: ## (1) lons and lats (and depths)
+		if lons and lats: ## (1) lons and lats (and depths)
 			super(SHASiteModel, self).__init__(lons, lats, depths)
 			self.sites = None
 			self.names = None
 			self.grid_outline = None
 			self.grid_spacing = None
-		elif sites != None: ## (2) sites (and names)
+		elif sites: ## (2) sites (and names)
 			assert names == None or len(names) == len(sites)
 			self.names = names
 			self._set_sites(sites)
@@ -186,21 +184,21 @@ class SHASiteModel(nhlib.geo.Mesh):
 		Sets grid_outline.
 		"""
 		if len(grid_outline) < 2:
-			raise Exception("")
+			raise Exception("grid_outline must contain 2 points at least")
 		elif len(grid_outline) == 2:
 			llc, urc = grid_outline
 			lrc = (urc[0], llc[1])
 			ulc = (llc[0], urc[1])
-			self.grid_outline = np.array([llc, lrc, urc, ulc])
+			self.grid_outline = [llc, lrc, urc, ulc]
 		elif len(grid_outline) == 4 and isinstance(grid_outline[0], (int, float)):
 			w, e, s, n = grid_outline
 			llc = (w, s)
 			lrc = (e, s)
 			urc = (e, n)
 			ulc = (w, n)
-			self.grid_outline = np.array([llc, lrc, urc, ulc])
+			self.grid_outline = [llc, lrc, urc, ulc]
 		else:
-			self.grid_outline = np.array([(site[0], site[1]) for site in grid_outline])
+			self.grid_outline = [(site[0], site[1]) for site in grid_outline]
 	
 	def _set_grid_spacing(self, grid_spacing):
 		"""
@@ -222,8 +220,8 @@ class SHASiteModel(nhlib.geo.Mesh):
 			self.lons = grid.lons
 			self.lats = grid.lats
 		else:
-			slons = seq(self.grid_outline[:,0].min(), self.grid_outline[:,0].max(), self.grid_spacing[0])
-			slats = seq(self.grid_outline[:,1].min(), self.grid_outline[:,1].max(), self.grid_spacing[1])
+			slons = seq(np.array(self.grid_outline)[:,0].min(), np.array(self.grid_outline)[:,0].max(), self.grid_spacing[0])
+			slats = seq(np.array(self.grid_outline)[:,1].min(), np.array(self.grid_outline)[:,1].max(), self.grid_spacing[1])
 			grid = np.dstack(np.meshgrid(slons, slats[::-1]))
 			self.lons = grid[:,:,0]
 			self.lats = grid[:,:,1]
