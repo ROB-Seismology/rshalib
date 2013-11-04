@@ -170,6 +170,10 @@ class OQ_Params(ConfigObj):
 		"""
 		for section_name in self.sections:
 			for key, value in self[section_name].items():
+				## Workaround to prevent validation failure when there is only 1 site
+				if section_name == "geometry" and key == "sites":
+					if not isinstance(value, list):
+						value = [value]
 				self.validator.check(self.configspec[section_name][key], value)
 		## The following doesn't work:
 		#return super(OQ_Params, self).validate(self.validator, preserve_errors=True)
@@ -249,7 +253,7 @@ class OQ_Params(ConfigObj):
 				else:
 					lon, lat = point[:2]
 				self["geometry"]["sites"].append(" ".join(map(str, (lon, lat))))
-			## Prevent trailing comma if there is only 1 site
+			## Workaround to prevent trailing comma if there is only 1 site
 			if len(self["geometry"]["sites"]) == 1:
 				self["geometry"]["sites"] = self["geometry"]["sites"][0]
 			## Remove grid parameters if necessary
