@@ -65,7 +65,7 @@ class PSHAModelBase(SHAModelBase):
 		"""
 		"""
 		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, truncation_level)
-		
+
 		self.output_dir = output_dir
 		self.imt_periods = imt_periods
 		self.intensities = intensities
@@ -406,7 +406,7 @@ class PSHAModel(PSHAModelBase):
 			grid_spacing_km = self._get_grid_spacing_km()
 			params.set_grid_or_sites(grid_outline=self.sha_site_model.grid_outline, grid_spacing=grid_spacing_km)
 		else:
-			params.set_grid_or_sites(sites=self.sha_site_model.sites)
+			params.set_grid_or_sites(sites=self.sha_site_model.get_sites())
 
 		## write nrml file for source model
 		self.source_model.write_xml(os.path.join(self.output_dir, self.source_model.name + '.xml'))
@@ -879,7 +879,7 @@ class PSHAModelTree(PSHAModelBase):
 			grid_spacing_km = self._get_grid_spacing_km()
 			params.set_grid_or_sites(grid_outline=self.sha_site_model.grid_outline, grid_spacing=grid_spacing_km)
 		else:
-			params.set_grid_or_sites(sites=self.sha_site_model.sites)
+			params.set_grid_or_sites(sites=self.sha_site_model.get_sites())
 
 		## write nrml files for source models
 		for source_model in self.source_models:
