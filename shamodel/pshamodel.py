@@ -21,8 +21,8 @@ from ..geo import *
 from ..site import *
 from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, ProbabilityMatrix, DeaggregationSlice
 from ..logictree import GroundMotionSystem, SeismicSourceSystem
-from ..crisis.IO import writeCRISIS2007
-from ..openquake.config import OQ_Params
+from ..crisis import writeCRISIS2007
+from ..openquake import OQ_Params
 from ..source import SourceModel
 
 
