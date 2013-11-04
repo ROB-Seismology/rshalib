@@ -1,146 +1,151 @@
 """
+:mod:`rshalib.source.smoothed_seismicity` exports :class:`SmoothedSeismicity`
 """
 
 
-import matplotlib
+#import matplotlib
 import numpy as np
 import ogr
-import osr
+#import osr
 
 from scipy.stats import norm
 
-from openquake.hazardlib.geo.geodetic import geodetic_distance, point_at
+#from openquake.hazardlib.geo.geodetic import geodetic_distance, point_at
 
 from eqcatalog.calcGR import calcGR_Weichert
 from eqcatalog.source_models import read_source_model, rob_source_models_dict
 from hazard.rshalib.geo import Point
 from hazard.rshalib.mfd import EvenlyDiscretizedMFD, TruncatedGRMFD
 from hazard.rshalib.source import PointSource, SourceModel
-from mapping.Basemap.LayeredBasemap import *
-from mapping.Basemap.cm.norm import PiecewiseLinearNorm
-from mapping.geo.coordtrans import wgs84, get_utm_spec, get_utm_srs
+#from mapping.Basemap.LayeredBasemap import *
+#from mapping.Basemap.cm.norm import PiecewiseLinearNorm
+#from mapping.geo.coordtrans import wgs84, get_utm_spec, get_utm_srs
 
 
-class Grid(object):
-	"""
-	"""
+from hazard.rshalib.site import SHASiteModel
+
+
+#class Grid(object):
+#	"""
+#	"""
 	
-	def __init__(self, region, dlon, dlat):
-		"""
-		"""
-		assert (region[1] - region[0]) / dlon == round((region[1] - region[0]) / dlon)
-		assert (region[3] - region[2]) / dlat == round((region[3] - region[2]) / dlat)
-		self.dlon = dlon
-		self.dlat = dlat
-		self.slons = sequence(region[0] + self.dlon / 2., region[1], self.dlon)
-		self.slats = sequence(region[2] + self.dlat / 2., region[3], self.dlat)
-		self.region = (
-			region[0],
-			self.slons[-1] + self.dlon / 2.,
-			region[2],
-			self.slats[-1] + self.dlat / 2.
-			)
-		self.shape = (len(self.slats), len(self.slons))
-		grid = np.dstack(np.meshgrid(self.slons, self.slats[::-1]))
-		self.lons = grid[:,:,0]
-		self.lats = grid[:,:,1]
+#	def __init__(self, region, dlon, dlat):
+#		"""
+#		"""
+#		assert (region[1] - region[0]) / dlon == round((region[1] - region[0]) / dlon)
+#		assert (region[3] - region[2]) / dlat == round((region[3] - region[2]) / dlat)
+#		self.dlon = dlon
+#		self.dlat = dlat
+#		self.slons = sequence(region[0] + self.dlon / 2., region[1], self.dlon)
+#		self.slats = sequence(region[2] + self.dlat / 2., region[3], self.dlat)
+#		self.region = (
+#			region[0],
+#			self.slons[-1] + self.dlon / 2.,
+#			region[2],
+#			self.slats[-1] + self.dlat / 2.
+#			)
+#		self.shape = (len(self.slats), len(self.slons))
+#		grid = np.dstack(np.meshgrid(self.slons, self.slats[::-1]))
+#		self.lons = grid[:,:,0]
+#		self.lats = grid[:,:,1]
 	
-	def __len__(self):
-		"""
-		:return:
-			int, len of grid sites
-		"""
-		return np.prod(self.shape)
+#	def __len__(self):
+#		"""
+#		:return:
+#			int, len of grid sites
+#		"""
+#		return np.prod(self.shape)
 	
-	def __iter__(self):
-		"""
-		:return:
-			iterable over (lon, lat) of grid sites
-		"""
-		for i in np.ndindex(self.shape):
-			yield (self.lons[i], self.lats[i])
+#	def __iter__(self):
+#		"""
+#		:return:
+#			iterable over (lon, lat) of grid sites
+#		"""
+#		for i in np.ndindex(self.shape):
+#			yield (self.lons[i], self.lats[i])
 	
-	def __getitem__(self, i):
-		"""
-		:param i:
-			index of grid site
+#	def __getitem__(self, i):
+#		"""
+#		:param i:
+#			index of grid site
 		
-		:return:
-			(float, float) tuple, (lon, lat) of site
-		"""
-		return self.lons[i], self.lats[i]
+#		:return:
+#			(float, float) tuple, (lon, lat) of site
+#		"""
+#		return self.lons[i], self.lats[i]
 	
-	def get_distances(self, lon, lat):
-		"""
-		Get distances of grid sites to site.
+#	def get_distances(self, lon, lat):
+#		"""
+#		Get distances of grid sites to site.
 		
-		:param lon:
-			float, lon of site
-		:param lat:
-			float, lat of site
+#		:param lon:
+#			float, lon of site
+#		:param lat:
+#			float, lat of site
 		
-		:return:
-			2d np.array (~ self.shape), distances in km
-		"""
-		return geodetic_distance(self.lons, self.lats, lon, lat)
+#		:return:
+#			2d np.array (~ self.shape), distances in km
+#		"""
+#		return geodetic_distance(self.lons, self.lats, lon, lat)
 	
-	def get_index(self, lon, lat):
-		"""
-		Get index of grid site.
+#	def get_index(self, lon, lat):
+#		"""
+#		Get index of grid site.
 		
-		:param lon:
-			float, lon of site
-		:param lat:
-			float, lat of site
+#		:param lon:
+#			float, lon of site
+#		:param lat:
+#			float, lat of site
 		
-		:return:
-			(int, int) tuple
-		"""
-		return np.unravel_index(self.get_distances(lon, lat).argmin(), self.shape)
+#		:return:
+#			(int, int) tuple
+#		"""
+#		return np.unravel_index(self.get_distances(lon, lat).argmin(), self.shape)
 	
-	def get_area(self):
-		"""
-		Get area of region.
+#	def get_area(self):
+#		"""
+#		Get area of region.
 		
-		:return:
-			float, area in square km
-		"""
-		wgs84 = osr.SpatialReference()
-		wgs84.SetWellKnownGeogCS("WGS84")
-		ring = ogr.Geometry(ogr.wkbLinearRing)
-		poly = ogr.Geometry(ogr.wkbPolygon)
-		w, e, s, n = self.region
-		ring.AddPoint(w, s)
-		ring.AddPoint(e, s)
-		ring.AddPoint(e, n)
-		ring.AddPoint(w, n)
-		ring.AddPoint(w, s)
-		poly.AssignSpatialReference(wgs84)
-		poly.AddGeometry(ring)
-		centroid = poly.Centroid()
-		coordTrans = osr.CoordinateTransformation(wgs84, get_utm_srs(get_utm_spec(centroid.GetX(), centroid.GetY())))
-		poly.Transform(coordTrans)
-		area = poly.GetArea() / 1E6
-		return area
+#		:return:
+#			float, area in square km
+#		"""
+#		wgs84 = osr.SpatialReference()
+#		wgs84.SetWellKnownGeogCS("WGS84")
+#		ring = ogr.Geometry(ogr.wkbLinearRing)
+#		poly = ogr.Geometry(ogr.wkbPolygon)
+#		w, e, s, n = self.region
+#		ring.AddPoint(w, s)
+#		ring.AddPoint(e, s)
+#		ring.AddPoint(e, n)
+#		ring.AddPoint(w, n)
+#		ring.AddPoint(w, s)
+#		poly.AssignSpatialReference(wgs84)
+#		poly.AddGeometry(ring)
+#		centroid = poly.Centroid()
+#		coordTrans = osr.CoordinateTransformation(wgs84, get_utm_srs(get_utm_spec(centroid.GetX(), centroid.GetY())))
+#		poly.Transform(coordTrans)
+#		area = poly.GetArea() / 1E6
+#		return area
 
 
 class SmoothedSeismicity(object):
 	"""
 	"""
 	
-	# automate grid_region
-	
-	def __init__(self, region, dlon, dlat, catalog, min_mag, dmag, smoothing_kernel, smoothing_number, smoothing_bandwidth, smoothing_limit):
-#		"""
-#		"""
-		self.grid = Grid(region, dlon, dlat)
+	def __init__(self, grid_outline, grid_spacing, catalog, min_mag, dmag, smoothing_kernel, smoothing_number, smoothing_bandwidth, smoothing_limit):
+		"""
+		"""
+		self.grid = SHASiteModel(
+			grid_outline=grid_outline,
+			grid_spacing=grid_spacing,
+			)
 		self.catalog = catalog
 		self.min_mag = min_mag or self.catalog.completeness.min_mag
 		self.dmag = dmag
 		self._set_mag_bins()
 		self.shape = (
-			self.grid.shape[0],
-			self.grid.shape[1],
+			len(self.grid.slats),
+			len(self.grid.slons),
 			len(self.mag_bins)
 			)
 		self.smoothing_kernel = smoothing_kernel
@@ -176,24 +181,24 @@ class SmoothedSeismicity(object):
 		else:
 			self.smoothing_bandwidths = None
 	
-#	def _validate_smoothed_region(self):
-#		"""
-#		"""
-#		for i in xrange(len(self.catalog)):
-#			lon = self.catalog.lons[i]
-#			lat = self.catalog.lats[i]
-#			if self.smoothing_number:
-#				smoothing_distance = self.smoothing_distances[i]
-#			else:
-#				smoothing_distance = self.smoothing_distance
-#			w = point_at(lon, lat, 270., smoothing_distance)[0]
-#			e = point_at(lon, lat, 090., smoothing_distance)[0]
-#			s = point_at(lon, lat, 180., smoothing_distance)[1]
-#			n = point_at(lon, lat, 000., smoothing_distance)[1]
-#			assert self.grid.region[0] < w or np.allclose(self.grid.region[0], w)
-#			assert self.grid.region[1] > e or np.allclose(self.grid.region[1], e)
-#			assert self.grid.region[2] < s or np.allclose(self.grid.region[2], s)
-#			assert self.grid.region[3] > n or np.allclose(self.grid.region[3], n)
+##	def _validate_smoothed_region(self):
+##		"""
+##		"""
+##		for i in xrange(len(self.catalog)):
+##			lon = self.catalog.lons[i]
+##			lat = self.catalog.lats[i]
+##			if self.smoothing_number:
+##				smoothing_distance = self.smoothing_distances[i]
+##			else:
+##				smoothing_distance = self.smoothing_distance
+##			w = point_at(lon, lat, 270., smoothing_distance)[0]
+##			e = point_at(lon, lat, 090., smoothing_distance)[0]
+##			s = point_at(lon, lat, 180., smoothing_distance)[1]
+##			n = point_at(lon, lat, 000., smoothing_distance)[1]
+##			assert self.grid.region[0] < w or np.allclose(self.grid.region[0], w)
+##			assert self.grid.region[1] > e or np.allclose(self.grid.region[1], e)
+##			assert self.grid.region[2] < s or np.allclose(self.grid.region[2], s)
+##			assert self.grid.region[3] > n or np.allclose(self.grid.region[3], n)
 	
 	def _smooth(self):
 		"""
@@ -205,7 +210,7 @@ class SmoothedSeismicity(object):
 			lon = self.catalog.lons[i]
 			lat = self.catalog.lats[i]
 			mag = self.catalog.mags[i]
-			distances = self.grid.get_distances(lon, lat)
+			distances = self.grid.get_geographic_distances(lon, lat)
 			if self.smoothing_number:
 				smoothing_bandwidth = self.smoothing_bandwidths[i]
 			if self.smoothing_limit:
@@ -282,7 +287,7 @@ class SmoothedSeismicity(object):
 			mag_bins = sequence(self.min_mag, self.max_mags[i], self.dmag)
 			zeros = np.zeros((len(mag_bins) - len(inc_occs)))
 			inc_occs = np.concatenate((inc_occs, zeros))
-			a_val, _, _ = calcGR_Weichert(mag_bins, inc_occs, completeness, end_date, self.b_vals[i], False)
+			a_val, _, _, _ = calcGR_Weichert(mag_bins, inc_occs, completeness, end_date, self.b_vals[i], False)
 			return a_val
 		else:
 			return np.nan
@@ -332,10 +337,10 @@ class SmoothedSeismicity(object):
 		else:
 			return None
 	
-	def get_mfd_johnston(self, max_mag, region="europe"):
-		"""
-		"""
-		return TruncatedGRMFD.construct_Johnston1994MFD(self.min_mag, max_mag, self.dmag, self.grid.get_area(), region)
+#	def get_mfd_johnston(self, max_mag, region="europe"):
+#		"""
+#		"""
+#		return TruncatedGRMFD.construct_Johnston1994MFD(self.min_mag, max_mag, self.dmag, self.grid.get_area(), region)
 	
 	def get_total_mfd_obs(self):
 		"""
@@ -417,43 +422,43 @@ class SmoothedSeismicity(object):
 				point_sources.append(PointSource(id, name, trt, mfd, rms, msr, rar, usd, lsd, point, npd, hdd))
 		return SourceModel(source_model_name, point_sources)
 	
-	def plot_map(self, data=None, grid=None, catalog=None, builtin=True, region=None, title="", label="", fig_filespec=""):
-		"""
-		"""
-		map_layers = []
-		if data != None:
-			dd = GridData(self.grid.lons, self.grid.lats[::-1], data[::-1])
-#			vmin = np.nanmin(data)
-#			vmax = np.nanmax(data)
-#			norm = PiecewiseLinearNorm([-2.0, +2.0])
-			ds = GridStyle(
-#				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label, ticks=[-2.0, -1.6, -1.2, -0.8, -0.4, 0.0, 0.4, 0.8, 1.2, 1.6, 2.0])),
-				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label, ticks=sequence(-4., 1.6, 0.4))),
-#				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label)),
-				color_gradient="discontinuous",
-#				contour_levels=[-2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
-#				contour_levels=[-3.0, -2.8, -2.6, -2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+#	def plot_map(self, data=None, grid=None, catalog=None, builtin=True, region=None, title="", label="", fig_filespec=""):
+#		"""
+#		"""
+#		map_layers = []
+#		if data != None:
+#			dd = GridData(self.grid.lons, self.grid.lats[::-1], data[::-1])
+##			vmin = np.nanmin(data)
+##			vmax = np.nanmax(data)
+##			norm = PiecewiseLinearNorm([-2.0, +2.0])
+#			ds = GridStyle(
+##				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label, ticks=[-2.0, -1.6, -1.2, -0.8, -0.4, 0.0, 0.4, 0.8, 1.2, 1.6, 2.0])),
+#				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label, ticks=sequence(-6.2, -0.6, 0.4))),
+##				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label)),
+#				color_gradient="discontinuous",
+##				contour_levels=[-2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+##				contour_levels=[-3.0, -2.8, -2.6, -2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 #				contour_levels=sequence(-6.2, -0.6, 0.2)
-				contour_levels=sequence(-4., 1.6, 0.2)
-				)
-			map_layers.append(MapLayer(dd, ds))
-		if grid:
-			gd = MultiPointData(self.grid.lons, self.grid.lats)
-			gs = PointStyle(shape='.', size=5, line_color='k', fill_color='k')
-			map_layers.append(MapLayer(gd, gs))
-		if catalog:
-			cd = MultiPointData(self.catalog.lons, self.catalog.lats)
-			cs = PointStyle(shape='.', size=5, line_color='r', fill_color='r')
-			map_layers.append(MapLayer(cd, cs))
-		if builtin:
-			coastline_layer = MapLayer(style=LineStyle(), data=BuiltinData("coastlines"))
-			countries_layer = MapLayer(style=LineStyle(), data=BuiltinData("countries" ))
-			map_layers.extend([coastline_layer, countries_layer])
-		region = region or self.grid.region
-		map = LayeredBasemap(layers=map_layers, region=region, projection="merc", resolution="i", title=title, legend_style=LegendStyle())
-		map.plot(
-			fig_filespec=fig_filespec
-			)
+##				contour_levels=sequence(-4., 1.6, 0.2)
+#				)
+#			map_layers.append(MapLayer(dd, ds))
+#		if grid:
+#			gd = MultiPointData(self.grid.lons, self.grid.lats)
+#			gs = PointStyle(shape='.', size=5, line_color='k', fill_color='k')
+#			map_layers.append(MapLayer(gd, gs))
+#		if catalog:
+#			cd = MultiPointData(self.catalog.lons, self.catalog.lats)
+#			cs = PointStyle(shape='.', size=5, line_color='r', fill_color='r')
+#			map_layers.append(MapLayer(cd, cs))
+#		if builtin:
+#			coastline_layer = MapLayer(style=LineStyle(), data=BuiltinData("coastlines"))
+#			countries_layer = MapLayer(style=LineStyle(), data=BuiltinData("countries" ))
+#			map_layers.extend([coastline_layer, countries_layer])
+#		region = region or self.grid.region
+#		map = LayeredBasemap(layers=map_layers, region=region, projection="merc", resolution="i", title=title, legend_style=LegendStyle())
+#		map.plot(
+#			fig_filespec=fig_filespec
+#			)
 
 
 def sequence(min, max, step):
@@ -479,8 +484,8 @@ def sequence(min, max, step):
 	return np.array(sequence)
 
 
-if __name__ == "__main__":
-	"""
-	"""
-	pass
+#if __name__ == "__main__":
+#	"""
+#	"""
+#	pass
 
