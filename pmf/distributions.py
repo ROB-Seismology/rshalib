@@ -557,7 +557,7 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4, cent
 	mean = (min + max) / 2.
 	if val_range == 0. or num_bins == 1.:
 		bin_centers = [mean]
-		weights = [np.Decimal(1)]
+		weights = [Decimal(1)]
 	else:
 		# Assume value range corresponds to +/- sigma_range
 		sigma = val_range / (sigma_range * 2)
