@@ -113,7 +113,7 @@ class NumericPMF(PMF):
 		percentile_intercepts = interpolate(cdf, values, percentiles)
 		return percentile_intercepts
 
-	def rebin_equal_weight(self, bin_width, num_bins=5, precision=6):
+	def rebin_equal_weight(self, bin_width, num_bins=5, precision=4):
 		"""
 		Rebin PMF into bins with (approximately) equal weight,
 		such that bin values are a multiple of bin_width
@@ -124,7 +124,7 @@ class NumericPMF(PMF):
 		:param num_bins:
 			Int, number of bins in output PMF
 		:param precision:
-			Integer, decimal precision of weights (default: 6)
+			Integer, decimal precision of weights (default: 4)
 
 		:return:
 			instance of :class:`PMF` or subclass
@@ -368,7 +368,7 @@ class NodalPlaneDistribution(PMF):
 		"""
 		print "Strike Dip Rake Weight"
 		for nodal_plane, weight in zip(self.nodal_planes, self.weights):
-			print "   %3d  %2d %4d %.4f" % (nodal_plane.strike, nodal_plane.dip, nodal_plane.rake, weight)
+			print "   %3d  %2d %4d %s" % (nodal_plane.strike, nodal_plane.dip, nodal_plane.rake, weight)
 
 
 class HypocentralDepthDistribution(PMF):
@@ -449,10 +449,31 @@ class HypocentralDepthDistribution(PMF):
 		"""
 		print "Depth Weight"
 		for depth, weight in zip(self.hypo_depths, self.weights):
-			print "%5.2f %.4f" % (depth, weight)
+			print "%5.2f %s" % (depth, weight)
 
 
-def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
+def adjust_decimal_weights(weights, precision=4):
+	"""
+	Ensure weights add up exactly to 1 by, if necessary, modifying
+	the last weight in the list
+
+	:param weights:
+		list or array of decimal weights
+	:param precision:
+		Integer, decimal precision of weights (default: 4)
+
+	:return:
+		list or array of decimal weights
+	"""
+	decimal.getcontext().prec = precision
+	quantize_str = '0.' + '0' * precision
+	weights = [w.quantize(Decimal(quantize_str), rounding=decimal.ROUND_HALF_EVEN) for w in weights]
+	if sum(weights) != 1:
+		weights[-1] = Decimal(1) - sum(weights[:-1])
+	return weights
+
+
+def create_nodal_plane_distribution(strike_range, dip_range, rake_range, precision=4):
 	"""
 	Generate a uniform nodal plane distribution from strike, dip, and rake
 	ranges.
@@ -466,6 +487,8 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 	:param rake_range:
 		- Tuple (min_rake, max_rake, delta_rake) in degrees
 		- Single rake value (integer or float)
+	:param precision:
+		Integer, decimal precision of weights (default: 4)
 
 	:return:
 		instance of :class:`NodalPlaneDistribution`
@@ -474,7 +497,7 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 		strikes, strike_weights = [strike_range], [Decimal(1.0)]
 	elif len(strike_range) == 3:
 		min_strike, max_strike, delta_strike = strike_range
-		strikes, strike_weights = get_uniform_distribution(min_strike, max_strike, delta_strike)
+		strikes, strike_weights = get_uniform_distribution(min_strike, max_strike, delta_strike, precision=precision*2)
 	else:
 		raise Exception("strike_range tuple must contain 3 elements: min, max, and delta.")
 
@@ -482,7 +505,7 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 		dips, dip_weights = [dip_range], [Decimal(1.0)]
 	elif len(dip_range) == 3:
 		min_dip, max_dip, delta_dip = dip_range
-		dips, dip_weights = get_uniform_distribution(min_dip, max_dip, delta_dip)
+		dips, dip_weights = get_uniform_distribution(min_dip, max_dip, delta_dip, precision=precision*2)
 	else:
 		raise Exception("dip_range tuple must contain 3 elements: min, max, and delta.")
 
@@ -490,7 +513,7 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 		rakes, rake_weights = [rake_range], [Decimal(1.0)]
 	elif len(rake_range) == 3:
 		min_rake, max_rake, delta_rake = rake_range
-		rakes, rake_weights = get_uniform_distribution(min_rake, max_rake, delta_rake)
+		rakes, rake_weights = get_uniform_distribution(min_rake, max_rake, delta_rake, precision=precision*2)
 	else:
 		raise Exception("rake_range tuple must contain 3 elements: min, max, and delta.")
 
@@ -500,11 +523,12 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 			for rake, rake_weight in zip(rakes, rake_weights):
 				nodal_planes.append(NodalPlane(strike, dip, rake))
 				nodal_plane_weights.append(strike_weight * rake_weight * dip_weight)
+	nodal_plane_weights = adjust_decimal_weights(nodal_plane_weights, precision)
 
 	return NodalPlaneDistribution(nodal_planes, nodal_plane_weights)
 
 
-def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=6, centers=True):
+def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4, centers=True):
 	"""
 	Get normal distribution with bin centers as values.
 
@@ -517,7 +541,7 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=6, cent
 	:param sigma_range:
 		Sigma range for distribution between min and max values (Default: 2).
 	:param precision:
-		Integer, decimal precision of weights (default: 6)
+		Integer, decimal precision of weights (default: 4)
 	:param centers:
 		Bool, whether min and max are to be considered as bin centers
 		(True) or bin edges (False)
@@ -533,7 +557,7 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=6, cent
 	mean = (min + max) / 2.
 	if val_range == 0. or num_bins == 1.:
 		bin_centers = [mean]
-		weights = [1.]
+		weights = [np.Decimal(1)]
 	else:
 		# Assume value range corresponds to +/- sigma_range
 		sigma = val_range / (sigma_range * 2)
@@ -553,12 +577,11 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=6, cent
 		weights = np.array([Decimal(w) for w in weights])
 		weights /= sum(weights)
 		## Ensure sum == 1
-		if sum(weights) != 1.0:
-			weights[-1] = Decimal(1.0) - sum(weights[:-1])
+		weights = adjust_decimal_weights(weights, precision)
 	return bin_centers, weights
 
 
-def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2, precision=6):
+def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2, precision=4):
 	"""
 	Get normal distribution with bin edges as values.
 
@@ -571,7 +594,7 @@ def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2, precisi
 	:param sigma_range:
 		Sigma range for distribution between min and max values (Default: 2).
 	:param precision:
-		Integer, decimal precision of weights (default: 6)
+		Integer, decimal precision of weights (default: 4)
 
 	:return:
 		tuple (values, weights)
@@ -588,12 +611,11 @@ def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2, precisi
 	weights /= sum(weights)
 
 	## Ensure sum == 1
-	if sum(weights) != 1.0:
-		weights[-1] = 1 - sum(weights[:-1])
+	weights = adjust_decimal_weights(weights, precision)
 	return bin_edges, weights
 
 
-def get_uniform_distribution(min, max, delta, precision=6):
+def get_uniform_distribution(min, max, delta, precision=4):
 	"""
 	Get uniform distribution.
 
@@ -604,7 +626,7 @@ def get_uniform_distribution(min, max, delta, precision=6):
 	:param delta:
 		Float for step between distribution values.
 	:param precision:
-		Integer, decimal precision of weights (default: 6)
+		Integer, decimal precision of weights (default: 4)
 
 	:return:
 		tuple (values, weights)
@@ -622,14 +644,14 @@ def get_uniform_distribution(min, max, delta, precision=6):
 	return values, weights
 
 
-def get_uniform_weights(num_weights, precision=6):
+def get_uniform_weights(num_weights, precision=4):
 	"""
 	Get uniform weights.
 
 	:param num_weights:
 		Integer, number of weights.
 	:param precision:
-		Integer, decimal precision (default: 6)
+		Integer, decimal precision (default: 4)
 
 	:return:
 		Numpy array (length equal to num_weights) of equal weights summing up to 1.0.
@@ -638,10 +660,8 @@ def get_uniform_weights(num_weights, precision=6):
 	weights = np.array([Decimal(1) for i in range(num_weights)])
 	weights /= Decimal(num_weights)
 
-	## Kludge, because it is simply not possible to generate uniform weights
-	## for 3 items that sum up to 1.0 ...
-	if sum(weights) != 1.0:
-		weights[-1] = 1 - sum(weights[:-1])
+	## Ensure sum == 1
+	weights = adjust_decimal_weights(weights, precision)
 	return weights
 
 
