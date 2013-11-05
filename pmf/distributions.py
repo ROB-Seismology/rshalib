@@ -465,11 +465,13 @@ def adjust_decimal_weights(weights, precision=4):
 	:return:
 		list or array of decimal weights
 	"""
-	decimal.getcontext().prec = precision
-	quantize_str = '0.' + '0' * precision
-	weights = [w.quantize(Decimal(quantize_str), rounding=decimal.ROUND_HALF_EVEN) for w in weights]
-	if sum(weights) != 1:
-		weights[-1] = Decimal(1) - sum(weights[:-1])
+	if len(weights) > 1:
+		## quantize fails if weight = 1 (precision != number of decimal digits)
+		decimal.getcontext().prec = precision
+		quantize_str = '0.' + '0' * precision
+		weights = [w.quantize(Decimal(quantize_str), rounding=decimal.ROUND_HALF_EVEN) for w in weights]
+		if sum(weights) != 1:
+			weights[-1] = Decimal(1) - sum(weights[:-1])
 	return weights
 
 
