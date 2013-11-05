@@ -120,6 +120,7 @@ class SeismicSourceSystem(LogicTree):
 		"""
 		Construct lists of branch ID's in each branching level for each
 		root branch.
+		Requires branches to be connected (see :meth:`connect_branches`)
 
 		:return:
 			dict, mapping root branch ID to a list of sets containing
@@ -129,16 +130,21 @@ class SeismicSourceSystem(LogicTree):
 		for root_branch in self.root_branchset:
 			sm_name = os.path.splitext(root_branch.value)[0]
 			bl_branch_ids[sm_name] = [set([root_branch.branch_id])]
-			branchset = root_branch.child_branchset
-			# TODO: modify following loop, eliminating enumerate_paths function!
-			if branchset:
-				for weight, path in branchset.enumerate_paths():
-					for bl_index in range(1, len(path)+1):
-						branch_index = path[bl_index-1].branch_id
-						try:
-							bl_branch_ids[sm_name][bl_index].add(branch_index)
-						except IndexError:
-							bl_branch_ids[sm_name].append(set([branch_index]))
+
+		for prev_bl_index, branching_level in enumerate(self.branching_levels[1:]):
+			bl_index = prev_bl_index + 1
+			for branchset in branching_level.branch_sets:
+				branch_ids = [branch.branch_id for branch in branchset.branches]
+				parent_branches = self.get_parent_branches(branchset)
+				for sm_name in bl_branch_ids.keys():
+					if len(bl_branch_ids[sm_name]) == bl_index:
+						for parent_branch in parent_branches:
+							if parent_branch.branch_id in bl_branch_ids[sm_name][prev_bl_index]:
+								try:
+									bl_branch_ids[sm_name][bl_index].update(branch_ids)
+								except IndexError:
+									bl_branch_ids[sm_name].append(set(branch_ids))
+
 		return bl_branch_ids
 
 	def set_root_uncertainty_level(self, source_model_pmf, overwrite=False):
