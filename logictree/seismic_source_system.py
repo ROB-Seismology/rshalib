@@ -240,14 +240,15 @@ class SeismicSourceSystem(LogicTree):
 						bl_branch_ids[prev_level_sm_name].append(set([branch.branch_id for branch in branch_set]))
 			else:
 				## Source model specified
-				## If other source models have same branch ID's in last
-				## branching level, then it means source model was None
-				## in previous branching level
-				bl_other_end_branch_ids = [bl_branch_ids[key][-1] for key in source_model_names if not key == sm_name]
-				bl_end_branch_ids = bl_branch_ids[sm_name][-1]
-				if len(bl_end_branch_ids.difference(*bl_other_end_branch_ids)) < len(bl_other_end_branch_ids):
-					raise Exception("Not possible to connect source model %s" % sm_name)
 				last_branching_level_nr = len(bl_branch_ids[sm_name])
+				if last_branching_level_nr > 1:
+					## If other source models have same branch ID's in last
+					## branching level, then it means source model was None
+					## in previous branching level
+					bl_other_end_branch_ids = [bl_branch_ids[key][-1] for key in source_model_names if not key == sm_name]
+					bl_end_branch_ids = bl_branch_ids[sm_name][-1]
+					if len(bl_end_branch_ids.difference(*bl_other_end_branch_ids)) < len(bl_other_end_branch_ids):
+						raise Exception("Not possible to connect source model %s" % sm_name)
 				sm_index = source_model_names.index(sm_name)
 				if correlated == True:
 					## Correlated uncertainties
@@ -302,8 +303,11 @@ class SeismicSourceSystem(LogicTree):
 	@classmethod
 	def from_independent_uncertainty_levels(cls, sss_id, source_model_pmf, unc2_pmf_dict, unc3_pmf_dict, unc2_correlated=False, unc3_correlated=False):
 		source_model_lt = SeismicSourceSystem(sss_id, None)
+		print("Setting root uncertainty level")
 		source_model_lt.set_root_uncertainty_level(source_model_pmf)
+		print("Appending second uncertainty level")
 		source_model_lt.append_independent_uncertainty_level(unc2_pmf_dict, correlated=unc2_correlated)
+		print("Appending third uncertainty level")
 		#assert unc2_pmf_dict.keys() != [None], "If sources are specified, then source model must be specified in the previous uncertainty level"
 		source_model_lt.append_independent_uncertainty_level(unc3_pmf_dict, correlated=unc3_correlated)
 		return source_model_lt
