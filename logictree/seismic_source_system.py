@@ -130,6 +130,7 @@ class SeismicSourceSystem(LogicTree):
 			sm_name = os.path.splitext(root_branch.value)[0]
 			bl_branch_ids[sm_name] = [set([root_branch.branch_id])]
 			branchset = root_branch.child_branchset
+			# TODO: modify following loop, eliminating enumerate_paths function!
 			if branchset:
 				for weight, path in branchset.enumerate_paths():
 					for bl_index in range(1, len(path)+1):
@@ -305,11 +306,13 @@ class SeismicSourceSystem(LogicTree):
 		source_model_lt = SeismicSourceSystem(sss_id, None)
 		print("Setting root uncertainty level")
 		source_model_lt.set_root_uncertainty_level(source_model_pmf)
-		print("Appending second uncertainty level")
-		source_model_lt.append_independent_uncertainty_level(unc2_pmf_dict, correlated=unc2_correlated)
-		print("Appending third uncertainty level")
-		#assert unc2_pmf_dict.keys() != [None], "If sources are specified, then source model must be specified in the previous uncertainty level"
-		source_model_lt.append_independent_uncertainty_level(unc3_pmf_dict, correlated=unc3_correlated)
+		if unc2_pmf_dict:
+			print("Appending second uncertainty level")
+			source_model_lt.append_independent_uncertainty_level(unc2_pmf_dict, correlated=unc2_correlated)
+		if unc3_pmf_dict:
+			print("Appending third uncertainty level")
+			#assert unc2_pmf_dict.keys() != [None], "If sources are specified, then source model must be specified in the previous uncertainty level"
+			source_model_lt.append_independent_uncertainty_level(unc3_pmf_dict, correlated=unc3_correlated)
 		return source_model_lt
 
 	## Note: in the case of dependent uncertainties (e.g., MFD depends on Mmax),

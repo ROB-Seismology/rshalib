@@ -139,7 +139,6 @@ class NumericPMF(PMF):
 		for bin_edge_weight in np.linspace(1.0/num_bins, 1.0, num_bins):
 			index = np.argmin(np.abs(cumul_weights - bin_edge_weight))
 			bin_edge_indexes.add(index)
-			print index
 		bin_edge_indexes = sorted(bin_edge_indexes)
 
 		bin_edges = values[bin_edge_indexes]
