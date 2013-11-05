@@ -113,7 +113,7 @@ class NumericPMF(PMF):
 		percentile_intercepts = interpolate(cdf, values, percentiles)
 		return percentile_intercepts
 
-	def rebin_equal_weight(self, bin_width, num_bins=5, precision=4):
+	def rebin_equal_weight(self, bin_width, num_bins=5, precision=6):
 		"""
 		Rebin PMF into bins with (approximately) equal weight,
 		such that bin values are a multiple of bin_width
@@ -124,7 +124,7 @@ class NumericPMF(PMF):
 		:param num_bins:
 			Int, number of bins in output PMF
 		:param precision:
-			Integer, decimal precision of weights (default: 4)
+			Integer, decimal precision of weights (default: 6)
 
 		:return:
 			instance of :class:`PMF` or subclass
@@ -504,7 +504,7 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range):
 	return NodalPlaneDistribution(nodal_planes, nodal_plane_weights)
 
 
-def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4, centers=True):
+def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=6, centers=True):
 	"""
 	Get normal distribution with bin centers as values.
 
@@ -517,7 +517,7 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4, cent
 	:param sigma_range:
 		Sigma range for distribution between min and max values (Default: 2).
 	:param precision:
-		Integer, decimal precision of weights (default: 4)
+		Integer, decimal precision of weights (default: 6)
 	:param centers:
 		Bool, whether min and max are to be considered as bin centers
 		(True) or bin edges (False)
@@ -558,7 +558,7 @@ def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4, cent
 	return bin_centers, weights
 
 
-def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2, precision=4):
+def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2, precision=6):
 	"""
 	Get normal distribution with bin edges as values.
 
@@ -571,7 +571,7 @@ def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2, precisi
 	:param sigma_range:
 		Sigma range for distribution between min and max values (Default: 2).
 	:param precision:
-		Integer, decimal precision of weights
+		Integer, decimal precision of weights (default: 6)
 
 	:return:
 		tuple (values, weights)
@@ -593,7 +593,7 @@ def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2, precisi
 	return bin_edges, weights
 
 
-def get_uniform_distribution(min, max, delta, precision=4):
+def get_uniform_distribution(min, max, delta, precision=6):
 	"""
 	Get uniform distribution.
 
@@ -604,7 +604,7 @@ def get_uniform_distribution(min, max, delta, precision=4):
 	:param delta:
 		Float for step between distribution values.
 	:param precision:
-		Integer, decimal precision of weights
+		Integer, decimal precision of weights (default: 6)
 
 	:return:
 		tuple (values, weights)
@@ -622,14 +622,14 @@ def get_uniform_distribution(min, max, delta, precision=4):
 	return values, weights
 
 
-def get_uniform_weights(num_weights, precision=4):
+def get_uniform_weights(num_weights, precision=6):
 	"""
 	Get uniform weights.
 
 	:param num_weights:
 		Integer, number of weights.
 	:param precision:
-		Integer, decimal precision (default: 4)
+		Integer, decimal precision (default: 6)
 
 	:return:
 		Numpy array (length equal to num_weights) of equal weights summing up to 1.0.
