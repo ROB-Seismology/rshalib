@@ -21,7 +21,7 @@ from ..source import AreaSource, SimpleFaultSource, SourceModel
 #decimal.getcontext().prec = 4
 
 
-def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, column_map={}, source_catalogs={}, catalog_params={}, **kwargs):
+def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, column_map={}, source_catalogs={}, catalog_params={}, verbose=True, **kwargs):
 	"""
 	Create OQ/nhlib source model from one of the known ROB source models
 	(stored in MapInfo tables).
@@ -44,6 +44,8 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	:param catalog_params:
 		Dict, defining catalog parameters, in particular the keys
 		'Mtype', 'Mrelation', and 'completeness' (default: {})
+	:param verbose:
+		Boolean, whether or not to print information (default: True)
 	:param kwargs:
 		Keyword arguments supported by create_rob_area_source or
 		create_rob_simple_fault_source
@@ -55,7 +57,7 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	from mapping.geo.readGIS import read_GIS_file
 
 	rob_source_model = rob_source_models_dict[source_model_name]
-	source_records = read_GIS_file(rob_source_model['gis_filespec'])
+	source_records = read_GIS_file(rob_source_model['gis_filespec'], verbose=verbose)
 
 	## Override default column map
 	## Copy dict to avoid side effects in calling function
@@ -78,12 +80,12 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 		#		print("Discarding source %s: zero or negative b value" % source_id)
 		#else:
 		#	print("Discarding source %s: Mmax (%s) <= Mmin (%s)" % (source_id, max_mag, min_mag))
-		sources.append(create_rob_source(source_rec, column_map, mfd_bin_width=mfd_bin_width, catalog=source_catalog, catalog_params=catalog_params, **kwargs))
+		sources.append(create_rob_source(source_rec, column_map, mfd_bin_width=mfd_bin_width, catalog=source_catalog, catalog_params=catalog_params, verbose=verbose, **kwargs))
 	source_model = SourceModel(source_model_name, sources)
 	return source_model
 
 
-def create_rob_source(source_rec, column_map, catalog=None, catalog_params={}, **kwargs):
+def create_rob_source(source_rec, column_map, catalog=None, catalog_params={}, verbose=True, **kwargs):
 	"""
 	Create source from ROB GIS-data (MapInfo table record).
 	This is a wrapper function for create_rob_area_source and
@@ -99,6 +101,8 @@ def create_rob_source(source_rec, column_map, catalog=None, catalog_params={}, *
 	:param catalog_params:
 		Dict, defining catalog parameters, in particular the keys
 		'Mtype', 'Mrelation', and 'completeness' (default: {})
+	:param verbose:
+		Boolean, whether or not to print information (default: True)
 	:param kwargs:
 		Keyword arguments supported by create_rob_area_source or
 		create_rob_simple_fault_source
@@ -108,7 +112,7 @@ def create_rob_source(source_rec, column_map, catalog=None, catalog_params={}, *
 	"""
 	## Decide which function to use based on object type
 	function = {"POLYGON": create_rob_area_source, "LINESTRING": create_rob_simple_fault_source}[source_rec["obj"].GetGeometryName()]
-	return function(source_rec, column_map=column_map, catalog=catalog, catalog_params=catalog_params, **kwargs)
+	return function(source_rec, column_map=column_map, catalog=catalog, catalog_params=catalog_params, verbose=verbose, **kwargs)
 
 
 def create_rob_area_source(
@@ -128,6 +132,7 @@ def create_rob_area_source(
 	column_map={},
 	catalog=None,
 	catalog_params={},
+	verbose=True,
 	**kwargs
 	):
 	"""
@@ -168,9 +173,10 @@ def create_rob_area_source(
 	:param catalog_params:
 		Dict, defining catalog parameters, in particular the keys
 		'Mtype', 'Mrelation', and 'completeness' (default: {})
+	:param verbose:
+		Boolean, whether or not to print information (default: True)
 	:param kwargs:
 		Possible extra parameters that will be ignored
-
 	:return:
 		AreaSource object.
 	"""
@@ -182,7 +188,8 @@ def create_rob_area_source(
 	source_id = source_rec.get(column_map['id'], column_map['id'])
 	name = source_rec.get(column_map['name'], column_map['name'])
 	name = name.decode('latin1')
-	print source_id
+	if verbose:
+		print source_id
 
 	## Tectonic region type
 	tectonic_region_type = source_rec.get(column_map['tectonic_region_type'], column_map['tectonic_region_type'])
@@ -348,6 +355,7 @@ def create_rob_simple_fault_source(
 	column_map={},
 	catalog=None,
 	catalog_params={},
+	verbose=True,
 	**kwargs
 	):
 	"""
@@ -376,6 +384,8 @@ def create_rob_simple_fault_source(
 	:param catalog_params:
 		Dict, defining catalog parameters, in particular the keys
 		'Mtype', 'Mrelation', and 'completeness' (default: {})
+	:param verbose:
+		Boolean, whether or not to print information (default: True)
 	:param kwargs:
 		Possible extra parameters that will be ignored
 
@@ -386,7 +396,8 @@ def create_rob_simple_fault_source(
 	source_id = source_rec.get(column_map['id'], column_map['id'])
 	name = source_rec.get(column_map['name'], column_map['name'])
 	name = name.decode('latin1')
-	print source_id
+	if verbose:
+		print source_id
 
 	## Tectonic region type
 	tectonic_region_type = source_rec.get(column_map['tectonic_region_type'], column_map['tectonic_region_type'])
