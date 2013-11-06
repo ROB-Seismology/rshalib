@@ -381,6 +381,39 @@ class PSHAModel(PSHAModelBase):
 			period = 0
 		return DeaggregationSlice(bin_edges, deagg_matrix, site, imt_name, iml, period, self.time_span)
 
+	def _get_implicit_openquake_params(self):
+		"""
+		Return a dictionary of implicit openquake parameters that are
+		defined in source objects
+		(rupture_mesh_spacing, area_source_discretization, mfd_bin_width).
+		Warnings will be generated if one or more sources have different
+		parameters than the first source.
+		"""
+		all_sources = self.source_model.sources
+		rupture_mesh_spacing = all_sources[0].rupture_mesh_spacing
+		mfd_bin_width = all_sources[0].mfd.bin_width
+		for src in all_sources[1:]:
+			if src.rupture_mesh_spacing != rupture_mesh_spacing:
+				print("Warning: rupture mesh spacing of src %s different from that of 1st source!" % src.source_id)
+			if src.mfd.bin_width != mfd_bin_width:
+				print("Warning: mfd bin width of src %s different from that of 1st source!" % src.source_id)
+
+		area_sources = self.source_model.get_area_sources()
+		if len(area_sources) > 0:
+			area_source_discretization = area_sources[0].area_discretization
+			for src in area_sources[1:]:
+				if src.area_discretization != area_source_discretization:
+					print("Warning: area discretization of src %s different from that of 1st source!" % src.source_id)
+		else:
+			area_source_discretization = 5.
+
+		params = {}
+		params['rupture_mesh_spacing'] = rupture_mesh_spacing
+		params['width_of_mfd_bin'] = mfd_bin_width
+		params['area_source_discretization'] = area_source_discretization
+
+		return params
+
 	def write_openquake(self, calculation_mode='classical', user_params=None, **kwargs):
 		"""
 		Write PSHA model input for OpenQuake.
@@ -393,12 +426,15 @@ class PSHAModel(PSHAModelBase):
 		"""
 		## set OQ_params object and override with params from user_params
 		params = OQ_Params(calculation_mode=calculation_mode, description=self.name)
-		params.mean_hazard_curves = False
-		params.quantile_hazard_curves = []
+		implicit_params = self._get_implicit_openquake_params()
+		for key in implicit_params:
+			setattr(params, key, implicit_params[key])
 		if user_params:
 			for key in user_params:
 				setattr(params, key, user_params[key])
 
+		params.mean_hazard_curves = False
+		params.quantile_hazard_curves = []
 		params.number_of_logic_tree_samples = 1
 
 		## set sites or grid_outline
@@ -535,8 +571,6 @@ class PSHAModelTree(PSHAModelBase):
 	"""
 	Class representing a PSHA model logic tree.
 
-	:param source_models:
-		List of SourceModel objects.
 	:param source_model_lt:
 		:class:`LogicTree` object, defining source model logic tree.
 	:param ground_motion_models:
@@ -550,12 +584,11 @@ class PSHAModelTree(PSHAModelBase):
 
 	See :class:`PSHAModelBase` for other arguments.
 	"""
-	def __init__(self, name, source_models, source_model_lt, gmpe_lt, output_dir, sites=[], grid_outline=[], grid_spacing=0.5, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200., num_lt_samples=1, random_seed=42):
+	def __init__(self, name, source_model_lt, gmpe_lt, output_dir, sites=[], grid_outline=[], grid_spacing=0.5, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200., num_lt_samples=1, random_seed=42):
 		"""
 		"""
 		from openquake.engine.input.logictree import LogicTreeProcessor
 		PSHAModelBase.__init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
-		self.source_models = source_models
 		self.source_model_lt = source_model_lt
 		self.gmpe_lt = gmpe_lt.get_optimized_system(self.source_models)
 		self.num_lt_samples = num_lt_samples
@@ -565,6 +598,10 @@ class PSHAModelTree(PSHAModelBase):
 		self.random_seed = random_seed
 		self.ltp = LogicTreeProcessor(None, source_model_lt=self.source_model_lt, gmpe_lt=self.gmpe_lt)
 		self._init_rnd()
+
+	@property
+	def source_models(self):
+		return self.source_model_lt.source_models
 
 	def _init_rnd(self):
 		"""
@@ -861,6 +898,43 @@ class PSHAModelTree(PSHAModelBase):
 		name = " -- ".join(path)
 		return GroundMotionModel(name, trt_gmpe_dict)
 
+	def _get_implicit_openquake_params(self):
+		"""
+		Return a dictionary of implicit openquake parameters that are
+		defined in source objects
+		(rupture_mesh_spacing, area_source_discretization, mfd_bin_width).
+		Warnings will be generated if one or more sources have different
+		parameters than the first source.
+		"""
+		all_sources = []
+		for sm in self.source_models:
+			all_sources.extend(sm.sources)
+		rupture_mesh_spacing = all_sources[0].rupture_mesh_spacing
+		mfd_bin_width = all_sources[0].mfd.bin_width
+		for src in all_sources[1:]:
+			if src.rupture_mesh_spacing != rupture_mesh_spacing:
+				print("Warning: rupture mesh spacing of src %s different from that of 1st source!" % src.source_id)
+			if src.mfd.bin_width != mfd_bin_width:
+				print("Warning: mfd bin width of src %s different from that of 1st source!" % src.source_id)
+
+		area_sources = []
+		for sm in self.source_models:
+			area_sources.extend(sm.get_area_sources())
+		if len(area_sources) > 0:
+			area_source_discretization = area_sources[0].area_discretization
+			for src in area_sources[1:]:
+				if src.area_discretization != area_source_discretization:
+					print("Warning: area discretization of src %s different from that of 1st source!" % src.source_id)
+		else:
+			area_source_discretization = 5.
+
+		params = {}
+		params['rupture_mesh_spacing'] = rupture_mesh_spacing
+		params['width_of_mfd_bin'] = mfd_bin_width
+		params['area_source_discretization'] = area_source_discretization
+
+		return params
+
 	def write_openquake(self, user_params=None):
 		"""
 		Write PSHA model tree input for OpenQuake.
@@ -868,8 +942,14 @@ class PSHAModelTree(PSHAModelBase):
 		:param user_params:
 			{str, val} dict, defining respectively parameters and value for OpenQuake (default: None).
 		"""
+		#output_dir = os.path.join(self.output_dir, "openquake")
+		output_dir = self.output_dir
+
 		## set OQ_params object and override with params from user_params
 		params = OQ_Params(calculation_mode='classical', description=self.name)
+		implicit_params = self._get_implicit_openquake_params()
+		for key in implicit_params:
+			setattr(params, key, implicit_params[key])
 		if user_params:
 			for key in user_params:
 				setattr(params, key, user_params[key])
@@ -886,11 +966,11 @@ class PSHAModelTree(PSHAModelBase):
 			## make sure source id's are unique among source models
 			for source in source_model.sources:
 				source.source_id = source_model.name + '--' + source.source_id
-			source_model.write_xml(os.path.join(self.output_dir, source_model.name + '.xml'))
+			source_model.write_xml(os.path.join(output_dir, source_model.name + '.xml'))
 
 		## write nrml file for site model if present and set site params
 		if self.soil_site_model:
-			self.soil_site_model.write_xml(os.path.join(self.output_dir, self.soil_site_model.name + '.xml'))
+			self.soil_site_model.write_xml(os.path.join(output_dir, self.soil_site_model.name + '.xml'))
 			params.set_soil_site_model_or_reference_params(soil_site_model_file=self.soil_site_model.name + '.xml')
 		else:
 			params.set_soil_site_model_or_reference_params(
@@ -902,12 +982,12 @@ class PSHAModelTree(PSHAModelBase):
 		## validate source model logic tree and write nrml file
 		self.source_model_lt.validate()
 		source_model_lt_file_name = 'source_model_lt.xml'
-		self.source_model_lt.write_xml(os.path.join(self.output_dir, source_model_lt_file_name))
+		self.source_model_lt.write_xml(os.path.join(output_dir, source_model_lt_file_name))
 		params.source_model_logic_tree_file = source_model_lt_file_name
 
 		## create ground motion model logic tree and write nrml file
 		ground_motion_model_lt_file_name = 'ground_motion_model_lt.xml'
-		self.ground_motion_model_lt.write_xml(os.path.join(self.output_dir, ground_motion_model_lt_file_name))
+		self.gmpe_lt.write_xml(os.path.join(output_dir, ground_motion_model_lt_file_name))
 		params.gsim_logic_tree_file = ground_motion_model_lt_file_name
 
 		## convert return periods and time_span to poes
@@ -918,9 +998,11 @@ class PSHAModelTree(PSHAModelBase):
 		params.investigation_time = self.time_span
 		params.truncation_level = self.truncation_level
 		params.maximum_distance = self.integration_distance
+		params.number_of_logic_tree_samples = self.num_lt_samples
+		params.random_seed = self.random_seed
 
 		## write oq params to ini file
-		params.write_config(os.path.join(self.output_dir, 'job.ini'))
+		params.write_config(os.path.join(output_dir, 'job.ini'))
 
 	def run_nhlib(self, nrml_base_filespec=""):
 		"""
