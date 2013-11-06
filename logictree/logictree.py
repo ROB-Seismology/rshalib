@@ -253,9 +253,10 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		"""
 		Check if weights of child branches sums up to 1.0
 		"""
-		weights = [branch.weight for branch in self.branches]
-		if abs(Decimal(1.0) - np.add.reduce(weights)) > 1E-3:
-			raise NRMLError("BranchSet %s: branches do not sum to 1.0" % self.id)
+		pass
+		#weights = [branch.weight for branch in self.branches]
+		#if abs(Decimal(1.0) - np.add.reduce(weights)) > 1E-3:
+		#	raise NRMLError("BranchSet %s: branches do not sum to 1.0" % self.id)
 
 	def validate_unc_type(self):
 		"""

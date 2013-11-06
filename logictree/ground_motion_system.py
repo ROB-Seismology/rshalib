@@ -33,11 +33,16 @@ class GroundMotionSystem(LogicTree):
 		Construct logic tree
 		This method is called during initialization
 		"""
+		from ..gsim import gmpe as gmpe_module
 		for i, tectonicRegionType in enumerate(self.tectonicRegionTypes):
 			branchingLevelID = "bl%02d" % i
 			#branchSetID = "%s_bs01" % branchingLevelID
 			branchSetID = "".join([word[0].upper() for word in tectonicRegionType.split()])
 			branch_set = LogicTreeBranchSet.from_PMF(branchSetID, self.gmpe_system_def[tectonicRegionType], applyToTectonicRegionType=tectonicRegionType)
+			## Rename branch ID's:
+			for branch, gmpe_name in zip(branch_set.branches, self.gmpe_system_def[tectonicRegionType].gmpe_names):
+				gmpe = getattr(gmpe_module, gmpe_name)()
+				branch.branch_id = "%s--%s" % (branchSetID, gmpe.short_name)
 			branching_level = LogicTreeBranchingLevel(branchingLevelID, [branch_set])
 			self.branching_levels.append(branching_level)
 
