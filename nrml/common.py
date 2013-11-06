@@ -6,7 +6,7 @@ from lxml import etree
 import ns
 
 
-ENUM_OQ_UNCERTAINTYTYPES = set(("gmpeModel", "sourceModel", "maxMagGRAbsolute", "maxMagGRRelative", "abGRAbsolute", "bGRRelative"))
+ENUM_OQ_UNCERTAINTYTYPES = set(("gmpeModel", "sourceModel", "maxMagGRAbsolute", "maxMagGRRelative", "abGRAbsolute", "bGRRelative", "incrementalMFDRates"))
 ENUM_OQ_TRT = set(('Active Shallow Crust', 'Stable Shallow Crust', 'Subduction Interface', 'Subduction IntraSlab', 'Volcanic'))
 
 
