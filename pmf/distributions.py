@@ -44,8 +44,8 @@ class PMF(nhlib.pmf.PMF):
 		weights = np.array([Decimal(w) for w in weights])
 		weights /= sum(weights)
 		## If sum is not one, adjust last weight
-		if sum(weights) != 1.0:
-			weights[-1] = Decimal(1.0) - sum(weights[:-1])
+		if np.sum(weights) != 1.0:
+			weights[-1] = Decimal(1) - np.sum(weights[:-1])
 
 		data = zip(weights, values)
 		return cls(data)
@@ -147,10 +147,11 @@ class NumericPMF(PMF):
 
 		bin_cumul_weights = cumul_weights[bin_edge_indexes]
 		bin_weights = bin_cumul_weights[1:] - bin_cumul_weights[:-1]
-		bin_weights = bin_weights.clip(1E-8)
+		bin_weights = bin_weights.clip(Decimal('1E-%d' % precision))
 
 		decimal.getcontext().prec = precision
 		bin_weights = np.array([Decimal(val) for val in bin_weights])
+		bin_weights = adjust_decimal_weights(bin_weights, precision)
 
 		return self.__class__(bin_centers_rounded, bin_weights)
 
@@ -466,11 +467,12 @@ def adjust_decimal_weights(weights, precision=4):
 	"""
 	if len(weights) > 1:
 		## quantize fails if weight = 1 (precision != number of decimal digits)
+		## We suppose that if there is only 1 weight, it is equal to 1
 		decimal.getcontext().prec = precision
 		quantize_str = '0.' + '0' * precision
 		weights = [w.quantize(Decimal(quantize_str), rounding=decimal.ROUND_HALF_EVEN) for w in weights]
-		if sum(weights) != 1:
-			weights[-1] = Decimal(1) - sum(weights[:-1])
+		if np.sum(weights) != 1:
+			weights[-1] = Decimal(1) - np.sum(weights[:-1])
 	return weights
 
 
