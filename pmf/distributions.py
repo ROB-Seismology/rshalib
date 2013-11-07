@@ -471,6 +471,8 @@ def adjust_decimal_weights(weights, precision=4):
 		decimal.getcontext().prec = precision
 		quantize_str = '0.' + '0' * precision
 		weights = [w.quantize(Decimal(quantize_str), rounding=decimal.ROUND_HALF_EVEN) for w in weights]
+		## Increase precision by 1 to check if sum == 1 !
+		decimal.getcontext().prec = precision + 1
 		if np.sum(weights) != 1:
 			weights[-1] = Decimal(1) - np.sum(weights[:-1])
 	return weights
