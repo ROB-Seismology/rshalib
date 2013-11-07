@@ -991,7 +991,7 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 			a_val = a_from_lambda(lamda, 6.0, b_val)
 		except:
 			raise()
-		# TODO: stda
+		## stda is not defined
 		stda = 0
 		return TruncatedGRMFD(min_mag, max_mag, bin_width, a_val, b_val, stda, stdb, Mtype="MS")
 
@@ -1016,33 +1016,46 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 			"total", "total extended", or "total non-extended")
 			(default: "total")
 		"""
+		## Table 4-7, page 4-60
 		if region.lower() == "africa":
 			a, b, stdb = 2.46, 0.982, 0.119
+			## Note: since a_normalized = a + log10(100000 / area),
+			## standard deviation on a_normalized is same as on a
+			stda = 0.073
 		elif region.lower() == "australia":
 			a, b, stdb = 2.29, 0.896, 0.077
+			stda = 0.051
 		elif region.lower() == "europe":
 			a, b, stdb = 3.32, 1.156, 0.106
+			stda = 0.069
 		elif region.lower() == "china":
 			a, b, stdb = 2.96, 1.029, 0.109
+			stda = 0.096
 		elif region.lower() == "india":
 			a, b, stdb = 3.02, 0.966, 0.154
+			stda = 0.101
 		elif region.lower() == "north america":
 			a, b, stdb = 1.12, 0.728, 0.067
+			stda = 0.056
 		elif region.lower() == "na extended":
 			a, b, stdb = 1.33, 0.747, 0.076
+			stda = 0.063
 		elif region.lower() == "na non-extended":
 			a, b, stdb = 1.32, 0.790, 0.158
+			stda = 0.107
 		elif region.lower() == "south america":
 			a, b, stdb = 3.46, 1.212, 0.270
+			stda = 0.130
 		elif region.lower() == "total":
 			a, b, stdb = 2.46, 0.975, 0.047
+			stda = 0.030
 		elif region.lower() == "total extended":
 			a, b, stdb = 2.36, 0.887, 0.054
+			stda = 0.039
 		elif region.lower() == "total non-extended":
 			a, b, stdb = 3.26, 1.186, 0.094
+			stda = 0.049
 
-		# TODO: stda
-		stda = 0
 		mfd = TruncatedGRMFD(min_mag, max_mag, bin_width, a, b, stda, stdb, Mtype="MW")
 		return mfd * (area / 1E5)
 
