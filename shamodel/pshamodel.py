@@ -964,8 +964,9 @@ class PSHAModelTree(PSHAModelBase):
 		## write nrml files for source models
 		for source_model in self.source_models:
 			## make sure source id's are unique among source models
-			for source in source_model.sources:
-				source.source_id = source_model.name + '--' + source.source_id
+			## This is no longer necessary
+			#for source in source_model.sources:
+			#	source.source_id = source_model.name + '--' + source.source_id
 			source_model.write_xml(os.path.join(output_dir, source_model.name + '.xml'))
 
 		## write nrml file for site model if present and set site params
