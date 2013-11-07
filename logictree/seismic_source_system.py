@@ -38,7 +38,7 @@ class SeismicSourceSystem(LogicTree):
 			self.source_models = source_model_pmf.source_models
 
 	@classmethod
-	def parse_from_xml(cls, xml_filespec, validate=True):
+	def parse_from_xml(cls, xml_filespec, validate=False):
 		"""
 		Read source-model logic tree from XML file
 
