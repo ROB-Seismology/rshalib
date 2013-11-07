@@ -963,6 +963,33 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		a_val = self.a_val + self.a_sigma * epsilon
 		return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, b_val, Mtype=self.Mtype)
 
+	def sample_from_b_val(self, num_samples, num_sigma=2, random_seed=None):
+		"""
+		Generate MFD's by Monte Carlo sampling of the b value.
+		The corresponding a value is computed from a_sigma (see
+		:meth:`get_mfd_from_b_val`
+
+		:param num_samples:
+			Int, number of MFD samples to generate
+		:param num_sigma:
+			Float, number of standard deviations on b value (default: 2)
+		:param random_seed:
+			None or int, seed to initialize internal state of random number
+			generator (default: None, will seed from current time)
+
+		:return:
+			List with instances of :class:`TruncatedGRMFD`
+		"""
+		import scipy.stats
+
+		mfd_samples = []
+		np.random.seed(seed=random_seed)
+		mu, sigma = self.b_val, self.b_sigma
+		b_values = scipy.stats.truncnorm.rvs(-num_sigma, num_sigma, mu, sigma, size=num_samples)
+		for b_val in b_values:
+			mfd_samples.append(self.get_mfd_from_b_val(b_val))
+		return mfd_samples
+
 	@classmethod
 	def construct_FentonEtAl2006MFD(self, min_mag, max_mag, bin_width, area, b_val=0.7991):
 		"""
