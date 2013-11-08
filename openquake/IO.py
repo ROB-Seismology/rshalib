@@ -33,8 +33,12 @@ def parse_hazard_curves(xml_filespec):
 	sites, poess = [], []
 	for e in nrml.iter():
 		if e.tag == '{%s}hazardCurves' % NRML:
-			model_name = (e.get('sourceModelTreePath') + ' - '
-				+ e.get('gsimTreePath'))
+			try:
+				## "Unofficial" NRML, not guaranteed to exist
+				model_name = (e.get('sourceModelTreePath') + ' - '
+					+ e.get('gsimTreePath'))
+			except:
+				model_name = ""
 			if e.attrib.has_key('saPeriod'):
 				period = e.get('saPeriod')
 			else:
