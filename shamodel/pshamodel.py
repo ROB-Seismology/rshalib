@@ -538,7 +538,7 @@ class PSHAModel(PSHAModelBase):
 
 		## Write input file. This will also write the site file and attenuation
 		## tables if necessary.
-		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.sites, site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
+		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.sites, site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], mag_scale_rel=None, output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
 
 		## Return name of output file
 		return filespec
