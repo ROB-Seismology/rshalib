@@ -1388,6 +1388,8 @@ def get_crisis_rupture_area_parameters(scale_rel="WC1994", rake=None):
 		return (0.00381, 1.15130)
 	elif scale_rel == "Singh1980":
 		return (0.00564, 1.15130)
+	elif scale_rel == "PointMSR":
+		return (1E-4, 0.)
 
 
 
