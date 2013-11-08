@@ -67,10 +67,14 @@ class SourceModel():
 		list of source objects (instances of :class:`PointSource`,
 		:class:`AreaSource`, :class:`SimpleFaultSource` and/or
 		:class:`ComplexFaultSource`)
+	:param description:
+		String, containing optional description (e.g. logic-tree path)
+		(default: "")
 	"""
-	def __init__(self, name, sources):
+	def __init__(self, name, sources, description=""):
 		self.name = name
 		self.sources = sources
+		self.description = description
 		self.validate()
 
 	def __getattr__(self, name):
