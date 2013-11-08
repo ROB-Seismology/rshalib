@@ -1366,13 +1366,17 @@ def readCRISIS_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[
 # TODO: implement length parameters
 def get_crisis_rupture_area_parameters(scale_rel="WC1994", rake=None):
 	"""
-	Return constants used by CRISIS to relate rupture area with magnitude.
+	Return k1, k2 constants used by CRISIS to relate rupture area with magnitude,
+	according to the formula: area = k1 * exp(k2 * M)
 
 	:param scale_rel:
 		String, name of scaling relationship, one of "WC1994",
-		"Brune1970" or "Singh1980" (default: "WC1994").
+		"Brune1970", "Singh1980" or "PointMSR" (default: "WC1994").
 	:param rake:
 		Float, defining rake (default: None).
+
+	:return:
+		(k1, k2) tuple of floats
 	"""
 	# TODO: add PeerMSR (see nhlib.scalerel.PeerMSR)
 	if scale_rel == "WC1994":
