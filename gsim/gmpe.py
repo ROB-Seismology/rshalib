@@ -2588,12 +2588,12 @@ class NhlibGMPE(GMPE):
 
 		if isinstance(d, (int, float)):
 			distance_is_array = False
-			d = np.array([d], dtype='f')
+			d = np.array([d], dtype='d')
 		else:
 			if isinstance(d, list):
-				d = np.array(d, dtype='f')
+				d = np.array(d, dtype='d')
 			else:
-				d = d.astype('f')
+				d = d.astype('d')
 			distance_is_array = True
 
 		ln_means, ln_stddevs = [], []
@@ -2630,7 +2630,7 @@ class NhlibGMPE(GMPE):
 		sctx = nhlib.gsim.base.SitesContext()
 		if not vs30:
 			vs30 = 800.
-		sctx.vs30 = np.ones_like(d, dtype="f")
+		sctx.vs30 = np.ones_like(d, dtype="d")
 		sctx.vs30 *= vs30
 		if kappa:
 			sctx.kappa = np.ones_like(d, dtype='d')
