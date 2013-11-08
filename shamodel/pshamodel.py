@@ -25,6 +25,7 @@ from ..crisis import writeCRISIS2007
 from ..openquake import OQ_Params
 from ..source import SourceModel
 from ..gsim import GroundMotionModel
+from ..pmf import get_uniform_weights
 
 
 
@@ -660,7 +661,7 @@ class PSHAModelTree(PSHAModelBase):
 			gmpe_model = self._gmpe_sample_to_gmpe_model(gmpelt_path)
 
 			## Convert to PSHA model
-			name = "%s : LT sample %04d (SM: %s; GMPE: %s)" % (self.name, i, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
+			name = "%s : LT sample %04d (SM: %s; GMPE: %s)" % (self.name, i+1, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
 			psha_model = self._get_psha_model(source_model, gmpe_model, name)
 			psha_models.append(psha_model)
 
@@ -686,7 +687,7 @@ class PSHAModelTree(PSHAModelBase):
 			sm_name, weight, smlt_path, gmpelt_path = path_info
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
 			gmpe_model = self._gmpe_sample_to_gmpe_model(path)
-			name = "%s : LT enum %04d (SM: %s; GMPE: %s)" % (self.name, i, source_model.name, gmpe_model.name)
+			name = "%s : LT enum %04d (SM: %s; GMPE: %s)" % (self.name, i, source_model.description, gmpe_model.name)
 			psha_model = self._get_psha_model(source_model, gmpe_model, name)
 			psha_models.append(psha_model)
 			weights.append(weight)
@@ -802,7 +803,10 @@ class PSHAModelTree(PSHAModelBase):
 			if sm.name == os.path.splitext(sm_name)[0]:
 				modified_sources = []
 				for src in sm:
-					modified_src = copy.deepcopy(src)
+					#modified_src = copy.deepcopy(src)
+					# TODO: not all attributes are instantiated properly when deepcopy is used!
+					# Temporary hack:
+					modified_src = src
 					apply_uncertainties = self.ltp.parse_source_model_logictree_path(path)
 					apply_uncertainties(modified_src)
 					if verbose:
@@ -813,8 +817,8 @@ class PSHAModelTree(PSHAModelBase):
 							print "    %s  -->  %s" % (src.mfd.occurrence_rates, modified_src.mfd.occurrence_rates)
 					modified_sources.append(modified_src)
 				break
-		name = " -- ".join(path)
-		return SourceModel(name, modified_sources)
+		description = " -- ".join(path)
+		return SourceModel(sm.name, modified_sources, description)
 
 	def sample_gmpe_lt(self, num_samples=1, verbose=False, show_plot=False):
 		"""
@@ -1045,31 +1049,71 @@ class PSHAModelTree(PSHAModelBase):
 			shcft.write_nrml(nrml_filespec)
 		return shcft
 
-	def write_crisis(self, verbose=True):
+	def write_crisis(self, overwrite=True, verbose=True):
 		"""
 		Write PSHA model tree input for Crisis.
 
+		:param overwrite:
+			Boolean, whether or not to overwrite existing input files
+			(default: False)
 		:param verbose:
 			bool, whether or not to print some information (default: True)
 		"""
-		# TODO: Needs further work.
 		site_filespec = os.path.join(self.output_dir, 'sites.ASC')
 		gsims_dir = os.path.join(self.output_dir, 'gsims')
 		if not os.path.exists(gsims_dir):
 				os.mkdir(gsims_dir)
 
-		## create directory structure for logic tree: only possible for source models
+		## Create directory structure for logic tree: only possible for source models
+		sm_filespecs = {}
+		all_filespecs = []
 		for source_model in self.source_models:
+			sm_filespecs[source_model.name] = []
 			folder = os.path.join(self.output_dir, source_model.name)
 			if not os.path.exists(folder):
 				os.makedirs(folder)
 
-		for psha_model in self.sample_logic_trees(self.num_lt_samples, verbose=verbose):
+		## Write CRISIS input files
+		for i, psha_model in enumerate(self.sample_logic_trees(self.num_lt_samples, verbose=verbose)):
 			folder = os.path.join(self.output_dir, psha_model.source_model.name)
-			filespec = os.path.join(folder, psha_model.name + '.dat')
-			psha_model.write_crisis(filespec, gsims_dir, site_filespec)
+			filespec = os.path.join(folder, 'lt-rlz-%04d.dat' % (i+1))
+			if os.path.exists(filespec) and overwrite:
+				os.unlink(filespec)
+			## Write separate attenuation tables for different source models
+			sm_gsims_dir = os.path.join(gsims_dir, psha_model.source_model.name)
+			psha_model.write_crisis(filespec, sm_gsims_dir, site_filespec)
+			sm_filespecs[psha_model.source_model.name].append(filespec)
+			all_filespecs.append(filespec)
 
-		# TODO: write CRISIS batch file too
+		# Write CRISIS batch file(s)
+		batch_filename = "lt_batch.dat"
+		for sm_name in sm_filespecs.keys():
+			folder = os.path.join(self.output_dir, sm_name)
+			batch_filespec = os.path.join(folder, batch_filename)
+			if os.path.exists(batch_filespec):
+				if overwrite:
+					os.unlink(batch_filespec)
+				else:
+					print("File %s exists! Set overwrite=True to overwrite." % filespec)
+					continue
+			of = open(batch_filespec, "w")
+			weights = get_uniform_weights(len(sm_filespecs[sm_name]))
+			for filespec, weight in zip(sm_filespecs[sm_name], weights):
+				of.write("%s, %s\n" % (filespec, weight))
+			of.close()
+
+		batch_filespec = os.path.join(self.output_dir, batch_filename)
+		if os.path.exists(batch_filespec):
+			if overwrite:
+				os.unlink(batch_filespec)
+			else:
+				print("File %s exists! Set overwrite=True to overwrite." % filespec)
+				return
+		of = open(batch_filespec, "w")
+		weights = get_uniform_weights(len(all_filespecs))
+		for filespec, weight in zip(all_filespecs, weights):
+			of.write("%s, %s\n" % (filespec, weight))
+		of.close()
 
 	def _get_psha_models(self):
 		"""
