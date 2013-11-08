@@ -59,5 +59,5 @@ import crisis
 reload(crisis)
 
 import openquake
-#reload(openquake)
+reload(openquake)
 
