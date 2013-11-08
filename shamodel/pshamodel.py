@@ -24,6 +24,7 @@ from ..logictree import GroundMotionSystem, SeismicSourceSystem
 from ..crisis import writeCRISIS2007
 from ..openquake import OQ_Params
 from ..source import SourceModel
+from ..gsim import GroundMotionModel
 
 
 
@@ -625,7 +626,7 @@ class PSHAModelTree(PSHAModelBase):
 		num_gmpelt_paths = self.gmpe_logic_tree.get_num_paths()
 		return num_smlt_paths * num_gmpelt_paths
 
-	def sample_logic_trees(self, num_samples=1):
+	def sample_logic_trees(self, num_samples=1, verbose=False):
 		"""
 		Sample both source-model and GMPE logic trees, in a way that is
 		similar to :meth:`_initialize_realizations_montecarlo` of
@@ -635,6 +636,8 @@ class PSHAModelTree(PSHAModelBase):
 			int, number of random samples
 			If zero, :meth:`enumerate_logic_trees` will be called
 			(default: 1)
+		:param verbose:
+			bool, whether or not to print some information (default: False)
 
 		:return:
 			list of instances of :class:`PSHAModel`
@@ -654,7 +657,7 @@ class PSHAModelTree(PSHAModelBase):
 
 			## Convert to objects
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
-			gmpe_model = self._gmpe_sample_to_gmpe_model(path)
+			gmpe_model = self._gmpe_sample_to_gmpe_model(gmpelt_path)
 
 			## Convert to PSHA model
 			name = "%s : LT sample %04d (SM: %s; GMPE: %s)" % (self.name, i, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
@@ -724,7 +727,7 @@ class PSHAModelTree(PSHAModelBase):
 			If zero, :meth:`enumerate_source_model_lt` will be called
 			(default: 1)
 		:param verbose:
-			bool, whether or not to print some information
+			bool, whether or not to print some information (default: False)
 		:param show_plot:
 			bool, whether or not to plot a diagram of the sampled branch path
 			(default: False)
@@ -755,7 +758,7 @@ class PSHAModelTree(PSHAModelBase):
 		Enumerate source-model logic tree
 
 		:param verbose:
-			bool, whether or not to print some information
+			bool, whether or not to print some information (default: False)
 		:param show_plot:
 			bool, whether or not to plot a diagram of the sampled branch path
 			(default: False)
@@ -790,7 +793,7 @@ class PSHAModelTree(PSHAModelBase):
 			list of branch ID's, representing the path through the
 			source-model logic tree
 		:param verbose:
-			bool, whether or not to print some information
+			bool, whether or not to print some information (default: False)
 
 		:return:
 			instance of :class:`SourceModel`
@@ -822,7 +825,7 @@ class PSHAModelTree(PSHAModelBase):
 			If zero, :meth:`enumerate_gmpe_lt` will be called
 			(default: 1)
 		:param verbose:
-			bool, whether or not to print some information
+			bool, whether or not to print some information (default: False)
 		:param show_plot:
 			bool, whether or not to plot a diagram of the sampled branch path
 			(default: False)
@@ -855,7 +858,7 @@ class PSHAModelTree(PSHAModelBase):
 		Enumerate GMPE logic tree
 
 		:param verbose:
-			bool, whether or not to print some information
+			bool, whether or not to print some information (default: False)
 		:param show_plot:
 			bool, whether or not to plot a diagram of the sampled branch path
 			(default: False)
@@ -1042,9 +1045,12 @@ class PSHAModelTree(PSHAModelBase):
 			shcft.write_nrml(nrml_filespec)
 		return shcft
 
-	def write_crisis(self):
+	def write_crisis(self, verbose=True):
 		"""
 		Write PSHA model tree input for Crisis.
+
+		:param verbose:
+			bool, whether or not to print some information (default: True)
 		"""
 		# TODO: Needs further work.
 		site_filespec = os.path.join(self.output_dir, 'sites.ASC')
@@ -1052,15 +1058,15 @@ class PSHAModelTree(PSHAModelBase):
 		if not os.path.exists(gsims_dir):
 				os.mkdir(gsims_dir)
 
-		## create directory structure for logic tree: not sure this is possible
+		## create directory structure for logic tree: only possible for source models
 		for source_model in self.source_models:
-			for ground_motion_model in self.ground_motion_models:
-				dir = os.path.join(os.path.join(self.output_dir, source_model.name), ground_motion_model.name)
-				if not os.path.exists(dir):
-					os.makedirs(dir)
+			folder = os.path.join(self.output_dir, source_model.name)
+			if not os.path.exists(folder):
+				os.makedirs(folder)
 
-		for psha_model in self.sample_logic_trees(self.num_lt_samples):
-			filespec = os.path.join(os.path.join(os.path.join(self.output_dir, psha_model.source_model.name), psha_model.ground_motion_model.name), psha_model.name + '.dat')
+		for psha_model in self.sample_logic_trees(self.num_lt_samples, verbose=verbose):
+			folder = os.path.join(self.output_dir, psha_model.source_model.name)
+			filespec = os.path.join(folder, psha_model.name + '.dat')
 			psha_model.write_crisis(filespec, gsims_dir, site_filespec)
 
 		# TODO: write CRISIS batch file too

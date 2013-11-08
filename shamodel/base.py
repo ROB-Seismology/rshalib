@@ -10,7 +10,7 @@ class SHAModelBase(object):
 	"""
 	Base class for SHA models, holding common attributes and methods.
 	"""
-	
+
 	def __init__(self, name, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, truncation_level=3):
 		"""
 		:param name:
@@ -43,13 +43,25 @@ class SHAModelBase(object):
 		self.soil_site_model = soil_site_model
 		self.ref_soil_params = ref_soil_params
 		self.truncation_level = truncation_level
-	
+
+	@property
+	def sites(self):
+		return self.sha_site_model.get_sites()
+
+	@property
+	def grid_outline(self):
+		return self.sha_site_model.grid_outline
+
+	@property
+	def grid_spacing(self):
+		return self.sha_site_model.grid_spacing
+
 	def get_soil_site_model(self):
 		"""
 		If no soil site model is given one is created from sha site model with
 		ref_soil_params. If one is given it is used if no sha site model is
 		given, else the sites from the sha site model are extracted from it.
-		
+
 		:returns:
 			instance of :class:`rshalib.site.SoilSiteModel`
 		"""
