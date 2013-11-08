@@ -383,8 +383,6 @@ class HypocentralDepthDistribution(PMF):
 	def __init__(self, hypo_depths, weights):
 		if len(hypo_depths) != len(weights):
 			raise Exception("Number of weights and number of hypocentral depths must be identical!")
-		self.hypo_depths = np.array(hypo_depths)
-		#self.weights = np.array(weights)
 		data = zip(weights, hypo_depths)
 		super(HypocentralDepthDistribution, self).__init__(data)
 
@@ -394,6 +392,10 @@ class HypocentralDepthDistribution(PMF):
 
 	def __len__(self):
 		return len(self.hypo_depths)
+
+	@property
+	def hypo_depths(self):
+		return np.array(self.values)
 
 	def get_mean_depth(self, weighted=True):
 		"""
