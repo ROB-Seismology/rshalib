@@ -2624,7 +2624,7 @@ class NhlibGMPE(GMPE):
 		"""
 		Return site, rupture and distance context, and imt objects.
 
-		See method self.__call__ for params.
+		See :meth:`__call__` for params.
 		"""
 		## set site context
 		sctx = nhlib.gsim.base.SitesContext()
