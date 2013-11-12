@@ -399,7 +399,7 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 
 	:param name:
 		String, site model name
-	:param sources:
+	:param sites:
 		list of site objects (instances of :class:`Site`)
 	"""
 
@@ -411,8 +411,7 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 	def __len__(self):
 		return self.num_sites
 
-	@property
-	def sites(self):
+	def get_sites(self):
 		"""
 		:return:
 			list with instances of :class:`SHASite`

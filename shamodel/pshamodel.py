@@ -298,10 +298,10 @@ class PSHAModel(PSHAModelBase):
 		hazard_result = self.run_nhlib_poes(nhlib_params)
 		imtls = self._get_imt_intensities()
 		shcfs = {}
-		site_names = [site.name for site in self._get_sites()]
+		site_names = [site.name for site in self.get_sites()]
 		for imt, periods in self.imt_periods.items():
 			# TODO: add method to PSHAModelBase to associate nhlib/OQ imt's with units
-			shcf = SpectralHazardCurveField(self.name, [''], self._get_sites(), periods, imt, imtls[imt], 'g', self.time_span, poes=hazard_result[imt], site_names=site_names)
+			shcf = SpectralHazardCurveField(self.name, [''], self.get_sites(), periods, imt, imtls[imt], 'g', self.time_span, poes=hazard_result[imt], site_names=site_names)
 			nrml_filespec = nrml_base_filespec + '_%s.xml' % imt
 			shcfs[imt] = shcf
 			if plot:
@@ -538,7 +538,7 @@ class PSHAModel(PSHAModelBase):
 
 		## Write input file. This will also write the site file and attenuation
 		## tables if necessary.
-		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.sites, site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], mag_scale_rel=None, output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
+		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.get_sites(), site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], mag_scale_rel=None, output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
 
 		## Return name of output file
 		return filespec
@@ -710,7 +710,7 @@ class PSHAModelTree(PSHAModelBase):
 		output_dir = self.output_dir
 		optimized_gmpe_model = gmpe_model.get_optimized_model(source_model)
 		psha_model = PSHAModel(name, source_model, optimized_gmpe_model, output_dir,
-			sites=self.sites, grid_outline=self.grid_outline, grid_spacing=self.grid_spacing,
+			sites=self.get_sites(), grid_outline=self.grid_outline, grid_spacing=self.grid_spacing,
 			soil_site_model=self.soil_site_model, ref_soil_params=self.ref_soil_params,
 			imt_periods=self.imt_periods, intensities=self.intensities,
 			min_intensities=self.min_intensities, max_intensities=self.max_intensities,
@@ -1043,9 +1043,9 @@ class PSHAModelTree(PSHAModelBase):
 			for imt in self.imt_periods.keys():
 				hazard_results[imt][:,j,:,:] = hazard_result[imt]
 		imtls = self._get_imt_intensities()
-		site_names = [site.name for site in self._get_sites()]
+		site_names = [site.name for site in self.get_sites()]
 		for imt, periods in self.imt_periods.items():
-			shcft = SpectralHazardCurveFieldTree(self.name, psha_model_names, filespecs, weights, self._get_sites(), periods, imt, imtls[imt], 'g', self.time_span, poes=hazard_results[imt], site_names=site_names)
+			shcft = SpectralHazardCurveFieldTree(self.name, psha_model_names, filespecs, weights, self.get_sites(), periods, imt, imtls[imt], 'g', self.time_span, poes=hazard_results[imt], site_names=site_names)
 			nrml_filespec = nrml_base_filespec + '_%s.xml' % imt
 			shcft.write_nrml(nrml_filespec)
 		return shcft
@@ -1124,7 +1124,7 @@ class PSHAModelTree(PSHAModelBase):
 		for i in range(self.num_lts_samples):
 			source_model, ground_motion_model = self._sample_lts()
 			name = source_model.name + '_' + ground_motion_model.name
-			psha_models.append(PSHAModel(name, source_model, ground_motion_model, self.output_dir, self.sites, self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance))
+			psha_models.append(PSHAModel(name, source_model, ground_motion_model, self.output_dir, self.get_sites(), self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance))
 		return psha_models
 
 	def _get_used_trts(self):

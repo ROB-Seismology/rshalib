@@ -44,17 +44,18 @@ class SHAModelBase(object):
 		self.ref_soil_params = ref_soil_params
 		self.truncation_level = truncation_level
 
-	@property
-	def sites(self):
-		return self.sha_site_model.get_sites()
+	def get_sites(self):
+		return self.get_soil_site_model().get_sites()
 
 	@property
 	def grid_outline(self):
-		return self.sha_site_model.grid_outline
+		if self.sha_site_model:
+			return self.sha_site_model.grid_outline
 
 	@property
 	def grid_spacing(self):
-		return self.sha_site_model.grid_spacing
+		if self.sha_site_model:
+			return self.sha_site_model.grid_spacing
 
 	def get_soil_site_model(self):
 		"""
