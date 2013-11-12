@@ -803,10 +803,10 @@ class PSHAModelTree(PSHAModelBase):
 			if sm.name == os.path.splitext(sm_name)[0]:
 				modified_sources = []
 				for src in sm:
-					#modified_src = copy.deepcopy(src)
-					# TODO: not all attributes are instantiated properly when deepcopy is used!
-					# Temporary hack:
-					modified_src = src
+					## Note: copy MFD explicitly, as not all source attributes are
+					## instantiated properly when deepcopy is used!
+					modified_src = copy.copy(src)
+					modified_src.mfd = src.mfd.get_copy()
 					apply_uncertainties = self.ltp.parse_source_model_logictree_path(path)
 					apply_uncertainties(modified_src)
 					if verbose:

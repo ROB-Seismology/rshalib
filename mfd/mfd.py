@@ -241,6 +241,12 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 	def max_mag(self):
 		return self.get_min_mag_edge() + len(self.occurrence_rates) * self.bin_width
 
+	def get_copy(self):
+		"""
+		Return a copy of the MFD
+		"""
+		return self.to_evenly_discretized_mfd()
+
 	def get_min_mag_edge(self):
 		"""
 		Return left edge of minimum magnitude bin
@@ -767,6 +773,12 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 	@property
 	def alpha(self):
 		return np.log(10) * self.a_val
+
+	def get_copy(self):
+		"""
+		Return a copy of the MFD
+		"""
+		return self.to_truncated_GR_mfd()
 
 	def get_min_mag_edge(self):
 		"""
