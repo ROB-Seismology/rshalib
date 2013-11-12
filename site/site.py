@@ -94,7 +94,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 	"""
 	Class representing a site model. Subclasses from :class:`openquake.hazardlib.geo.Mesh`.
 	"""
-	
+
 	def __init__(self, lons=None, lats=None, depths=None, sites=None, names=None, grid_outline=None, grid_spacing=None):
 		"""
 		SiteModel is initiated by (1) lons and lats (and depths), (2) sites (and names) or (3) grid outline and grid spacing. Priority is given in this order.
@@ -143,7 +143,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			self._set_grid_spacing(grid_spacing)
 			self._set_grid()
 			self.depths = None
-	
+
 	def __iter__(self):
 		"""
 		:return:
@@ -158,7 +158,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 		else:
 			for i in xrange(len(self)):
 				yield (lons[i], lats[i])
-	
+
 	def _set_sites(self, sites):
 		"""
 		Sets lons, lats (and depths and names) from sites. Handles (lon, lat) or (lon, lat, depth) tuples, instances of SHASite, instances of Soilsites or instance of SHASiteModel.
@@ -178,7 +178,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			self.depths = None
 		if len(set(names)) != 1:
 			self.names = names
-	
+
 	def _set_grid_outline(self, grid_outline):
 		"""
 		Sets grid_outline.
@@ -199,7 +199,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			self.grid_outline = [llc, lrc, urc, ulc]
 		else:
 			self.grid_outline = [(site[0], site[1]) for site in grid_outline]
-	
+
 	def _set_grid_spacing(self, grid_spacing):
 		"""
 		Sets grid_spacing.
@@ -210,7 +210,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			if isinstance(grid_spacing, (str, unicode)):
 				 assert grid_spacing.endswith("km")
 			self.grid_spacing = grid_spacing
-	
+
 	def _set_grid(self):
 		"""
 		Sets lons and lats by grid_outline and grid_spacing.
@@ -225,7 +225,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			grid = np.dstack(np.meshgrid(slons, slats[::-1]))
 			self.lons = grid[:,:,0]
 			self.lats = grid[:,:,1]
-	
+
 	@property
 	def region(self):
 		"""
@@ -233,7 +233,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			(float, float, float, float) tuple, (w, e, s, n) of bounding box
 		"""
 		return (self.lons.min(), self.lons.max(), self.lats.min(), self.lats.max())
-	
+
 	@property
 	def slons(self):
 		"""
@@ -244,7 +244,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			return self.lons[0,:]
 		else:
 			return None
-	
+
 	@property
 	def slats(self):
 		"""
@@ -255,32 +255,32 @@ class SHASiteModel(nhlib.geo.Mesh):
 			return self.lats[:,0][::-1]
 		else:
 			return None
-	
+
 	def get_geographic_distances(self, lon, lat):
 		"""
 		Get the geographic distance each site in the model to a given site.
-		
+
 		:param lon:
 			float, lon of site
 		:param lat:
 			float, lat of site
-		
+
 		:return:
 			np array like self.shape, distances in km
 		"""
 		return geodetic_distance(lon, lat, self.lons, self.lats)
-	
+
 	def get_site(self, lon, lat, index=False):
 		"""
 		Get (closest) site.
-		
+
 		:param lon:
 			float, lon of site.
 		:param lat:
 			float, lat of site.
 		:param index:
 			bool, give index instead of site (default: False)
-		
+
 		:return:
 			tuple (int, int) or int, index of site
 		"""
@@ -297,7 +297,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			return SHASite(self.lons[i], self.lats[i], depth, name)
 		else:
 			return i
-	
+
 	def clip(self):
 		"""
 		Clip the site model by the grid outline if it is a degree spaced grid.
@@ -316,14 +316,14 @@ class SHASiteModel(nhlib.geo.Mesh):
 			else:
 				depths = None
 			return type(self)(lons=lons, lats=lats, depths=depths)
-	
+
 	def get_sites(self, clip=False):
 		"""
 		Get sites of site model.
-		
+
 		:param clip:
 			bool, clip site model or not (default: False)
-		
+
 		:return:
 			list of instances of SHASite
 		"""
@@ -339,28 +339,28 @@ class SHASiteModel(nhlib.geo.Mesh):
 				name = ""
 			sites.append(SHASite(*point, name=name))
 		return sites
-	
+
 	def to_soil_site_model(self, name="", ref_soil_params=REF_SOIL_PARAMS):
 		"""
 		Get soil site model from site model with reference soil parameters for each site.
-		
+
 		:param name:
 			str, name of soil site model (default: "")
 		:param ref_soil_params:
 			dict, reference value for each soil parameter needed by soil site model (default: defaults specified as REF_SOIL_PARAMS in ref_soil_params module)
-		
+
 		:return:
 			instance of SoilSiteModel
 		"""
 		return SoilSiteModel(name, [site.to_soil_site(ref_soil_params) for site in self.get_sites()])
-	
+
 	def plot(self):
 		"""
 		"""
 		from mapping.Basemap.LayeredBasemap import MapLayer, LayeredBasemap
 		from mapping.Basemap.data_types import MultiPointData, BuiltinData
 		from mapping.Basemap.styles import PointStyle, LineStyle
-		
+
 		map_layers = []
 		map_layers.extend([MapLayer(data=MultiPointData(self.lons, self.lats), style=PointStyle(shape=".", size=5))])
 		map_layers.extend([MapLayer(BuiltinData("coastlines"), LineStyle()), MapLayer(BuiltinData("countries"), LineStyle())])
@@ -381,14 +381,9 @@ class SoilSite(nhlib.site.Site, SHASite):
 		Float, latitude
 	:param depth:
 		Float, depth (default: 0.0)
-	:param vs30:
-		Float, average shear-wave velocity down to 30 m depth, in m/s
-		(default: value defined in vs30.rock)
-	:param vs30measured:
-		Bool, indicating whether vs30 was actually measured
-		(default: False)
-	:param z1pt0:
-	:param z2pt5:
+	:param soil_params:
+		Dict, containing soil parameters (vs30, vs30measured, z1pt0, z2pt5, and kappa)
+		(default: REF_SOIL_PARAMS)
 	:param name:
 		Site name (default: "")
 	"""
