@@ -66,7 +66,7 @@ class SHAModelBase(object):
 			instance of :class:`rshalib.site.SoilSiteModel`
 		"""
 		if self.soil_site_model:
-			if sha_site_model:
+			if self.sha_site_model:
 				return self.soil_site_model.filter(self.soil_site_model.mesh._geodetic_min_distance(self.sha_site_model, True))
 			else:
 				return self.soil_site_model

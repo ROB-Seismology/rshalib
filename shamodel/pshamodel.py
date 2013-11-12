@@ -1021,6 +1021,7 @@ class PSHAModelTree(PSHAModelBase):
 			String, base file specification for NRML output file
 			(default: "").
 		"""
+		# TODO: this method still needs to be updated
 		if not nrml_base_filespec:
 			os.path.join(self.output_dir, '%s' % self.name)
 		else:
