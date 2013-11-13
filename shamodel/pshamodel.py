@@ -366,7 +366,7 @@ class PSHAModel(PSHAModelBase):
 			n_epsilons = 2 * int(np.ceil(self.truncation_level))
 		if not mag_bin_width:
 			mag_bin_width = self.source_model[0].mfd.bin_width
-		site = self.sha_site_model.get_sites()[site_index]
+		site = self.get_sites()[site_index]
 		nhlib_site = nhlib.site.Site(Point(*site), **self.ref_soil_params)
 		#imt = self._get_nhlib_imts()
 		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
@@ -444,7 +444,7 @@ class PSHAModel(PSHAModelBase):
 			grid_spacing_km = self._get_grid_spacing_km()
 			params.set_grid_or_sites(grid_outline=self.sha_site_model.grid_outline, grid_spacing=grid_spacing_km)
 		else:
-			params.set_grid_or_sites(sites=self.sha_site_model.get_sites())
+			params.set_grid_or_sites(sites=self.get_sites())
 
 		## write nrml file for source model
 		self.source_model.write_xml(os.path.join(self.output_dir, self.source_model.name + '.xml'))
@@ -966,7 +966,7 @@ class PSHAModelTree(PSHAModelBase):
 			grid_spacing_km = self._get_grid_spacing_km()
 			params.set_grid_or_sites(grid_outline=self.sha_site_model.grid_outline, grid_spacing=grid_spacing_km)
 		else:
-			params.set_grid_or_sites(sites=self.sha_site_model.get_sites())
+			params.set_grid_or_sites(sites=self.get_sites())
 
 		## write nrml files for source models
 		for source_model in self.source_models:
