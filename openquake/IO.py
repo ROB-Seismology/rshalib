@@ -9,83 +9,128 @@ import os
 
 from lxml import etree
 
-from ..nrml import ns
-from ..result import HazardCurveField, HazardMap, UHSField, DeaggregationSlice, ProbabilityMatrix
-from ..site import SHASite
+#from ..nrml import ns
+#from ..result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
+#from ..site import SHASite
 
+from hazard.rshalib.nrml import ns
+from hazard.rshalib.result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
+from hazard.rshalib.site import SHASite
 
 NRML = ns.NRML_NS
 GML = ns.GML_NS
 intensity_unit = {'PGD': 'cm', 'PGV': 'cms', 'PGA': 'g', 'SA': 'g'}
 
 
+def _get_model_name(e):
+	"""
+	"""
+	model_name = e.get("statistics", None)
+	model_name = model_name or e.get("sourceModelTreePath") + "_" + e.get("gsimTreePath")
+	if model_name == "quantile":
+		model_name += "_%s" % float(e.get("quantileValue"))
+	return model_name
+
+def _parse_hazard_curve(hazard_curve):
+	"""
+	Parse OpenQuake nrml element of type "hazardCurve"
+	"""
+	site = tuple(map(float, hazard_curve.findtext(".//{%s}pos" % GML).split()))
+	poes = np.array(hazard_curve.findtext(".//{%s}poEs" % NRML).split(), float)
+	return site, poes.clip(10**-15)
+
+
+def _parse_hazard_curves(hazard_curves):
+	"""
+	Parse OpenQuake nrml element of type "hazardCurves"
+	"""
+	model_name = _get_model_name(hazard_curves)
+	imt = hazard_curves.get("IMT")
+	period = float(hazard_curves.get("saPeriod", 0))
+	timespan = float(hazard_curves.get("investigationTime"))
+	intensities = map(float, hazard_curves.findtext("{%s}IMLs" % NRML).split())
+	sites = []
+	poess = []
+	for hazard_curve in hazard_curves.findall("{%s}hazardCurve" % NRML):
+		site, poes = _parse_hazard_curve(hazard_curve)
+		sites.append(site)
+		poess.append(poes)
+	return model_name, sites, period, imt, intensities, timespan, np.array(poess)
+
+
 def parse_hazard_curves(xml_filespec):
 	"""
-	Parse OpenQuake nrml xml hazard curve file (= hazard curve field).
+	Parse OpenQuake nrml output file of type "hazard curves"
+	
+	:param xml_filespec:
+		String, filespec of file to parse.
+
+	:return:
+		instance of :class:`..result.HazardCurveField`
+	"""
+	nrml = etree.parse(xml_filespec)
+	model_name, sites, period, imt, intensities, timespan, poess = _parse_hazard_curves(nrml.find("{%s}hazardCurves" % NRML))
+	hcf = HazardCurveField(model_name, xml_filespec, sites, period, imt, intensities, intensity_unit=intensity_unit[imt], timespan=timespan, poes=poess)
+	return hcf
+
+
+def parse_hazard_curves_multi(xml_filespec):
+	"""
+	Parse OpenQuake nrml output file of type "hazard curves multi"
 
 	:param xml_filespec:
 		String, filespec of file to parse.
 
 	:return:
-		instance of :class:`HazardCurveField`
+		instance of :class:`..result.SpectralHazardCurveField` or :class:`..result.SpectralHazardCurveFieldTree`
 	"""
-	nrml = etree.parse(xml_filespec)
-	sites, poess = [], []
-	for e in nrml.iter():
-		if e.tag == '{%s}hazardCurves' % NRML:
-			try:
-				## "Unofficial" NRML, not guaranteed to exist
-				model_name = (e.get('sourceModelTreePath') + ' - '
-					+ e.get('gsimTreePath'))
-			except:
-				model_name = ""
-			if e.attrib.has_key('saPeriod'):
-				period = e.get('saPeriod')
-			else:
-				period = 0
-			IMT = e.get('IMT')
-			timespan = float(e.get('investigationTime'))
-		if e.tag == '{%s}IMLs' % NRML:
-			intensities = np.array(e.text.split(), dtype=float)
-		if e.tag == '{%s}hazardCurve' % NRML:
-			lon_lat, poes = parse_hazard_curve(e)
-			sites.append(SHASite(*lon_lat))
-			poess.append(poes)
-	hcf = HazardCurveField(model_name, xml_filespec, sites, period, IMT,
-		intensities, intensity_unit=intensity_unit[IMT], timespan=timespan,
-		poes=np.array(poess))
-	return hcf
-
-
-def parse_hazard_curve(hazard_curve):
-	"""
-	Subroutine for parse_hazard_curves.
-	"""
-	for e in hazard_curve.iter():
-		if e.tag == '{%s}pos' % GML:
-			lon, lat = map(float, str(e.text).split())
-		if e.tag == '{%s}poEs' % NRML:
-			poes = np.array(e.text.split(), dtype=float)
-			poes[np.where(poes==0)] = 10**-15
-	return (lon, lat), poes
+	nrml = etree.parse(xml_filespec).getroot()
+	branch_names = []
+	periods = []
+	intensities = []
+	poes = []
+	for hazard_curves in nrml.findall("{%s}hazardCurves" % NRML):
+		model_name, sites, period, imt, intensities_, timespan, poes_ = _parse_hazard_curves(hazard_curves)
+		assert imt in ("PGA", "SA")
+		if period not in periods:
+			periods.append(period)
+			intensities.append(intensities_)
+		if model_name not in branch_names:
+			branch_names.append(model_name)
+		poes.extend(poes_)
+	intensities = np.array(intensities)
+	poes_ = np.zeros((len(sites), len(branch_names), len(periods), intensities.shape[1]))
+	m = 0
+	for j in range(len(branch_names)):
+		for k in range(len(periods)):
+			for i in range(len(sites)):
+				poes_[i, j, k] = poes[m]
+				m += 1
+	print poes_[1, 1, 1]
+	filespecs = [xml_filespec] * len(branch_names)
+	if len(set(branch_names)) == 1:
+		return SpectralHazardCurveField(model_name, filespecs, sites, periods, "SA", intensities, timespan=timespan, poes=poes_)
+	else:
+		weights = np.array([1.] * len(branch_names))
+		weights /= weights.sum()
+		return SpectralHazardCurveFieldTree(model_name, branch_names, filespecs, weights, sites, periods, "SA", intensities, timespan=timespan, poes=poes_)
 
 
 def parse_hazard_map(xml_filespec):
 	"""
-	Parse OpenQuake nrml xml hazard map file.
+	Parse OpenQuake nrml output file of type "hazard map"
 
 	:param xml_filespec:
 		String, filespec of file to parse.
 
 	:return:
-		instance of :class:`HazardMap`
+		instance of :class:`..result.HazardMap`
 	"""
 	nrml = etree.parse(xml_filespec)
 	sites, intensities = [], []
 	for e in nrml.iter():
 		if e.tag == '{%s}hazardMap' % NRML:
-			model_name = (e.get('sourceModelTreePath') + ' - '
-				+ e.get('gsimTreePath'))
+			model_name = _get_model_name(e)
 			IMT = e.get('IMT')
 			if e.attrib.has_key('saPeriod'):
 				period = e.get('saPeriod')
@@ -107,18 +152,17 @@ def parse_hazard_map(xml_filespec):
 
 def parse_uh_spectra(xml_filespec):
 	"""
-	Parse OpenQuake nrml xml uniform hazard spectra file.
+	Parse OpenQuake nrml output file of type "uniform hazard spectra"
 
 	:param xml_filespec:
 		String, filespec of file to parse.
 
 	:return:
-		instance of :class:`UHSField`
+		instance of :class:`..result.UHSField`
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
 	uh_spectra = nrml.find('{%s}uniformHazardSpectra' % NRML)
-	model_name = (uh_spectra.get('sourceModelTreePath') + ' - '
-		+ uh_spectra.get('gsimTreePath'))
+	model_name = _get_model_name(uh_spectra)
 	periods = uh_spectra.find('{%s}periods' % NRML)
 	periods = map(float, str(periods.text).split())
 	IMT = 'SA'
@@ -139,13 +183,13 @@ def parse_uh_spectra(xml_filespec):
 
 def parse_disaggregation(xml_filespec):
 	"""
-	Parse OpenQuake nrml xml disaggregation file.
+	Parse OpenQuake nrml output file of type "disaggregation"
 
 	:param xml_filespec:
 		String, filespec of file to parse.
 
 	:return:
-		dict {disaggregatuin type: instance of :class:`DeaggregationSlice`}
+		dict {disaggregation type: instance of :class:`..result.DeaggregationSlice`}
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
 	disagg_matrices = nrml.find('{%s}disaggMatrices' % NRML)
@@ -208,41 +252,62 @@ def parse_disaggregation(xml_filespec):
 	return deaggregation_slices
 
 
-def rename_output_files(dir):
+def parse_any_output(xml_filespec):
 	"""
+	Parse OpenQuake nrml output file of any type ("hazard curves", "hazard curves multi", "hazard map", "uniform hazard spectra" or "disaggregation").
+	
+	:param xml_filespec:
+		String, filespec of file to parse
 	"""
-	for name in os.listdir(dir):
-		filespec = os.path.join(dir, name)
-		if os.path.splitext(name)[-1] == ".xml":
-			if name.startswith('hazard-map'):
-				hm = parse_hazard_map(filespec)
-				new_filespec = os.path.join(dir, 'hazard-map_%.fyr_%s(%s).xml' % (hm.return_period, hm.IMT, hm.period))
-				if new_filespec != filespec:
-					os.rename(filespec, new_filespec)
-			if name.startswith('hazard-curve'):
-				hc = parse_hazard_curve(filespec)
-				new_filespec = os.path.join(dir, 'hazard-curve_%s(%s).xml' % (hc.IMT, hc.period))
-				if new_filespec != filespec:
-					os.rename(filespec, new_filespec)
+	nrml = etree.parse(xml_filespec)
+	hazard_curves = nrml.findall("{%s}hazardCurves" % NRML)
+	if len(hazard_curves) == 1:
+		return parse_hazard_curves(xml_filespec)
+	if len(hazard_curves) >= 2:
+		return parse_hazard_curves_multi(xml_filespec)
+	if nrml.findall("{%s}hazardMap" % NRML):
+		return parse_hazard_map(xml_filespec)
+	if nrml.findall("{%s}uniformHazardSpectra" % NRML):
+		return parse_uh_spectra(xml_filespec)
+	if nrml.findall("{%s}disaggMatrices" % NRML):
+		return parse_disaggregation(xml_filespec)
+	raise "File is not an output of OpenQuake"
+
+
+#def output_parser(directory):
+#	"""
+#	"""
+#	output = []
+#	for file in os.listdir(directory):
+#		if file.startswith("hazard_map"):
+#			output.append(parse_hazard_map(os.path.join(directory, file)))
+#	return output
 
 
 if __name__ == "__main__":
 	"""
 	Test files are located in ../test/nrml.
 	"""
-#	xml_filespec = r'D:\Python\hazard\rshalib\test\nrml\hazard_curve_v1.0.0.xml'
-#	hcf = parse_hazard_curves(xml_filespec)
-#	hcf.plot([0])
+#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_curve_v1.0.0.xml"
+#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_curve\PGA\hazard_curve_0.xml"
+#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_curve\PGA\hazard_curve-mean.xml"
+#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_curve\PGA\hazard_curve-quantile_0.05.xml"
+#	hcf = parse_any_output(xml_filespec)
+#	hcf.plot([0], title=hcf.model_name)
 
-#	xml_filespec = r'D:\Python\hazard\rshalib\test\nrml\hazard_map_v1.0.0.xml'
-#	hm = parse_hazard_map(xml_filespec)
-#	hm.plot()
+	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_curve_multi\hazard_curve_multi_0.xml"
+	shcf = parse_any_output(xml_filespec)
+	shcf.plot()
 
-#	xml_filespec = r'D:\Python\hazard\rshalib\test\nrml\uh_spectra_v1.0.0.xml'
-#	uhs_field = parse_uh_spectra(xml_filespec)
-#	uhs_field.plot([0])
+#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_map_v1.0.0.xml"
+#	hm = parse_any_output(xml_filespec)
+#	hm.plot(title=hm.model_name)
 
-	xml_filespec = r'D:\Python\hazard\rshalib\test\nrml\disagg_matrix_v1.0.0.xml'
-	dis_slices = parse_disaggregation(xml_filespec)
-	dis_slices['Mag,Dist'].plot_mag_dist_pmf()
+#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\uh_spectra_v1.0.0.xml"
+#	uhs_field = parse_any_output(xml_filespec)
+#	uhs_field.plot([0], title=uhs_field.model_name)
+
+#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\disagg_matrix_v1.0.0.xml"
+#	dis_slices = parse_any_output(xml_filespec)
+#	dis_slices['Mag,Dist'].plot_mag_dist_pmf()
 
