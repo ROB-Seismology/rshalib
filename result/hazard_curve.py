@@ -14,12 +14,12 @@ import matplotlib
 import pylab
 
 from ..nrml import ns
-import stats.percentiles
 
 from ..nrml.common import *
 from ..site import SHASite
 from plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram
 from ..utils import interpolate, logrange, LevelNorm
+from ..pmf import NumericPMF
 
 
 # TODO: use SHASites instead of sites and site_names separately.
@@ -877,8 +877,9 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		for i in range(num_sites):
 			for k in range(num_periods):
 				for l in range(num_intensities):
-					if weighted:
-						percentiles[i,k,l,:] = stats.percentiles.weighted_percentiles(self.exceedance_rates[i,:,k,l], percentile_levels, weights=self.weights, resolution=self.num_branches)
+					if weighted and self.weights != None and len(np.unique(self.weights)) > 1:
+						pmf = NumericPMF(zip(self.weights, self.exceedance_rates[i,:,k,l]))
+						percentiles[i,k,l,:] = pmf.get_percentiles(percentile_levels, resolution=self.num_branches)
 					else:
 						for p, per in enumerate(percentile_levels):
 							percentiles[i,k,l,p] = scoreatpercentile(self.exceedance_rates[i,:,k,l], per)
@@ -2493,8 +2494,9 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		percentiles = np.zeros((num_sites, num_periods, num_percentiles))
 		for i in range(num_sites):
 			for k in range(num_periods):
-				if weighted:
-					percentiles[i,k,:] = stats.percentiles.weighted_percentiles(self.intensities[i,:,k], percentile_levels, weights=self.weights, resolution=self.num_branches)
+				if weighted and self.weights != None and len(np.unique(self.weights)) > 1:
+					pmf = NumericPMF(zip(self.weights, self.intensities[i,:,k]))
+					percentiles[i,k,:] = pmf.get_percentiles(percentile_levels, resolution=self.num_branches)
 				else:
 					for p, per in enumerate(percentile_levels):
 						percentiles[i,k,p] = scoreatpercentile(self.intensities[i,:,k], per)
@@ -3576,7 +3578,7 @@ class HazardMapSet(HazardResult, HazardField):
 	def get_max_hazard_map(self):
 		"""
 		Get hazard map with for each site the maximum value of all hazard maps in the set.
-		
+
 		:returns:
 			instance of :class:`HazardMap`
 		"""
