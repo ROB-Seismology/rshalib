@@ -2553,7 +2553,7 @@ class NhlibGMPE(GMPE):
 			imt_periods = {}
 			for imt in self.gmpe.DEFINED_FOR_INTENSITY_MEASURE_TYPES:
 				if imt == SA:
-					if name == "AtkinsonBoore2006":
+					if name in ("AtkinsonBoore2006", "AtkinsonBoore2006Prime"):
 						imt_periods['SA'] = [sa.period for sa in sorted(self.gmpe.COEFFS_BC.sa_coeffs.keys())]
 					elif "adjusted" in name:
 						(vs30, kappa) = self.gmpe.COEFFS.keys()[0]
