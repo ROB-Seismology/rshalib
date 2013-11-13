@@ -2563,7 +2563,7 @@ class NhlibGMPE(GMPE):
 				else:
 					imt_periods[imt.__name__] = [0]
 
-		if "ToroEtAl" in name:
+		if name in ("ToroEtAl2002", "ToroEtAl2002SHARE"):
 			## Remove T=3 and T=4 seconds, which are not supported by the
 			## original publication
 			imt_periods['SA'] = imt_periods['SA'][:-2]
