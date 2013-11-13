@@ -9,13 +9,13 @@ import os
 
 from lxml import etree
 
-from ..nrml import ns
-from ..result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
-from ..site import SHASite
+#from ..nrml import ns
+#from ..result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
+#from ..site import SHASite
 
-#from hazard.rshalib.nrml import ns
-#from hazard.rshalib.result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
-#from hazard.rshalib.site import SHASite
+from hazard.rshalib.nrml import ns
+from hazard.rshalib.result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
+from hazard.rshalib.site import SHASite
 
 NRML = ns.NRML_NS
 GML = ns.GML_NS
@@ -106,7 +106,6 @@ def parse_hazard_curves_multi(xml_filespec):
 			for i in range(len(sites)):
 				poes_[i, j, k] = poes[m]
 				m += 1
-	print poes_[1, 1, 1]
 	filespecs = [xml_filespec] * len(branch_names)
 	if len(set(branch_names)) == 1:
 		return SpectralHazardCurveField(model_name, filespecs, sites, periods, "SA", intensities, timespan=timespan, poes=poes_)
