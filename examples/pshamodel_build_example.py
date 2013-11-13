@@ -43,23 +43,34 @@ rupture_mesh_spacing = 5.
 area_discretization = 15.
 integration_distance = 150.
 
-## Grid, list of sites or site model
-#grid_outline = []
-grid_outline = [(2.15, 49.15), (6.95, 51.95)]
+## Grid, list of sites or soil site model
+## Grid
+grid_outline = []
+#grid_outline = [(2.15, 49.15), (6.95, 51.95)]
 #grid_spacing = 0.1
 #grid_spacing = 1.0
 grid_spacing = '5km'
+ref_soil_params = {"vs30": 800, "vs30measured": True, "z1pt0": 100., "z2pt5": 2., "kappa": 0.03}
 
+## List of sites
 sites = []
 #sites = [rshalib.site.SHASite(3.71704, 51.43233, name='Borssele')]
 
+## Soil site model, with different vs30 and kappa
+doel_soil_params, tihange_soil_params = {}, {}
+doel_soil_params.update(ref_soil_params)
+doel_soil_params['vs30'] = 2000
+doel_soil_params['kappa'] = 0.01
+tihange_soil_params.update(ref_soil_params)
+doel = rshalib.site.SoilSite(4.259, 51.325, soil_params=doel_soil_params, name="Doel")
+tihange = rshalib.site.SoilSite(5.274, 50.534, soil_params=tihange_soil_params, name="Tihange")
+soil_site_model = rshalib.site.SoilSiteModel("", [doel, tihange])
+#soil_site_model = None
 
-ref_soil_params = {"vs30": 800, "vs30measured": True, "z1pt0": 100., "z2pt5": 2.}
-soil_site_model = None
 
 ## Intensity measure type, spectral periods, and intensity levels
-imt_periods = {'PGA': [0], 'SA': [0.5, 1.]}
-#imt_periods = {'PGA': [0]}
+#imt_periods = {'PGA': [0], 'SA': [0.5, 1.]}
+imt_periods = {'PGA': [0]}
 Imin = 1E-3
 Imax = 1.0
 num_intensities = 15
@@ -67,7 +78,6 @@ num_intensities = 15
 ## Return periods and investigation time
 return_periods = [1E+3, 1E+4, 1E+5]
 investigation_time = 50.
-
 
 
 
@@ -124,7 +134,7 @@ source = rshalib.source.AreaSource('bg', 'background', trt, mfd, rupture_mesh_sp
 #ground_motion_model = rshalib.gsim.GroundMotionModel('SCR_BA2008', {trt: 'BooreAtkinson2008'})
 #ground_motion_model = rshalib.gsim.GroundMotionModel('SCR_BT2003', {trt: 'BergeThierry2003'})
 #ground_motion_model = rshalib.gsim.GroundMotionModel('SCR_A1996', {trt: 'AmbraseysEtAl1996'})
-ground_motion_model = rshalib.gsim.GroundMotionModel('Mixed', {'Active Shallow Crust': 'BindiEtAl2011', 'Stable Shallow Crust': 'Campbell2003'})
+ground_motion_model = rshalib.gsim.GroundMotionModel('Mixed', {'Active Shallow Crust': 'BindiEtAl2011', 'Stable Shallow Crust': 'ToroEtAl2002adjusted'})
 
 
 def create_oq_params():
@@ -170,14 +180,13 @@ if __name__ == '__main__':
 	import time
 
 	## nhlib
-	"""
 	psha_model = create_psha_model("nhlib")
 	start_time = time.time()
 	shcfs = psha_model.run_nhlib_shcf(write=False)
 	end_time = time.time()
 	print end_time - start_time
 	shcfs['PGA'].plot()
-	"""
+
 
 	## nhlib deaggregation
 	"""
@@ -203,9 +212,11 @@ if __name__ == '__main__':
 	"""
 
 	## OpenQuake
+	"""
 	psha_model = create_psha_model("openquake")
 	OQparams = create_oq_params()
 	psha_model.write_openquake(user_params=OQparams)
+	"""
 
 	## Crisis
 	#import rshalib.crisis.IO as IO
