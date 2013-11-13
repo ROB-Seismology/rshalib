@@ -53,7 +53,7 @@ class SHASite(Point):
 				EorW = "W"
 			else:
 				EorW = "E"
-			self.name = "%.3f %s, %.3f %s" % (abs(longitude), NorS, abs(latitude), EorW)
+			self.name = "%.3f %s, %.3f %s" % (abs(longitude), EorW, abs(latitude), NorS)
 			if depth:
 				self.name += ", %.1f" % depth
 		else:
@@ -407,6 +407,7 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 		self.name = name
 		self.num_sites = len(sites)
 		super(SoilSiteModel, self).__init__(sites=sites)
+		self.site_names = [site.name for site in sites]
 
 	def __len__(self):
 		return self.num_sites
@@ -416,7 +417,10 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 		:return:
 			list with instances of :class:`SHASite`
 		"""
-		return [SHASite(pt.longitude, pt.latitude, pt.depth) for pt in self.mesh]
+		sites = []
+		for pt, site_name in zip(self.mesh, self.site_names):
+			sites.append(SHASite(pt.longitude, pt.latitude, pt.depth, site_name))
+		return sites
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
