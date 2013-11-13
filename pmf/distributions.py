@@ -113,16 +113,14 @@ class NumericPMF(PMF):
 		percentile_intercepts = interpolate(cdf, values, percentiles)
 		return percentile_intercepts
 
-	def rebin_equal_weight(self, bin_width, num_bins=5, precision=4):
+	def rebin_equal_weight(self, num_bins=5, precision=4):
 		"""
 		Rebin PMF into bins with (approximately) equal weight,
-		such that bin values are a multiple of bin_width
+		such that bin values are a multiple of the original bin_width
+		(assumed to correspond to value spacing), rounded up
 
-		:param bin_width:
-			Float, bin width used for rounding bin values.
-			It is supposed that the PMF values have the same bin width
 		:param num_bins:
-			Int, number of bins in output PMF
+			Int, (maximum) number of bins in output PMF
 		:param precision:
 			Integer, decimal precision of weights (default: 4)
 
@@ -133,8 +131,10 @@ class NumericPMF(PMF):
 		"""
 		values = self.values
 		weights = self.weights.astype('d')
+		bin_width = values[1] - values[0]
 		cumul_weights = np.add.accumulate(weights)
-		start_index = max(0, np.where(weights > 1E-6)[0][0] - 1)
+
+		start_index = max(0, np.where(weights > 1E-6)[0][0])
 		bin_edge_indexes = set([start_index])
 		for bin_edge_weight in np.linspace(1.0/num_bins, 1.0, num_bins):
 			index = np.argmin(np.abs(cumul_weights - bin_edge_weight))
@@ -143,6 +143,56 @@ class NumericPMF(PMF):
 
 		bin_edges = values[bin_edge_indexes]
 		bin_centers = bin_edges[:-1] + (bin_edges[1:] - bin_edges[:-1]) / 2
+		## We use ceil because max_mag in MFD has zero occurrence rate
+		bin_centers_rounded = np.ceil(bin_centers / bin_width) * bin_width
+
+		bin_cumul_weights = cumul_weights[bin_edge_indexes]
+		bin_weights = bin_cumul_weights[1:] - bin_cumul_weights[:-1]
+		bin_weights = bin_weights.clip(Decimal('1E-%d' % precision))
+
+		decimal.getcontext().prec = precision
+		bin_weights = np.array([Decimal(val) for val in bin_weights])
+		bin_weights = adjust_decimal_weights(bin_weights, precision)
+
+		return self.__class__(bin_centers_rounded, bin_weights)
+
+	def rebin_equal_length(self, num_bins=5, precision=4):
+		"""
+		Rebin PMF into bins with equal length
+		such that bin values are a multiple of the original bin_width
+		(assumed to correspond to value spacing), rounded up
+
+		:param num_bins:
+			Int, (maximum) number of bins in output PMF
+		:param precision:
+			Integer, decimal precision of weights (default: 4)
+
+		:return:
+			instance of :class:`PMF` or subclass
+			Note that actual number of bins may be less than specified.
+		"""
+		values = self.values
+		weights = self.weights.astype('d')
+		bin_width = values[1] - values[0]
+		cumul_weights = np.add.accumulate(weights)
+
+		start_index = max(0, np.where(weights > 1E-6)[0][0])
+		end_index = max(len(weights) - 1, np.where(weights > 1E-6)[0][-1])
+		total_num_bins = end_index - start_index
+		int_bin_interval = float(total_num_bins) / num_bins
+		## Make sure int_bin_interval is odd
+		if np.ceil(int_bin_interval) % 2 == 1:
+			int_bin_interval = int(np.ceil(int_bin_interval))
+		else:
+			int_bin_interval = int(np.floor(int_bin_interval))
+
+		bin_edge_indexes = range(start_index, end_index+1, int_bin_interval)
+		if bin_edge_indexes[-1] != end_index:
+			bin_edge_indexes.append(end_index)
+
+		bin_edges = values[bin_edge_indexes]
+		bin_centers = bin_edges[:-1] + (bin_edges[1:] - bin_edges[:-1]) / 2
+		## We use ceil because max_mag in MFD has zero occurrence rate
 		bin_centers_rounded = np.ceil(bin_centers / bin_width) * bin_width
 
 		bin_cumul_weights = cumul_weights[bin_edge_indexes]
