@@ -244,6 +244,9 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 	def get_copy(self):
 		"""
 		Return a copy of the MFD
+
+		:return:
+			instance of :class:`EvenlyDiscretizedMFD`
 		"""
 		return self.to_evenly_discretized_mfd()
 
@@ -777,6 +780,9 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 	def get_copy(self):
 		"""
 		Return a copy of the MFD
+
+		:return:
+			instance of :class:`TruncatedGRMFD`
 		"""
 		return self.to_truncated_GR_mfd()
 
