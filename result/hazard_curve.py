@@ -878,7 +878,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			for k in range(num_periods):
 				for l in range(num_intensities):
 					if weighted and self.weights != None and len(np.unique(self.weights)) > 1:
-						pmf = NumericPMF(zip(self.weights, self.exceedance_rates[i,:,k,l]))
+						pmf = NumericPMF.from_values_and_weights(self.exceedance_rates[i,:,k,l], self.weights)
 						percentiles[i,k,l,:] = pmf.get_percentiles(percentile_levels, resolution=self.num_branches)
 					else:
 						for p, per in enumerate(percentile_levels):
@@ -2495,7 +2495,7 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		for i in range(num_sites):
 			for k in range(num_periods):
 				if weighted and self.weights != None and len(np.unique(self.weights)) > 1:
-					pmf = NumericPMF(zip(self.weights, self.intensities[i,:,k]))
+					pmf = NumericPMF.from_values_and_weights(self.intensities[i,:,k], self.weights)
 					percentiles[i,k,:] = pmf.get_percentiles(percentile_levels, resolution=self.num_branches)
 				else:
 					for p, per in enumerate(percentile_levels):
