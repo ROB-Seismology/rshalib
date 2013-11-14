@@ -616,6 +616,8 @@ class GMPE(object):
 		:param vs30:
 			Float, shear-wave velocity in the upper 30 m (in m/s). If not None,
 			it takes precedence over the soil_type parameter (default: None).
+		:param kappa:
+			Float, kappa value in seconds (default: None)
 		:param mechanism:
 			String, fault mechanism: either "normal", "reverse" or "strike-slip".
 			Ignored if GMPE is not dependent on rake (default: normal).
