@@ -62,6 +62,9 @@ class OQ_Params(ConfigObj):
 			Site_params.comments["reference_depth_to_2pt5km_per_sec"] = ["The depth to where shear-wave velocity = 2.5 km/sec.", "Cambpell basin depth. Measure is (km)"]
 			Site_params["reference_depth_to_1pt0km_per_sec"] = 100.
 			# TODO: in m?
+			## Note: don't set reference_kappa by default, as it is not standard
+			#Site_params["reference_kappa"] = 0.01
+			#Site_params.comments["reference_kappa"] = ["kappa value, in seconds"]
 
 			Calculation_params = Section(self, 1, self, name="calculation")
 			Calculation_params["source_model_logic_tree_file"] = "source_model_logic_tree.xml"
@@ -277,7 +280,7 @@ class OQ_Params(ConfigObj):
 			if self["geometry"].has_key("sites"):
 				del self["geometry"]["sites"]
 
-	def set_soil_site_model_or_reference_params(self, soil_site_model_file=None, reference_vs30_value=760.0, reference_vs30_type="inferred", reference_depth_to_1pt0km_per_sec=100., reference_depth_to_2pt5km_per_sec=2.):
+	def set_soil_site_model_or_reference_params(self, soil_site_model_file=None, reference_vs30_value=760.0, reference_vs30_type="inferred", reference_depth_to_1pt0km_per_sec=100., reference_depth_to_2pt5km_per_sec=2., reference_kappa=None):
 		"""
 		Set site parameters, either as site model or as reference parameters
 
@@ -296,6 +299,9 @@ class OQ_Params(ConfigObj):
 		:param reference_depth_to_2pt5km_per_sec:
 			Float, reference depth to vs=2.5 km/s, specified in km
 			(default: 2.)
+		:param reference_kappa:
+			Float, reference kappa value, specified in s
+			(default: None)
 		"""
 		if soil_site_model_file:
 			self["site_params"]["site_model_file"] = soil_site_model_file
@@ -305,11 +311,15 @@ class OQ_Params(ConfigObj):
 				del self["site_params"]["reference_vs30_type"]
 				del self["site_params"]["reference_depth_to_1pt0km_per_sec"]
 				del self["site_params"]["reference_depth_to_2pt5km_per_sec"]
+			if self["site_params"].has_key("reference_kappa"):
+				del self["site_params"]["reference_kappa"]
 		else:
 			self["site_params"]["reference_vs30_value"] = reference_vs30_value
 			self["site_params"]["reference_vs30_type"] = reference_vs30_type
 			self["site_params"]["reference_depth_to_1pt0km_per_sec"] = reference_depth_to_1pt0km_per_sec
 			self["site_params"]["reference_depth_to_2pt5km_per_sec"] = reference_depth_to_2pt5km_per_sec
+			if reference_kappa:
+				self["site_params"]["reference_kappa"] = reference_kappa
 			## Remove soil_site_model_file key if present
 			if self["site_params"].has_key("site_model_file"):
 				del self["site_params"]["site_model_file"]
