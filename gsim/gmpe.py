@@ -91,7 +91,7 @@ class VS30OutOfRangeError(Exception):
 		self.vs30 = vs30
 
 	def __str__(self):
-		return "VS30 = %s m/s too low!" % self.vs30
+		return "VS30 = %s m/s out of range!" % self.vs30
 
 
 class SoilTypeNotSupportedError(Exception):
@@ -2802,9 +2802,9 @@ class AkkarEtAl2013(NhlibGMPE):
 		dmin, dmax = 0., 200.
 		Mtype = "MW"
 		dampings = [5.]
-		
+
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
-	
+
 	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		if vs30 is None:
 			if soil_type == "rock":
@@ -2812,7 +2812,7 @@ class AkkarEtAl2013(NhlibGMPE):
 			else:
 				raise SoilTypeNotSupportedError(soil_type)
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
-	
+
 	def plot_figure_10(self, period):
 		"""
 		Reproduce Figure 10 of Akkart et al. (2013).
@@ -2997,6 +2997,9 @@ class BindiEtAl2011(NhlibGMPE):
 
 
 class BooreAtkinson2008(NhlibGMPE):
+	"""
+	Valid VS30 range: 180 - 1300 m/s
+	"""
 	def __init__(self):
 		name, short_name = "BooreAtkinson2008", "BA_2008"
 		distance_metric = "Joyner-Boore"
@@ -3017,6 +3020,8 @@ class BooreAtkinson2008(NhlibGMPE):
 				vs30 = 760.
 			else:
 				raise SoilTypeNotSupportedError(soil_type)
+		elif vs30 > 1500:
+			raise VS30OutOfRangeError(vs30)
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
 
 	def plot_Figure10(self, r=0.):
@@ -3083,6 +3088,8 @@ class BooreAtkinson2008Prime(NhlibGMPE):
 				vs30 = 760.
 			else:
 				raise SoilTypeNotSupportedError(soil_type)
+		elif vs30 > 1500:
+			raise VS30OutOfRangeError(vs30)
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
 
 	def plot_Figure7(self, period=0.3):
