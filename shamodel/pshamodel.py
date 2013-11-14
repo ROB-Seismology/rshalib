@@ -458,7 +458,8 @@ class PSHAModel(PSHAModelBase):
 				reference_vs30_value=self.ref_soil_params["vs30"],
 				reference_vs30_type={True: 'measured', False:'inferred'}[self.ref_soil_params["vs30measured"]],
 				reference_depth_to_1pt0km_per_sec=self.ref_soil_params["z1pt0"],
-				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"])
+				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"],
+				reference_kappa=self.ref_soil_params["kappa"])
 
 		## validate source model logic tree and write nrml file
 		source_model_lt = SeismicSourceSystem(self.source_model.name, self.source_model)
@@ -515,6 +516,12 @@ class PSHAModel(PSHAModelBase):
 		:return:
 			String, full path to CRISIS input .DAT file
 		"""
+		## Raise exception if model contains sites with different
+		## vs30 and/or kappa
+		if self.soil_site_model:
+			if len(set(self.soil_site_model.vs30)) > 1 or len(set(self.soil_site_model.kappa)) > 1:
+				raise Exception("CRISIS2007 does not support sites with different VS30 and/or kappa!")
+
 		## Construct default filenames and paths if none are specified
 		if not filespec:
 			filespec = os.path.join(self.output_dir, self.name + '.dat')
@@ -538,7 +545,7 @@ class PSHAModel(PSHAModelBase):
 
 		## Write input file. This will also write the site file and attenuation
 		## tables if necessary.
-		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.get_sites(), site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], mag_scale_rel=None, output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
+		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.get_sites(), site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], kappa=self.ref_soil_params["kappa"], mag_scale_rel=None, output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
 
 		## Return name of output file
 		return filespec
