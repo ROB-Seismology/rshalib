@@ -2794,6 +2794,35 @@ class AkkarBommer2010(NhlibGMPE):
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
 
 
+class AkkarEtAl2013(NhlibGMPE):
+	def __init__(self):
+		name, short_name = "AkkarEtAl2013", "A_2013"
+		distance_metric = "Joyner-Boore"
+		Mmin, Mmax = 4., 7.6
+		dmin, dmax = 0., 200.
+		Mtype = "MW"
+		dampings = [5.]
+		
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+	
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+		if vs30 is None:
+			if soil_type == "rock":
+				vs30 = 750.
+			else:
+				raise SoilTypeNotSupportedError(soil_type)
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
+	
+	def plot_figure_10(self, period):
+		"""
+		Reproduce Figure 10 of Akkart et al. (2013).
+
+		:param period:
+			float, period (options: 0 (=PGA), 0.2, 1. or 4.)
+		"""
+		self.plot_distance(mags=[6.0, 6.5, 7.0, 7.5, 8.0], dmin=1., dmax=200., distance_metric="Joyner-Boore", h=0, imt={0: "PGA", 0.2: "SA", 1.: "SA", 4.: "SA"}[period], T=period, imt_unit="g", mechanism="strike-slip", vs30=750., damping=5, plot_style="loglog", amin={0: 0.001, 0.2: 0.001, 1.: 0.0001, 4.: 0.0001}[period], amax=2., want_minor_grid=True)
+
+
 class AtkinsonBoore2006(NhlibGMPE):
 	def __init__(self):
 		name, short_name = "AtkinsonBoore2006", "AB_2006"
@@ -3621,7 +3650,7 @@ def plot_distance(gmpe_list, mags, dmin=None, dmax=None, distance_metric=None, h
 		for j, M in enumerate(mags):
 			converted_distances = convert_distance_metric(distances, distance_metric, gmpe.distance_metric, M)
 			Avalues = gmpe(M, converted_distances, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
-			style = colors[i] + linestyles[j]
+			style = colors[i%len(colors)] + linestyles[j%len(linestyles)]
 			plotfunc(distances, Avalues, style, linewidth=3, label=gmpe.name+" (M=%.1f)" % M)
 			if epsilon:
 				## Fortunately, log_sigma is independent of scale factor!
