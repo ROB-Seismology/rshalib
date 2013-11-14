@@ -32,7 +32,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					intensities=None, min_intensities={"PGA": [1E-3]}, max_intensities={"PGA": [1.0]},
 					num_intensities=100, imt_unit="g", model_name="",
 					truncation_level=3., integration_distance=200.,
-					source_discretization=(1.0, 5.0), vs30=800.,
+					source_discretization=(1.0, 5.0), vs30=800., kappa=None,
 					mag_scale_rel="WC1994",
 					output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False},
 					deagg_dist_metric="Hypocentral", map_filespec="", cities_filespec="",
@@ -126,6 +126,8 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		Float, shear-wave velocity in the upper 30 m (in m/s). This is used to
 		determine the correct soil type for each gsim (default: 800, which
 		should correspond to "rock" in most cases).
+	:param kappa:
+		Float, kappa value in seconds (default: None)
 	:param mag_scale_rel:
 		String, name of magnitude-area scaling relationship to be used,
 		one of "WC1994", "Brune1970" or "Singh1980" (default: "").
@@ -191,6 +193,9 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 				## Set mechanism to arbitrary type to avoid problem with
 				## unspecified mechanism in nhlib GMPE's
 				mechanism = "normal"
+			atn_filespec += "_VS30=%s" % vs30
+			if kappa:
+				atn_filespec += "_kappa=%s" % kappa
 			atn_filespec += ".ATN"
 			Mmin, Mmax = source_model.min_mag, source_model.max_mag
 			Mstep, num_distances = 0.5, 50
@@ -225,7 +230,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 										h=0, imt_periods=imt_periods,
 										imt_unit=imt_unit,
 										num_sigma=truncation_level,
-										vs30=vs30, mechanism=mechanism,
+										vs30=vs30, kappa=kappa, mechanism=mechanism,
 										damping=5, filespec=atn_filespec)
 			else:
 				print("Warning: CRISIS ATN file %s exists! Set overwrite=True to overwrite." % atn_filespec)
