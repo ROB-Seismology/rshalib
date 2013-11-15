@@ -735,7 +735,9 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		if isinstance(other, (int, float)):
 			N0 = 10**self.a_val
 			a_val = np.log10(N0 / float(other))
-			return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
+			## a_sigma does not change
+			a_sigma = self.a_sigma
+			return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, a_sigma, self.b_sigma, self.Mtype)
 		else:
 			raise TypeError("Divisor must be integer or float")
 
@@ -743,7 +745,9 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		if isinstance(other, (int, float)):
 			N0 = 10**self.a_val
 			a_val = np.log10(N0 * float(other))
-			return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
+			## a_sigma does not change
+			a_sigma = self.a_sigma
+			return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, a_sigma, self.b_sigma, self.Mtype)
 		else:
 			raise TypeError("Multiplier must be integer or float")
 
@@ -759,7 +763,10 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 				## Note: bin width does not have to be the same here
 				N0 = 10 ** self.a_val - 10 ** other.a_val
 				a_val = np.log10(N0)
-				return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
+				## Error propagation, see http://chemwiki.ucdavis.edu/Analytical_Chemistry/Quantifying_Nature/Significant_Digits/Propagation_of_Error
+				a_sigma = 0.434 * ((self.get_N_sigma() + other.get_N_sigma()) / N0)
+				b_sigma = np.mean(self.b_sigma, other.b_sigma)
+				return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, a_sigma, b_sigma, self.Mtype)
 		elif isinstance(other, EvenlyDiscretizedMFD):
 			return self.to_evenly_discretized_mfd().__sub__(other)
 		else:
@@ -828,6 +835,17 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		## Note: the following is identical
 		#return np.add.accumulate(self.occurrence_rates[::-1])[::-1]
 
+	def get_N_sigma(self):
+		"""
+		Return standard deviation on annual occurrence rate of M=0,
+		computed from a_sigma
+
+		:return:
+			Float
+		"""
+		N = 10**self.a_val
+		return N * 2.303 * self.a_sigma
+
 	def divide(self, weights):
 		"""
 		Divide MFD into a number of MFD's that together sum up to the original MFD
@@ -842,7 +860,9 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		weights /= np.add.reduce(weights)
 		N0 = 10**self.a_val
 		avalues = np.log10(weights * N0)
-		return [TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, aw, self.b_val, self.a_sigma, self.b_sigma, self.Mtype) for aw in avalues]
+		## a_sigma does not change
+		a_sigma = self.a_sigma
+		return [TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, aw, self.b_val, a_sigma, self.b_sigma, self.Mtype) for aw in avalues]
 
 	def split(self, M):
 		"""
@@ -1256,9 +1276,15 @@ def sum_MFDs(mfd_list, weights=[]):
 		if len(all_min_mags) == len(all_max_mags) == len(all_bvals) == 1:
 			## TruncatedGR's can be summed into another TruncatedGR object
 			all_avals = np.array([mfd.a_val for mfd in mfd_list])
-			a = np.log10(np.add.reduce(10**all_avals * weights))
+			N0 = 10**all_avals
+			N0sum = np.add.reduce(N0 * weights)
+			a = np.log10(N0sum)
+			## Error propagation, see http://chemwiki.ucdavis.edu/Analytical_Chemistry/Quantifying_Nature/Significant_Digits/Propagation_of_Error
+			Nsum_sigma = np.sum([mfd.get_N_sigma() * w for (mfd, w) in zip(mfd_list, weights)])
+			a_sigma = 0.434 * (Nsum_sigma / N0sum)
+			b_sigma = np.mean([mfd.b_sigma for mfd in mfd_list])
 			mfd = mfd_list[0]
-			return TruncatedGRMFD(mfd.min_mag, mfd.max_mag, mfd.bin_width, a, mfd.b_val, mfd.a_sigma, mfd.b_sigma, mfd.Mtype)
+			return TruncatedGRMFD(mfd.min_mag, mfd.max_mag, mfd.bin_width, a, mfd.b_val, a_sigma, b_sigma, mfd.Mtype)
 		else:
 			## TruncatedGR's can be summed after conversion to EvenlyDiscretized
 			pass
