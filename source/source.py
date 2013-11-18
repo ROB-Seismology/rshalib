@@ -33,22 +33,56 @@ class RuptureSource():
 	the number of area discretization points * number of magnitude bins *
 	number of hypocentral depths * number of nodal planes
 	"""
-	def get_ruptures_Poisson(self, timespan=1):
+	def get_ruptures_Poisson(self, mag=None, strike=None, dip=None, rake=None, timespan=1):
 		"""
-		Generate ruptures according to Poissonian temporal occurrence model
+		Generate ruptures according to Poissonian temporal occurrence model,
+		optionally filtering by magnitude, strike, dip and rake.
 
 		:param timespan:
 			Float, time interval for Poisson distribution, in years
 			(default: 1)
+		:param mag:
+			Float, magnitude value (center of bin) of ruptures to plot
+			(default: None)
+		:param strike:
+			Float, strike in degrees of ruptures to plot (default: None)
+		:param dip:
+			Float, dip in degrees of ruptures to plot (default: None)
+		:param rake:
+			Float, rake in degrees of ruptures to plot (default: None)
 
 		:return:
 			list of instances of :class:`ProbabilisticRupture`
 		"""
 		tom = nhlib.tom.PoissonTOM(timespan)
-		ruptures = []
-		for rup in self.iter_ruptures(tom):
-			ruptures.append(rup)
+		ruptures = list(self.iter_ruptures(tom))
+
+		## Filter by magnitude, strik, dip, and rake
+		if mag is not None:
+			ruptures = [rup for rup in ruptures if np.allclose(rup.mag, mag)]
+		if strike is not None:
+			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.get_strike(), strike)]
+		if dip is not None:
+			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.get_dip(), dip)]
+		if rake is not None:
+			ruptures = [rup for rup in ruptures if np.allclose(rup.rake, rake)]
 		return ruptures
+
+	def get_stochastic_event_set_Poisson(self, timespan):
+		"""
+		Generate a random set of ruptures following a Poissonian temporal
+		occurrence model. The stochastic event set represents a possible
+		realization of the seismicity as described by the source,
+		in the given time span.
+
+		:param timespan:
+			Float, time interval for Poisson distribution, in years
+
+		:return:
+			list of instances of :class:`ProbabilisticRupture`
+		"""
+		event_set = list(nhlib.calc.stochastic_event_set_poissonian([self], timespan))
+		return event_set
 
 	def get_rupture_bounds(self, rupture):
 		"""
@@ -128,39 +162,21 @@ class RuptureSource():
 		pylab.ylabel("Occurrence rate (1/yr)")
 		pylab.show()
 
-	def plot_rupture_bounds_3d(self, mag, strike=None, dip=None, rake=None, fill=False, timespan=1):
+
+	def plot_rupture_bounds_3d(self, ruptures, fill=False):
 		"""
 		Plot rupture bounds in 3 dimensions.
 		Note that lon, lat coordinates are transformed to UTM coordinates
 		in order to obtain metric coordinates
 
-		:param mag:
-			Float, magnitude value (center of bin) of ruptures to plot
-		:param strike:
-			Float, strike in degrees of ruptures to plot (default: None)
-		:param dip:
-			Float, dip in degrees of ruptures to plot (default: None)
-		:param rake:
-			Float, rake in degrees of ruptures to plot (default: None)
+		:param ruptures:
+			list of instances of :class:`ProbabilisticRupture`.
 		:param fill:
 			Bool, whether or not to plot ruptures with a transparent fill
 			(default: False)
-		:param timespan:
-			Float, time interval for Poisson distribution, in years
-			(default: 1)
 		"""
 		import mpl_toolkits.mplot3d.axes3d as p3
 		import mapping.geo.coordtrans as coordtrans
-
-		## Generate ruptures, and filter according to magnitude bin, strike and rake
-		ruptures = self.get_ruptures_Poisson(timespan=timespan)
-		ruptures = [rup for rup in ruptures if np.allclose(rup.mag, mag)]
-		if strike is not None:
-			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.get_strike(), strike)]
-		if dip is not None:
-			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.get_dip(), dip)]
-		if rake is not None:
-			ruptures = [rup for rup in ruptures if np.allclose(rup.rake, rake)]
 
 		## Determine UTM zone and hemisphere
 		utm_spec = coordtrans.get_utm_spec(*self.get_centroid())
