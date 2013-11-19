@@ -27,7 +27,7 @@ from hazard.rshalib.source import PointSource
 class DSHAModel(SHAModelBase):
 	"""
 	"""
-	
+
 	def __init__(self, name, lons, lats, depths, mags, gsim, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, usd=0, lsd=30., imts=["PGA"], periods=[], correlation_model=None, truncation_level=0., maximum_distance=None):
 		"""
 		"""
@@ -45,26 +45,33 @@ class DSHAModel(SHAModelBase):
 		self.correlation_model = correlation_model
 		self.maximum_distance = maximum_distance
 		self.realizations = 1. ## NOTE: only one realization possible
+		self.ruptures = []
+
+	def __len__(self):
+		return max(len(self.ruptures), len(self.lons))
 
 	def get_rupture(self, i): # NOTE: rupture strike/dip/rake but zero area
 		"""
 		:returns:
 			instance of :class:`openquake.hazardlib.source.Rupture`
 		"""
-		lon = self.lons[i]
-		lat = self.lats[i]
-		depth = self.depths[i]
-		mag = self.mags[i]
-		nodal_plane = NodalPlane(0., 90, 0.)
-		hypocenter = Point(lon, lat, depth)
-		npd = NodalPlaneDistribution([nodal_plane], [1.])
-		hdd = HypocentralDepthDistribution([depth], [1.])
-		point_source = PointSource("", "", "", "", "",
-			PointMSR(), 1, self.usd, self.lsd, hypocenter, npd, hdd)
-		surface = point_source._get_rupture_surface(mag, nodal_plane, hypocenter)
-		rupture = Rupture(mag, 0., "", hypocenter, surface, "")
-		return rupture
-	
+		if self.ruptures is None or len(self.ruptures) == 0:
+			lon = self.lons[i]
+			lat = self.lats[i]
+			depth = self.depths[i]
+			mag = self.mags[i]
+			nodal_plane = NodalPlane(0., 90, 0.)
+			hypocenter = Point(lon, lat, depth)
+			npd = NodalPlaneDistribution([nodal_plane], [1.])
+			hdd = HypocentralDepthDistribution([depth], [1.])
+			point_source = PointSource("", "", "", "", "",
+				PointMSR(), 1, self.usd, self.lsd, hypocenter, npd, hdd)
+			surface = point_source._get_rupture_surface(mag, nodal_plane, hypocenter)
+			rupture = Rupture(mag, 0., "", hypocenter, surface, "")
+			return rupture
+		else:
+			return self.ruptures[i]
+
 	def _get_hazardlib_imts(self):
 		"""
 		:returns:
@@ -86,7 +93,7 @@ class DSHAModel(SHAModelBase):
 			return rupture_site_distance_filter(self.maximum_distance)
 		else:
 			return rupture_site_noop_filter
-	
+
 	def run_hazardlib(self):
 		"""
 		"""
@@ -95,7 +102,7 @@ class DSHAModel(SHAModelBase):
 		gsim = get_available_gsims()[self.gsim]()
 		rsdf = self._get_hazardlib_rsdf()
 		hazard_maps = {imt: [] for imt in imts}
-		for i in xrange(len(self.lons)):
+		for i in xrange(len(self)):
 			gmfs = ground_motion_fields(
 				self.get_rupture(i),
 				soil_site_model,
@@ -129,7 +136,7 @@ class DSHAModel(SHAModelBase):
 				IMT = {PGV(): "PGV", PGD(): "PGD", PGA(): "PGA"}[imt]
 				key = IMT
 			intensities = np.array([hm.intensities for hm in hazard_maps[imt]])
-			hazard_map_sets[key] = HazardMapSet("", "", self.sha_site_model, period, IMT, intensities, intensity_unit="g", timespan=1, poes=[1], return_periods=[], site_names=None, vs30s=None)
+			hazard_map_sets[key] = HazardMapSet("", [""]*len(hazard_maps[imt]), self.sha_site_model, period, IMT, intensities, intensity_unit="g", timespan=1, poes=[1], return_periods=[], site_names=None, vs30s=None)
 		return hazard_map_sets
 
 
@@ -137,22 +144,22 @@ if __name__ == "__main__":
 	"""
 	Test
 	"""
-	
+
 	name = "TestDSHAModel"
-	
+
 	## earthquake
 	lons =[4.5]
 	lats=[50.5]
 	depths=[10.]
 	mags=[6.5]
-	
+
 	## catalog
 #	from hazard.psha.Projects.SHRE_NPP.catalog import cc_catalog
 #	lons = cc_catalog.lons
 #	lats = cc_catalog.lats
 #	depths = [d or 10 for d in cc_catalog.get_depths()]
 #	mags = cc_catalog.mags
-	
+
 	sites = None
 	grid_outline = (1, 8, 49, 52)
 	grid_spacing = 0.1
@@ -164,7 +171,7 @@ if __name__ == "__main__":
 	correlation_model = None
 	truncation_level = 0.
 	maximum_distance = None
-	
+
 	dhsa_model = DSHAModel(
 		name=name,
 		lons=lons,
@@ -183,7 +190,7 @@ if __name__ == "__main__":
 		truncation_level=truncation_level,
 		maximum_distance=maximum_distance,
 		)
-	
+
 	hazard_map_sets = dhsa_model.run_hazardlib()
 	hm = hazard_map_sets["PGA"].get_max_hazard_map()
 	hm.plot(title="", site_symbol="", intensity_levels=[], num_grid_cells=500) # TODO: fix colorbar ticks bug
