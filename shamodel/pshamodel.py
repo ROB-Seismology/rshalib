@@ -426,6 +426,7 @@ class PSHAModel(PSHAModelBase):
 		:param user_params:
 			{str, val} dict, defining respectively parameters and value for OpenQuake (default: None).
 		"""
+		# TODO: depending on how we implement deaggregation, calculation_mode may be dropped in the future
 		## set OQ_params object and override with params from user_params
 		params = OQ_Params(calculation_mode=calculation_mode, description=self.name)
 		implicit_params = self._get_implicit_openquake_params()
