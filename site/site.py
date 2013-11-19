@@ -432,7 +432,7 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 		soil_site_model_elem = etree.Element(ns.SITE_MODEL)
 
 		for i in range(self.num_sites):
-			site_elem = etree.SubElement(site_model_elem, ns.SITE)
+			site_elem = etree.SubElement(soil_site_model_elem, ns.SITE)
 			site_elem.set(ns.LON, str(self.mesh.lons[i]))
 			site_elem.set(ns.LAT, str(self.mesh.lats[i]))
 			site_elem.set(ns.VS30, str(self.vs30[i]))
