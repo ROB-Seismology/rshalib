@@ -440,7 +440,7 @@ class PSHAModel(PSHAModelBase):
 		params.number_of_logic_tree_samples = 1
 
 		## set sites or grid_outline
-		if self.sha_site_model.grid_outline:
+		if self.sha_site_model and self.sha_site_model.grid_outline:
 			grid_spacing_km = self._get_grid_spacing_km()
 			params.set_grid_or_sites(grid_outline=self.sha_site_model.grid_outline, grid_spacing=grid_spacing_km)
 		else:
