@@ -127,7 +127,7 @@ def create_rob_area_source(
 	hypo_bin_width=5,
 	hypocentral_distribution=None,
 	polygon=None,
-	area_discretization=1.,
+	area_discretization=5.,
 	mfd_bin_width=0.1,
 	column_map={},
 	catalog=None,
@@ -161,7 +161,7 @@ def create_rob_area_source(
 	:param polygon:
 		See class AreaSource (Default: None).
 	:param area_discretization:
-		See class AreaSource (Default: 1.0).
+		See class AreaSource (Default: 5.0).
 	:param mfd_bin_width:
 		Float, bin width of MFD (default: 0.1)
 	:param column_map:
