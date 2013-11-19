@@ -140,9 +140,6 @@ ground_motion_model = rshalib.gsim.GroundMotionModel('Mixed', {'Active Shallow C
 def create_oq_params():
 	## Additional OpenQuake params not automatically handled by pshamodel
 	OQparams = {}
-	OQparams['rupture_mesh_spacing'] = rupture_mesh_spacing
-	OQparams['area_source_discretization'] = area_discretization
-	OQparams['width_of_mfd_bin'] = mfd_bin_width
 	OQparams['export_dir'] = 'output'
 	return OQparams
 
@@ -180,12 +177,14 @@ if __name__ == '__main__':
 	import time
 
 	## nhlib
+	"""
 	psha_model = create_psha_model("nhlib")
 	start_time = time.time()
 	shcfs = psha_model.run_nhlib_shcf(write=False)
 	end_time = time.time()
 	print end_time - start_time
 	shcfs['PGA'].plot()
+	"""
 
 
 	## nhlib deaggregation
@@ -212,15 +211,16 @@ if __name__ == '__main__':
 	"""
 
 	## OpenQuake
-	"""
 	psha_model = create_psha_model("openquake")
 	OQparams = create_oq_params()
 	psha_model.write_openquake(user_params=OQparams)
-	"""
+
+
 
 	## Crisis
-	#import rshalib.crisis.IO as IO
-	#psha_model = create_psha_model("crisis")
-	#gra_filespec = psha_model.write_crisis(overwrite=True)
-	#shcf = IO.readCRISIS_GRA(os.path.splitext(gra_filespec)[0])
+	"""
+	psha_model = create_psha_model("crisis")
+	gra_filespec = psha_model.write_crisis(overwrite=False)
+	#shcf = rshalib.crisis.readCRISIS_GRA(os.path.splitext(gra_filespec)[0])
 	#shcf.plot()
+	"""
