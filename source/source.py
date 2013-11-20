@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Classes representing source-model elements in Openquake/nhlib. Where possible,
-the classes are inherited from nhlib classes. All provide methods to create
+Classes representing source-model elements in Openquake/oqhazlib. Where possible,
+the classes are inherited from oqhazlib classes. All provide methods to create
 XML elements, which are used to write a complete source-model NRML file.
-Thus, objects instantiated from these classes can be used directly in nhlib,
+Thus, objects instantiated from these classes can be used directly in oqhazlib,
 as well as to generate input files for OpenQuake.
 """
 
@@ -14,7 +14,7 @@ from lxml import etree
 import numpy
 import pylab
 
-import openquake.hazardlib as nhlib
+import openquake.hazardlib as oqhazlib
 
 from ..nrml import ns
 from ..nrml.common import *
@@ -54,7 +54,7 @@ class RuptureSource():
 		:return:
 			list of instances of :class:`ProbabilisticRupture`
 		"""
-		tom = nhlib.tom.PoissonTOM(timespan)
+		tom = oqhazlib.tom.PoissonTOM(timespan)
 		ruptures = list(self.iter_ruptures(tom))
 
 		## Filter by magnitude, strik, dip, and rake
@@ -81,7 +81,7 @@ class RuptureSource():
 		:return:
 			list of instances of :class:`ProbabilisticRupture`
 		"""
-		event_set = list(nhlib.calc.stochastic_event_set_poissonian([self], timespan))
+		event_set = list(oqhazlib.calc.stochastic_event_set_poissonian([self], timespan))
 		return event_set
 
 	def get_rupture_bounds(self, rupture):
@@ -331,7 +331,7 @@ class RuptureSource():
 		pylab.show()
 
 
-class PointSource(nhlib.source.PointSource, RuptureSource):
+class PointSource(oqhazlib.source.PointSource, RuptureSource):
 	"""
 	Class representing a point source, corresponding to a single geographic site
 
@@ -340,7 +340,7 @@ class PointSource(nhlib.source.PointSource, RuptureSource):
 	:param name:
 		full name of source
 	:param tectonic_region_type:
-		tectonic region type known to nhlib/OQ. See :class:`nhlib.const.TRT`
+		tectonic region type known to oqhazlib/OQ. See :class:`oqhazlib.const.TRT`
 	:param mfd:
 		magnitude-frequency distribution (instance of :class:`TruncatedGRMFD`
 		or :class:`EvenlyDiscretizedMFD`)
@@ -348,10 +348,10 @@ class PointSource(nhlib.source.PointSource, RuptureSource):
 		The desired distance between two adjacent points in source's
 		ruptures' mesh, in km. Mainly this parameter allows to balance
 		the trade-off between time needed to compute the :meth:`distance
-		<nhlib.geo.surface.base.BaseSurface.get_min_distance>` between
+		<oqhazlib.geo.surface.base.BaseSurface.get_min_distance>` between
 		the rupture surface and a site and the precision of that computation.
 	:param magnitude_scaling_relationship:
-		Instance of subclass of :class:`nhlib.scalerel.base.BaseMSR` to
+		Instance of subclass of :class:`oqhazlib.scalerel.base.BaseMSR` to
 		describe how does the area of the rupture depend on magnitude and rake.
 	:param rupture_aspect_ratio:
 		Float number representing how much source's ruptures are more wide
@@ -479,7 +479,7 @@ class PointSource(nhlib.source.PointSource, RuptureSource):
 		return (self.location.longitude, self.location.latitude)
 
 
-class AreaSource(nhlib.source.AreaSource, RuptureSource):
+class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 	"""
 	Class representing an area source, i.e. a polygonal geographical region
 	where seismicity is assumed to be uniform.
@@ -490,7 +490,7 @@ class AreaSource(nhlib.source.AreaSource, RuptureSource):
 	:param name:
 		full name of source
 	:param tectonic_region_type:
-		tectonic region type known to nhlib/OQ. See :class:`nhlib.const.TRT`
+		tectonic region type known to oqhazlib/OQ. See :class:`oqhazlib.const.TRT`
 	:param mfd:
 		magnitude-frequency distribution (instance of :class:`TruncatedGRMFD`
 		or :class:`EvenlyDiscretizedMFD`)
@@ -498,10 +498,10 @@ class AreaSource(nhlib.source.AreaSource, RuptureSource):
 		The desired distance between two adjacent points in source's
 		ruptures' mesh, in km. Mainly this parameter allows to balance
 		the trade-off between time needed to compute the :meth:`distance
-		<nhlib.geo.surface.base.BaseSurface.get_min_distance>` between
+		<oqhazlib.geo.surface.base.BaseSurface.get_min_distance>` between
 		the rupture surface and a site and the precision of that computation.
 	:param magnitude_scaling_relationship:
-		Instance of subclass of :class:`nhlib.scalerel.base.BaseMSR` to
+		Instance of subclass of :class:`oqhazlib.scalerel.base.BaseMSR` to
 		describe how does the area of the rupture depend on magnitude and rake.
 	:param rupture_aspect_ratio:
 		Float number representing how much source's ruptures are more wide
@@ -521,7 +521,7 @@ class AreaSource(nhlib.source.AreaSource, RuptureSource):
 		in km representing the depth of the hypocenter. Latitude and longitude
 		of the hypocenter is always set to ones of ``location``.
 	:param polygon:
-		An instance of :class:`nhlib.geo.polygon.Polygon` that defines
+		An instance of :class:`oqhazlib.geo.polygon.Polygon` that defines
 		source's area.
 	:param area_discretization:
 		Float number, polygon area discretization spacing in kilometers.
@@ -716,7 +716,7 @@ class AreaSource(nhlib.source.AreaSource, RuptureSource):
 		return (centroid.GetX(), centroid.GetY())
 
 
-class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
+class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 	"""
 	Class representing a simple fault source.
 
@@ -725,7 +725,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 	:param name:
 		full name of source
 	:param tectonic_region_type:
-		tectonic region type known to nhlib/OQ. See :class:`nhlib.const.TRT`
+		tectonic region type known to oqhazlib/OQ. See :class:`oqhazlib.const.TRT`
 	:param mfd:
 		magnitude-frequency distribution (instance of :class:`TruncatedGRMFD`
 		or :class:`EvenlyDiscretizedMFD`)
@@ -733,10 +733,10 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 		The desired distance between two adjacent points in source's
 		ruptures' mesh, in km. Mainly this parameter allows to balance
 		the trade-off between time needed to compute the :meth:`distance
-		<nhlib.geo.surface.base.BaseSurface.get_min_distance>` between
+		<oqhazlib.geo.surface.base.BaseSurface.get_min_distance>` between
 		the rupture surface and a site and the precision of that computation.
 	:param magnitude_scaling_relationship:
-		Instance of subclass of :class:`nhlib.scalerel.base.BaseMSR` to
+		Instance of subclass of :class:`oqhazlib.scalerel.base.BaseMSR` to
 		describe how does the area of the rupture depend on magnitude and rake.
 	:param rupture_aspect_ratio:
 		Float number representing how much source's ruptures are more wide
@@ -879,7 +879,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 		lons, lats = self.fault_trace.lons, self.fault_trace.lats
 		lons1, lats1 = lons[:-1], lats[:-1]
 		lons2, lats2 = lons[1:], lats[1:]
-		distances = nhlib.geo.geodetic.geodetic_distance(lons1, lats1, lons2, lats2)
+		distances = oqhazlib.geo.geodetic.geodetic_distance(lons1, lats1, lons2, lats2)
 		return numpy.add.reduce(distances)
 
 	def get_area(self):
@@ -903,8 +903,8 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 		lons, lats = self.fault_trace.lons, self.fault_trace.lats
 		lons1, lats1 = lons[:-1], lats[:-1]
 		lons2, lats2 = lons[1:], lats[1:]
-		distances = nhlib.geo.geodetic.geodetic_distance(lons1, lats1, lons2, lats2)
-		azimuths = nhlib.geo.geodetic.azimuth(lons1, lats1, lons2, lats2)
+		distances = oqhazlib.geo.geodetic.geodetic_distance(lons1, lats1, lons2, lats2)
+		azimuths = oqhazlib.geo.geodetic.azimuth(lons1, lats1, lons2, lats2)
 		return (azimuths, distances)
 
 	def get_mean_strike(self):
@@ -971,7 +971,7 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 		top_edge = [Point(pt.longitude, pt.latitude, z0) for pt in self.fault_trace]
 		bottom_edge = []
 		for pt in top_edge:
-			lon, lat = nhlib.geo.geodetic.point_at(pt[0], pt[1], perpendicular_direction, width)
+			lon, lat = oqhazlib.geo.geodetic.point_at(pt[0], pt[1], perpendicular_direction, width)
 			bottom_edge.append(Point(lon, lat, z1))
 		bottom_edge.reverse()
 		return Polygon(top_edge + bottom_edge + [top_edge[0]])
@@ -1262,8 +1262,22 @@ class SimpleFaultSource(nhlib.source.SimpleFaultSource, RuptureSource):
 		centroid = self.to_ogr_geometry().Centroid()
 		return (centroid.GetX(), centroid.GetY())
 
+	def to_characteristic_source(self):
+		"""
+		Convert to a characteristic fault source
 
-class ComplexFaultSource(nhlib.source.ComplexFaultSource, RuptureSource):
+		:return:
+			instance of :class:`CharacteristicSource`
+		"""
+		surface = oqhazlib.geo.surface.SimpleFaultSurface.from_fault_data(
+			self.fault_trace, self.upper_seismogenic_depth,
+			self.lower_seismogenic_depth, self.dip, self.rupture_mesh_spacing)
+
+		return CharacteristicFaultSource(self.source_id, self.name,
+			self.tectonic_region_type, self.mfd, surface, self.rake)
+
+
+class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 	"""
 	Class representing a complex fault source.
 
@@ -1272,7 +1286,7 @@ class ComplexFaultSource(nhlib.source.ComplexFaultSource, RuptureSource):
 	:param name:
 		full name of source
 	:param tectonic_region_type:
-		tectonic region type known to nhlib/OQ. See :class:`nhlib.const.TRT`
+		tectonic region type known to oqhazlib/OQ. See :class:`oqhazlib.const.TRT`
 	:param mfd:
 		magnitude-frequency distribution (instance of :class:`TruncatedGRMFD`
 		or :class:`EvenlyDiscretizedMFD`)
@@ -1280,10 +1294,10 @@ class ComplexFaultSource(nhlib.source.ComplexFaultSource, RuptureSource):
 		The desired distance between two adjacent points in source's
 		ruptures' mesh, in km. Mainly this parameter allows to balance
 		the trade-off between time needed to compute the :meth:`distance
-		<nhlib.geo.surface.base.BaseSurface.get_min_distance>` between
+		<oqhazlib.geo.surface.base.BaseSurface.get_min_distance>` between
 		the rupture surface and a site and the precision of that computation.
 	:param magnitude_scaling_relationship:
-		Instance of subclass of :class:`nhlib.scalerel.base.BaseMSR` to
+		Instance of subclass of :class:`oqhazlib.scalerel.base.BaseMSR` to
 		describe how does the area of the rupture depend on magnitude and rake.
 	:param rupture_aspect_ratio:
 		Float number representing how much source's ruptures are more wide
@@ -1292,7 +1306,7 @@ class ComplexFaultSource(nhlib.source.ComplexFaultSource, RuptureSource):
 		and vice versa.
 	:param edges:
 		A list of :class:`Line` objects, representing fault source geometry. See
-		:meth:`nhlib.geo.surface.complex_fault.ComplexFaultSurface.from_fault_data`
+		:meth:`oqhazlib.geo.surface.complex_fault.ComplexFaultSurface.from_fault_data`
 	:param rake:
 		Angle describing fault rake in decimal degrees.
 
@@ -1321,7 +1335,7 @@ class ComplexFaultSource(nhlib.source.ComplexFaultSource, RuptureSource):
 		cfs_elem.set(ns.TECTONIC_REGION_TYPE, xmlstr(self.tectonic_region_type, encoding=encoding))
 
 
-		cfg_elem = etree.Element(ns.COMPLEX_FAULT_GEOMETRY)
+		cfg_elem = etree.SubElement(cfs_elem, ns.COMPLEX_FAULT_GEOMETRY)
 		for i, edge in enumerate(self.edges):
 			if i == 0:
 				edge_elem = etree.SubElement(cfg_elem, ns.FAULT_TOP_EDGE)
@@ -1380,6 +1394,79 @@ class ComplexFaultSource(nhlib.source.ComplexFaultSource, RuptureSource):
 		for edge in self.edges:
 			lats.append(edge.lats)
 		return lats
+
+	def to_characteristic_source(self):
+		"""
+		Convert to a characteristic fault source
+
+		:return:
+			instance of :class:`CharacteristicSource`
+		"""
+		surface = oqhazlib.geo.surface.ComplexFaultSurface.from_fault_data(
+			self.edges, self.rupture_mesh_spacing)
+
+		return CharacteristicFaultSource(self.source_id, self.name,
+			self.tectonic_region_type, self.mfd, surface, self.rake)
+
+
+class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, RuptureSource):
+	"""
+	Class representing a characteristic source, this is a fault surface
+	with seismic events rupturing the entire fault surface
+	independently of their magnitude.
+	Thus, rupture mesh spacing, magnitude scaling relationship and rupture
+	aspect ratio need not be specified.
+	We do not support the case where characteristic fault sources are defined
+	by multiple planar surfaces, but only the cases with simple fault surfaces
+	or complex fault surfaces.
+	"""
+	def __init__(self, source_id, name, tectonic_region_type, mfd, surface, rake):
+		super(CharacteristicFaultSource, self).__init__(source_id, name,
+								tectonic_region_type, mfd, surface, rake)
+
+	def create_xml_element(self, encoding='latin1'):
+		"""
+		Create xml element (NRML complexFaultSource element)
+
+		:param encoding:
+			unicode encoding (default: 'latin1')
+		"""
+		cfs_elem = etree.Element(ns.CHARACTERISTIC_FAULT_SOURCE)
+		cfs_elem.set(ns.ID, xmlstr(self.source_id, encoding=encoding))
+		cfs_elem.set(ns.NAME, xmlstr(self.name, encoding=encoding))
+		cfs_elem.set(ns.TECTONIC_REGION_TYPE, xmlstr(self.tectonic_region_type, encoding=encoding))
+
+		if isinstance(self.surface, oqhazlib.geo.surface.ComplexFaultSurface):
+			fg_elem = etree.SubElement(cfs_elem, ns.COMPLEX_FAULT_GEOMETRY)
+			for i, edge in enumerate(self.edges):
+				if i == 0:
+					edge_elem = etree.SubElement(fg_elem, ns.FAULT_TOP_EDGE)
+				elif i == len(self.edges) - 1:
+					edge_elem = etree.SubElement(fg_elem, ns.FAULT_BOTTOM_EDGE)
+				else:
+					edge_elem = etree.SubElement(fg_elem, ns.INTERMEDIATE_EDGE)
+				edge_elem.append(edge.create_xml_element(encoding=encoding))
+
+		elif isinstance(self.surface, oqhazlib.geo.surface.SimpleFaultSurface):
+			fg_elem = etree.SubElement(cfs_elem, ns.SIMPLE_FAULT_GEOMETRY)
+			# TODO
+			fg_elem.append(self.fault_trace.create_xml_element(encoding=encoding))
+			dip_elem = etree.SubElement(fg_elem, ns.DIP)
+			dip_elem.text = str(self.get_dip())
+			usd_elem = etree.SubElement(fg_elem, ns.UPPER_SEISMOGENIC_DEPTH)
+			usd_elem.text = str(self.surface.get_top_edge_depth())
+			lsd_elem = etree.SubElement(fg_elem, ns.LOWER_SEISMOGENIC_DEPTH)
+			# TODO
+			lsd_elem.text = str(self.lower_seismogenic_depth)
+
+
+		cfs_elem.append(self.mfd.create_xml_element(encoding=encoding))
+
+		rake_elem = etree.SubElement(cfs_elem, ns.RAKE)
+		rake_elem.text = str(self.rake)
+
+		return cfs_elem
+
 
 
 if __name__ == '__main__':

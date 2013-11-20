@@ -22,6 +22,7 @@ AREA_SOURCE = "%sareaSource" % NRML
 POINT_SOURCE = "%spointSource" % NRML
 COMPLEX_FAULT_SOURCE = "%scomplexFaultSource" % NRML
 SIMPLE_FAULT_SOURCE = "%ssimpleFaultSource" % NRML
+CHARACTERISTIC_FAULT_SOURCE = "%scharacteristicFaultSource" % NRML
 
 ## Source identifiers
 ID = "%sid" % NRML
@@ -70,6 +71,8 @@ LINEAR_RING = "%sLinearRing" % GML
 FAULT_TOP_EDGE = "%sfaultTopEdge" % NRML
 FAULT_BOTTOM_EDGE = "%sfaultBottomEdge" % NRML
 INTERMEDIATE_EDGE = "%sintermediateEdge" % NRML
+
+SURFACE = "%ssurface" % NRML
 
 ## Other source parameters
 UPPER_SEISMOGENIC_DEPTH = "%supperSeismoDepth" % NRML
