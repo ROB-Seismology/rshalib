@@ -177,7 +177,7 @@ class MFD(object):
 				next_event_time = random.expovariate(rate)
 				total_time += next_event_time
 
-		return inter_event_times
+		return np.array(inter_event_times)
 
 
 class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):

@@ -21,11 +21,13 @@ dsha_model_name = "ROB_stochastic_event_set_example"
 Mmin = 4.5
 mfd_bin_width = 0.1
 
-## GMPE truncation level (in number of standard deviations)
+## GMPE and truncation level (in number of standard deviations)
+gmpe = 'FaccioliEtAl2010'
+#gmpe = 'AkkarEtAl2013'
 gmpe_truncation_level = 0
 
 ## Discretization parameters (in km)
-rupture_mesh_spacing = 5.
+rupture_mesh_spacing = 2.5
 area_discretization = 10.
 integration_distance = 150.
 
@@ -48,19 +50,18 @@ time_span = 15000.
 ### Create source model
 
 ## Read from GIS tables
-trt = 'Stable Shallow Crust'
-source_model = rshalib.rob.create_rob_source_model("Seismotectonic_Hybrid", min_mag=Mmin,
+source_model_name = "Seismotectonic_Hybrid"
+source_model = rshalib.rob.create_rob_source_model(source_model_name, min_mag=Mmin,
 												   mfd_bin_width=mfd_bin_width, rupture_mesh_spacing=rupture_mesh_spacing,
 												   area_discretization=area_discretization, hypocentral_distribution=None,
 												   nodal_plane_distribution=None)
 src = source_model["GeHeF"]
+src = source_model["LIE"]
 
 ## Generate stochastic event set
 ruptures = src.get_stochastic_event_set_Poisson(time_span)
+src.plot_rupture_bounds_3d(ruptures)
 
-
-### Construct ground-motion model
-gmpe = 'FaccioliEtAl2010'
 
 lons, lats, depths, mags = [], [], [], []
 dsha_model = rshalib.shamodel.DSHAModel(dsha_model_name, lons, lats, depths, mags,
@@ -70,8 +71,9 @@ dsha_model = rshalib.shamodel.DSHAModel(dsha_model_name, lons, lats, depths, mag
 										truncation_level=gmpe_truncation_level, maximum_distance=integration_distance)
 dsha_model.ruptures = ruptures
 
-hazard_map_sets = dsha_model.run_hazardlib()
-hazard_map = hazard_map_sets['PGA'].get_max_hazard_map()
-hazard_map.return_period = time_span
-hazard_map.plot(region=(5,7,50.5,51.5))
+hazard_field_sets = dsha_model.run_hazardlib()
+hazard_field = hazard_field_sets['PGA'].get_max_hazard_map()
+hazard_field.return_period = time_span
+map = hazard_field.get_plot(region=(5,7,50.5,51.5), title=dsha_model_name, contour_interval=0.05, source_model=source_model_name)
+map.plot()
 
