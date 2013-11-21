@@ -1426,7 +1426,7 @@ class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, Ruptu
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
-		Create xml element (NRML complexFaultSource element)
+		Create xml element (NRML characteristicFaultSource element)
 
 		:param encoding:
 			unicode encoding (default: 'latin1')
@@ -1449,16 +1449,13 @@ class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, Ruptu
 
 		elif isinstance(self.surface, oqhazlib.geo.surface.SimpleFaultSurface):
 			fg_elem = etree.SubElement(cfs_elem, ns.SIMPLE_FAULT_GEOMETRY)
-			# TODO
 			fg_elem.append(self.fault_trace.create_xml_element(encoding=encoding))
 			dip_elem = etree.SubElement(fg_elem, ns.DIP)
-			dip_elem.text = str(self.get_dip())
+			dip_elem.text = str(self.dip)
 			usd_elem = etree.SubElement(fg_elem, ns.UPPER_SEISMOGENIC_DEPTH)
-			usd_elem.text = str(self.surface.get_top_edge_depth())
+			usd_elem.text = str(self.upper_seismogenic_depth)
 			lsd_elem = etree.SubElement(fg_elem, ns.LOWER_SEISMOGENIC_DEPTH)
-			# TODO
 			lsd_elem.text = str(self.lower_seismogenic_depth)
-
 
 		cfs_elem.append(self.mfd.create_xml_element(encoding=encoding))
 
@@ -1466,6 +1463,42 @@ class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, Ruptu
 		rake_elem.text = str(self.rake)
 
 		return cfs_elem
+
+	@property
+	def upper_seismogenic_depth(self):
+		return self.surface.get_top_edge_depth()
+
+	@property
+	def dip(self):
+		return self.surface.get_dip()
+
+	@property
+	def width(self):
+		return self.surface.get_width()
+
+	@property
+	def lower_seismogenic_depth(self):
+		# TODO: check if this also works for complex fault surfaces
+		return self.upper_seismogenic_depth + self.width * numpy.sin(numpy.radians(self.dip))
+
+	@property
+	def fault_trace(self):
+		lons = self.surface.mesh.lons[0,:]
+		lats = self.surface.mesh.lats[0,:]
+		surface_trace = Line([Point(lon, lat) for (lon, lat) in zip(lons, lats)])
+		return surface_trace
+
+	@property
+	def edges(self):
+		edges = []
+		num_edges = self.surface.mesh.shape[0]
+		for i in range(num_edges):
+			lons = self.surface.mesh.lons[i,:]
+			lats = self.surface.mesh.lats[i,:]
+			depths = self.surface.mesh.depths[i,:]
+			edge = Line([Point(lon, lat, depth) for (lon, lat, depth) in zip(lons, lats, depths)])
+			edges.append(edge)
+		return edges
 
 
 
