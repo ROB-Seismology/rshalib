@@ -145,7 +145,11 @@ class MFD(object):
 		timespans = completeness.get_completeness_timespans(magnitudes, end_date)
 		return self.occurrence_rates * timespans
 
-	def sample_Poisson(self, timespan, random_seed):
+	def sample_time_dependent(self, timespan, random_seed):
+		# TODO
+		pass
+
+	def sample_Poisson(self, timespan, random_seed=None):
 		"""
 		Generate random timings for each magnitude bin according to a
 		Poisson process.
@@ -155,7 +159,7 @@ class MFD(object):
 		:param timespan:
 			int, time span (in years) in which random timings are generated
 		:param random_seed:
-			int, seed for the random number generator
+			int, seed for the random number generator (default: None)
 
 		:return:
 			nested list with inter-event times for each magnitude bin
@@ -178,6 +182,41 @@ class MFD(object):
 				total_time += next_event_time
 
 		return np.array(inter_event_times)
+
+	def generate_catalog_Poisson(self, timespan, start_year=1, random_seed=None):
+		"""
+		Generate random catalog by Poisson sampling.
+		See :meth:`sample_Poisson`
+
+		:param timespan:
+			int, time span (in years) of catalog
+		:param start_year:
+			int, start year of generated catalog (default: 1).
+			Note that the year 0 does not exist!
+		:param random_seed:
+			int, seed for the random number generator (default: None)
+
+		:return:
+			instance of :class:`EQCatalog`
+		"""
+		from eqcatalog.eqcatalog import EQCatalog, LocalEarthquake
+		inter_event_times = self.sample_Poisson(timespan, random_seed)
+		eq_list = []
+		ID = 0
+		time = datetime.time(0,0,0)
+		lon, lat, depth = 0., 0., 0.
+		ML, MS = 0., 0.
+		name = ""
+		for MW, iets in zip(self.get_magnitude_bin_centers(), inter_event_times):
+			years = start_year + np.floor(np.add.accumulate(iets)).astype('i')
+			for year in years:
+				date = datetime.date(year, 1, 1)
+				eq = LocalEarthquake(ID, date, time, lon, lat, depth, ML, MS, MW, name)
+				eq_list.append(eq)
+				ID += 1
+		start_date = datetime.date(start_year, 1, 1)
+		end_date = datetime.date(timespan+1, 1, 1)
+		return EQCatalog(eq_list, start_date, end_date)
 
 
 class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
