@@ -249,6 +249,21 @@ class PSHAModelBase(SHAModelBase):
 			grid_spacing = grid_spacing
 
 		return grid_spacing
+	
+	def _soil_site_model_or_ref_soil_params(self):
+		"""
+		Write nrml file for soil site model if present and set file param, or set ref soil params
+		"""
+		if self.soil_site_model:
+			self.soil_site_model.write_xml(os.path.join(output_dir, self.soil_site_model.name + '.xml'))
+			params.set_soil_site_model_or_reference_params(soil_site_model_file=self.soil_site_model.name + '.xml')
+		else:
+			params.set_soil_site_model_or_reference_params(
+				reference_vs30_value=self.ref_soil_params["vs30"],
+				reference_vs30_type={True: 'measured', False:'inferred'}[self.ref_soil_params["vs30measured"]],
+				reference_depth_to_1pt0km_per_sec=self.ref_soil_params["z1pt0"],
+				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"],
+				reference_kappa=self.ref_soil_params.get("kappa", None))
 
 
 class PSHAModel(PSHAModelBase):
@@ -450,17 +465,8 @@ class PSHAModel(PSHAModelBase):
 		## write nrml file for source model
 		self.source_model.write_xml(os.path.join(self.output_dir, self.source_model.name + '.xml'))
 
-		## write nrml file for site model if present and set site params
-		if self.soil_site_model:
-			self.soil_site_model.write_xml(os.path.join(self.output_dir, self.soil_site_model.name + '.xml'))
-			params.set_soil_site_model_or_reference_params(soil_site_model_file=self.soil_site_model.name + '.xml')
-		else:
-			params.set_soil_site_model_or_reference_params(
-				reference_vs30_value=self.ref_soil_params["vs30"],
-				reference_vs30_type={True: 'measured', False:'inferred'}[self.ref_soil_params["vs30measured"]],
-				reference_depth_to_1pt0km_per_sec=self.ref_soil_params["z1pt0"],
-				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"],
-				reference_kappa=self.ref_soil_params.get("kappa", None))
+		## write nrml file for soil site model if present and set file param, or set ref soil params
+		self._soil_site_model_or_ref_soil_params
 
 		## validate source model logic tree and write nrml file
 		source_model_lt = SeismicSourceSystem(self.source_model.name, self.source_model)
@@ -984,17 +990,8 @@ class PSHAModelTree(PSHAModelBase):
 			#	source.source_id = source_model.name + '--' + source.source_id
 			source_model.write_xml(os.path.join(output_dir, source_model.name + '.xml'))
 
-		## write nrml file for site model if present and set site params
-		if self.soil_site_model:
-			self.soil_site_model.write_xml(os.path.join(output_dir, self.soil_site_model.name + '.xml'))
-			params.set_soil_site_model_or_reference_params(soil_site_model_file=self.soil_site_model.name + '.xml')
-		else:
-			params.set_soil_site_model_or_reference_params(
-				reference_vs30_value=self.ref_soil_params["vs30"],
-				reference_vs30_type={True: 'measured', False:'inferred'}[self.ref_soil_params["vs30measured"]],
-				reference_depth_to_1pt0km_per_sec=self.ref_soil_params["z1pt0"],
-				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"],
-				reference_kappa=self.ref_soil_params.get("kappa", None))
+		## write nrml file for soil site model if present and set file param, or set ref soil params
+		self._soil_site_model_or_ref_soil_params()
 
 		## validate source model logic tree and write nrml file
 		self.source_model_lt.validate()
