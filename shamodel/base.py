@@ -11,7 +11,7 @@ class SHAModelBase(object):
 	Base class for SHA models, holding common attributes and methods.
 	"""
 
-	def __init__(self, name, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, truncation_level=3):
+	def __init__(self, name, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, truncation_level=3, integration_distance=200.):
 		"""
 		:param name:
 			str, name for sha model
@@ -29,6 +29,8 @@ class SHAModelBase(object):
 		:param truncation_level:
 			float, truncation level of gsims in times standard deviation
 			(default: 3.)
+		:param integration_distance:
+			Float, defining integration distance in km (default: 200.).
 		"""
 		self.name = name
 		if not sites and not grid_outline:
@@ -43,6 +45,7 @@ class SHAModelBase(object):
 		self.soil_site_model = soil_site_model
 		self.ref_soil_params = ref_soil_params
 		self.truncation_level = truncation_level
+		self.integration_distance = integration_distance
 
 	def get_sites(self):
 		return self.get_soil_site_model().get_sites()

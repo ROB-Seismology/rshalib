@@ -59,14 +59,16 @@ class PSHAModelBase(SHAModelBase):
 		List of floats, defining return periods.
 	:param time_span:
 		Float, defining time span in years (default 50.).
+	:param truncation_level:
+		see :class:`..site.SHASiteModel`
 	:param integration_distance:
-		Float, defining integration distance in km (default: 200.).
+		see :class:`..site.SHASiteModel`
 	"""
 
 	def __init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance):
 		"""
 		"""
-		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, truncation_level)
+		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, truncation_level, integration_distance)
 
 		self.output_dir = output_dir
 		self.imt_periods = imt_periods
@@ -81,7 +83,6 @@ class PSHAModelBase(SHAModelBase):
 			self.num_intensities = num_intensities
 		self.return_periods = np.array(return_periods)
 		self.time_span = time_span
-		self.integration_distance = integration_distance
 
 	def _get_intensities_limits(self, intensities_limits):
 		"""

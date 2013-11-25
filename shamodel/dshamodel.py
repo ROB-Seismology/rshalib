@@ -26,12 +26,23 @@ from hazard.rshalib.source import PointSource
 
 class DSHAModel(SHAModelBase):
 	"""
+	Class representing a single DSHA model.
 	"""
 
-	def __init__(self, name, lons, lats, depths, mags, gsim, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, usd=0, lsd=30., imts=["PGA"], periods=[], correlation_model=None, truncation_level=0., maximum_distance=None):
+	def __init__(self, name, lons, lats, depths, mags, gsim, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, usd=0, lsd=30., imts=["PGA"], periods=[], correlation_model=None, truncation_level=0., integration_distance=200.):
 		"""
+		:param sites:
+			see :class:`..site.SHASiteModel` (default: None)
+		:param grid_outline:
+			see :class:`..site.SHASiteModel` (default: None)
+		:param grid_spacing:
+			see :class:`..site.SHASiteModel` (default: None)
+		:param truncation_level:
+			see :class:`..site.SHASiteModel` (default: 0.)
+		:param integration_distance:
+			see :class:`..site.SHASiteModel` (default: 200.).
 		"""
-		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, truncation_level)
+		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, truncation_level, integration_distance)
 		assert len(lons) == len(lats) == len(depths) == len(mags)
 		self.lons = lons
 		self.lats = lats
