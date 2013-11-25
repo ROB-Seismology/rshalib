@@ -95,6 +95,7 @@ VS30 = "%svs30" % NRML
 VS30TYPE = "%svs30Type" % NRML
 Z1PT0 = "%sz1pt0" % NRML
 Z2PT5 = "%sz2pt5" % NRML
+KAPPA = "%skappa" % NRML
 
 
 ## Logic-Tree elements
