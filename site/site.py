@@ -431,6 +431,8 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 		"""
 		soil_site_model_elem = etree.Element(ns.SITE_MODEL)
 
+		kappa = self.kappa.all() and not np.isnan(self.kappa).all()
+
 		for i in range(self.num_sites):
 			site_elem = etree.SubElement(soil_site_model_elem, ns.SITE)
 			site_elem.set(ns.LON, str(self.mesh.lons[i]))
@@ -439,6 +441,8 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 			site_elem.set(ns.VS30TYPE, xmlstr({True: 'measured', False: 'inferred'}[self.vs30measured[i]]))
 			site_elem.set(ns.Z1PT0, str(self.z1pt0[i]))
 			site_elem.set(ns.Z2PT5, str(self.z2pt5[i]))
+			if kappa:
+				site_elem.set(ns.KAPPA, str(self.kappa[i]))
 
 		return soil_site_model_elem
 
