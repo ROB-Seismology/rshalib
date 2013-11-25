@@ -54,7 +54,6 @@ class DSHAModel(SHAModelBase):
 		self.imts = imts
 		self.periods = periods
 		self.correlation_model = correlation_model
-		self.maximum_distance = maximum_distance
 		self.realizations = 1. ## NOTE: only one realization possible
 		self.ruptures = []
 
@@ -100,8 +99,8 @@ class DSHAModel(SHAModelBase):
 	def _get_hazardlib_rsdf(self):
 		"""
 		"""
-		if self.maximum_distance:
-			return rupture_site_distance_filter(self.maximum_distance)
+		if self.integration_distance:
+			return rupture_site_distance_filter(self.integration_distance)
 		else:
 			return rupture_site_noop_filter
 
@@ -181,7 +180,7 @@ if __name__ == "__main__":
 	periods = []
 	correlation_model = None
 	truncation_level = 0.
-	maximum_distance = None
+	integration_distance = None
 
 	dhsa_model = DSHAModel(
 		name=name,
@@ -199,7 +198,7 @@ if __name__ == "__main__":
 		periods=periods,
 		correlation_model=correlation_model,
 		truncation_level=truncation_level,
-		maximum_distance=maximum_distance,
+		integration_distance=integration_distance,
 		)
 
 	hazard_map_sets = dhsa_model.run_hazardlib()
