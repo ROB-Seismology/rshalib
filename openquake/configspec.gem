@@ -21,6 +21,7 @@ reference_vs30_type = option("measured", "inferred", default="inferred")
 reference_vs30_value = float(default=760.0)
 reference_depth_to_2pt5km_per_sec = float(default=2.0)
 reference_depth_to_1pt0km_per_sec = float(default=100.0)
+reference_kappa = float(min=0.)
 site_model_file = string()
 
 [calculation]

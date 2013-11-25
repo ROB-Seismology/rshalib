@@ -460,7 +460,7 @@ class PSHAModel(PSHAModelBase):
 				reference_vs30_type={True: 'measured', False:'inferred'}[self.ref_soil_params["vs30measured"]],
 				reference_depth_to_1pt0km_per_sec=self.ref_soil_params["z1pt0"],
 				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"],
-				reference_kappa=self.ref_soil_params["kappa"])
+				reference_kappa=self.ref_soil_params.get("kappa", None))
 
 		## validate source model logic tree and write nrml file
 		source_model_lt = SeismicSourceSystem(self.source_model.name, self.source_model)
@@ -993,7 +993,8 @@ class PSHAModelTree(PSHAModelBase):
 				reference_vs30_value=self.ref_soil_params["vs30"],
 				reference_vs30_type={True: 'measured', False:'inferred'}[self.ref_soil_params["vs30measured"]],
 				reference_depth_to_1pt0km_per_sec=self.ref_soil_params["z1pt0"],
-				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"])
+				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"],
+				reference_kappa=self.ref_soil_params.get("kappa", None))
 
 		## validate source model logic tree and write nrml file
 		self.source_model_lt.validate()
