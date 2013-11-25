@@ -254,6 +254,7 @@ class PSHAModelBase(SHAModelBase):
 		"""
 		Write nrml file for soil site model if present and set file param, or set ref soil params
 		"""
+		print self.soil_site_model
 		if self.soil_site_model:
 			self.soil_site_model.write_xml(os.path.join(output_dir, self.soil_site_model.name + '.xml'))
 			params.set_soil_site_model_or_reference_params(soil_site_model_file=self.soil_site_model.name + '.xml')
@@ -466,7 +467,7 @@ class PSHAModel(PSHAModelBase):
 		self.source_model.write_xml(os.path.join(self.output_dir, self.source_model.name + '.xml'))
 
 		## write nrml file for soil site model if present and set file param, or set ref soil params
-		self._soil_site_model_or_ref_soil_params
+		self._soil_site_model_or_ref_soil_params()
 
 		## validate source model logic tree and write nrml file
 		source_model_lt = SeismicSourceSystem(self.source_model.name, self.source_model)
