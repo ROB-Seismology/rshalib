@@ -9,19 +9,14 @@ from openquake.hazardlib.calc import ground_motion_fields
 from openquake.hazardlib.calc.filters import rupture_site_distance_filter, rupture_site_noop_filter
 from openquake.hazardlib.gsim import get_available_gsims
 from openquake.hazardlib.imt import PGD, PGV, PGA, SA
-from openquake.hazardlib.scalerel import PointMSR
-from openquake.hazardlib.source import Rupture
 
-from hazard.rshalib.geo import NodalPlane, Point
-from hazard.rshalib.pmf import HypocentralDepthDistribution, NodalPlaneDistribution
 from hazard.rshalib.result import HazardMap, HazardMapSet
 from hazard.rshalib.shamodel.base import SHAModelBase
-from hazard.rshalib.site import SHASiteModel
 from hazard.rshalib.site.ref_soil_params import REF_SOIL_PARAMS
-from hazard.rshalib.source import PointSource
 
 
-# TODO: add documentation
+# NOTE: for each IMT a hazard map set is returned with for each realization a max hazard map.
+# But realizations are calculated per rupture, not per set of ruptures, so is this correct?
 
 
 class DSHAModel(SHAModelBase):
@@ -29,58 +24,41 @@ class DSHAModel(SHAModelBase):
 	Class representing a single DSHA model.
 	"""
 
-	def __init__(self, name, lons, lats, depths, mags, gsim, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, usd=0, lsd=30., imts=["PGA"], periods=[], correlation_model=None, truncation_level=0., integration_distance=200.):
+	def __init__(self, name, ruptures, gsim, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, truncation_level=0., realizations=1., correlation_model=None, integration_distance=200.):
 		"""
+		:param name:
+			see :class:`..shamodel.SHAModelBase`
+		:param ruptures:
+			list of instances of :class:`..source.Rupture`
+		:param gsim:
+			instance of subclass of :class:`openquake.hazardlib.gsim.GroundShakingIntensityModel`
 		:param sites:
-			see :class:`..site.SHASiteModel` (default: None)
+			see :class:`..shamodel.SHAModelBase` (default: None)
 		:param grid_outline:
-			see :class:`..site.SHASiteModel` (default: None)
+			see :class:`..shamodel.SHAModelBase` (default: None)
 		:param grid_spacing:
-			see :class:`..site.SHASiteModel` (default: None)
+			see :class:`..shamodel.SHAModelBase` (default: None)
+		:param soil_site_model:
+			see :class:`..shamodel.SHAModelBase` (default: None)
+		:param ref_soil_params:
+			see :class:`..shamodel.SHAModelBase` (default: REF_SOIL_PARAMS)
+		:param imt_periods:
+			see :class:`..shamodel.SHAModelBase` (default: {'PGA': [0]})
 		:param truncation_level:
-			see :class:`..site.SHASiteModel` (default: 0.)
+			see :class:`..shamodel.SHAModelBase` (default: 0.)
+		:param realizations:
+			int, number of realizations (default: 1)
+		:param correlation_model:
+			instance of subclass of :class:`openquake.hazardlib.correlation.BaseCorrelationModel` (default: None)
 		:param integration_distance:
-			see :class:`..site.SHASiteModel` (default: 200.).
+			see :class:`..shamodel.SHAModelBase` (default: 200.)
 		"""
-		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, truncation_level, integration_distance)
-		assert len(lons) == len(lats) == len(depths) == len(mags)
-		self.lons = lons
-		self.lats = lats
-		self.depths = depths
-		self.mags = mags
+		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, truncation_level, integration_distance)
+
+		self.ruptures = ruptures
 		self.gsim = gsim
-		self.usd = usd
-		self.lsd = lsd
-		self.imts = imts
-		self.periods = periods
+		self.realizations = realizations
 		self.correlation_model = correlation_model
-		self.realizations = 1. ## NOTE: only one realization possible
-		self.ruptures = []
-
-	def __len__(self):
-		return max(len(self.ruptures), len(self.lons))
-
-	def get_rupture(self, i): # NOTE: rupture strike/dip/rake but zero area
-		"""
-		:returns:
-			instance of :class:`openquake.hazardlib.source.Rupture`
-		"""
-		if self.ruptures is None or len(self.ruptures) == 0:
-			lon = self.lons[i]
-			lat = self.lats[i]
-			depth = self.depths[i]
-			mag = self.mags[i]
-			nodal_plane = NodalPlane(0., 90, 0.)
-			hypocenter = Point(lon, lat, depth)
-			npd = NodalPlaneDistribution([nodal_plane], [1.])
-			hdd = HypocentralDepthDistribution([depth], [1.])
-			point_source = PointSource("", "", "", "", "",
-				PointMSR(), 1, self.usd, self.lsd, hypocenter, npd, hdd)
-			surface = point_source._get_rupture_surface(mag, nodal_plane, hypocenter)
-			rupture = Rupture(mag, 0., "", hypocenter, surface, "")
-			return rupture
-		else:
-			return self.ruptures[i]
 
 	def _get_hazardlib_imts(self):
 		"""
@@ -88,9 +66,9 @@ class DSHAModel(SHAModelBase):
 			list of instances of subclasses of :class:`openquake.hazardlib._IMT`
 		"""
 		imts = []
-		for imt in self.imts:
-			if imt[0] == "S":
-				for period in self.periods:
+		for imt in self.imt_periods:
+			if imt == "SA":
+				for period in self.imt_periods[imt]:
 					imts.append(eval(imt)(period, 5.))
 			else:
 				imts.append(eval(imt)())
@@ -98,6 +76,8 @@ class DSHAModel(SHAModelBase):
 
 	def _get_hazardlib_rsdf(self):
 		"""
+		:returns:
+			function, filter for sites further away from rupture than integration_distance
 		"""
 		if self.integration_distance:
 			return rupture_site_distance_filter(self.integration_distance)
@@ -106,35 +86,22 @@ class DSHAModel(SHAModelBase):
 
 	def run_hazardlib(self):
 		"""
+		:returns:
+			instance of :class:`..results.HazardMapSet`
 		"""
 		soil_site_model = self.get_soil_site_model()
-		imts = self._get_hazardlib_imts()
 		gsim = get_available_gsims()[self.gsim]()
+		imts = self._get_hazardlib_imts()
 		rsdf = self._get_hazardlib_rsdf()
-		hazard_maps = {imt: [] for imt in imts}
-		for i in xrange(len(self)):
-			gmfs = ground_motion_fields(
-				self.get_rupture(i),
-				soil_site_model,
-				imts,
-				gsim,
-				self.truncation_level,
-				self.realizations,
-				self.correlation_model,
-				rsdf
-				)
+		intensities = {imt: np.zeros((len(soil_site_model), len(self.ruptures), self.realizations)) for imt in imts}
+		print intensities[PGA()].shape
+		for i, rupture in enumerate(self.ruptures):
+			gmfs = ground_motion_fields(rupture, soil_site_model, imts, gsim, self.truncation_level, self.realizations, self.correlation_model, rsdf)
 			for imt, gmf in gmfs.items():
-				if isinstance(imt, SA):
-					period = imt.period
-					IMT = "SA"
-				else:
-					period = 0
-					IMT = {PGV(): "PGV", PGD(): "PGD", PGA(): "PGA"}[imt]
 				if self.correlation_model:
-					intensities = gmf.getA()[:,0]
+					intensities[imt][:,i,:] = gmf.getA()
 				else:
-					intensities = gmf[:,0]
-				hazard_maps[imt].append(HazardMap("", "", sites=self.sha_site_model, period=period, IMT=IMT, intensities=intensities, intensity_unit="g", timespan=1, poe=[], return_period=[], site_names=None, vs30s=None))
+					intensities[imt][:,i,:] = gmf
 		hazard_map_sets = {}
 		for imt in imts:
 			if isinstance(imt, SA):
@@ -145,8 +112,8 @@ class DSHAModel(SHAModelBase):
 				period = 0
 				IMT = {PGV(): "PGV", PGD(): "PGD", PGA(): "PGA"}[imt]
 				key = IMT
-			intensities = np.array([hm.intensities for hm in hazard_maps[imt]])
-			hazard_map_sets[key] = HazardMapSet("", [""]*len(hazard_maps[imt]), self.sha_site_model, period, IMT, intensities, intensity_unit="g", timespan=1, poes=[1], return_periods=[], site_names=None, vs30s=None)
+			print np.amax(intensities[imt], axis=1).T.shape
+			hazard_map_sets[key] = HazardMapSet("", [""]*self.realizations, self.sha_site_model, period, IMT, np.amax(intensities[imt], axis=1).T, intensity_unit="g", timespan=1, poes=[1], return_periods=[1.]*self.realizations, site_names=None, vs30s=None)
 		return hazard_map_sets
 
 
@@ -154,54 +121,38 @@ if __name__ == "__main__":
 	"""
 	Test
 	"""
+	from openquake.hazardlib.scalerel import PointMSR
+	
+	from hazard.rshalib.source.rupture import Rupture
 
 	name = "TestDSHAModel"
-
+	
+	strike, dip, rake, trt, rms, rar, usd, lsd, msr = 0., 45., 0., "", 1., 1., 0., 30., PointMSR()
+	
 	## earthquake
-	lons =[4.5]
-	lats=[50.5]
-	depths=[10.]
-	mags=[6.5]
+	earthquakes = [(4.5, 50.5, 10., 6.5)]
 
 	## catalog
-#	from hazard.psha.Projects.SHRE_NPP.catalog import cc_catalog
-#	lons = cc_catalog.lons
-#	lats = cc_catalog.lats
-#	depths = [d or 10 for d in cc_catalog.get_depths()]
-#	mags = cc_catalog.mags
+	from hazard.psha.Projects.SHRE_NPP.catalog import cc_catalog
+	earthquakes = [(e.lon, e.lat, e.depth or 10., e.get_MW())for e in cc_catalog]
+	
+	ruptures = [Rupture.from_hypocenter(lon, lat, depth, mag, strike, dip, rake, trt, rms, rar, usd, lsd, msr) for lon, lat, depth, mag in earthquakes]
 
+	gsim = "CauzziFaccioli2008"
 	sites = None
 	grid_outline = (1, 8, 49, 52)
 	grid_spacing = 0.1
-	gsim = "CauzziFaccioli2008"
-	usd = 0
-	lsd = 30.
-	imts = ["PGA"]
-	periods = []
-	correlation_model = None
+	soil_site_model = None
+	ref_soil_params = REF_SOIL_PARAMS
+	imt_periods = {'PGA': [0]}
 	truncation_level = 0.
+	realizations = 2
+	correlation_model = None
 	integration_distance = None
 
-	dhsa_model = DSHAModel(
-		name=name,
-		lons=lons,
-		lats=lats,
-		depths=depths,
-		mags=mags,
-		sites=sites,
-		grid_outline=grid_outline,
-		grid_spacing=grid_spacing,
-		gsim=gsim,
-		usd=usd,
-		lsd=lsd,
-		imts=imts,
-		periods=periods,
-		correlation_model=correlation_model,
-		truncation_level=truncation_level,
-		integration_distance=integration_distance,
-		)
+	dhsa_model = DSHAModel(name, ruptures, gsim, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, truncation_level, realizations, correlation_model, integration_distance)
 
 	hazard_map_sets = dhsa_model.run_hazardlib()
-	hm = hazard_map_sets["PGA"].get_max_hazard_map()
-	hm.plot(title="", site_symbol="", intensity_levels=[], num_grid_cells=500) # TODO: fix colorbar ticks bug
+	print hazard_map_sets["PGA"].getHazardMap(0)
+	print hazard_map_sets["PGA"].getHazardMap(1)
 

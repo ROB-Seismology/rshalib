@@ -44,8 +44,7 @@ class PSHAModelBase(SHAModelBase):
 	:param output_dir:
 		String, defining full path to output directory.
 	:param imt_periods:
-		Dictionary mapping intensity measure types (e.g. "PGA", "SA", "PGV", "PGD") to lists or arrays of periods in seconds (float values).
-		Periods must be monotonically increasing or decreasing.
+		see :class:`..site.SHASiteModel`
 	:param intensities:
 		List of floats or array, defining equal intensities for all intensity measure types and periods (default: None).
 		When given, params min_intensities, max_intensities and num_intensities are not set.
@@ -68,10 +67,9 @@ class PSHAModelBase(SHAModelBase):
 	def __init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance):
 		"""
 		"""
-		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, truncation_level, integration_distance)
+		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, truncation_level, integration_distance)
 
 		self.output_dir = output_dir
-		self.imt_periods = imt_periods
 		self.intensities = intensities
 		if self.intensities:
 			self.min_intensities = None

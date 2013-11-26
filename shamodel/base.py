@@ -11,7 +11,7 @@ class SHAModelBase(object):
 	Base class for SHA models, holding common attributes and methods.
 	"""
 
-	def __init__(self, name, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, truncation_level=3, integration_distance=200.):
+	def __init__(self, name, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, truncation_level=3, integration_distance=200.):
 		"""
 		:param name:
 			str, name for sha model
@@ -26,6 +26,9 @@ class SHAModelBase(object):
 		:param ref_soil_params:
 			dict, value for each soil parameter of :class:`rshalib.site.SoilSite`
 			(default: REF_SOIL_PARAMS)
+		:param imt_periods:
+			{str: list of floats} dict, mapping intensity measure types (e.g. "PGA", "SA", "PGV", "PGD") to periods in seconds (default: {'PGA': [0]}).
+			Periods must be monotonically increasing or decreasing.
 		:param truncation_level:
 			float, truncation level of gsims in times standard deviation
 			(default: 3.)
@@ -44,6 +47,7 @@ class SHAModelBase(object):
 				)
 		self.soil_site_model = soil_site_model
 		self.ref_soil_params = ref_soil_params
+		self.imt_periods = imt_periods
 		self.truncation_level = truncation_level
 		self.integration_distance = integration_distance
 
