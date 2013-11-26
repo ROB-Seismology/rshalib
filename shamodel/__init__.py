@@ -9,4 +9,5 @@ from pshamodel import PSHAModel, PSHAModelTree
 
 import dshamodel
 reload(dshamodel)
+
 from dshamodel import DSHAModel

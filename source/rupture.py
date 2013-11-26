@@ -4,9 +4,10 @@
 
 import openquake.hazardlib as oqhazlib
 
-from hazard.rshalib.geo import NodalPlane, Point
-from hazard.rshalib.pmf import HypocentralDepthDistribution, NodalPlaneDistribution
-from hazard.rshalib.source import PointSource
+from source import PointSource
+from ..geo import NodalPlane, Point
+from ..pmf import HypocentralDepthDistribution, NodalPlaneDistribution
+
 
 class Rupture(oqhazlib.source.Rupture):
 	"""

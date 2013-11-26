@@ -10,9 +10,9 @@ from openquake.hazardlib.calc.filters import rupture_site_distance_filter, ruptu
 from openquake.hazardlib.gsim import get_available_gsims
 from openquake.hazardlib.imt import PGD, PGV, PGA, SA
 
-from hazard.rshalib.result import HazardMap, HazardMapSet
-from hazard.rshalib.shamodel.base import SHAModelBase
-from hazard.rshalib.site.ref_soil_params import REF_SOIL_PARAMS
+from ..result import HazardMap, HazardMapSet
+from ..shamodel.base import SHAModelBase
+from ..site.ref_soil_params import REF_SOIL_PARAMS
 
 
 # NOTE: for each IMT a hazard map set is returned with for each realization a max hazard map.
@@ -94,7 +94,6 @@ class DSHAModel(SHAModelBase):
 		imts = self._get_hazardlib_imts()
 		rsdf = self._get_hazardlib_rsdf()
 		intensities = {imt: np.zeros((len(soil_site_model), len(self.ruptures), self.realizations)) for imt in imts}
-		print intensities[PGA()].shape
 		for i, rupture in enumerate(self.ruptures):
 			gmfs = ground_motion_fields(rupture, soil_site_model, imts, gsim, self.truncation_level, self.realizations, self.correlation_model, rsdf)
 			for imt, gmf in gmfs.items():
@@ -112,7 +111,6 @@ class DSHAModel(SHAModelBase):
 				period = 0
 				IMT = {PGV(): "PGV", PGD(): "PGD", PGA(): "PGA"}[imt]
 				key = IMT
-			print np.amax(intensities[imt], axis=1).T.shape
 			hazard_map_sets[key] = HazardMapSet("", [""]*self.realizations, self.sha_site_model, period, IMT, np.amax(intensities[imt], axis=1).T, intensity_unit="g", timespan=1, poes=[1], return_periods=[1.]*self.realizations, site_names=None, vs30s=None)
 		return hazard_map_sets
 
