@@ -145,19 +145,39 @@ class MFD(object):
 		timespans = completeness.get_completeness_timespans(magnitudes, end_date)
 		return self.occurrence_rates * timespans
 
-	def sample_time_dependent(self, timespan, random_seed):
-		# TODO
-		pass
-
-	def sample_Poisson(self, timespan, random_seed=None):
+	def export_csv(self, filespec, cumul=True):
 		"""
-		Generate random timings for each magnitude bin according to a
-		Poisson process.
+		Export magnitudes and occurrence rates to a csv file
+
+		:param filespec:
+			str, full path to csv file
+		:param cumul:
+			bool, whether or not cumulative rates should be exported
+			(default: True)
+		"""
+		f = open(filespec, "w")
+		f.write("Magnitudes,Occurence Rates\n")
+		if cumul:
+			rates = self.get_cumulative_rates()
+		else:
+			rates = self.occurrence_rates
+		magnitudes = self.get_magnitude_bin_centers()
+		for mag, rate in zip(magnitudes, rates):
+			f.write("%.2f,%f\n" % (mag, rate))
+		f.close()
+
+	def sample_inter_event_times(self, timespan, method="poisson", random_seed=None):
+		"""
+		Generate random inter-event times for each magnitude bin according to a
+		Poisson or random process.
 
 		See: http://preshing.com/20111007/how-to-generate-random-timings-for-a-poisson-process/
 
 		:param timespan:
 			int, time span (in years) in which random timings are generated
+		:param method:
+			str, sampling method, either "poisson", "random"
+			(default: "poisson")
 		:param random_seed:
 			int, seed for the random number generator (default: None)
 
@@ -170,47 +190,77 @@ class MFD(object):
 
 		inter_event_times = []
 		for mag, rate in self.get_annual_occurrence_rates():
+			if method in ("random", "time-dependent"):
+				## In a Poisson distribution, variance is equal to mean,
+				## so we use the corresponding standard deviation
+				# TODO: check error propgation for inverse
+				sigma = 1. / np.sqrt(rate)
 			## Should we re-initialize random number generator for each bin?
 			inter_event_times.append([])
 			total_time, next_event_time = 0, 0
 			while total_time <= timespan:
 				if next_event_time:
 					inter_event_times[-1].append(next_event_time)
-				#prob = rnd.random()
-				#next_event_time = -np.log(1.0 - prob) / rate
-				next_event_time = random.expovariate(rate)
+				if method == "poisson":
+					#prob = rnd.random()
+					#next_event_time = -np.log(1.0 - prob) / rate
+					next_event_time = random.expovariate(rate)
+				elif method == "random":
+					epsilon = random.normalvariate(0, 1)
+					next_event_time = (1. / rate) + sigma * epsilon
+				elif method == "time-dependent":
+					# TODO
+					raise Exception("Time-dependent sampling not yet implemented!")
 				total_time += next_event_time
 
 		return np.array(inter_event_times)
 
-	def generate_catalog_Poisson(self, timespan, start_year=1, random_seed=None):
+	def generate_random_catalog(self, timespan, method="poisson", start_year=1, lons=None, lats=None, random_seed=None):
 		"""
-		Generate random catalog by Poisson sampling.
-		See :meth:`sample_Poisson`
+		Generate random catalog by random sampling.
+		See :meth:`sample_inter_event_times`
+		Optionally position can be sampled from a discrete distribution.
 
 		:param timespan:
 			int, time span (in years) of catalog
+		:param method:
+			str, sampling method, either "poisson", "random"
+			(default: "poisson")
 		:param start_year:
 			int, start year of generated catalog (default: 1).
 			Note that the year 0 does not exist!
+		:param lons:
+			list or array, longitudes to sample from (default: None)
+		:param lats:
+			list or array, latitudes to sample from (default: None)
 		:param random_seed:
 			int, seed for the random number generator (default: None)
 
 		:return:
 			instance of :class:`EQCatalog`
 		"""
+		import random
 		from eqcatalog.eqcatalog import EQCatalog, LocalEarthquake
-		inter_event_times = self.sample_Poisson(timespan, random_seed)
+		inter_event_times = self.sample_inter_event_times(timespan, method, random_seed)
 		eq_list = []
 		ID = 0
 		time = datetime.time(0,0,0)
-		lon, lat, depth = 0., 0., 0.
+		depth = 0.
 		ML, MS = 0., 0.
 		name = ""
+		try:
+			num_lon_lats = len(lons)
+		except:
+			num_lon_lats = 0
 		for MW, iets in zip(self.get_magnitude_bin_centers(), inter_event_times):
 			years = start_year + np.floor(np.add.accumulate(iets)).astype('i')
 			for year in years:
 				date = datetime.date(year, 1, 1)
+				if num_lon_lats == 0:
+					lon, lat = 0., 0.
+				else:
+					idx = random.randint(0, num_lon_lats)
+					lon, lat = lons[idx], lats[idx]
 				eq = LocalEarthquake(ID, date, time, lon, lat, depth, ML, MS, MW, name)
 				eq_list.append(eq)
 				ID += 1
@@ -803,7 +853,7 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 				N0 = 10 ** self.a_val - 10 ** other.a_val
 				a_val = np.log10(N0)
 				## Error propagation, see http://chemwiki.ucdavis.edu/Analytical_Chemistry/Quantifying_Nature/Significant_Digits/Propagation_of_Error
-				a_sigma = 0.434 * ((self.get_N_sigma() + other.get_N_sigma()) / N0)
+				a_sigma = 0.434 * ((self.get_N0_sigma() + other.get_N0_sigma()) / N0)
 				b_sigma = np.mean(self.b_sigma, other.b_sigma)
 				return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, a_val, self.b_val, a_sigma, b_sigma, self.Mtype)
 		elif isinstance(other, EvenlyDiscretizedMFD):
@@ -874,7 +924,7 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		## Note: the following is identical
 		#return np.add.accumulate(self.occurrence_rates[::-1])[::-1]
 
-	def get_N_sigma(self):
+	def get_N0_sigma(self):
 		"""
 		Return standard deviation on annual occurrence rate of M=0,
 		computed from a_sigma
@@ -1319,7 +1369,7 @@ def sum_MFDs(mfd_list, weights=[]):
 			N0sum = np.add.reduce(N0 * weights)
 			a = np.log10(N0sum)
 			## Error propagation, see http://chemwiki.ucdavis.edu/Analytical_Chemistry/Quantifying_Nature/Significant_Digits/Propagation_of_Error
-			Nsum_sigma = np.sum([mfd.get_N_sigma() * w for (mfd, w) in zip(mfd_list, weights)])
+			Nsum_sigma = np.sum([mfd.get_N0_sigma() * w for (mfd, w) in zip(mfd_list, weights)])
 			a_sigma = 0.434 * (Nsum_sigma / N0sum)
 			b_sigma = np.mean([mfd.b_sigma for mfd in mfd_list])
 			mfd = mfd_list[0]
