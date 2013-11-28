@@ -304,8 +304,11 @@ def create_rob_area_source(
 			if isinstance(column_map['max_mag'], (int, float)):
 				max_mag = column_map['max_mag']
 			if max_mag is None:
-				max_mag = catalog.get_EPRI_Mmax_percentile(min_mag, perc=50, b_val=b_val, extended=False, dM=mfd_bin_width, verbose=False, **catalog_params)
+				max_mag_pmf = catalog.get_Bayesian_Mmax_pdf(Mmin_n=min_mag, dM=mfd_bin_width, verbose=False, **catalog_params)
+				max_mag = max_mag_pmf.get_percentile(50)
 			max_mag = np.ceil(max_mag / mfd_bin_width) * mfd_bin_width
+			if max_mag <= min_mag:
+				raise Exception("Mmax of source %s not larger than Mmin!" % source_id)
 
 			try:
 				## Weichert computation
@@ -330,6 +333,8 @@ def create_rob_area_source(
 			b_sigma = source_rec.get(column_map['b_sigma'], column_map['b_sigma'])
 			min_mag = source_rec.get(column_map['min_mag'], column_map['min_mag'])
 			max_mag = source_rec.get(column_map['max_mag'], column_map['max_mag'])
+			if max_mag <= min_mag:
+				raise Exception("Mmax of source %s not larger than Mmin!" % source_id)
 			try:
 				mfd = TruncatedGRMFD(min_mag, max_mag, mfd_bin_width, a_val, b_val, a_sigma, b_sigma)
 			except ValueError:
