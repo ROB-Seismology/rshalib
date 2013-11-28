@@ -6,7 +6,7 @@
 """
 rshalib: The ROB Seismic Hazard Assessment Library
 
-rshalib is a python library for building and running seismic hazard model,
+rshalib is a python library for building and running seismic hazard models,
 and plotting the results.
 
 rshalib is built on top of oq-hazardlib (formerly nhlib), the OpenQuake

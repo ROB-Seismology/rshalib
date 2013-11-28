@@ -6,7 +6,7 @@ import rupture
 reload(rupture)
 
 import source
-#reload(source) ## because of super error
+reload(source)
 
 import source_model
 reload(source_model)

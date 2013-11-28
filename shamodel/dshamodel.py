@@ -11,7 +11,7 @@ from openquake.hazardlib.gsim import get_available_gsims
 from openquake.hazardlib.imt import PGD, PGV, PGA, SA
 
 from ..result import HazardMap, HazardMapSet
-from ..shamodel.base import SHAModelBase
+from base import SHAModelBase
 from ..site.ref_soil_params import REF_SOIL_PARAMS
 
 

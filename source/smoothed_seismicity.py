@@ -14,15 +14,15 @@ from scipy.stats import norm
 
 from eqcatalog.calcGR import calcGR_Weichert
 from eqcatalog.source_models import read_source_model, rob_source_models_dict
-from hazard.rshalib.geo import Point
-from hazard.rshalib.mfd import EvenlyDiscretizedMFD, TruncatedGRMFD
-from hazard.rshalib.source import PointSource, SourceModel
+from ..geo import Point
+from ..mfd import EvenlyDiscretizedMFD, TruncatedGRMFD
+from ..source import PointSource, SourceModel
 #from mapping.Basemap.LayeredBasemap import *
 #from mapping.Basemap.cm.norm import PiecewiseLinearNorm
 #from mapping.geo.coordtrans import wgs84, get_utm_spec, get_utm_srs
 
 
-from hazard.rshalib.site import SHASiteModel
+from ..site import SHASiteModel
 
 
 #class Grid(object):

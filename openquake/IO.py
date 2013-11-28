@@ -13,9 +13,9 @@ from lxml import etree
 #from ..result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
 #from ..site import SHASite
 
-from hazard.rshalib.nrml import ns
-from hazard.rshalib.result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
-from hazard.rshalib.site import SHASite
+from ..nrml import ns
+from ..result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
+from ..site import SHASite
 
 NRML = ns.NRML_NS
 GML = ns.GML_NS

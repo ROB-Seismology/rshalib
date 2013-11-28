@@ -3,7 +3,7 @@
 """
 
 
-from hazard.rshalib.site import SHASiteModel, REF_SOIL_PARAMS
+from ..site import SHASiteModel, REF_SOIL_PARAMS
 
 
 class SHAModelBase(object):
