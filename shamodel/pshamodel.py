@@ -248,7 +248,7 @@ class PSHAModelBase(SHAModelBase):
 			grid_spacing = grid_spacing
 
 		return grid_spacing
-	
+
 	def _soil_site_model_or_ref_soil_params(self, output_dir, params):
 		"""
 		Write nrml file for soil site model if present and set file param, or set ref soil params
@@ -552,7 +552,7 @@ class PSHAModel(PSHAModelBase):
 
 		## Write input file. This will also write the site file and attenuation
 		## tables if necessary.
-		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.get_sites(), site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], kappa=self.ref_soil_params["kappa"], mag_scale_rel=None, output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
+		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.get_sites(), site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], kappa=self.ref_soil_params["kappa"], mag_scale_rel=None, output={"gra": True, "map": True, "fue": True, "des": True, "smx": True, "eps": True, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
 
 		## Return name of output file
 		return filespec
