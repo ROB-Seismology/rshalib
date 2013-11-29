@@ -176,7 +176,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 				names[i] = sites[i].name
 		if np.allclose(self.depths, 0.):
 			self.depths = None
-		if len(set(names)) != 1:
+		if len(set(names)) != 1 or (len(set(names)) == 1 and names[0] != ""):
 			self.names = names
 
 	def _set_grid_outline(self, grid_outline):
