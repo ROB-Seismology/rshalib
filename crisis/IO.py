@@ -377,6 +377,9 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 			atn_filespec = os.path.splitext(gsim_atn_map[gsim])[0]
 			if mechanism:
 				atn_filespec += "_%s" % mechanism
+			atn_filespec += "_VS30=%s" % vs30
+			if kappa:
+				atn_filespec += "_kappa=%s" % kappa
 			atn_filespec += ".ATN"
 			of.write("%s\n" % atn_filespec)
 
