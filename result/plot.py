@@ -200,12 +200,13 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 		pylab.show()
 
 
-def plot_hazard_spectrum(datasets, pgm=None, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", legend_location=0, lang="en"):
+def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", legend_location=0, lang="en"):
 	"""
 	Generic function to plot a (usually uniform) hazard spectrum
 	Parameters:
 		datasets: list of datasets. Each dataset is a (periods, intensities) tuple
 		pgm: optional list or array with peak-ground-motions (to be plotted with separate symbol)
+		pgm_period: float, period to plot PGM at on a logarithmic axis
 		labels: list of labels for each dataset (default: [])
 		colors: list of colors to plot each dataset (default: [])
 		linestyles: list of line styles to plot each dataset (default: [])
@@ -260,7 +261,7 @@ def plot_hazard_spectrum(datasets, pgm=None, labels=[], colors=[], linestyles=[]
 	for i, dataset in enumerate(datasets):
 		periods, intensities = dataset
 		if plot_style in ("loglin", "loglog") or plot_freq:
-			pgm_period = 1./34
+			periods = periods.clip(min=pgm_period)
 		else:
 			pgm_period = 0.
 

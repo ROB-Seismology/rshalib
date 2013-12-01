@@ -91,6 +91,61 @@ def as_array(values):
 	return values
 
 
+class HazardCurveArray(np.ndarray):
+	"""
+	Base class for hazard curve array, subclassed from numpy ndarray
+
+	:param data:
+		ndarray, n-d float array containing exceedance rates or
+		probabilities of exceedance
+	"""
+	def __new__(cls, data):
+		obj = np.asarray(data).view(cls)
+		return obj
+
+	def __array_finalize__(self, obj):
+		if obj is None:
+			return
+
+	@property
+	def array(self):
+		return np.asarray(self)
+
+
+class ExceedanceRateArray(HazardCurveArray):
+	def to_exceedance_rates(self, timespan=None):
+		return self.array
+
+	def to_exceedance_rate_array(self, timespan=None):
+		return ExceedanceRateMatrix(self.array)
+
+	def to_probabilities(self, timespan):
+		return Poisson(life_time=timespan, return_period=1./self.array)
+
+	def to_probability_array(self, timespan):
+		return ProbabilityArray(self.to_probabilities(timespan))
+
+	def to_return_periods(self, timespan=None):
+		return 1./self.array
+
+
+class ProbabilityArray(HazardCurveArray):
+	def to_exceedance_rates(self, timespan):
+		return 1. / Poisson(life_time=timespan, prob=self.array)
+
+	def to_exceedance_rate_array(self, timespan):
+		return ExceedanceRateArray(self.to_exceedance_rates(timespan))
+
+	def to_probabilities(self, timespan=None):
+		return self.array
+
+	def to_probability_array(self, timespan=None):
+		return ProbabilityArray(self.array)
+
+	def to_return_periods(self, timespan):
+		return Poisson(prob=self.array, life_time=timespan)
+
+
 class HazardResult:
 	"""
 	Generic class providing common methods related to poE's, exceedance rates,
@@ -175,6 +230,7 @@ class HazardResult:
 			string, intensity unit to scale result,
 			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
 		"""
+		# TODO: take into account self.intensity_unit
 		from scipy.constants import g
 		conv_factor = {"g": 1.0, "mg": 1E+3, "ms2": g, "gal": g*100, "cms2": g*100}[intensity_unit]
 		return self.intensities * conv_factor
@@ -2335,7 +2391,7 @@ class HazardCurve(HazardResult):
 			linewidth: line width (default: 2)
 		"""
 		if title is None:
-			title = "Site: %s" % self.site_name
+			title = "Site: %s, T: %s s" % (self.site_name, self.period)
 		datasets = [(self.intensities, self.exceedance_rates)]
 		labels = [self.model_name]
 		fixed_life_time = {True: self.timespan, False: None}[want_poe]
