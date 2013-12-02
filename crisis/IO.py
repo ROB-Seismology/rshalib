@@ -170,10 +170,11 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 
 	## Generate attenuation tables if they don't exist.
 	## Note that we need 3 tables, one for each fault mechanism
-	gsims, atn_filespecs = gsim_atn_map.keys(), gsim_atn_map.values()
+	gsims = gsim_atn_map.keys()
 	#atn_folder = os.path.split(atn_filespecs[0])[0]
 	gsims_num_rakes = []
 	for gsim in gsims:
+		atn_filespecs = []
 		# HACK for different name structure in attenuation
 		if hasattr(att, gsim+"GMPE"):
 			gsimObj = getattr(att, gsim+"GMPE")()
@@ -197,6 +198,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 			if kappa:
 				atn_filespec += "_kappa=%s" % kappa
 			atn_filespec += ".ATN"
+			atn_filespecs.append(atn_filespec)
 			Mmin, Mmax = source_model.min_mag, source_model.max_mag
 			Mstep, num_distances = 0.5, 50
 			if not os.path.exists(atn_filespec) or overwrite:
@@ -234,6 +236,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 										damping=5, filespec=atn_filespec)
 			else:
 				print("Warning: CRISIS ATN file %s exists! Set overwrite=True to overwrite." % atn_filespec)
+	gsim_atn_map[gsim] = atn_filespecs
 	gsims_num_rakes = np.array(gsims_num_rakes)
 	num_atn_tables = np.add.reduce(gsims_num_rakes)
 
@@ -368,19 +371,8 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		of.write(" 0\n")
 
 	## Attenuation tables
-	for gsim, num_rakes in zip(gsims, gsims_num_rakes):
-		if num_rakes == 3:
-			mechanisms = ["normal", "reverse", "strike-slip"]
-		else:
-			mechanisms = [""]
-		for mechanism in mechanisms:
-			atn_filespec = os.path.splitext(gsim_atn_map[gsim])[0]
-			if mechanism:
-				atn_filespec += "_%s" % mechanism
-			atn_filespec += "_VS30=%s" % vs30
-			if kappa:
-				atn_filespec += "_kappa=%s" % kappa
-			atn_filespec += ".ATN"
+	for gsim in gsim_atn_map.keys():
+		for atn_filespec in gsim_atn_map[gsim]:
 			of.write("%s\n" % atn_filespec)
 
 	## Source geometry and activity
