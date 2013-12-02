@@ -9,6 +9,8 @@ import ns
 ENUM_OQ_UNCERTAINTYTYPES = set(("gmpeModel", "sourceModel", "maxMagGRAbsolute", "maxMagGRRelative", "abGRAbsolute", "bGRRelative", "incrementalMFDRates"))
 ENUM_OQ_TRT = set(('Active Shallow Crust', 'Stable Shallow Crust', 'Subduction Interface', 'Subduction IntraSlab', 'Volcanic'))
 
+INVALID_XML_CHARS = ['&', '<', '>', '"', "'"]
+
 
 def xmlstr(s, encoding='latin1'):
 	"""
@@ -18,6 +20,8 @@ def xmlstr(s, encoding='latin1'):
 		s: any object that can be represented as a string
 		encoding: unicode encoding if s is a string (default: 'latin1')
 	"""
+	for char in INVALID_XML_CHARS:
+		s = s.replace(char, '!')
 	if isinstance(s, str):
 		return s.decode(encoding).encode('ascii', 'xmlcharrefreplace')
 	elif isinstance(s, unicode):
