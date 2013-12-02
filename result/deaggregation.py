@@ -611,11 +611,7 @@ class DeaggregationSlice(DeaggBase):
 		else:
 			eps_pmf = None
 		eps_bin_edges = self.eps_bin_edges[1:]
-		try:
-			imt_period = self.imt.period
-		except AttributeError:
-			imt_period = None
-		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=imt_period, title_comment=title, fig_filespec=fig_filespec)
+		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=self.period, title_comment=title, fig_filespec=fig_filespec)
 
 	def get_modal_eq_scenario(self):
 		"""
