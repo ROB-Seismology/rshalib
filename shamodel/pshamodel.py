@@ -965,6 +965,8 @@ class PSHAModelTree(PSHAModelBase):
 		"""
 		#output_dir = os.path.join(self.output_dir, "openquake")
 		output_dir = self.output_dir
+		if not os.path.exists(output_dir):
+			os.mkdir(output_dir)
 
 		## set OQ_params object and override with params from user_params
 		params = OQ_Params(calculation_mode='classical', description=self.name)
@@ -1066,6 +1068,8 @@ class PSHAModelTree(PSHAModelBase):
 		:param verbose:
 			bool, whether or not to print some information (default: True)
 		"""
+		if not os.path.exists(self.output_dir):
+			os.mkdir(self.output_dir)
 		site_filespec = os.path.join(self.output_dir, 'sites.ASC')
 		gsims_dir = os.path.join(self.output_dir, 'gsims')
 		if not os.path.exists(gsims_dir):
