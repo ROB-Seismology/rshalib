@@ -50,7 +50,7 @@ class LogicTreeBranch(oqlt.Branch):
 		"""
 		Create xml element (NRML logicTreeBranch element)
 		"""
-		lb_elem = etree.Element(ns.LOGICTREE_BRANCH, branchID=self.branch_id)
+		lb_elem = etree.Element(ns.LOGICTREE_BRANCH, branchID=xmlstr(self.branch_id))
 		um_elem = etree.SubElement(lb_elem, ns.UNCERTAINTY_MODEL)
 		if isinstance(self.value, dict):
 			values = self.value.values()
@@ -280,7 +280,7 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		"""
 		Create xml element (NRML logicTreeBranchSet element)
 		"""
-		lbs_elem = etree.Element(ns.LOGICTREE_BRANCHSET, branchSetID=self.id, uncertaintyType=self.uncertainty_type)
+		lbs_elem = etree.Element(ns.LOGICTREE_BRANCHSET, branchSetID=xmlstr(self.id), uncertaintyType=self.uncertainty_type)
 		if self.applyToBranches:
 			lbs_elem.set("applyToBranches", " ".join(map(str, self.applyToBranches)))
 		if self.filters["applyToSources"]:
@@ -327,7 +327,7 @@ class LogicTreeBranchingLevel():
 		"""
 		Create xml element (NRML logicTreeBranchingLevel element)
 		"""
-		lbl_elem = etree.Element(ns.LOGICTREE_BRANCHINGLEVEL, branchingLevelID=self.id)
+		lbl_elem = etree.Element(ns.LOGICTREE_BRANCHINGLEVEL, branchingLevelID=xmlstr(self.id))
 		for branch_set in self.branch_sets:
 			lbs_elem = branch_set.create_xml_element()
 			lbl_elem.append(lbs_elem)
@@ -371,7 +371,7 @@ class LogicTree(object):
 		"""
 		Create xml element (NRML root element)
 		"""
-		lt_elem = etree.Element(ns.LOGICTREE, logicTreeID=self.id)
+		lt_elem = etree.Element(ns.LOGICTREE, logicTreeID=xmlstr(self.id))
 		for branching_level in self.branching_levels:
 			lbl_elem = branching_level.create_xml_element()
 			lt_elem.append(lbl_elem)
