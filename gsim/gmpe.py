@@ -1202,13 +1202,13 @@ class AmbraseysEtAl1996GMPE(GMPE):
 				raise DampingNotSupportedError(damping)
 			else:
 				sa_periods = self.imt_periods["SA"]
-				C1 = interpolate(sa_periods, self.c1[imt], [T])[0]
-				C2 = interpolate(sa_periods, self.c2[imt], [T])[0]
-				h = interpolate(sa_periods, self.h0[imt], [T])[0]
-				C4 = interpolate(sa_periods, self.c4[imt], [T])[0]
-				CA = interpolate(sa_periods, self.ca[imt], [T])[0]
-				CS = interpolate(sa_periods, self.cs[imt], [T])[0]
-				S = interpolate(sa_periods, self.sigma[imt], [T])[0]
+				C1 = interpolate(sa_periods, self.c1[imt], [T])
+				C2 = interpolate(sa_periods, self.c2[imt], [T])
+				h = interpolate(sa_periods, self.h0[imt], [T])
+				C4 = interpolate(sa_periods, self.c4[imt], [T])
+				CA = interpolate(sa_periods, self.ca[imt], [T])
+				CS = interpolate(sa_periods, self.cs[imt], [T])
+				S = interpolate(sa_periods, self.sigma[imt], [T])
 
 		if vs30 != None:
 			if vs30 >= 750:
@@ -1468,11 +1468,11 @@ class BergeThierry2003GMPE(GMPE):
 				c2 = self.c2[damping_index]
 				sigma = self.sigma[damping_index]
 				sa_periods = self.imt_periods["SA"]
-				A = interpolate(sa_periods, a, [T])[0]
-				B = interpolate(sa_periods, b, [T])[0]
-				C1 = interpolate(sa_periods, c1, [T])[0]
-				C2 = interpolate(sa_periods, c2, [T])[0]
-				S = interpolate(sa_periods, sigma, [T])[0]
+				A = interpolate(sa_periods, a, [T])
+				B = interpolate(sa_periods, b, [T])
+				C1 = interpolate(sa_periods, c1, [T])
+				C2 = interpolate(sa_periods, c2, [T])
+				S = interpolate(sa_periods, sigma, [T])
 
 		if vs30 != None:
 			if vs30 >= 800:
@@ -1780,25 +1780,25 @@ class CauzziFaccioli2008GMPE(GMPE):
 				raise DampingNotSupportedError(damping)
 			else:
 				sa_periods = self.imt_periods["SA"]
-				a1 = interpolate(sa_periods, self.a1[imt], [T])[0]
-				a2 = interpolate(sa_periods, self.a2[imt], [T])[0]
-				a3 = interpolate(sa_periods, self.a3[imt], [T])[0]
+				a1 = interpolate(sa_periods, self.a1[imt], [T])
+				a2 = interpolate(sa_periods, self.a2[imt], [T])
+				a3 = interpolate(sa_periods, self.a3[imt], [T])
 				if not explicit_vs30:
-					aB = interpolate(sa_periods, self.aB[imt], [T])[0]
-					aC = interpolate(sa_periods, self.aC[imt], [T])[0]
-					aD = interpolate(sa_periods, self.aD[imt], [T])[0]
+					aB = interpolate(sa_periods, self.aB[imt], [T])
+					aC = interpolate(sa_periods, self.aC[imt], [T])
+					aD = interpolate(sa_periods, self.aD[imt], [T])
 				else:
-					bV800 = interpolate(sa_periods, self.bV800[imt], [T])[0]
+					bV800 = interpolate(sa_periods, self.bV800[imt], [T])
 				if mechanism == "normal":
-					aN = interpolate(sa_periods, self.aN[imt], [T])[0]
+					aN = interpolate(sa_periods, self.aN[imt], [T])
 				elif mechanism == "reverse":
-					aR = interpolate(sa_periods, self.aR[imt], [T])[0]
+					aR = interpolate(sa_periods, self.aR[imt], [T])
 				elif mechanism == "strike-slip":
-					aS = interpolate(sa_periods, self.aS[imt], [T])[0]
+					aS = interpolate(sa_periods, self.aS[imt], [T])
 				if mechanism in ("normal", "reverse", "strike-slip"):
-					sigma = interpolate(sa_periods, self.SigmaTM[imt], [T])[0]
+					sigma = interpolate(sa_periods, self.SigmaTM[imt], [T])
 				else:
-					sigma = interpolate(sa_periods, self.SigmaTU[imt], [T])[0]
+					sigma = interpolate(sa_periods, self.SigmaTU[imt], [T])
 
 		## Common terms
 		log_ah = a1 + a2*M + a3*np.log10(d) + epsilon * sigma
@@ -2123,17 +2123,17 @@ class AkkarBommer2010GMPE(GMPE):
 				raise DampingNotSupportedError(damping)
 			else:
 				sa_periods = self.imt_periods["SA"]
-				b1 = interpolate(sa_periods, self.b1[imt], [T])[0]
-				b2 = interpolate(sa_periods, self.b2[imt], [T])[0]
-				b3 = interpolate(sa_periods, self.b3[imt], [T])[0]
-				b4 = interpolate(sa_periods, self.b4[imt], [T])[0]
-				b5 = interpolate(sa_periods, self.b5[imt], [T])[0]
-				b6 = interpolate(sa_periods, self.b6[imt], [T])[0]
-				b7 = interpolate(sa_periods, self.b7[imt], [T])[0]
-				b8 = interpolate(sa_periods, self.b8[imt], [T])[0]
-				b9 = interpolate(sa_periods, self.b9[imt], [T])[0]
-				b10 = interpolate(sa_periods, self.b10[imt], [T])[0]
-				sigma = interpolate(sa_periods, self.SigmaTot[imt], [T])[0]
+				b1 = interpolate(sa_periods, self.b1[imt], [T])
+				b2 = interpolate(sa_periods, self.b2[imt], [T])
+				b3 = interpolate(sa_periods, self.b3[imt], [T])
+				b4 = interpolate(sa_periods, self.b4[imt], [T])
+				b5 = interpolate(sa_periods, self.b5[imt], [T])
+				b6 = interpolate(sa_periods, self.b6[imt], [T])
+				b7 = interpolate(sa_periods, self.b7[imt], [T])
+				b8 = interpolate(sa_periods, self.b8[imt], [T])
+				b9 = interpolate(sa_periods, self.b9[imt], [T])
+				b10 = interpolate(sa_periods, self.b10[imt], [T])
+				sigma = interpolate(sa_periods, self.SigmaTot[imt], [T])
 
 		if vs30 != None:
 			if vs30 >= 750:
