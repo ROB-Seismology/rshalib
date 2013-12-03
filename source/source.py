@@ -1500,6 +1500,26 @@ class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, Ruptu
 			edges.append(edge)
 		return edges
 
+	def get_rupture(self, timespan=1):
+		"""
+		Get rupture corresponding to characteristic earthquake
+
+		:param timespan:
+			Float, time interval for Poisson distribution, in years
+			(default: 1)
+
+		:return:
+			instance of ProbabilisticRupture
+		"""
+		## Create MFD with only 1 bin corresponding to Mmax,
+		mfd_copy = self.mfd
+		max_mag, max_mag_rate = self.mfd.get_annual_occurrence_rates()[-1]
+		self.mfd = EvenlyDiscretizedMFD(max_mag, self.mfd.bin_width, [max_mag_rate])
+		rup = list(self.iter_ruptures(timespan))[0]
+		## Restore original MFD
+		self.mfd = mfd_copy
+		return rup
+
 
 
 if __name__ == '__main__':
