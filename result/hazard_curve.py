@@ -111,6 +111,12 @@ class HazardCurveArray(np.ndarray):
 	def array(self):
 		return np.asarray(self)
 
+	def mean(self, axis, weights=None):
+		if weights is None:
+			return self.__class__(np.mean(self.array, axis=axis))
+		else:
+			return self.__class__(np.average(self.array, axis=axis))
+
 
 class ExceedanceRateArray(HazardCurveArray):
 	def to_exceedance_rates(self, timespan=None):
@@ -2788,13 +2794,20 @@ class UHS(HazardResult, HazardSpectrum):
 	def exceedance_rate(self):
 		return self.exceedance_rates[0]
 
-	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, legend_location=0, lang="en"):
+	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, pgm_period=0.02, amax=None, legend_location=0, lang="en"):
 		if title is None:
 			title = "Site: %s" % self.site_name
-		datasets = [(self.periods, self.intensities)]
+		## Plot PGM separately if present
+		if 0 in self.periods:
+			idx = list(self.periods).index(0)
+			pgm = [self.intensities[idx]]
+			datasets = [(self.periods[self.periods>0], self.intensities[self.periods>0])]
+		else:
+			pgm = None
+			datasets = [(self.periods, self.intensities)]
 		labels = [self.model_name]
 		intensity_unit = self.intensity_unit
-		plot_hazard_spectrum(datasets, labels=labels, colors=[color], linestyles=[linestyle], linewidths=[linewidth], fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
+		plot_hazard_spectrum(datasets, pgm=pgm, pgm_period=pgm_period, labels=labels, colors=[color], linestyles=[linestyle], linewidths=[linewidth], fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
 
 	def export_csv(self, csv_filespec=None):
 		if csv_filespec:
