@@ -1075,7 +1075,8 @@ class PSHAModelTree(PSHAModelBase):
 		if not os.path.exists(gsims_dir):
 				os.mkdir(gsims_dir)
 
-		## Create directory structure for logic tree: only possible for source models
+		## Create directory structure for logic tree:
+		## only possible for source models
 		sm_filespecs = {}
 		all_filespecs = []
 		for source_model in self.source_models:
@@ -1083,10 +1084,19 @@ class PSHAModelTree(PSHAModelBase):
 			folder = os.path.join(self.output_dir, source_model.name)
 			if not os.path.exists(folder):
 				os.makedirs(folder)
+			## If there is only one TRT, it is possible to make subdirectories for each GMPE
+			trts = self.gmpe_lt.tectonicRegionTypes
+			if len(trts) == 1:
+				for gmpe_name in self.gmpe_lt.get_gmpe_names(trts[0]):
+					folder = os.path.join(folder, gmpe_name)
+					if not os.path.exists(folder):
+						os.makedirs(folder)
 
 		## Write CRISIS input files
 		for i, psha_model in enumerate(self.sample_logic_trees(self.num_lt_samples, verbose=verbose)):
 			folder = os.path.join(self.output_dir, psha_model.source_model.name)
+			if len(trts) == 1:
+				folder = os.path.join(folder, psha_model.ground_motion_model[trts[0]])
 			filespec = os.path.join(folder, 'lt-rlz-%04d.dat' % (i+1))
 			if os.path.exists(filespec) and overwrite:
 				os.unlink(filespec)
