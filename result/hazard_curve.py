@@ -67,13 +67,16 @@ def Poisson(life_time=None, return_period=None, prob=None):
 		life_time: life time (default: None)
 		return_period: return period (default: None)
 		prob: probability (default: None)
-	Two parameters need to be specified, the value will be computed for the remaining
-		parameters
+	Two parameters need to be specified, the value will be computed for the
+	missing parameter
 	"""
+	## Return period
 	if life_time != None and prob != None:
 		return -life_time / np.log(1.0 - prob)
+	## Life time
 	elif return_period != None and prob != None:
 		return -return_period * np.log(1.0 - prob)
+	## Probability of exceedance
 	elif life_time != None and return_period != None:
 		return 1.0 - np.exp(-life_time * 1.0 / return_period)
 	else:
@@ -111,12 +114,6 @@ class HazardCurveArray(np.ndarray):
 	def array(self):
 		return np.asarray(self)
 
-	def mean(self, axis, weights=None):
-		if weights is None:
-			return self.__class__(np.mean(self.array, axis=axis))
-		else:
-			return self.__class__(np.average(self.array, axis=axis))
-
 
 class ExceedanceRateArray(HazardCurveArray):
 	def to_exceedance_rates(self, timespan=None):
@@ -134,6 +131,12 @@ class ExceedanceRateArray(HazardCurveArray):
 	def to_return_periods(self, timespan=None):
 		return 1./self.array
 
+	def mean(self, axis, weights=None):
+		if weights is None:
+			return self.__class__(np.mean(self.array, axis=axis))
+		else:
+			return self.__class__(np.average(self.array, axis=axis, weights=weights))
+
 
 class ProbabilityArray(HazardCurveArray):
 	def to_exceedance_rates(self, timespan):
@@ -150,6 +153,19 @@ class ProbabilityArray(HazardCurveArray):
 
 	def to_return_periods(self, timespan):
 		return Poisson(prob=self.array, life_time=timespan)
+
+	def mean(self, axis, weights=None):
+		## esceedance probabilities are not additive, but non-exceedance
+		## probabilities are multiplicative, so the logs of non-exceedance
+		## probabilities are additive. So, we can take the mean of these logs,
+		## take the exponent to obtain the mean non-exceedance probability,
+		## then convert back to exceedance probability
+
+		# TODO: this is different from openquake.engine.calculators.post_processing,
+		# where the simple mean of the poes is computed.
+		# Check which is correct
+		return ProbabilityArray(1 - np.exp(np.average(np.log((1 - self.array)),
+											axis=axis, weights=weights)))
 
 
 class HazardResult:
@@ -2794,9 +2810,9 @@ class UHS(HazardResult, HazardSpectrum):
 	def exceedance_rate(self):
 		return self.exceedance_rates[0]
 
-	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, pgm_period=0.02, amax=None, legend_location=0, lang="en"):
+	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
 		if title is None:
-			title = "Site: %s" % self.site_name
+			title = "Site: %s, Return period: %d yr" % (self.site_name, self.return_periods[0])
 		## Plot PGM separately if present
 		if 0 in self.periods:
 			idx = list(self.periods).index(0)
