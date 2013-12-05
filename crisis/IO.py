@@ -578,7 +578,7 @@ def readCRISIS_DAT(filespec):
 	Parameters:
 		filespec: full path to file to be read
 	Return value:
-		tuple (period array, intensity_unit)
+		tuple (period array, intensity_unit, model_name)
 	"""
 	# IDEA: we could also determine number of sites and number of intensities,
 	# which would facilitate reading readCRISIS_GRA
@@ -589,6 +589,8 @@ def readCRISIS_DAT(filespec):
 	periods = []
 	f = open(filespec)
 	for linenr, line in enumerate(f):
+		if linenr == 2:
+			model_name = line.strip()
 		if linenr == 3:
 			num_periods = int(line.split(',')[2].strip())
 		elif 4 <= linenr < 4 + num_periods:
@@ -602,7 +604,7 @@ def readCRISIS_DAT(filespec):
 	f.close()
 
 	periods = np.array(periods, 'f')
-	return (periods, intensity_unit)
+	return (periods, intensity_unit, model_name)
 
 
 def readCRISIS_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit="", convert_to_g=True, IMT="", avoid_zeros=True, model_name="", site_names=[], verbose=False):
@@ -676,7 +678,7 @@ def readCRISIS_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensit
 	zero_period = 1./34
 	if in_periods in ([], None):
 		try:
-			in_periods, unit = readCRISIS_DAT(filespec[:-4])
+			in_periods, unit, description = readCRISIS_DAT(filespec[:-4])
 		except IOError:
 			print("%s.DAT file not found" % filespec[:-4])
 			print("Assuming structural period is %.4f s (PGA), or reading from .AGR file if possible" % zero_period)
@@ -687,6 +689,8 @@ def readCRISIS_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensit
 		else:
 			if not intensity_unit:
 				intensity_unit = {True: "g", False: unit}[unit == ""]
+			if not model_name:
+				model_name = description
 	if not intensity_unit:
 		intensity_unit = "g"
 	if not IMT:
@@ -934,7 +938,7 @@ def readCRISIS_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="
 	their exceedances will be interpolated to the intensity values of the first input file
 	"""
 	print("Reading %d files" % len(filespecs))
-	in_periods, unit = readCRISIS_DAT(os.path.splitext(filespecs[0])[0])
+	in_periods, unit, description = readCRISIS_DAT(os.path.splitext(filespecs[0])[0])
 	if not intensity_unit:
 		intensity_unit = unit
 	shcf = readCRISIS_GRA(filespecs[0], sites=sites, in_periods=in_periods, intensity_unit=intensity_unit, convert_to_g=convert_to_g, IMT=IMT, avoid_zeros=avoid_zeros, verbose=False)
@@ -980,6 +984,9 @@ def readCRISIS_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="
 		else:
 			shcft._exceedance_rates[:,j+1] = shcf.exceedance_rates
 			shcft.variances[:,j+1] = shcf.variances
+		## Overwrite model name
+		if shcf.model_name:
+			shcft.branch_names[j+1] = shcf.model_name
 
 	print("  done")
 	return shcft
@@ -1011,7 +1018,7 @@ def readCRISIS_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True
 	## Determine spectral periods
 	zero_period = 1./34
 	try:
-		periods, unit = readCRISIS_DAT(filespec[:-4])
+		periods, unit, description = readCRISIS_DAT(filespec[:-4])
 	except IOError:
 		print("%s.DAT file not found" % filespec[:-4])
 		print("Assuming structural period is %.4f s (PGA), or reading from .AGR file if possible" % zero_period)
@@ -1022,6 +1029,8 @@ def readCRISIS_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True
 	else:
 		if not intensity_unit:
 			intensity_unit = {True: "g", False: unit}[unit == ""]
+		if not model_name:
+			model_name = description
 	if not IMT:
 		IMT = {True: "SA", False: "PGA"}[len(periods) > 1]
 
