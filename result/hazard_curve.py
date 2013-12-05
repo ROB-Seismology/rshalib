@@ -492,12 +492,6 @@ class HazardTree(HazardResult):
 		return self.num_branches
 
 	@property
-	def num_branches(self):
-		return self.exceedance_rates.shape[1]
-
-	num_models = num_branches
-
-	@property
 	def num_percentiles(self):
 		try:
 			return self.percentiles.shape[-1]
@@ -673,13 +667,17 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 	def __getitem__(self, branch_spec):
 		return self.getSpectralHazardCurveField(branch_spec)
 
+	@property
+	def num_branches(self):
+		return self.exceedance_rates.shape[1]
+
 	def validate(self):
 		"""
 		Check if arrays have correct dimensions
 		"""
 		if not (len(self.filespecs) == len(self.branch_names)):
 			raise Exception("Number of filespecs not in agreement with number of branch names")
-		num_models, num_sites, num_periods = self.num_models, self.num_sites, self.num_periods
+		num_branches, num_sites, num_periods = self.num_branches, self.num_sites, self.num_periods
 		if len(self.intensities.shape) != 2:
 			raise Exception("intensities array has wrong dimension")
 		num_intensities = self.num_intensities
@@ -687,12 +685,12 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			raise Exception("intensities array has wrong shape")
 		if len(self.exceedance_rates.shape) != 4:
 			raise Exception("exceedance_rates or poes array has wrong dimension")
-		if self.exceedance_rates.shape != (num_sites, num_models, num_periods, num_intensities):
+		if self.exceedance_rates.shape != (num_sites, num_branches, num_periods, num_intensities):
 			raise Exception("exceedance_rates or poes array has wrong shape")
 		if self.variances != None:
 			if len(self.variances.shape) != 4:
 				raise Exception("variances array has wrong dimension")
-			if self.variances.shape != (num_sites, num_models, num_periods, num_intensities):
+			if self.variances.shape != (num_sites, num_branches, num_periods, num_intensities):
 				raise Exception("variances array has wrong shape")
 
 	@classmethod
@@ -704,21 +702,21 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			percentile_levels
 		"""
 		shcf0 = shcf_list[0]
-		num_models = len(shcf_list)
+		num_branches = len(shcf_list)
 		num_sites = shcf0.num_sites
 		num_periods = shcf0.num_periods
 		num_intensities = shcf0.num_intensities
 
 		if shcf0._exceedance_rates != None:
-			all_exceedance_rates = np.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
+			all_exceedance_rates = np.zeros((num_sites, num_branches, num_periods, num_intensities), 'd')
 			all_exceedance_rates[:,0,:,:] = shcf0._exceedance_rates
 			all_poes = None
 		else:
 			all_exceedance_rates = None
-			all_poes = np.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
+			all_poes = np.zeros((num_sites, num_branches, num_periods, num_intensities), 'd')
 			all_poes[:,0,:,:] = shcf0._poes
 		if shcf0.variances != None:
-			all_variances = np.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
+			all_variances = np.zeros((num_sites, num_branches, num_periods, num_intensities), 'd')
 			all_variances[:,0,:,:] = shcf0.variances
 		else:
 			all_variances = None
@@ -727,7 +725,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		if branch_names in (None, []):
 			branch_names = [shcf.model_name for shcf in shcf_list]
 		if weights in (None, []):
-			weights = np.ones(num_models, 'f') / num_models
+			weights = np.ones(num_branches, 'f') / num_branches
 
 		shcft = SpectralHazardCurveFieldTree(model_name, branch_names, filespecs, weights, shcf0.sites, shcf0.periods, shcf0.IMT, shcf0.intensities, shcf0.intensity_unit, shcf0.timespan, poes=all_poes, exceedance_rates=all_exceedance_rates, variances=all_variances, site_names=shcf0.site_names)
 
@@ -1136,8 +1134,8 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		Return value:
 			UHSFieldTree object
 		"""
-		num_sites, num_periods, num_models = self.num_sites, self.num_periods, self.num_models
-		rp_intensities = np.zeros((num_sites, num_models, num_periods), dtype='d')
+		num_sites, num_periods, num_branches = self.num_sites, self.num_periods, self.num_branches
+		rp_intensities = np.zeros((num_sites, num_branches, num_periods), dtype='d')
 		if self.mean not in (None, []):
 			rp_mean = np.zeros((num_sites, num_periods), dtype='d')
 		else:
@@ -1149,7 +1147,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		interpol_exceedance = 1. / return_period
 		for i in range(num_sites):
 			for k in range(num_periods):
-				for j in range(num_models):
+				for j in range(num_branches):
 					rp_intensities[i,j,k] = interpolate(self.exceedance_rates[i,j,k], self.intensities[k], [interpol_exceedance])[0]
 				if self.mean not in (None, []):
 					rp_mean[i,k] = interpolate(self.mean[i,k], self.intensities[k], [interpol_exceedance])[0]
@@ -2509,6 +2507,11 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 	def __getitem__(self, branch_spec):
 		return self.getUHSField(branch_spec)
 
+	@property
+	def num_branches(self):
+		## Override HazardTree property
+		return self.intensities.shape[1]
+
 	def getUHSField(self, branch_spec):
 		branch_index = self.branch_index(branch_spec)
 		try:
@@ -2519,7 +2522,7 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 			branch_name = self.branch_names[branch_index]
 			filespec = self.filespecs[branch_index]
 
-			intensities = self.exceedance_rates[:,branch_index,:]
+			intensities = self.intensities[:,branch_index,:]
 			return UHSField(branch_name, filespec, self.sites, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=self.return_period, site_names=self.site_names)
 
 	@property
@@ -2550,6 +2553,14 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 			return np.average(self.intensities, weights=self.weights, axis=1)
 		else:
 			return np.mean(self.intensities, axis=1)
+
+	def getMeanUHSField(self, weighted=True):
+		"""
+		"""
+		intensities = self.calc_mean(weighted=weighted)
+		return UHSField(self.model_name, "", self.sites, self.periods,
+			self.IMT, intensities, self.intensity_unit, self.timespan,
+			self.poe, self.return_period, self.site_names)
 
 	def calc_variance_of_mean(self, weighted=True):
 		if weighted and not self.weights in ([], None):
@@ -2612,7 +2623,7 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 	def slice_by_branch_indexes(self, branch_indexes, slice_name, normalize_weights=True):
 		pass
 
-	def plot(self, site_spec=0, branch_indexes=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, legend_location=0, lang="en"):
+	def plot(self, site_spec=0, branch_specs=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, legend_location=0, lang="en"):
 		site_index = self.site_index(site_spec)
 		if branch_specs in ([], None):
 			branch_indexes = range(self.num_branches)
@@ -2652,7 +2663,7 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 				percentile_levels = [5, 16, 50, 84, 95]
 			else:
 				percentile_levels = self.percentile_levels
-			percentiles = self.calc_percentiles_epistemic(percentile_levels)
+			percentiles = self.calc_percentiles(percentile_levels)
 		else:
 			percentiles = self.percentiles
 		percentiles = percentiles[site_index]
@@ -2676,7 +2687,6 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 			linewidths.append(2)
 			linestyles.append('--')
 			datasets.append((x, percentiles[:,p]))
-		fixed_life_time = {True: self.timespan, False: None}[want_poe]
 		intensity_unit = self.intensity_unit
 		plot_hazard_spectrum(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
 
