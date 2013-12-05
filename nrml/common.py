@@ -21,7 +21,7 @@ def xmlstr(s, encoding='latin1'):
 		encoding: unicode encoding if s is a string (default: 'latin1')
 	"""
 	for char in INVALID_XML_CHARS:
-		s = s.replace(char, '!')
+		s = s.replace(char, '')
 	if isinstance(s, str):
 		return s.decode(encoding).encode('ascii', 'xmlcharrefreplace')
 	elif isinstance(s, unicode):
