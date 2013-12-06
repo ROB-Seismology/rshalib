@@ -682,10 +682,17 @@ class GMPE(object):
 					all_periods.append(T)
 				else:
 					raise Exception("Duplicate period found: %s (%s s)" % (imt, T))
+
+				## Note: CRISIS does not support distance-dependent uncertainty,
+				## so we take 10 km (or 20 km in the case of Toro)
+				if "ToroEtAl2002" in self.name:
+					d_for_sigma = 20
+				else:
+					d_for_sigma = 10
+
 				sigma_depends_on_magnitude = self.sigma_depends_on_magnitude(imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 				if not sigma_depends_on_magnitude:
-					# Note: CRISIS does not support distance-dependent uncertainty, so we take 10 km
-					log_sigma = self.log_sigma(M=0, d=10, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+					log_sigma = self.log_sigma(M=0, d=d_for_sigma, h=h, imt=imt, T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 					ln_sigma = log_sigma * np.log(10)
 				else:
 					ln_sigma = -1.0
@@ -698,7 +705,7 @@ class GMPE(object):
 					of.write("%s\n" % s)
 				if sigma_depends_on_magnitude:
 					for M in Mags:
-						log_sigma = self.log_sigma(M=M, d=10., h=h, T=T, imt=imt, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+						log_sigma = self.log_sigma(M=M, d=d_for_sigma, h=h, T=T, imt=imt, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 						ln_sigma = log_sigma * np.log(10)
 						of.write("%.3E\n" % ln_sigma)
 
