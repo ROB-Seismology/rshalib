@@ -503,7 +503,7 @@ class PSHAModel(PSHAModelBase):
 		params.validate()
 		params.write_config(os.path.join(self.output_dir, 'job.ini'))
 
-	def write_crisis(self, filespec="", atn_folder="", site_filespec="", overwrite=False):
+	def write_crisis(self, filespec="", atn_folder="", site_filespec="", atn_Mmax=None, overwrite=False):
 		"""
 		Write full PSHA model input for Crisis.
 
@@ -517,6 +517,9 @@ class PSHAModel(PSHAModelBase):
 			String, full path to .ASC file containing sites where hazard
 			will be computed
 			(default: "")
+		:param atn_Mmax:
+			Float, maximum magnitude in attenuation table(s)
+			(default: None, will determine automatically from source model)
 		:param overwrite:
 			Boolean, whether or not to overwrite existing input files (default: False)
 
@@ -552,7 +555,7 @@ class PSHAModel(PSHAModelBase):
 
 		## Write input file. This will also write the site file and attenuation
 		## tables if necessary.
-		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.get_sites(), site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], kappa=self.ref_soil_params["kappa"], mag_scale_rel=None, output={"gra": True, "map": True, "fue": True, "des": True, "smx": True, "eps": True, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
+		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.get_sites(), site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], kappa=self.ref_soil_params["kappa"], mag_scale_rel=None, atn_Mmax=atn_Mmax, output={"gra": True, "map": True, "fue": True, "des": True, "smx": True, "eps": True, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
 
 		## Return name of output file
 		return filespec
@@ -1093,6 +1096,7 @@ class PSHAModelTree(PSHAModelBase):
 						os.makedirs(subfolder)
 
 		## Write CRISIS input files
+		max_mag = self.source_model_lt.get_max_mag()
 		for i, psha_model in enumerate(self.sample_logic_trees(self.num_lt_samples, verbose=verbose)):
 			folder = os.path.join(self.output_dir, psha_model.source_model.name)
 			if len(trts) == 1:
@@ -1102,7 +1106,7 @@ class PSHAModelTree(PSHAModelBase):
 				os.unlink(filespec)
 			## Write separate attenuation tables for different source models
 			sm_gsims_dir = os.path.join(gsims_dir, psha_model.source_model.name)
-			psha_model.write_crisis(filespec, sm_gsims_dir, site_filespec)
+			psha_model.write_crisis(filespec, sm_gsims_dir, site_filespec, atn_Mmax=max_mag)
 			sm_filespecs[psha_model.source_model.name].append(filespec)
 			all_filespecs.append(filespec)
 
