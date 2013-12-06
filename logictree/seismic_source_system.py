@@ -37,6 +37,25 @@ class SeismicSourceSystem(LogicTree):
 			self.set_root_uncertainty_level(source_model_pmf)
 			self.source_models = source_model_pmf.source_models
 
+	def get_max_mag(self):
+		"""
+		Determine maximum absolute magnitude (maxMagGRAbsolute)
+		in the model.
+
+		:return:
+			float, maximum magnitude
+		"""
+		max_mag = 0
+		for bs in self.get_branchsets(unc_class="mmax"):
+			if bs.uncertainty_type == "maxMagGRAbsolute":
+				for branch in bs:
+					if isinstance(branch.value, dict):
+						value = max(branch.value.values())
+					else:
+						value = branch.value
+					max_mag = max(max_mag, value)
+		return max_mag
+
 	@classmethod
 	def parse_from_xml(cls, xml_filespec, validate=False):
 		"""
