@@ -33,7 +33,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					num_intensities=100, imt_unit="g", model_name="",
 					truncation_level=3., integration_distance=200.,
 					source_discretization=(1.0, 5.0), vs30=800., kappa=None,
-					mag_scale_rel="WC1994",
+					mag_scale_rel="WC1994", atn_Mmax=None,
 					output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False},
 					deagg_dist_metric="Hypocentral", map_filespec="", cities_filespec="",
 					overwrite=False):
@@ -133,6 +133,9 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		one of "WC1994", "Brune1970" or "Singh1980" (default: "").
 		If empty, the scaling relationships associated with the individual
 		source objects will be used.
+	:param atn_Mmax:
+		Float, maximum magnitude in attenuation tables
+		(default: None, will determine from source model)
 	:param output:
 		Dict with boolean values, indicating which output files to generate
 		Keys correspond to output file types:
@@ -199,7 +202,8 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 				atn_filespec += "_kappa=%s" % kappa
 			atn_filespec += ".ATN"
 			atn_filespecs.append(atn_filespec)
-			Mmin, Mmax = source_model.min_mag, source_model.max_mag
+			Mmin = source_model.min_mag
+			Mmax = max(atn_Mmax, source_model.max_mag)
 			Mstep, num_distances = 0.5, 50
 			if not os.path.exists(atn_filespec) or overwrite:
 				# TODO: check for gsim names in attenuation
@@ -220,12 +224,12 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 							min_distances.append(src.upper_seismogenic_depth)
 					if len(min_distances) > 0:
 						min_distance = min(min_distances)
-						min_distance = max(min_distance, 0.5)
+						min_distance = max(min_distance, 1.)
 					else:
-						min_distance = 0.5
+						min_distance = 1.0
 				else:
 					## Repi, RJB
-					min_distance = 0.5
+					min_distance = 1.0
 				# TODO: damping?
 				gsimObj.writeCRISIS_ATN(Mmin, Mmax, Mstep, min_distance,
 										integration_distance, num_distances,
