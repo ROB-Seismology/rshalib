@@ -1226,6 +1226,10 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		x = self.intensities[period_index]
 		datasets, labels, colors, linewidths, linestyles = [], [], [], [], []
 
+		if title is None:
+			title = "Hazard Curve Tree"
+			title += "\nSite: %s, T: %s s" % (self.site_names[site_index], self.periods[period_index])
+
 		## Plot individual models
 		exceedance_rates = self.exceedance_rates
 		for branch_index in branch_indexes:
@@ -2000,7 +2004,8 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 			linewidth: line width (default: 2)
 		"""
 		if title is None:
-			title = "Site: %s" % self.site_name
+			title = "Spectral Hazard Curve"
+			title += "\nSite: %s" % self.site_name
 		datasets = [(self.intensities[k], self.exceedance_rates[k]) for k in range(self.num_periods)]
 		labels = ["T = %s s" % period for period in self.periods]
 		fixed_life_time = {True: self.timespan, False: None}[want_poe]
@@ -2411,7 +2416,8 @@ class HazardCurve(HazardResult):
 			linewidth: line width (default: 2)
 		"""
 		if title is None:
-			title = "Site: %s, T: %s s" % (self.site_name, self.period)
+			title = "Hazard Curve"
+			title += "\nSite: %s, T: %s s" % (self.site_name, self.period)
 		datasets = [(self.intensities, self.exceedance_rates)]
 		labels = [self.model_name]
 		fixed_life_time = {True: self.timespan, False: None}[want_poe]
@@ -2474,6 +2480,8 @@ class HazardCurveCollection:
 		return self.hazard_curves[0].intensity_unit
 
 	def plot(self, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, tr_max=1E+07, legend_location=0, lang="en"):
+		if title is None:
+			title = "Hazard Curve Collection"
 		datasets = [(hc.intensities, hc.exceedance_rates) for hc in self.hazard_curves]
 		hc0 = self.hazard_curves[0]
 		fixed_life_time = {True: hc0.timespan, False: None}[want_poe]
@@ -2631,6 +2639,10 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 			branch_indexes = [self.branch_index(branch_spec) for branch_spec in branch_specs]
 		x = self.periods
 		datasets, labels, colors, linewidths, linestyles = [], [], [], [], []
+
+		if title is None:
+			title = "UHS Tree"
+			title += "\nSite: %s" % self.site_names[site_index]
 
 		## Plot individual models
 		for branch_index in branch_indexes:
@@ -2822,7 +2834,8 @@ class UHS(HazardResult, HazardSpectrum):
 
 	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
 		if title is None:
-			title = "Site: %s, Return period: %d yr" % (self.site_name, self.return_periods[0])
+			title = "UHS"
+			title += "\nSite: %s, Return period: %d yr" % (self.site_name, self.return_periods[0])
 		## Plot PGM separately if present
 		if 0 in self.periods:
 			idx = list(self.periods).index(0)
@@ -2963,6 +2976,8 @@ class UHSCollection:
 		return self.UHSlist[0].intensity_unit
 
 	def plot(self, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, legend_location=0, lang="en"):
+		if title is None:
+			title = "UHS Collection"
 		datasets = [(uhs.periods, uhs.intensities) for uhs in self.UHSlist]
 		intensity_unit = self.intensity_unit
 		plot_hazard_spectrum(datasets, labels=self.labels, colors=self.colors, linestyles=self.linestyles, linewidths=self.linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
