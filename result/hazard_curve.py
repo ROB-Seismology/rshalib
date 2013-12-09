@@ -163,7 +163,7 @@ class ProbabilityArray(HazardCurveArray):
 
 		# TODO: this is different from openquake.engine.calculators.post_processing,
 		# where the simple mean of the poes is computed.
-		# Check which is correct
+		# In practice, the differences appear to be minor
 		return ProbabilityArray(1 - np.exp(np.average(np.log((1 - self.array)),
 											axis=axis, weights=weights)))
 
@@ -277,6 +277,15 @@ class HazardSpectrum:
 	def num_periods(self):
 		return len(self.periods)
 
+	def reorder_periods(self):
+		"""
+		"""
+		idxs = np.argsort(self.periods)
+		self.periods = self.periods[idxs]
+		self.intensities = self.intensities.take(idxs, axis=0)
+		if self.period_axis != None:
+			self._hazard_values = self._hazard_values.take(idxs, axis=self.period_axis)
+
 
 class HazardField:
 	"""
@@ -295,6 +304,19 @@ class HazardField:
 	@property
 	def site_names(self):
 		return [site.name for site in self.sites]
+
+	def set_site_names(self, sites):
+		"""
+		Set site names from a list of SHA sites
+
+		:param sites:
+			list with instances of :class:`SHASite`
+		"""
+		for i in range(self.num_sites):
+			lon, lat = (self.sites[i].lon, self.sites[i].lat)
+			for site in sites:
+				if np.allclose((lon, lat), (site.lon, site.lat)):
+					self.sites[i].name = site.name
 
 	@property
 	def longitudes(self):
@@ -638,6 +660,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		self.model_name = model_name
 		self.filespecs = filespecs
 		self.variances = as_array(variances)
+		self.period_axis = 2
 		self.validate()
 
 	def __iter__(self):
@@ -1201,9 +1224,9 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 
 		## Plot overall mean
 		if self.mean is None:
-			y = self.calc_mean()[site_index, period_index]
+			y = self.calc_mean()[site_index, period_index].to_exceedance_rates(self.timespan)
 		else:
-			y = self.mean[site_index, period_index]
+			y = self.mean[site_index, period_index].to_exceedance_rates(self.timespan)
 		datasets.append((x, y))
 		labels.append("_nolegend_")
 		colors.append('w')
@@ -1429,6 +1452,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		self.model_name = model_name
 		self.filespecs = filespecs
 		self.variances = as_array(variances)
+		self.period_axis = 1
 		self.validate()
 
 	def __iter__(self):
@@ -1789,6 +1813,7 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 		if not site_name:
 			site_name = str(site)
 		self.site_name = site_name
+		self.period_axis = 0
 
 	def __iter__(self):
 		self._current_index = 0
@@ -2437,6 +2462,7 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		HazardSpectrum.__init__(self, periods)
 		self.model_name = model_name
 		self.filespecs = filespecs
+		self.period_axis = 2
 
 	def __iter__(self):
 		self._current_index = 0
@@ -2672,6 +2698,7 @@ class UHSField(HazardResult, HazardField, HazardSpectrum):
 		HazardSpectrum.__init__(self, periods)
 		self.model_name = model_name
 		self.filespec = filespec
+		self.period_axis = 1
 
 	def __iter__(self):
 		self._current_index = 0
@@ -2751,6 +2778,7 @@ class UHS(HazardResult, HazardSpectrum):
 		self.model_name = model_name
 		self.filespec = filespec
 		self.site = site
+		self.period_axis = None
 
 	def __getitem__(self, period_spec):
 		period_index = self.period_index(period_spec)
@@ -2920,12 +2948,20 @@ class UHSCollection:
 	def intensity_unit(self):
 		return self.UHSlist[0].intensity_unit
 
-	def plot(self, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, legend_location=0, lang="en"):
+	def plot(self, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
 		if title is None:
 			title = "UHS Collection"
-		datasets = [(uhs.periods, uhs.intensities) for uhs in self.UHSlist]
+		uhs0 = self.UHSlist[0]
+		if 0 in uhs0.periods:
+			pgm = [uhs.intensities[uhs.periods==0] for uhs in self.UHSlist]
+			datasets = [(uhs.periods[uhs.periods>0], uhs.intensities[uhs.periods>0]) for uhs in self.UHSlist]
+		else:
+			pgm = None
+			datasets = [(uhs.periods, uhs.intensities) for uhs in self.UHSlist]
+
+
 		intensity_unit = self.intensity_unit
-		plot_hazard_spectrum(datasets, labels=self.labels, colors=self.colors, linestyles=self.linestyles, linewidths=self.linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
+		plot_hazard_spectrum(datasets, pgm=pgm, pgm_period=pgm_period, labels=self.labels, colors=self.colors, linestyles=self.linestyles, linewidths=self.linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
 
 
 class HazardMap(HazardResult, HazardField):
