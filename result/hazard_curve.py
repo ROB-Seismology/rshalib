@@ -809,7 +809,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 				variances = self.variances[:,branch_index,:,:]
 			else:
 				variances = None
-			return SpectralHazardCurveField(branch_name, hazard_values, [filespec]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, variances=variances, site_names=self.site_names)
+			return SpectralHazardCurveField(branch_name, hazard_values, [filespec]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, variances=variances)
 
 	def getSpectralHazardCurve(self, branch_spec=0, site_spec=0):
 		"""
