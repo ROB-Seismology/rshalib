@@ -14,7 +14,7 @@ from lxml import etree
 #from ..site import SHASite
 
 from ..nrml import ns
-from ..result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
+from ..result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityArray, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
 from ..site import SHASite
 
 NRML = ns.NRML_NS
@@ -35,7 +35,7 @@ def _parse_hazard_curve(hazard_curve):
 	"""
 	Parse OpenQuake nrml element of type "hazardCurve"
 	"""
-	site = tuple(map(float, hazard_curve.findtext(".//{%s}pos" % GML).split()))
+	site = SHASite(*map(float, hazard_curve.findtext(".//{%s}pos" % GML).split()))
 	poes = np.array(hazard_curve.findtext(".//{%s}poEs" % NRML).split(), float)
 	return site, poes.clip(10**-15)
 
@@ -55,13 +55,13 @@ def _parse_hazard_curves(hazard_curves):
 		site, poes = _parse_hazard_curve(hazard_curve)
 		sites.append(site)
 		poess.append(poes)
-	return model_name, sites, period, imt, intensities, timespan, np.array(poess)
+	return model_name, sites, period, imt, intensities, timespan, ProbabilityArray(poess)
 
 
 def parse_hazard_curves(xml_filespec):
 	"""
 	Parse OpenQuake nrml output file of type "hazard curves"
-	
+
 	:param xml_filespec:
 		String, filespec of file to parse.
 
@@ -70,7 +70,7 @@ def parse_hazard_curves(xml_filespec):
 	"""
 	nrml = etree.parse(xml_filespec)
 	model_name, sites, period, imt, intensities, timespan, poess = _parse_hazard_curves(nrml.find("{%s}hazardCurves" % NRML))
-	hcf = HazardCurveField(model_name, xml_filespec, sites, period, imt, intensities, intensity_unit=intensity_unit[imt], timespan=timespan, poes=poess)
+	hcf = HazardCurveField(model_name, poess, xml_filespec, sites, period, imt, intensities, intensity_unit=intensity_unit[imt], timespan=timespan)
 	return hcf
 
 
@@ -99,14 +99,14 @@ def parse_hazard_curves_multi(xml_filespec):
 			branch_names.append(model_name)
 		poes.extend(poes_)
 	intensities = np.array(intensities)
-	poes_ = np.zeros((len(sites), len(branch_names), len(periods), intensities.shape[1]))
+	poes_ = ProbabilityArray(np.zeros((len(sites), len(branch_names), len(periods), intensities.shape[1])))
 	m = 0
 	for j in range(len(branch_names)):
 		for k in range(len(periods)):
 			for i in range(len(sites)):
 				poes_[i, j, k] = poes[m]
 				m += 1
-	
+
 	if len(set(branch_names)) == 1:
 		filespecs = [xml_filespec] * len(periods)
 		return SpectralHazardCurveField(model_name, filespecs, sites, periods, "SA", intensities, timespan=timespan, poes=poes_[:,0,:,:])
@@ -256,7 +256,7 @@ def parse_disaggregation(xml_filespec):
 def parse_any_output(xml_filespec):
 	"""
 	Parse OpenQuake nrml output file of any type ("hazard curves", "hazard curves multi", "hazard map", "uniform hazard spectra" or "disaggregation").
-	
+
 	:param xml_filespec:
 		String, filespec of file to parse
 	"""
