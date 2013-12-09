@@ -11,6 +11,7 @@ import config
 ## TypeError: super(type, obj): obj must be an instance or subtype of type
 reload(config)
 
-from IO import parse_hazard_curves, parse_hazard_map, parse_uh_spectra, parse_disaggregation
+from IO import (parse_hazard_curves, parse_hazard_curves_multi, parse_hazard_map,
+							parse_uh_spectra, parse_disaggregation)
 
 from config import OQ_Params
