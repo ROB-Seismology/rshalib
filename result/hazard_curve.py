@@ -2042,7 +2042,7 @@ class HazardCurveField(HazardResult, HazardField):
 		"""
 		if intensity is not None:
 			intensity_index = self.intensity_index(intensity)
-			site_index = self.hazard_values[:,intensity_index].argmin()
+			site_index = self._hazard_values[:,intensity_index].argmin()
 		elif return_period is not None:
 			hazardmapset = self.interpolate_return_periods([return_period])
 			hazardmap = hazardmapset[0]
@@ -2065,7 +2065,7 @@ class HazardCurveField(HazardResult, HazardField):
 		"""
 		if intensity is not None:
 			intensity_index = self.intensity_index(intensity)
-			site_index = self.hazard_values[:,intensity_index].argmax()
+			site_index = self._hazard_values[:,intensity_index].argmax()
 		elif return_period is not None:
 			hazardmapset = self.interpolate_return_periods([return_period])
 			hazardmap = hazardmapset[0]
@@ -2088,7 +2088,7 @@ class HazardCurveField(HazardResult, HazardField):
 		"""
 		if intensity is not None:
 			intensity_index = self.intensity_index(intensity)
-			return self.hazard_values[:,intensity_index].min()
+			return self._hazard_values[:,intensity_index].min()
 		elif return_period is not None:
 			hazardmapset = self.interpolate_return_periods([return_period])
 			hazardmap = hazardmapset[0]
@@ -2111,7 +2111,7 @@ class HazardCurveField(HazardResult, HazardField):
 		"""
 		if intensity is not None:
 			intensity_index = self.intensity_index(intensity)
-			return self.hazard_values[:,intensity_index].max()
+			return self._hazard_values[:,intensity_index].max()
 		elif return_period is not None:
 			hazardmapset = self.interpolate_return_periods([return_period])
 			hazardmap = hazardmapset[0]
@@ -2136,7 +2136,7 @@ class HazardCurveField(HazardResult, HazardField):
 
 		site_name = self.site_names[site_index]
 		intensities = self.intensities
-		hazard_values = self.hazard_values[site_index]
+		hazard_values = self._hazard_values[site_index]
 		if self.variances != None:
 			variances = self.variances[site_index]
 		else:
@@ -2164,7 +2164,7 @@ class HazardCurveField(HazardResult, HazardField):
 		Promote to a SpectralHazardCurveField object (multiple sites, multiple spectral periods)
 		"""
 		intensities = self.intensities.reshape((1, self.num_intensities))
-		hazard_values = self.hazard_values.reshape((self.num_sites, 1, self.num_intensities))
+		hazard_values = self._hazard_values.reshape((self.num_sites, 1, self.num_intensities))
 		if self.variances != None:
 			variances = self.variances.reshape((self.num_sites, 1, self.num_intensities))
 		else:
