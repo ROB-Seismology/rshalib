@@ -31,16 +31,17 @@ def _get_model_name(e):
 		model_name += "_%s" % float(e.get("quantileValue"))
 	return model_name
 
-def _parse_hazard_curve(hazard_curve):
+def _parse_hazard_curve(hazard_curve, site_names={}):
 	"""
 	Parse OpenQuake nrml element of type "hazardCurve"
 	"""
-	site = SHASite(*map(float, hazard_curve.findtext(".//{%s}pos" % GML).split()))
+	lon, lat = map(float, hazard_curve.findtext(".//{%s}pos" % GML).split())
+	site = SHASite(lon, lat, name=site_names.get((lon, lat), None))
 	poes = np.array(hazard_curve.findtext(".//{%s}poEs" % NRML).split(), float)
 	return site, poes.clip(10**-15)
 
 
-def _parse_hazard_curves(hazard_curves):
+def _parse_hazard_curves(hazard_curves, site_names={}):
 	"""
 	Parse OpenQuake nrml element of type "hazardCurves"
 	"""
@@ -52,13 +53,13 @@ def _parse_hazard_curves(hazard_curves):
 	sites = []
 	poess = []
 	for hazard_curve in hazard_curves.findall("{%s}hazardCurve" % NRML):
-		site, poes = _parse_hazard_curve(hazard_curve)
+		site, poes = _parse_hazard_curve(hazard_curve, site_names)
 		sites.append(site)
 		poess.append(poes)
 	return model_name, sites, period, imt, intensities, timespan, ProbabilityArray(poess)
 
 
-def parse_hazard_curves(xml_filespec):
+def parse_hazard_curves(xml_filespec, site_names={}):
 	"""
 	Parse OpenQuake nrml output file of type "hazard curves"
 
@@ -69,12 +70,12 @@ def parse_hazard_curves(xml_filespec):
 		instance of :class:`..result.HazardCurveField`
 	"""
 	nrml = etree.parse(xml_filespec)
-	model_name, sites, period, imt, intensities, timespan, poess = _parse_hazard_curves(nrml.find("{%s}hazardCurves" % NRML))
+	model_name, sites, period, imt, intensities, timespan, poess = _parse_hazard_curves(nrml.find("{%s}hazardCurves" % NRML), site_names)
 	hcf = HazardCurveField(model_name, poess, xml_filespec, sites, period, imt, intensities, intensity_unit=intensity_unit[imt], timespan=timespan)
 	return hcf
 
 
-def parse_hazard_curves_multi(xml_filespec):
+def parse_hazard_curves_multi(xml_filespec, site_names={}):
 	"""
 	Parse OpenQuake nrml output file of type "hazard curves multi"
 
@@ -90,7 +91,7 @@ def parse_hazard_curves_multi(xml_filespec):
 	intensities = []
 	poes = []
 	for hazard_curves in nrml.findall("{%s}hazardCurves" % NRML):
-		model_name, sites, period, imt, intensities_, timespan, poes_ = _parse_hazard_curves(hazard_curves)
+		model_name, sites, period, imt, intensities_, timespan, poes_ = _parse_hazard_curves(hazard_curves, site_names)
 		assert imt in ("PGA", "SA")
 		if period not in periods:
 			periods.append(period)
@@ -151,7 +152,7 @@ def parse_hazard_map(xml_filespec):
 	return hm
 
 
-def parse_uh_spectra(xml_filespec):
+def parse_uh_spectra(xml_filespec, site_names={}):
 	"""
 	Parse OpenQuake nrml output file of type "uniform hazard spectra"
 
@@ -173,7 +174,7 @@ def parse_uh_spectra(xml_filespec):
 	for uh_spectrum in uh_spectra.findall('{%s}uhs' % NRML):
 		pos = uh_spectrum.find('{%s}Point' % GML).find('{%s}pos' % GML)
 		lon, lat = map(float, pos.text.split())
-		sites.append(SHASite(lon, lat))
+		sites.append(SHASite(lon, lat, name=site_names.get((lon, lat), None)))
 		imls = uh_spectrum.find('{%s}IMLs' % NRML)
 		intensities.append(map(float, imls.text.split()))
 	uhs_field = UHSField(model_name, xml_filespec, sites, periods, IMT,
@@ -182,7 +183,7 @@ def parse_uh_spectra(xml_filespec):
 	return uhs_field
 
 
-def parse_disaggregation(xml_filespec):
+def parse_disaggregation(xml_filespec, site_name=None):
 	"""
 	Parse OpenQuake nrml output file of type "disaggregation"
 
@@ -208,7 +209,7 @@ def parse_disaggregation(xml_filespec):
 		'tectonicRegionTypes').split(', ')
 	lon = float(disagg_matrices.get('lon'))
 	lat = float(disagg_matrices.get('lat'))
-	site = SHASite(lon, lat)
+	site = SHASite(lon, lat, name=site_name)
 	imt = disagg_matrices.get('IMT')
 	if disagg_matrices.attrib.has_key('saPeriod'):
 		period = float(disagg_matrices.get('saPeriod'))
@@ -275,11 +276,12 @@ def parse_any_output(xml_filespec):
 	raise "File is not an output of OpenQuake"
 
 
-#def output_parser(directory):
-#	"""
-#	"""
+def read_shcft(directory):
+	"""
+	"""
 #	output = []
-#	for file in os.listdir(directory):
+	for file in os.listdir(directory):
+		print file
 #		if file.startswith("hazard_map"):
 #			output.append(parse_hazard_map(os.path.join(directory, file)))
 #	return output
