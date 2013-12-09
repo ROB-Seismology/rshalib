@@ -4,9 +4,10 @@ import os
 
 import numpy as np
 
-from ..result import *
 from ..mfd import alphabetalambda, TruncatedGRMFD, CharacteristicMFD
+from ..site import SHASite
 from ..source import PointSource, AreaSource, SimpleFaultSource, ComplexFaultSource
+from ..result import *
 
 
 def s2float(s, replace_nan=None, replace_inf=None):
@@ -883,19 +884,25 @@ def readCRISIS_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensit
 	## use those read from file (if any)
 	if not site_names:
 		site_names = all_site_names
+	if len(site_names) == 0:
+		site_names = [None] * len(all_sites)
+
+	## Convert to SHASite objects
+	all_sites = [SHASite(lon, lat, name=name) for ((lon, lat), name) in zip(all_sites, site_names)]
 
 	## Create SpectralHazardCurveField(Tree) object
+	all_exceedance_means = ExceedanceRateArray(all_exceedance_means)
 	if not model_name:
 		model_name = os.path.splitext(os.path.basename(filespec))[0]
 	if all_exceedance_percentiles == []:
-		shcf = SpectralHazardCurveField(model_name, [filespec]*len(in_periods), all_sites, in_periods, IMT, all_intensities, intensity_unit, exceedance_rates=all_exceedance_means, variances=all_exceedance_variances, site_names=site_names)
+		shcf = SpectralHazardCurveField(model_name, all_exceedance_means, [filespec]*len(in_periods), all_sites, in_periods, IMT, all_intensities, intensity_unit, variances=all_exceedance_variances)
 	else:
 		num_sites, num_periods, num_intensities = len(all_sites), len(in_periods), all_intensities.shape[-1]
 		shape = (num_sites, 1, num_periods, num_intensities)
 		mean = all_exceedance_means
 		all_exceedance_means = all_exceedance_means.reshape(shape)
 		all_exceedance_variances = all_exceedance_variances.reshape(shape)
-		shcf = SpectralHazardCurveFieldTree(model_name, [model_name], [filespec], [1.], all_sites, in_periods, IMT, all_intensities, intensity_unit, exceedance_rates=all_exceedance_means, variances=all_exceedance_variances, mean=mean, percentile_levels=percentile_levels, percentiles=all_exceedance_percentiles, site_names=site_names)
+		shcf = SpectralHazardCurveFieldTree(model_name, all_exceedance_means, [model_name], [filespec], [1.], all_sites, in_periods, IMT, all_intensities, intensity_unit, variances=all_exceedance_variances, mean=mean, percentile_levels=percentile_levels, percentiles=all_exceedance_percentiles)
 
 	## If necessary, interpolate exceedances for other spectral periods
 	if out_periods:
@@ -956,6 +963,7 @@ def readCRISIS_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="
 	num_intensities = shcf.num_intensities
 	all_exceedance_means = np.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
 	all_exceedance_means[:,0,:,:] = shcf.exceedance_rates
+	all_exceedance_means = ExceedanceRateArray(all_exceedance_means)
 	all_exceedance_variances = np.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
 	all_exceedance_variances[:,0,:,:] = shcf.variances
 
@@ -964,7 +972,7 @@ def readCRISIS_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="
 		branch_names = [os.path.splitext(filespec[len(common_path):])[0] for filespec in filespecs]
 	if weights in (None, []):
 		weights = np.ones(num_models, 'f') / num_models
-	shcft = SpectralHazardCurveFieldTree(model_name, branch_names, filespecs, weights, shcf.sites, shcf.periods, shcf.IMT, shcf.intensities, shcf.intensity_unit, shcf.timespan,exceedance_rates=all_exceedance_means, variances=all_exceedance_variances, site_names=shcf.site_names)
+	shcft = SpectralHazardCurveFieldTree(model_name, all_exceedance_means, branch_names, filespecs, weights, shcf.sites, shcf.periods, shcf.IMT, shcf.intensities, shcf.intensity_unit, shcf.timespan, variances=all_exceedance_variances)
 
 	for j, filespec in enumerate(filespecs[1:]):
 		shcf = readCRISIS_GRA(filespec, sites=sites, in_periods=in_periods, intensity_unit=intensity_unit, convert_to_g=convert_to_g, IMT=IMT, avoid_zeros=avoid_zeros, verbose=False)
@@ -983,10 +991,10 @@ def readCRISIS_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="
 				## We check the 1st and last intensity values of each structural period
 				if (abs(shcf.intensities[k,0] - shcft.intensities[k,0]) > 1E-6) or (abs(shcf.intensities[k,-1] - shcft.intensities[k,-1]) > 1E-6):
 					for i in range(num_sites):
-						shcft._exceedance_rates[i,j+1,k] = interpolate(shcf.intensities[k], shcf.exceedance_rates[i,k], shcft.intensities[k])
+						shcft._hazard_values[i,j+1,k] = interpolate(shcf.intensities[k], shcf._hazard_values[i,k], shcft.intensities[k])
 						shcft.variances[i,j+1,k] = interpolate(shcf.intensities[k], shcf.variances[i,k], shcft.intensities[k])
 		else:
-			shcft._exceedance_rates[:,j+1] = shcf.exceedance_rates
+			shcft._hazard_values[:,j+1] = shcf._hazard_values
 			shcft.variances[:,j+1] = shcf.variances
 		## Overwrite model name
 		if shcf.model_name:
