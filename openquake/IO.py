@@ -110,12 +110,16 @@ def parse_hazard_curves_multi(xml_filespec, site_names={}):
 
 	if len(set(branch_names)) == 1:
 		filespecs = [xml_filespec] * len(periods)
-		return SpectralHazardCurveField(model_name, filespecs, sites, periods, "SA", intensities, timespan=timespan, poes=poes_[:,0,:,:])
+		result = SpectralHazardCurveField(model_name, filespecs, sites, periods, "SA", intensities, timespan=timespan, poes=poes_[:,0,:,:])
 	else:
 		filespecs = [xml_filespec] * len(branch_names)
 		weights = np.array([1.] * len(branch_names))
 		weights /= weights.sum()
-		return SpectralHazardCurveFieldTree(model_name, poes_, branch_names, filespecs, weights, sites, periods, "SA", intensities, timespan=timespan)
+		result = SpectralHazardCurveFieldTree(model_name, poes_, branch_names, filespecs, weights, sites, periods, "SA", intensities, timespan=timespan)
+
+	## Order spectral periods
+	result.reorder_periods()
+	return result
 
 
 def parse_hazard_map(xml_filespec):
