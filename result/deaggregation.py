@@ -601,7 +601,13 @@ class DeaggregationSlice(DeaggBase):
 		"""
 		return self.deagg_matrix.get_total_exceedance_rate(self.timespan)
 
-	def plot_mag_dist_pmf(self, return_period=475, title="", fig_filespec=None):
+	def get_return_period(self):
+		"""
+		Return return period corresponding to total probability
+		"""
+		return 1./self.get_total_exceedance_rate()
+
+	def plot_mag_dist_pmf(self, title="", fig_filespec=None):
 		"""
 		Plot magnitude / distance PMF.
 		"""
@@ -611,6 +617,7 @@ class DeaggregationSlice(DeaggBase):
 		else:
 			eps_pmf = None
 		eps_bin_edges = self.eps_bin_edges[1:]
+		return_period = self.get_return_period()
 		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=self.period, title_comment=title, fig_filespec=fig_filespec)
 
 	def get_modal_eq_scenario(self):
