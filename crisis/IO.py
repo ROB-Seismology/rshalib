@@ -269,7 +269,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 	if model_name:
 		of.write("%s\n" % model_name)
 	else:
-		of.write("%s zone model - %s attenuation law\n" % (source_model.name, ground_motion_model.name))
+		of.write("%s source model - %s GMPE\n" % (source_model.name, ground_motion_model.name))
 
 	## Construct list of all periods
 	all_periods = []
@@ -287,7 +287,8 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 	num_sources = 0
 	for source in source_model:
 		## Index of attenuation table
-		gsims_index = gsims.index(ground_motion_model[source.tectonic_region_type])
+		gsim_name = ground_motion_model[source.tectonic_region_type]
+		gsims_index = gsims.index(gsim_name)
 
 		## First determine number of rakes (faulting styles) and focal depths
 		if isinstance(source, (SimpleFaultSource, ComplexFaultSource)):
@@ -298,7 +299,14 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		if isinstance(source, (SimpleFaultSource, ComplexFaultSource)):
 			num_depths = 1
 		else:
-			num_depths = len(source.hypocenter_distribution)
+			if hasattr(att, gsim_name+"GMPE"):
+				gsimObj = getattr(att, gsim_name+"GMPE")()
+			else:
+				gsimObj = getattr(att, gsim_name)()
+			if gsimObj.distance_metric in ("Joyner-Boore", "Epicentral"):
+				num_depths = 1
+			else:
+				num_depths = len(source.hypocenter_distribution)
 
 		num_sources += (num_depths * num_rakes)
 
@@ -383,7 +391,8 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 	## Source geometry and activity
 	for source in source_model:
 		## Index of attenuation table
-		gsims_index = gsims.index(ground_motion_model[source.tectonic_region_type])
+		gsim_name = ground_motion_model[source.tectonic_region_type]
+		gsims_index = gsims.index(gsim_name)
 
 		## First determine number of rakes (faulting styles) and focal depths
 		#if hasattr(source, 'rake'):
@@ -403,7 +412,15 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		if isinstance(source, (SimpleFaultSource, ComplexFaultSource)):
 			num_depths = 1
 		else:
-			num_depths = len(source.hypocenter_distribution)
+			## Collapse number of depths if GMPE distance metric is epicentral of Joyner-Boore
+			if hasattr(att, gsim_name+"GMPE"):
+				gsimObj = getattr(att, gsim_name+"GMPE")()
+			else:
+				gsimObj = getattr(att, gsim_name)()
+			if gsimObj.distance_metric in ("Joyner-Boore", "Epicentral"):
+				num_depths = 1
+			else:
+				num_depths = len(source.hypocenter_distribution)
 
 		## Loop over rakes
 		for r in range(num_rakes):
@@ -428,7 +445,10 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 			for d in range(num_depths):
 				if isinstance(source, (AreaSource, PointSource)):
 					hypo_depth = source.hypocenter_distribution.hypo_depths[d]
-					depth_weight = np.float(source.hypocenter_distribution.weights[d])
+					if num_depths == 1:
+						depth_weight = 1.0
+					else:
+						depth_weight = np.float(source.hypocenter_distribution.weights[d])
 				else:
 					depth_weight = 1.0
 
