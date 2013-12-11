@@ -644,7 +644,7 @@ class PSHAModelTree(PSHAModelBase):
 		num_gmpelt_paths = self.gmpe_logic_tree.get_num_paths()
 		return num_smlt_paths * num_gmpelt_paths
 
-	def sample_logic_trees(self, num_samples=1, verbose=False):
+	def sample_logic_trees(self, num_samples=1, enumerate_gmpe_lt=False, verbose=False):
 		"""
 		Sample both source-model and GMPE logic trees, in a way that is
 		similar to :meth:`_initialize_realizations_montecarlo` of
@@ -654,6 +654,9 @@ class PSHAModelTree(PSHAModelBase):
 			int, number of random samples
 			If zero, :meth:`enumerate_logic_trees` will be called
 			(default: 1)
+		:param enumerate_gmpe_lt:
+			bool, whether or not to enumerate the GMPE logic tree
+			(default: False)
 		:param verbose:
 			bool, whether or not to print some information (default: False)
 
@@ -664,6 +667,10 @@ class PSHAModelTree(PSHAModelBase):
 			return self.enumerate_logic_trees()
 
 		psha_models = []
+
+		if enumerate_gmpe_lt:
+			gmpe_models, _ = self.enumerate_gmpe_lt(verbose=verbose)
+
 		for i in xrange(num_samples):
 			## Generate 2nd-order random seeds
 			smlt_random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
@@ -675,12 +682,14 @@ class PSHAModelTree(PSHAModelBase):
 
 			## Convert to objects
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
-			gmpe_model = self._gmpe_sample_to_gmpe_model(gmpelt_path)
+			if not enumerate_gmpe_lt:
+				gmpe_models = [self._gmpe_sample_to_gmpe_model(gmpelt_path)]
 
-			## Convert to PSHA model
-			name = "%s : LT sample %04d (SM: %s; GMPE: %s)" % (self.name, i+1, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
-			psha_model = self._get_psha_model(source_model, gmpe_model, name)
-			psha_models.append(psha_model)
+			for gmpe_model in gmpe_models:
+				## Convert to PSHA model
+				name = "%s, LT sample %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i+1, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
+				psha_model = self._get_psha_model(source_model, gmpe_model, name)
+				psha_models.append(psha_model)
 
 			## Update the seed for the next realization
 			seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
@@ -704,7 +713,7 @@ class PSHAModelTree(PSHAModelBase):
 			sm_name, weight, smlt_path, gmpelt_path = path_info
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
 			gmpe_model = self._gmpe_sample_to_gmpe_model(path)
-			name = "%s : LT enum %04d (SM: %s; GMPE: %s)" % (self.name, i, source_model.description, gmpe_model.name)
+			name = "%s, LT enum %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i, source_model.description, gmpe_model.name)
 			psha_model = self._get_psha_model(source_model, gmpe_model, name)
 			psha_models.append(psha_model)
 			weights.append(weight)
@@ -886,7 +895,7 @@ class PSHAModelTree(PSHAModelBase):
 
 		:return:
 			tuple of:
-			- list of instances of :class:`SourceModel`, one for each sample
+			- list of instances of :class:`GroundMotionModel`, one for each sample
 			- list of corresponding weights
 		"""
 		gmpe_models, weights = [], []
@@ -896,9 +905,9 @@ class PSHAModelTree(PSHAModelBase):
 				print gmpelt_path_weight, gmpelt_path
 			if show_plot:
 				self.gmpe_lt.plot_diagram(highlight_path=gmpelt_path)
-			gmpe_model = self._gmpe_sample_to_gmpe_model(path)
+			gmpe_model = self._gmpe_sample_to_gmpe_model(gmpelt_path)
 			gmpe_models.append(gmpe_model)
-			weights.append(weight)
+			weights.append(gmpelt_path_weight)
 		return gmpe_models, weights
 
 	def _gmpe_sample_to_gmpe_model(self, path):
@@ -1061,12 +1070,15 @@ class PSHAModelTree(PSHAModelBase):
 			shcft.write_nrml(nrml_filespec)
 		return shcft
 
-	def write_crisis(self, overwrite=True, verbose=True):
+	def write_crisis(self, overwrite=True, enumerate_gmpe_lt=False, verbose=True):
 		"""
 		Write PSHA model tree input for Crisis.
 
 		:param overwrite:
 			Boolean, whether or not to overwrite existing input files
+			(default: False)
+		:param enumerate_gmpe_lt:
+			bool, whether or not to enumerate the GMPE logic tree
 			(default: False)
 		:param verbose:
 			bool, whether or not to print some information (default: True)
@@ -1097,7 +1109,7 @@ class PSHAModelTree(PSHAModelBase):
 
 		## Write CRISIS input files
 		max_mag = self.source_model_lt.get_max_mag()
-		for i, psha_model in enumerate(self.sample_logic_trees(self.num_lt_samples, verbose=verbose)):
+		for i, psha_model in enumerate(self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=enumerate_gmpe_lt, verbose=verbose)):
 			folder = os.path.join(self.output_dir, psha_model.source_model.name)
 			if len(trts) == 1:
 				folder = os.path.join(folder, psha_model.ground_motion_model[trts[0]])
