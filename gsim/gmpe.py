@@ -388,7 +388,7 @@ class GMPE(object):
 		from ..cav import calc_CAV_exceedance_prob
 
 		## TODO: if soil_type is used, convert to vs30
-		if soil_type == "rock":
+		if vs30 is None and soil_type == "rock":
 			vs30 = 800
 
 		iml = np.asarray(iml)
