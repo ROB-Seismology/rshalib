@@ -3338,7 +3338,7 @@ class ToroEtAl2002SHARE(NhlibGMPE):
 		Plot Figure 13a in the SHARE report by Drouet et al.
 		Not sure which kappa value this should correspond to (it should be 0.03)
 		"""
-		self.plot_spectrum(mags=[6.], d=20., Tmin=1E-2, Tmax=8, imt_unit="ms2", amin=0.1, amax=10, plot_style="loglog", soil_type="rock")
+		self.plot_spectrum(mags=[6.], d=20., Tmin=1E-2, Tmax=8, imt_unit="ms2", amin=0.1, amax=10, plot_style="loglog", soil_type="rock", mechanism="reverse")
 
 
 class ToroEtAl2002adjusted(NhlibGMPE):
@@ -3346,7 +3346,7 @@ class ToroEtAl2002adjusted(NhlibGMPE):
 		name, short_name = "ToroEtAl2002adjusted", "T_2002adj"
 		distance_metric = "Joyner-Boore"
 		Mmin, Mmax = 5.0, 8.0
-		dmin, dmax = 1., 1000.
+		dmin, dmax = 1., 100.
 		Mtype = "MW"
 		dampings = [5.]
 
