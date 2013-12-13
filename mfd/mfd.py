@@ -240,11 +240,12 @@ class MFD(object):
 			instance of :class:`EQCatalog`
 		"""
 		import random
+		import mx.DateTime as mxDateTime
 		from eqcatalog.eqcatalog import EQCatalog, LocalEarthquake
 		inter_event_times = self.sample_inter_event_times(timespan, method, random_seed)
 		eq_list = []
 		ID = 0
-		time = datetime.time(0,0,0)
+		#time = datetime.time(0,0,0)
 		depth = 0.
 		ML, MS = 0., 0.
 		name = ""
@@ -255,17 +256,17 @@ class MFD(object):
 		for MW, iets in zip(self.get_magnitude_bin_centers(), inter_event_times):
 			years = start_year + np.floor(np.add.accumulate(iets)).astype('i')
 			for year in years:
-				date = datetime.date(year, 1, 1)
+				date = mxDateTime.DateFrom(year, 1, 1, 0, 0, 0)
 				if num_lon_lats == 0:
 					lon, lat = 0., 0.
 				else:
 					idx = random.randint(0, num_lon_lats)
 					lon, lat = lons[idx], lats[idx]
-				eq = LocalEarthquake(ID, date, time, lon, lat, depth, ML, MS, MW, name)
+				eq = LocalEarthquake(ID, date, None, lon, lat, depth, ML, MS, MW, name)
 				eq_list.append(eq)
 				ID += 1
-		start_date = datetime.date(start_year, 1, 1)
-		end_date = datetime.date(timespan+1, 1, 1)
+		start_date = mxDateTime.DateFrom(start_year, 1, 1)
+		end_date = mxDateTime.DateFrom(timespan+1, 1, 1)
 		return EQCatalog(eq_list, start_date, end_date)
 
 
