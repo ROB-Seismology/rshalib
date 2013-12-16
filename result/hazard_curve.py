@@ -314,7 +314,7 @@ class HazardField:
 		for i in range(self.num_sites):
 			lon, lat = (self.sites[i].lon, self.sites[i].lat)
 			for site in sites:
-				if np.allclose((lon, lat), (site.lon, site.lat)):
+				if np.allclose((lon, lat), (site.lon, site.lat), atol=1E-6):
 					self.sites[i].name = site.name
 
 	@property
@@ -527,7 +527,7 @@ class HazardTree(HazardResult):
 		if mean in ([], None):
 			self.mean = None
 		else:
-			if not isinstance(mean, HazardCurveArray):
+			if isinstance(self, SpectralHazardCurveFieldTree) and not isinstance(mean, HazardCurveArray):
 				raise Exception("mean should be instance of HazardCurveArray!")
 			else:
 				self.mean = mean
@@ -540,7 +540,7 @@ class HazardTree(HazardResult):
 		if percentiles in ([], None):
 			self.percentiles = None
 		else:
-			if not isinstance(percentiles, HazardCurveArray):
+			if isinstance(self, SpectralHazardCurveFieldTree) and not isinstance(percentiles, HazardCurveArray):
 				raise Exception("percentiles should be instance of HazardCurveArray!")
 			else:
 				self.percentiles = percentiles
@@ -557,16 +557,18 @@ class HazardTree(HazardResult):
 		"""
 		self.weights /= self.weight_sum()
 
-	def slice_by_branch_names(self, branch_names, slice_name, normalize_weights=True, strict=True, verbose=False):
+	def slice_by_branch_names(self, branch_names, slice_name, normalize_weights=True, strict=True, negate=False, verbose=False):
 		"""
 		Return a subset (slice) of the logic tree based on branch names
 		Parameters:
-			branch_names: list of branch names
+			branch_names: list of branch names to match
 			slice_name: name of this slice
 			normalize_weights: boolean indicating whether or not branch weights
 				should be renormalized to 1 (default: True)
 			strict: boolean indicating whether branch names should be matched
 				strictly or only partly (default: True)
+			negate: boolean indicating whether match should be negated
+				(default: False)
 			verbose: boolean indicating whether or not to print extra information
 				(default: False)
 		Return value:
@@ -575,11 +577,20 @@ class HazardTree(HazardResult):
 		if strict:
 			branch_indexes = [self.branch_index(branch_name) for branch_name in branch_names]
 		else:
-			branch_indexes = []
+			branch_indexes = set()
 			for branch_name in branch_names:
 				for j, tree_branch_name in enumerate(self.branch_names):
 					if branch_name in tree_branch_name:
-						branch_indexes.append(j)
+						branch_indexes.add(j)
+
+		if negate:
+			print branch_indexes
+			all_branch_indexes = set(range(self.num_branches))
+			branch_indexes = all_branch_indexes.difference(set(branch_indexes))
+			print branch_indexes
+
+		branch_indexes = sorted(branch_indexes)
+
 		if verbose:
 			print("Sliced %d branches" % len(branch_indexes))
 		return self.slice_by_branch_indexes(branch_indexes, slice_name, normalize_weights=normalize_weights)
@@ -710,10 +721,28 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 	@classmethod
 	def from_branches(self, shcf_list, model_name, branch_names=None, weights=None, mean=None, percentile_levels=None, percentiles=None):
 		"""
-		Construct SpectralHazardCurveFieldTree from list of SpectralHazardCurveField objects
-			mean: mean shcf
-			percentiles: list with shcf's corresponding to percentiles
-			percentile_levels
+		Construct spectral hazard curve field tree from spectral hazard curve fields
+		for different logic-tree branches.
+
+		:param shcf_list:
+			list with instances of :class:`SpectralHazardCurveField`
+		:param model_name:
+			str, model name
+		:param branch_names:
+			list of branch names (default: None)
+		:param weights:
+			1-D list or array [j] with branch weights (default: None)
+		:param mean:
+			instance of :class:`SpectralHazardCurveField`, representing
+			mean shcf (default: None)
+		:param percentiles:
+			list with instances of :class:`SpectralHazardCurveField`,
+			representing shcf's corresponding to percentiles (default: None)
+		:param percentile_levels:
+			list or array with percentile levels (default: None)
+
+		:return:
+			instance of :class:`SpectralHazardCurveFieldTree`
 		"""
 		shcf0 = shcf_list[0]
 		num_branches = len(shcf_list)
@@ -757,7 +786,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 				shcft.check_shcf_compatibility(shcf)
 				perc_array[:,:,:,p] = shcf._hazard_values
 				perc_array = shcft._hazard_values.__class__(perc_array)
-				shcft.set_percentiles(perc_array, percentile_levels)
+			shcft.set_percentiles(perc_array, percentile_levels)
 
 		return shcft
 
@@ -1454,6 +1483,38 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		self.period_axis = 1
 		self.validate()
 
+	@classmethod
+	def from_hazard_curve_fields(self, hcf_list, model_name):
+		"""
+		Construct spectral hazard curve field from hazard curve fields
+		for different spectral periods.
+
+		:param hcf_list:
+			list with instances of :class:`HazardCurveField`
+		:param model_name:
+			str, model name
+
+		:return:
+			instance of :class:`SpectralHazardCurveField`
+		"""
+		hcf0 = hcf_list[0]
+		filespecs = [hcf.filespec for hcf in hcf_list]
+		sites = hcf0.sites
+		num_sites = hcf0.num_sites
+		periods = [hcf.period for hcf in hcf_list]
+		num_periods = len(periods)
+		IMT = hcf_list[-1].IMT
+		num_intensities = hcf0.num_intensities
+		intensity_unit = hcf0.intensity_unit
+		timespan = hcf0.timespan
+		hazard_values = hcf0._hazard_values.__class__(np.zeros((num_sites, num_periods, num_intensities)))
+		intensities = np.zeros((num_periods, num_intensities))
+		# TODO: variances
+		for i, hcf in enumerate(hcf_list):
+			hazard_values[:,i,:] = hcf._hazard_values
+			intensities[i] = hcf.intensities
+		return SpectralHazardCurveField(model_name, hazard_values, filespecs, sites, periods, IMT, intensities, intensity_unit, timespan, variances=None)
+
 	def __iter__(self):
 		self._current_index = 0
 		return self
@@ -1505,6 +1566,9 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		else:
 			variances = None
 		return HazardCurveField(self.model_name, hazard_values, self.filespecs[period_index], self.sites, period, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
+
+	def appendHazardCurveFields(self, hcf_list):
+		pass
 
 	def getSpectralHazardCurve(self, site_spec=0):
 		"""
@@ -2441,6 +2505,64 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		## Override HazardTree property
 		return self.intensities.shape[1]
 
+	@classmethod
+	def from_branches(self, uhsf_list, model_name, branch_names=None, weights=None, mean=None, percentile_levels=None, percentiles=None):
+		"""
+		Construct spectral hazard curve field tree from spectral hazard curve fields
+		for different logic-tree branches.
+
+		:param uhsf_list:
+			list with instances of :class:`UHSField`
+		:param model_name:
+			str, model name
+		:param branch_names:
+			list of branch names (default: None)
+		:param weights:
+			1-D list or array [j] with branch weights (default: None)
+		:param mean:
+			instance of :class:`UHSField`, representing
+			mean uhsf (default: None)
+		:param percentiles:
+			list with instances of :class:`UHSField`,
+			representing uhsf's corresponding to percentiles (default: None)
+		:param percentile_levels:
+			list or array with percentile levels (default: None)
+
+		:return:
+			instance of :class:`SpectralHazardCurveFieldTree`
+		"""
+		uhsf0 = uhsf_list[0]
+		num_branches = len(uhsf_list)
+		num_sites = uhsf0.num_sites
+		num_periods = uhsf0.num_periods
+
+		intensities = np.zeros((num_sites, num_branches, num_periods))
+
+		for j, uhsf in enumerate(uhsf_list):
+			intensities[:,j,:] = uhsf.intensities
+
+		filespecs = [uhsf.filespec for uhsf in uhsf_list]
+		if branch_names in (None, []):
+			branch_names = [uhsf.model_name for uhsf in uhsf_list]
+		if weights in (None, []):
+			weights = np.ones(num_branches, 'f') / num_branches
+
+		uhsft = UHSFieldTree(model_name, branch_names, filespecs, weights, uhsf0.sites, uhsf0.periods, uhsf0.IMT, intensities, uhsf0.intensity_unit, uhsf0.timespan, uhsf0.poe, uhsf0.return_period)
+
+		## Set mean and percentiles
+		if mean != None:
+			uhsft.set_mean(mean.intensities)
+
+		if percentiles != None:
+			num_percentiles = len(percentiles)
+			perc_array = np.zeros((num_sites, num_periods, num_percentiles), 'd')
+			for p in range(num_percentiles):
+				uhsf = percentiles[p]
+				perc_array[:,:,p] = uhsf.intensities
+			uhsft.set_percentiles(perc_array, percentile_levels)
+
+		return uhsft
+
 	def getUHSField(self, branch_spec):
 		branch_index = self.branch_index(branch_spec)
 		try:
@@ -2550,7 +2672,35 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		f.close()
 
 	def slice_by_branch_indexes(self, branch_indexes, slice_name, normalize_weights=True):
-		pass
+		"""
+		Return a subset (slice) of the logic tree based on branch indexes
+		Parameters:
+			branch_indexes: list or array of branch indexes
+			slice_name: name of this slice
+			normalize_weights: boolean indicating whether or not branch weights
+				should be renormalized to 1 (default: True)
+		Return value:
+			UHSFieldTree object
+		"""
+		model_name = slice_name
+		branch_names, filespecs = [], []
+		for index in branch_indexes:
+			branch_names.append(self.branch_names[index])
+			filespecs.append(self.filespecs[index])
+		weights = self.weights[branch_indexes]
+		## Recompute branch weights
+		if normalize_weights:
+			weight_sum = np.add.reduce(weights)
+			weights /= weight_sum
+		sites = self.sites
+		periods = self.periods
+		IMT = self.IMT
+		intensities = self.intensities[:,branch_indexes,:]
+		intensity_unit = self.intensity_unit
+		timespan = self.timespan
+		poe = self.poe
+		return_period = self.return_period
+		return UHSFieldTree(model_name, branch_names, filespecs, weights, sites, periods, IMT, intensities, intensity_unit, timespan, poe=poe, return_period=return_period)
 
 	def plot(self, site_spec=0, branch_specs=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
 		site_index = self.site_index(site_spec)
@@ -2605,6 +2755,7 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 			percentiles = self.calc_percentiles(percentile_levels)
 		else:
 			percentiles = self.percentiles
+			percentile_levels = self.percentile_levels
 		percentiles = percentiles[site_index]
 		## Manage percentile labels and colors
 		perc_labels, perc_colors = {}, {}
