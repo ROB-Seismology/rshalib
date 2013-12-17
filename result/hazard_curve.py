@@ -661,7 +661,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			probability of exceedance (default: None)
 		site_names: list of site names (default: None)
 
-	Provides iteration and indexing over sites
+	Provides iteration and indexing over logic-tree branches
 	"""
 	def __init__(self, model_name, hazard_values, branch_names, filespecs, weights, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, variances=None, mean=None, percentile_levels=None, percentiles=None):
 		HazardTree.__init__(self, hazard_values, branch_names, weights=weights, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit, mean=mean, percentile_levels=percentile_levels, percentiles=percentiles)
@@ -792,7 +792,10 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 
 	def check_shcf_compatibility(self, shcf):
 		"""
-		Check the compatibility of a candidate branch (SpectralHazardCurveField object)
+		Check the compatibility of a candidate branch.
+
+		:param shcf:
+			instance of :class:`SpectralHazardCurveField` or higher
 		"""
 		if self.sites != shcf.sites:
 			raise Exception("Sites do not correspond!")
@@ -838,6 +841,30 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			## Note: this is only correct if both shcft and shcf are of the same type
 			## (exceedance rates or probabilities of exceedance)
 			self.variances = np.concatenate([self.variances, shcf.variances.reshape(shape)], axis=1)
+
+	def extend(self, shcft):
+		"""
+		Extend spectral hazard curve field tree in-place with another one
+
+		:param shcft:
+			instance of :class:`SpectralHazardCurveFieldTree`
+		"""
+		self.check_shcf_compatibility(shcft)
+		self.branch_names.extend(shcft.branch_names)
+		if shcft.filespecs:
+			self.filespecs.extend(shcft.filespecs)
+		else:
+			self.filespecs = []
+		self.weights = np.concatenate([self.weights, shcft.weights])
+		hazard_values = np.concatenate([self._hazard_values, shcft._hazard_values], axis=1)
+		self._hazard_values = self._hazard_values.__class__(hazard_values)
+		if self.variances != None:
+			variances = np.concatenate([self.variances, shcft.variances])
+			self.variances = self.variances.__class__(variances)
+		## Remove mean and percentiles
+		self.mean = None
+		self.percentiles = None
+		self.normalize_weights()
 
 	def getSpectralHazardCurveField(self, branch_spec=0):
 		"""
@@ -982,7 +1009,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 					else:
 						for p, per in enumerate(percentile_levels):
 							percentiles[i,k,l,p] = scoreatpercentile(self.exceedance_rates[i,:,k,l], per)
-		return percentiles
+		return self._hazard_values.__class__(percentiles)
 
 	def calc_percentiles_combined(self, percentile_levels, weighted=True):
 		"""
@@ -2563,6 +2590,48 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 
 		return uhsft
 
+	def check_uhsf_compatibility(self, uhsf):
+		"""
+		Check the compatibility of a candidate branch.
+
+		:param uhsf:
+			instance of :class:`UHSField` or higher
+		"""
+		if self.sites != uhsf.sites:
+			raise Exception("Sites do not correspond!")
+		if (self.periods != uhsf.periods).any():
+			raise Exception("Spectral periods do not correspond!")
+		if self.IMT != uhsf.IMT:
+			raise Exception("IMT does not correspond!")
+		if self.intensity_unit != uhsf.intensity_unit:
+			raise Exception("Intensity unit does not correspond!")
+		if self.timespan != uhsf.timespan:
+			raise Exception("Time span does not correspond!")
+		if (self._hazard_values.__class__ != uhsf._hazard_values.__class__
+			or (self._hazard_values != uhsf._hazard_values).any()):
+			raise Exception("Hazard array does not correspond!")
+
+	def extend(self, uhsft):
+		"""
+		Extend UHS field tree in-place with another one.
+
+		:param uhsft:
+			instance of :class:`UHSFieldTree`
+		"""
+		self.check_uhsf_compatibility(uhsft)
+		self.branch_names.extend(uhsft.branch_names)
+		if uhsft.filespecs:
+			self.filespecs.extend(uhsft.filespecs)
+		else:
+			self.filespecs = []
+		self.weights = np.concatenate([self.weights, uhsft.weights])
+		self.intensities = np.concatenate([self.intensities, uhsft.intensities], axis=1)
+		## Remove mean and percentiles
+		self.mean = None
+		self.percentiles = None
+		self.normalize_weights()
+
+
 	def getUHSField(self, branch_spec):
 		branch_index = self.branch_index(branch_spec)
 		try:
@@ -2840,7 +2909,7 @@ class UHSField(HazardResult, HazardField, HazardSpectrum):
 			raise IndexError("Site index %s out of range" % site_index)
 		else:
 			site_name = self.site_names[site_index]
-			return UHS(self.model_name, self.filespec, site, self.periods, self.IMT, self.intensities[site_index], self.intensity_unit, self.timespan, return_period=self.return_period)
+			return UHS(self.model_name + " - " + site_name, self.filespec, site, self.periods, self.IMT, self.intensities[site_index], self.intensity_unit, self.timespan, return_period=self.return_period)
 
 	@property
 	def poe(self):
@@ -2860,7 +2929,7 @@ class UHSField(HazardResult, HazardField, HazardSpectrum):
 	def max(self):
 		return self.intensities.max(axis=0)
 
-	def plot(self, site_specs=None, colors=[], linestyles=[], linewidths=[], fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, legend_location=0, lang="en"):
+	def plot(self, site_specs=None, colors=[], linestyles=[], linewidths=[], fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
 		if site_specs in (None, []):
 			site_indexes = range(self.num_sites)
 		else:
@@ -2870,14 +2939,16 @@ class UHSField(HazardResult, HazardField, HazardSpectrum):
 		if title is None:
 			title = "Model: %s\n" % self.model_name
 			title += "UHS for return period %.3G yr" % self.return_period
-		datasets, labels = [], []
+		datasets, pgm, labels = [], [], []
 		x = self.periods
 		for site_index in site_indexes:
 			y = self.intensities[site_index]
-			datasets.append((x, y))
+			datasets.append((x[self.periods>0], y[self.periods>0]))
+			if 0 in self.periods:
+				pgm.append(y[self.periods==0])
 			labels.append(self.site_names[site_index])
 		intensity_unit = self.intensity_unit
-		plot_hazard_spectrum(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
+		plot_hazard_spectrum(datasets, pgm=pgm, pgm_period=pgm_period, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
 
 
 class UHS(HazardResult, HazardSpectrum):
@@ -2946,6 +3017,65 @@ class UHS(HazardResult, HazardSpectrum):
 		for period, intensity in zip(self.periods, self.intensities):
 			f.write("%.3E, %.3E\n" % (period, intensity))
 		f.close()
+
+	@classmethod
+	def from_csv(self, csv_filespec, site, col_spec=1, intensity_unit="g", model_name="", timespan=50, poe=None, return_period=None):
+		"""
+		Read UHS from a csv file.
+		First line should contain column names
+		First column should contain periods or frequencies,
+		subsequent column()s should contain intensities, only one of which
+		will be read.
+
+		:param csv_filespec:
+			str, full path to csv file
+		:param site:
+			SHASite object, representing site for which UHS was computed
+		:param col_spec:
+			str or int, name or index of column containing intensities to be read
+			(default: 1)
+		:param intensity_unit:
+			str, unit of intensities in csv file (default: "g")
+		:param model_name:
+			str, name or description of model
+		:param timespan:
+			float, time span for UHS (default: 50)
+		:param poe:
+			float, probability of exceedance for UHS (default: None)
+		:param return_period:
+			float, return period for UHS (default: None)
+
+		:return:
+			instance of :class:`UHS`
+
+		Note: either poe or return_period should be specified
+		"""
+		periods, intensities = [], []
+		csv = open(csv_filespec)
+		for i, line in enumerate(csv):
+			if i == 0:
+				col_names = line.split(',')
+				if col_names[0].lower() == "frequency":
+					freqs = True
+				else:
+					freqs = False
+				if isinstance(col_spec, str):
+					col_index = col_names.index(col_spec)
+				else:
+					col_index = col_spec
+			else:
+				col_values = line.split(',')
+				T = float(col_values[0])
+				a = float(col_values[col_index])
+				periods.append(T)
+				intensities.append(a)
+		csv.close()
+		periods = np.array(periods)
+		if freqs:
+			periods = 1./periods
+		intensities = np.array(intensities)
+
+		return UHS(model_name, csv_filespec, site, periods, "SA", intensities, intensity_unit="g", timespan=timespan, poe=poe, return_period=return_period)
 
 
 class UHSFieldSet(HazardResult, HazardField, HazardSpectrum):
@@ -3067,6 +3197,64 @@ class UHSCollection:
 	@property
 	def intensity_unit(self):
 		return self.UHSlist[0].intensity_unit
+
+	@classmethod
+	def from_csv(self, csv_filespec, site, intensity_unit="g", model_name="", timespan=50, poe=None, return_period=None):
+		"""
+		Read UHSCollection from a csv file.
+		First line should contain column names
+		First column should contain periods or frequencies,
+		subsequent columns should contain intensities
+		Each intensity column will represent a UHS in the collection
+
+		:param csv_filespec:
+			str, full path to csv file
+		:param site:
+			SHASite object, representing site for which UHS was computed
+		:param intensity_unit:
+			str, unit of intensities in csv file (default: "g")
+		:param model_name:
+			str, name or description of model
+		:param timespan:
+			float, time span for UHS (default: 50)
+		:param poe:
+			float, probability of exceedance for UHS (default: None)
+		:param return_period:
+			float, return period for UHS (default: None)
+
+		:return:
+			instance of :class:`UHSCollection`
+
+		Note: either poe or return_period should be specified
+		"""
+		uhs_list = []
+		periods, intensities = [], []
+		csv = open(csv_filespec)
+		for i, line in enumerate(csv):
+			if i == 0:
+				col_names = line.split(',')
+				if col_names[0].lower() == "frequency":
+					freqs = True
+				else:
+					freqs = False
+			else:
+				col_values = map(float, line.split(','))
+				T = col_values[0]
+				a = col_values[1:]
+				periods.append(T)
+				intensities.append(a)
+		csv.close()
+		periods = np.array(periods)
+		if freqs:
+			periods = 1./periods
+
+		intensities = np.array(intensities).transpose()
+		for i, uhs_intensities in enumerate(intensities):
+			model_name = col_names[i+1]
+			uhs = UHS(model_name, csv_filespec, site, periods, "SA", uhs_intensities, intensity_unit="g", timespan=timespan, poe=poe, return_period=return_period)
+			uhs_list.append(uhs)
+
+		return UHSCollection(uhs_list)
 
 	def plot(self, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
 		if title is None:
