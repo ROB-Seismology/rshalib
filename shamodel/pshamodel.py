@@ -451,9 +451,10 @@ class PSHAModel(PSHAModelBase):
 			for key in user_params:
 				setattr(params, key, user_params[key])
 
-		params.mean_hazard_curves = False
-		params.quantile_hazard_curves = []
-		params.number_of_logic_tree_samples = 1
+		if calculation_mode == "classical":
+			params.mean_hazard_curves = False
+			params.quantile_hazard_curves = []
+			params.number_of_logic_tree_samples = 1
 
 		## set sites or grid_outline
 		if self.sha_site_model and self.sha_site_model.grid_outline:
@@ -483,7 +484,10 @@ class PSHAModel(PSHAModelBase):
 
 		## convert return periods and time_span to poes
 		if not self.return_periods in ([], None):
-			params.poes = Poisson(life_time=self.time_span, return_period=self.return_periods)
+			if calculation_mode == "classical":
+				params.poes = Poisson(life_time=self.time_span, return_period=self.return_periods)
+			elif calculation_mode == "disaggregation":
+				params.poes_disagg = Poisson(life_time=self.time_span, return_period=self.return_periods)
 
 		## set other params
 		params.intensity_measure_types_and_levels = self._get_openquake_imts()
@@ -968,10 +972,13 @@ class PSHAModelTree(PSHAModelBase):
 
 		return params
 
-	def write_openquake(self, user_params=None):
+	def write_openquake(self, calculation_mode='classical', user_params=None):
 		"""
 		Write PSHA model tree input for OpenQuake.
 
+		:param calculation_mode:
+			str, calculation mode of OpenQuake (options: "classical" or
+				"disaggregation") (default: "classical")
 		:param user_params:
 			{str, val} dict, defining respectively parameters and value for OpenQuake (default: None).
 		"""
@@ -981,7 +988,7 @@ class PSHAModelTree(PSHAModelBase):
 			os.mkdir(output_dir)
 
 		## set OQ_params object and override with params from user_params
-		params = OQ_Params(calculation_mode='classical', description=self.name)
+		params = OQ_Params(calculation_mode=calculation_mode, description=self.name)
 		implicit_params = self._get_implicit_openquake_params()
 		for key in implicit_params:
 			setattr(params, key, implicit_params[key])
@@ -1019,7 +1026,11 @@ class PSHAModelTree(PSHAModelBase):
 		params.gsim_logic_tree_file = ground_motion_model_lt_file_name
 
 		## convert return periods and time_span to poes
-		params.poes = Poisson(life_time=self.time_span, return_period=self.return_periods)
+		if not self.return_periods in ([], None):
+			if calculation_mode == "classical":
+				params.poes = Poisson(life_time=self.time_span, return_period=self.return_periods)
+			elif calculation_mode == "disaggregation":
+				params.poes_disagg = Poisson(life_time=self.time_span, return_period=self.return_periods)
 
 		## set other params
 		params.intensity_measure_types_and_levels = self._get_openquake_imts()
@@ -1028,6 +1039,8 @@ class PSHAModelTree(PSHAModelBase):
 		params.maximum_distance = self.integration_distance
 		params.number_of_logic_tree_samples = self.num_lt_samples
 		params.random_seed = self.random_seed
+
+		## disaggregation params
 
 		## write oq params to ini file
 		params.write_config(os.path.join(output_dir, 'job.ini'))
