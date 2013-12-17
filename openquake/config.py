@@ -84,16 +84,25 @@ class OQ_Params(ConfigObj):
 			# TODO: is export_dir the same as output_dir in previous versions of OQ?
 			Output_params["export_dir"] = "computed_output/%s" % calculation_mode
 			Output_params.comments["export_dir"] = ["output directory - relative to this file"]
-			Output_params["mean_hazard_curves"] = True
-			Output_params.comments["mean_hazard_curves"] = ["Compute mean hazard curve"]
-			#Output_params["quantile_hazard_curves"] = [0.05, 0.16, 0.50, 0.84, 0.95]
-			Output_params["quantile_hazard_curves"] = "0.05, 0.16, 0.50, 0.84, 0.95"
-			Output_params.comments["quantile_hazard_curves"] = ["List of quantiles to compute"]
-			Output_params["hazard_maps"] = True
-			Output_params["uniform_hazard_spectra"] = True
-			Output_params["poes"] = "0.1"
+
+			ClassicalOutput_params = ConfigObj()
+			ClassicalOutput_params["mean_hazard_curves"] = True
+			ClassicalOutput_params.comments["mean_hazard_curves"] = ["Compute mean hazard curve"]
+			#ClassicalOutput_params["quantile_hazard_curves"] = [0.05, 0.16, 0.50, 0.84, 0.95]
+			ClassicalOutput_params["quantile_hazard_curves"] = "0.05, 0.16, 0.50, 0.84, 0.95"
+			ClassicalOutput_params.comments["quantile_hazard_curves"] = ["List of quantiles to compute"]
+			ClassicalOutput_params["hazard_maps"] = True
+			ClassicalOutput_params["uniform_hazard_spectra"] = True
+			ClassicalOutput_params["poes"] = "0.1"
 			# TODO: 0.1 = 10 percent?
-			Output_params.comments["poes"] = ["List of POEs to use for computing hazard maps"]
+			ClassicalOutput_params.comments["poes"] = ["List of POEs to use for computing hazard maps"]
+
+			Disagg_params = Section(self, 1, self, name="disaggregation")
+			Disagg_params["poes_disagg"] = "0.1"
+			Disagg_params["mag_bin_width"] = 0.5
+			Disagg_params["distance_bin_width"] = 7.5
+			Disagg_params["coordinate_bin_width"] = 0.2
+			Disagg_params["num_epsilon_bins"] = 3
 
 			# TODO: the following output params are probably for event-based only
 			EventBasedOutput_params = ConfigObj()
@@ -118,6 +127,13 @@ class OQ_Params(ConfigObj):
 			self.comments["site_params"] = [""]
 			self["calculation"] = Calculation_params
 			self.comments["calculation"] = [""]
+			if self.calculation_mode == "classical":
+				Output_params.merge(ClassicalOutput_params)
+				for key in ClassicalOutput_params.keys():
+					Output_params.comments[key] = ClassicalOutput_params.comments[key]
+			if self.calculation_mode == "disaggregation":
+				self["disaggregation"] = Disagg_params
+				self.comments["disaggregation"] = [""]
 			if calculation_mode == "event_based":
 				self["event_based_params"] = EventBased_params
 				self.comments["event_based_params"] = [""]
@@ -152,6 +168,8 @@ class OQ_Params(ConfigObj):
 			## POES and QUANTILE_LEVELS don't follow the rules...
 			elif key == "poes":
 				self["output"]["poes"] = " ".join(map(str, value))
+			elif key == "poes_disagg":
+				self["disaggregation"] = " ".join(map(str, value))
 			elif key == "quantile_hazard_curves" and self["general"]["calculation_mode"] == "classical":
 				self["output"]["quantile_hazard_curves"] = ", ".join(map(str, value))
 			elif key == "percentiles" and self["general"]["calculation_mode"] == "classical":
