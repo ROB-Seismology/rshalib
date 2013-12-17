@@ -1178,7 +1178,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		"""
 		Interpolate intensity measure levels for given return period
 		Parameters:
-			return_period: lreturn period
+			return_period: return period
 		Return value:
 			UHSFieldTree object
 		"""
@@ -1198,10 +1198,10 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 				for j in range(num_branches):
 					rp_intensities[i,j,k] = interpolate(self.exceedance_rates[i,j,k], self.intensities[k], [interpol_exceedance])[0]
 				if self.mean not in (None, []):
-					rp_mean[i,k] = interpolate(self.mean[i,k], self.intensities[k], [interpol_exceedance])[0]
+					rp_mean[i,k] = interpolate(self.mean[i,k].to_exceedance_rates(self.timespan), self.intensities[k], [interpol_exceedance])[0]
 				if self.percentiles not in (None, []):
 					for p in range(self.num_percentiles):
-						rp_percentiles[i,k,p] = interpolate(self.percentiles[i,k,:,p], self.intensities[k], [interpol_exceedance])[0]
+						rp_percentiles[i,k,p] = interpolate(self.percentiles[i,k,:,p].to_exceedance_rates(self.timespan), self.intensities[k], [interpol_exceedance])[0]
 		return UHSFieldTree(self.model_name, self.branch_names, self.filespecs, self.weights, self.sites, self.periods, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_period=return_period, mean=rp_mean, percentile_levels=self.percentile_levels, percentiles=rp_percentiles)
 
 	def interpolate_periods(self, out_periods):
@@ -1238,7 +1238,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 				shc_out = shc.interpolate_periods(out_periods)
 				out_mean[i] = shc_out._hazard_values
 			if self.percentiles != None:
-				for p in num_percentiles:
+				for p in range(num_percentiles):
 					shc = SpectralHazardCurve("mean", self.percentiles[i,:,:,p], "", self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
 					shc_out = shc.interpolate_periods(out_periods)
 					out_percentiles[i,:,:,p] = shc_out._hazard_values
