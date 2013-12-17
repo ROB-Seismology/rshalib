@@ -9,13 +9,10 @@ import os
 
 from lxml import etree
 
-#from ..nrml import ns
-#from ..result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
-#from ..site import SHASite
-
 from ..nrml import ns
-from ..result import DeaggregationSlice, HazardCurveField, HazardMap, ProbabilityArray, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField
+from ..result import DeaggregationSlice, HazardCurveField, HazardMap, Poisson, ProbabilityArray, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField, UHSFieldTree
 from ..site import SHASite
+
 
 NRML = ns.NRML_NS
 GML = ns.GML_NS
@@ -110,7 +107,7 @@ def parse_hazard_curves_multi(xml_filespec, site_names={}):
 
 	if len(set(branch_names)) == 1:
 		filespecs = [xml_filespec] * len(periods)
-		result = SpectralHazardCurveField(model_name, filespecs, sites, periods, "SA", intensities, timespan=timespan, poes=poes_[:,0,:,:])
+		result = SpectralHazardCurveField(model_name, poes_[:,0,:,:], filespecs, sites, periods, "SA", intensities, timespan=timespan)
 	else:
 		filespecs = [xml_filespec] * len(branch_names)
 		weights = np.array([1.] * len(branch_names))
@@ -280,41 +277,167 @@ def parse_any_output(xml_filespec):
 	raise "File is not an output of OpenQuake"
 
 
-def read_shcft(directory):
+def read_multi_folder(directory, site_names={}, add_stats=False):
 	"""
+	Read OpenQuake output folder with 'hazard_curve_multi' file(s)
+
+	:param directory:
+		str, path to folder
+	:param site_names:
+		{(float, float): str}, dict mapping (lon, lat) tuple of site to name of
+		site (default: {})
+	:param add_stats:
+		bool, add mean and quantiles if present (default: False)
+	
+	:returns:
+		instance of :class:`..result.SpectralHazardCurveFieldTree`
 	"""
-#	output = []
-	for file in os.listdir(directory):
-		print file
-#		if file.startswith("hazard_map"):
-#			output.append(parse_hazard_map(os.path.join(directory, file)))
-#	return output
+	xml_filespec = os.path.join(directory, "hazard_curve_multi_00.xml")
+	shcft = parse_hazard_curves_multi(xml_filespec, site_names)
+	if add_stats:
+		mean_xml_filespec = os.path.join(directory, "hazard_curve_multi-mean.xml")
+		assert os.path.exists(mean_xml_filespec)
+		mean_shcf = parse_hazard_curves_multi(mean_xml_filespec)
+		perc_shcf_list, perc_levels = [], []
+		for multi_filename in sorted(os.listdir(directory)):
+			if "quantile" in multi_filename:
+				xml_filespec = os.path.join(directory, multi_filename)
+				perc_shcf_list.append(parse_hazard_curves_multi(xml_filespec))
+				perc = os.path.splitext(multi_filename)[0].split("quantile_")[1]
+				perc_levels.append(int(float(perc) * 100))
+		shcf_list = [shcf for shcf in shcft]
+		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, shcft.model_name, mean=mean_shcf, percentile_levels=perc_levels, percentiles=perc_shcf_list)
+	return shcft
 
 
-if __name__ == "__main__":
+def read_curve_folder(directory, site_names={}, add_stats=False, verbose=True):
 	"""
-	Test files are located in ../test/nrml.
+	Read OpenQuake output folder with subfolder for each imt with 'hazard_curve' file(s)
+
+	:param directory:
+		str, path to folder
+	:param site_names:
+		{(float, float): str}, dict mapping (lon, lat) tuple of site to name of
+		site (default: {})
+	:param add_stats:
+		bool, add mean and quantiles if present (default: False)
+	:param verbose:
+		bool, print information (default: True)
+	
+	:returns:
+		instance of :class:`..result.SpectralHazardCurveFieldTree`
 	"""
-#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_curve_v1.0.0.xml"
-#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_curve\PGA\hazard_curve_0.xml"
-#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_curve\PGA\hazard_curve-mean.xml"
-#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_curve\PGA\hazard_curve-quantile_0.05.xml"
-#	hcf = parse_any_output(xml_filespec)
-#	hcf.plot([0], title=hcf.model_name)
+	imt_subfolders = sorted(os.listdir(directory))
+	hc_filenames = sorted(os.listdir(os.path.join(directory, imt_subfolders[0])))
+	hc_rlz_filenames = []
+	hc_quantile_filenames = []
+	for hc_filename in hc_filenames:
+		if "rlz" in hc_filename:
+			hc_rlz_filenames.append(hc_filename)
+		if "quantile" in hc_filename:
+			hc_quantile_filenames.append(hc_filename)
+	shcf_list = []
+	for hc_rlz_filename in hc_rlz_filenames:
+		if verbose:
+			print "reading %s" % hc_rlz_filename
+		hcf_list = []
+		for imt_subfolder in imt_subfolders:
+			xml_filespec = os.path.join(directory, imt_subfolder, hc_rlz_filename)
+			hcf_list.append(parse_hazard_curves(xml_filespec))
+		shcf_list.append(SpectralHazardCurveField.from_hazard_curve_fields(hcf_list, hcf_list[0].model_name))
+	if add_stats:
+		assert os.path.exists(os.path.join(directory, imt_subfolders[0], "hazard_curve-mean.xml"))
+		mean_hcf_list = []
+		for imt_subfolder in imt_subfolders:
+			xml_filespec = os.path.join(directory, imt_subfolder, "hazard_curve-mean.xml")
+			mean_hcf_list.append(parse_hazard_curves(xml_filespec))
+		mean_shcf = SpectralHazardCurveField.from_hazard_curve_fields(mean_hcf_list, mean_hcf_list[0].model_name)
+		perc_shcf_list, perc_levels = [], []
+		for hc_quantile_filename in hc_quantile_filenames:
+			perc_hcf_list = []
+			for imt_subfolder in imt_subfolders:
+				xml_filespec = os.path.join(directory, imt_subfolder, hc_quantile_filename)
+				perc_hcf_list.append(parse_hazard_curves(xml_filespec))
+			perc_shcf_list.append(SpectralHazardCurveField.from_hazard_curve_fields(perc_hcf_list, perc_hcf_list[0].model_name))
+			perc = os.path.splitext(hc_quantile_filename)[0].split("quantile_")[1]
+			perc_levels.append(int(float(perc) * 100))
+	else:
+		mean_shcf, perc_levels, perc_shcf_list = None, None, None
+	shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, shcf_list[0].model_name, mean=mean_shcf, percentile_levels=perc_levels, percentiles=perc_shcf_list)
+	return shcft
 
-	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_curve_multi\hazard_curve_multi_0.xml"
-	shcf = parse_any_output(xml_filespec)
-	shcf.plot()
 
-#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\hazard_map_v1.0.0.xml"
-#	hm = parse_any_output(xml_filespec)
-#	hm.plot(title=hm.model_name)
+def read_shcft(directory, site_names={}, add_stats=False):
+	"""
+	Read OpenQuake output folder with 'hazard_curve_multi' and/or 'hazard_curve' subfolders.
+	Read from the folder 'hazard_curve_multi' if present, else read individual hazard curves from the folder 'hazard_curve'.
+	
+	:param directory:
+		str, path to folder
+	:param site_names:
+		{(float, float): str}, dict mapping (lon, lat) tuple of site to name of
+		site (default: {})
+	:param add_stats:
+		bool, add mean and quantiles if present (default: False)
+	
+	:returns:
+		instance of :class:`..result.SpectralHazardCurveFieldTree`
+	"""
+	multi_folder = os.path.join(directory, "hazard_curve_multi")
+	print multi_folder
+	if os.path.exists(multi_folder):
+		shcft = read_multi_folder(multi_folder, site_names, add_stats)
+	else:
+		curve_folder = os.path.join(directory, "hazard_curve")
+		shcft = read_curve_folder(curve_folder, site_names, add_stats)
+	return shcft
 
-#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\uh_spectra_v1.0.0.xml"
-#	uhs_field = parse_any_output(xml_filespec)
-#	uhs_field.plot([0], title=uhs_field.model_name)
 
-#	xml_filespec = r"D:\Python\hazard\rshalib\test\nrml\disagg_matrix_v1.0.0.xml"
-#	dis_slices = parse_any_output(xml_filespec)
-#	dis_slices['Mag,Dist'].plot_mag_dist_pmf()
+def read_uhsft(directory, return_period, site_names={}, add_stats=False):
+	"""
+	Read OpenQuake output folder with 'uh_spectra' file(s) or 'uh_spectra' subfolder with such files
+
+	:param directory:
+		str, path to folder
+	:param return period:
+		float, return period
+	:param site_names:
+		{(float, float): str}, dict mapping (lon, lat) tuple of site to name of
+		site (default: {})
+	:param add_stats:
+		bool, add mean and quantiles if present (default: False)
+	
+	:returns:
+		instance of :class:`..result.UHSFieldTree`
+	"""
+	uhs_folder = os.path.join(directory, "uh_spectra")
+	if os.path.exists(uhs_folder):
+		directory = uhs_folder
+	poe = str(round(Poisson(life_time=50, return_period=return_period), 13))
+	uhs_filenames = sorted(os.listdir(directory))
+	uhs_rlz_filenames, uhs_quantile_filenames = [], []
+	for uhs_filename in uhs_filenames:
+		if poe in uhs_filename:
+			if "mean" in uhs_filename:
+				uhs_mean_filename = uhs_filename
+			elif "quantile" in uhs_filename:
+				uhs_quantile_filenames.append(uhs_filename)
+			else:
+				uhs_rlz_filenames.append(uhs_filename)
+	uhsf_list = []
+	for uhs_rlz_filename in uhs_rlz_filenames:
+		xml_filespec = os.path.join(directory, uhs_rlz_filename)
+		uhsf_list.append(parse_uh_spectra(xml_filespec))
+	if add_stats:
+		mean = parse_uh_spectra(os.path.join(directory, uhs_mean_filename))
+		perc_list, perc_levels = [], []
+		for uhs_quantile_filename in uhs_quantile_filenames:
+			xml_filespec = os.path.join(directory, uhs_quantile_filename)
+			perc_list.append(parse_uh_spectra(xml_filespec))
+			perc = os.path.splitext(uhs_quantile_filename)[0].split("quantile_")[1]
+			perc_levels.append(int(float(perc) * 100))
+	else:
+		mean, perc_list, perc_levels = None, None, None
+	uhsft = UHSFieldTree.from_branches(uhsf_list, uhsf_list[0].model_name, mean=mean, percentile_levels=perc_levels, percentiles=perc_list)
+	return uhsft
 

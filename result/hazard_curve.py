@@ -993,7 +993,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			weighted: boolean indicating whether or not branch weights should be
 				taken into account (default: True)
 		Return value:
-			percentiles of exceedance rate: 4-D array [i,k,l,p]
+			percentiles of hazard values: 4-D array [i,k,l,p]
 		"""
 		if percentile_levels in ([], None):
 			percentile_levels = [5, 16, 50, 84, 95]
@@ -1009,7 +1009,10 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 					else:
 						for p, per in enumerate(percentile_levels):
 							percentiles[i,k,l,p] = scoreatpercentile(self.exceedance_rates[i,:,k,l], per)
-		return self._hazard_values.__class__(percentiles)
+		percentiles = ExceedanceRateArray(percentiles)
+		if isinstance(self._hazard_values, ProbabilityArray):
+			percentiles = percentiles.to_probability_array(self.timespan)
+		return percentiles
 
 	def calc_percentiles_combined(self, percentile_levels, weighted=True):
 		"""
@@ -1197,7 +1200,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 				if self.mean not in (None, []):
 					rp_mean[i,k] = interpolate(self.mean[i,k], self.intensities[k], [interpol_exceedance])[0]
 				if self.percentiles not in (None, []):
-					for p in self.num_percentiles:
+					for p in range(self.num_percentiles):
 						rp_percentiles[i,k,p] = interpolate(self.percentiles[i,k,:,p], self.intensities[k], [interpol_exceedance])[0]
 		return UHSFieldTree(self.model_name, self.branch_names, self.filespecs, self.weights, self.sites, self.periods, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_period=return_period, mean=rp_mean, percentile_levels=self.percentile_levels, percentiles=rp_percentiles)
 
@@ -1322,7 +1325,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			colors.append(perc_colors[perc])
 			linewidths.append(2)
 			linestyles.append('--')
-			datasets.append((x, percentiles[:,p]))
+			datasets.append((x, percentiles[:,p].to_exceedance_rates(self.timespan)))
 		fixed_life_time = {True: self.timespan, False: None}[want_poe]
 		intensity_unit = self.intensity_unit
 		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=rp_max, legend_location=legend_location, lang=lang)
