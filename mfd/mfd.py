@@ -245,28 +245,35 @@ class MFD(object):
 		inter_event_times = self.sample_inter_event_times(timespan, method, random_seed)
 		eq_list = []
 		ID = 0
-		#time = datetime.time(0,0,0)
 		depth = 0.
-		ML, MS = 0., 0.
 		name = ""
 		try:
 			num_lon_lats = len(lons)
 		except:
 			num_lon_lats = 0
-		for MW, iets in zip(self.get_magnitude_bin_centers(), inter_event_times):
+		for M, iets in zip(self.get_magnitude_bin_centers(), inter_event_times):
+			if self.Mtype == "MW":
+				MW = M
+				ML, MS = 0., 0.
+			elif self.Mtype == "MS":
+				MS = M
+				ML, MW = 0., 0.
+			elif self.Mtype == "ML":
+				ML = M
+				MS, MW = 0., 0.
 			years = start_year + np.floor(np.add.accumulate(iets)).astype('i')
 			for year in years:
-				date = mxDateTime.DateFrom(year, 1, 1, 0, 0, 0)
+				date = mxDateTime.Date(year, 1, 1)
 				if num_lon_lats == 0:
 					lon, lat = 0., 0.
 				else:
-					idx = random.randint(0, num_lon_lats)
+					idx = random.randint(0, num_lon_lats-1)
 					lon, lat = lons[idx], lats[idx]
 				eq = LocalEarthquake(ID, date, None, lon, lat, depth, ML, MS, MW, name)
 				eq_list.append(eq)
 				ID += 1
-		start_date = mxDateTime.DateFrom(start_year, 1, 1)
-		end_date = mxDateTime.DateFrom(timespan+1, 1, 1)
+		start_date = mxDateTime.Date(start_year, 1, 1)
+		end_date = mxDateTime.Date(timespan+1, 1, 1)
 		return EQCatalog(eq_list, start_date, end_date)
 
 
