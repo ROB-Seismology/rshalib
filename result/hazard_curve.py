@@ -1081,7 +1081,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		"""
 		# TODO: need to take care with intensity_unit
 		from ..crisis import IO
-		shcft = IO.readCRISIS_GRA(agr_filespec)
+		shcft = IO.read_GRA(agr_filespec)
 		if shcft.intensities != self.intensities:
 			raise Exception("Intensities do not match with those of current object!")
 		self.mean = shcft.mean
@@ -4008,7 +4008,7 @@ if __name__ == "__main__":
 	## Convert CRISIS .MAP file to HazardMapSet
 	#filespec = r"Test files\CRISIS\VG_Ambr95DD_Leynaud_EC8.MAP"
 	filespec = r"D:\PSHA\LNE\CRISIS\VG_Ambr95DD_Leynaud_EC8.MAP"
-	hazardmapset = IO.readCRISIS_MAP(filespec, model_name="VG_Ambr95DD_Leynaud_EC8", convert_to_g=True, IMT="PGA", verbose=True)
+	hazardmapset = IO.read_MAP(filespec, model_name="VG_Ambr95DD_Leynaud_EC8", convert_to_g=True, IMT="PGA", verbose=True)
 	print hazardmapset.longitudes
 	for hazardmap in hazardmapset:
 		print hazardmap.intensities.shape
@@ -4030,7 +4030,7 @@ if __name__ == "__main__":
 	#filespec = r"D:\PSHA\NIRAS\LogicTree\Spectral\Seismotectonic\BergeThierry2003\3sigma\Mmax+0_00\MC000.GRA"
 	filespec = r"D:\PSHA\NIRAS\LogicTree\Spectral\Spectral_BT2003.AGR"
 	#filespec = r"D:\PSHA\LNE\CRISIS\VG_Ambr95DD_Leynaud_EC8.gra"
-	shcf = IO.readCRISIS_GRA(filespec, verbose=True)
+	shcf = IO.read_GRA(filespec, verbose=True)
 	print shcf.intensities.shape, shcf.exceedance_rates.shape
 	print shcf.mean.shape
 	print shcf.percentiles.shape
@@ -4064,7 +4064,7 @@ if __name__ == "__main__":
 	"""
 	import hazard.psha.BEST_IRE.LogicTree as LogicTree
 	GRA_filespecs = LogicTree.slice_logictree()
-	hcft = IO.readCRISIS_GRA_multi(GRA_filespecs, model_name="Test")
+	hcft = IO.read_GRA_multi(GRA_filespecs, model_name="Test")
 	hcft.plot()
 	#hcft.write_statistics_AGR(r"C:\Temp\Test.AGR", weighted=False)
 	#hcft2 = hcft.slice_by_branch_indexes(range(50), "Subset")
