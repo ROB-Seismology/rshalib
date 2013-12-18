@@ -595,10 +595,10 @@ if __name__ == "__main__":
 	vs30 = 800
 	#psha_filespec = r"D:\PSHA\BEST\LogicTree\PGA\Doel\Seismotectonic\Ambraseys1996\Mmax+0_50\MC000"
 	psha_filespec = r"D:\PSHA\BEST\LogicTree\Spectral\Doel\Seismotectonic\Ambraseys1996\Mmax+0_50\MC000"
-	psha_result = IO.readCRISIS_GRA(psha_filespec)
+	psha_result = IO.read_GRA(psha_filespec)
 	periods = psha_result.periods
 	period_index = 29
-	magnitudes, distances, deagg_exceedances, intensities = IO.readCRISIS_DES_full(psha_filespec)
+	magnitudes, distances, deagg_exceedances, intensities = IO.read_DES_full(psha_filespec)
 	#CAV_total_exceedances, CAV_deagg_exceedances = CAV_filtering_from_deagg_PGA(deagg_exceedances[period_index], magnitudes, intensities[period_index], vs30, CAVmin)
 	CAV_total_exceedances, CAV_deagg_exceedances = CAV_filtering_from_deagg_SA(deagg_exceedances, magnitudes, distances, intensities, periods, "AmbraseysEtAl1996GMPE", vs30, CAVmin)
 
