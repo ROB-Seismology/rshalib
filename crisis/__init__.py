@@ -5,6 +5,6 @@
 import IO
 reload(IO)
 
-from IO import (writeCRISIS2007, writeCRISIS_ASC, readCRISIS_DAT, readCRISIS_GRA,
-	readCRISIS_GRA_multi, readCRISIS_MAP, readCRISIS_DES, readCRISIS_DES_full,
+from IO import (write_DAT_2007, write_ASC, read_DAT, read_GRA,
+	read_GRA_multi, read_MAP, read_DES, read_DES_full, read_batch,
 	get_crisis_rupture_area_parameters)

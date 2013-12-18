@@ -27,7 +27,7 @@ def s2float(s, replace_nan=None, replace_inf=None):
 			return {None: -np.inf}.get(replace_inf, -replace_inf)
 
 
-def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
+def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					return_periods, grid_outline, grid_spacing=0.5, sites=[],
 					sites_filespec='', imt_periods={"PGA": [0]},
 					intensities=None, min_intensities={"PGA": [1E-3]}, max_intensities={"PGA": [1.0]},
@@ -232,7 +232,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					## Repi, RJB
 					min_distance = 1.0
 				# TODO: damping?
-				gsimObj.writeCRISIS_ATN(Mmin, Mmax, Mstep, min_distance,
+				gsimObj.write_ATN(Mmin, Mmax, Mstep, min_distance,
 										integration_distance, num_distances,
 										h=0, imt_periods=imt_periods,
 										imt_unit=imt_unit,
@@ -366,7 +366,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 			sites_filespec = os.path.join(os.path.dirname(filespec), 'sites.ASC')
 		of.write("%s\n" % sites_filespec)
 		if not os.path.exists(sites_filespec):
-			writeCRISIS_ASC(sites_filespec, sites)
+			write_ASC(sites_filespec, sites)
 	else:
 		raise Exception("Must specify either sites or grid_outline!")
 
@@ -581,7 +581,7 @@ def writeCRISIS2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 	of.close()
 
 
-def writeCRISIS_ASC(asc_filespec, sites):
+def write_ASC(asc_filespec, sites):
 	"""
 	Write Crisis asc sites file.
 
@@ -597,7 +597,26 @@ def writeCRISIS_ASC(asc_filespec, sites):
 	f.close()
 
 
-def readCRISIS_DAT(filespec):
+def read_batch(batch_filespec):
+	"""
+	Read Crisis batch file.
+
+	:return:
+		(filespecs, weights) tuple
+	"""
+	filespecs, weights = [], []
+	f = open(batch_filespec)
+	for line in f:
+		filespec, weight = line.split(',')
+		filespec = os.path.splitext(filespec)[0]
+		filespecs.append(gra_filespec)
+		weights.append(float(weight))
+	f.close()
+
+	return filespecs, np.array(weights)
+
+
+def read_DAT(filespec):
 	"""
 	Read structural periods and intensity_unit from CRISIS .DAT file
 	Parameters:
@@ -606,7 +625,7 @@ def readCRISIS_DAT(filespec):
 		tuple (period array, intensity_unit, model_name)
 	"""
 	# IDEA: we could also determine number of sites and number of intensities,
-	# which would facilitate reading readCRISIS_GRA
+	# which would facilitate reading read_GRA
 
 	if filespec[-4:].lower() != ".dat":
 		filespec += ".dat"
@@ -632,7 +651,7 @@ def readCRISIS_DAT(filespec):
 	return (periods, intensity_unit, model_name)
 
 
-def readCRISIS_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit="", convert_to_g=True, IMT="", avoid_zeros=True, model_name="", site_names=[], verbose=False):
+def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit="", convert_to_g=True, IMT="", avoid_zeros=True, model_name="", site_names=[], verbose=False):
 	"""
 	Read CRISIS .GRA or .AGR file (CRISIS2007 format)
 	Parameters:
@@ -703,7 +722,7 @@ def readCRISIS_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensit
 	zero_period = 1./34
 	if in_periods in ([], None):
 		try:
-			in_periods, unit, description = readCRISIS_DAT(filespec[:-4])
+			in_periods, unit, description = read_DAT(filespec[:-4])
 		except IOError:
 			print("%s.DAT file not found" % filespec[:-4])
 			print("Assuming structural period is %.4f s (PGA), or reading from .AGR file if possible" % zero_period)
@@ -796,7 +815,7 @@ def readCRISIS_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensit
 				elif columns[0] == "INTENSITY":
 					## New structural period
 					## GRA or AGR files normally do not include the value of the structural periods,
-					## but AGR files created with writeCRISIS_AGR do, so we don't need a RES or other
+					## but AGR files created with write_AGR do, so we don't need a RES or other
 					## file to figure out what the structural periods are
 					try:
 						in_periods_agr.append(float(columns[-1].split('=')[1]))
@@ -932,7 +951,7 @@ def readCRISIS_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensit
 	return shcf
 
 
-def readCRISIS_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="", convert_to_g=True, IMT="", avoid_zeros=True, model_name="", branch_names=[], weights=[], site_names=[]):
+def read_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="", convert_to_g=True, IMT="", avoid_zeros=True, model_name="", branch_names=[], weights=[], site_names=[]):
 	"""
 	Read multiple CRISIS .GRA files
 	Parameters:
@@ -969,10 +988,10 @@ def readCRISIS_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="
 	their exceedances will be interpolated to the intensity values of the first input file
 	"""
 	print("Reading %d files" % len(filespecs))
-	in_periods, unit, description = readCRISIS_DAT(os.path.splitext(filespecs[0])[0])
+	in_periods, unit, description = read_DAT(os.path.splitext(filespecs[0])[0])
 	if not intensity_unit:
 		intensity_unit = unit
-	shcf = readCRISIS_GRA(filespecs[0], sites=sites, in_periods=in_periods, intensity_unit=intensity_unit, convert_to_g=convert_to_g, IMT=IMT, avoid_zeros=avoid_zeros, verbose=False)
+	shcf = read_GRA(filespecs[0], sites=sites, in_periods=in_periods, intensity_unit=intensity_unit, convert_to_g=convert_to_g, IMT=IMT, avoid_zeros=avoid_zeros, verbose=False)
 
 	if not (out_periods in ([], None) or len(out_periods) == 0):
 		shcf = shcf.interpolate_periods(out_periods)
@@ -995,7 +1014,7 @@ def readCRISIS_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="
 	shcft = SpectralHazardCurveFieldTree(model_name, all_exceedance_means, branch_names, filespecs, weights, shcf.sites, shcf.periods, shcf.IMT, shcf.intensities, shcf.intensity_unit, shcf.timespan, variances=all_exceedance_variances)
 
 	for j, filespec in enumerate(filespecs[1:]):
-		shcf = readCRISIS_GRA(filespec, sites=sites, in_periods=in_periods, intensity_unit=intensity_unit, convert_to_g=convert_to_g, IMT=IMT, avoid_zeros=avoid_zeros, verbose=False)
+		shcf = read_GRA(filespec, sites=sites, in_periods=in_periods, intensity_unit=intensity_unit, convert_to_g=convert_to_g, IMT=IMT, avoid_zeros=avoid_zeros, verbose=False)
 
 		if not (out_periods in ([], None) or len(out_periods) == 0):
 			shcf = shcf.interpolate_periods(out_periods)
@@ -1024,7 +1043,7 @@ def readCRISIS_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="
 	return shcft
 
 
-def readCRISIS_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True, IMT="", model_name="", verbose=False):
+def read_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True, IMT="", model_name="", verbose=False):
 	"""
 	Read CRISIS .MAP file (CRISIS2007 format) in site mode, i.e. only one spectral ordinate is read
 	for each site.
@@ -1050,7 +1069,7 @@ def readCRISIS_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True
 	## Determine spectral periods
 	zero_period = 1./34
 	try:
-		periods, unit, description = readCRISIS_DAT(filespec[:-4])
+		periods, unit, description = read_DAT(filespec[:-4])
 	except IOError:
 		print("%s.DAT file not found" % filespec[:-4])
 		print("Assuming structural period is %.4f s (PGA), or reading from .AGR file if possible" % zero_period)
@@ -1132,11 +1151,11 @@ def readCRISIS_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True
 	return result
 
 
-def readCRISIS_DES(filespec, site, intensity=None, return_period=None, period_index=0, rebin_magnitudes=[], rebin_distances=[], verbose=True):
+def read_DES(filespec, site, intensity=None, return_period=None, period_index=0, rebin_magnitudes=[], rebin_distances=[], verbose=True):
 	"""
 	Read CRISIS deaggregation by Magnitude and distance results (.DES) file
 	The results are only read for a particular intensity value or for the intensity
-	corresponding to a particular return period. Use readCRISIS_DES_full to read the
+	corresponding to a particular return period. Use read_DES_full to read the
 	complete deaggregation results.
 
 	:param filespec:
@@ -1176,7 +1195,7 @@ def readCRISIS_DES(filespec, site, intensity=None, return_period=None, period_in
 		raise Exception("Need to specify either intensity or return period!")
 
 	## Read necessary information from .GRA file
-	shcf = readCRISIS_GRA(os.path.splitext(filespec)[0])
+	shcf = read_GRA(os.path.splitext(filespec)[0])
 	struc_periods = shcf.periods
 	sites = shcf.sites
 	intensities = shcf.intensities
@@ -1277,10 +1296,10 @@ def readCRISIS_DES(filespec, site, intensity=None, return_period=None, period_in
 	return DeaggregationSlice(bin_edges, values, site, imt, iml, period, time_span)
 
 
-def readCRISIS_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[], verbose=True):
+def read_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[], verbose=True):
 	"""
 	Read CRISIS deaggregation by Magnitude and distance results (.DES) file
-	In contrast to readCRISIS_DES, the results are read completely for a particular site
+	In contrast to read_DES, the results are read completely for a particular site
 	Parameters:
 		filespec: full path to file to be read
 		site: site index or tuple with site coordinates
@@ -1304,7 +1323,7 @@ def readCRISIS_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[
 		filespec += ".des"
 
 	## Read necessary information from .GRA file
-	shcf = readCRISIS_GRA(os.path.splitext(filespec)[0])
+	shcf = read_GRA(os.path.splitext(filespec)[0])
 	struc_periods = shcf.periods
 	sites = shcf.sites
 	intensities = shcf.intensities
@@ -1445,9 +1464,9 @@ if __name__ == "__main__":
 	root_dir = r"X:\PSHA\CRISISvsOQ\crisis"
 	filespecs = lt.slice_logictree(mode="PGA", site="Doel", zone_model=None, att_law=None, attlaw_sigma=None, Mmax_increment=None, seismicity_models=None)
 	filespecs = filespecs*2
-	shcft = readCRISIS_GRA_multi(filespecs, intensity_unit="mg")
+	shcft = read_GRA_multi(filespecs, intensity_unit="mg")
 	shcft.plot(title="Crisis results for Doel (PGA)")
 	"""
-	hms = readCRISIS_MAP(r"X:\PSHA\CRISISvsOQ\crisis\Grid\Belgium_Seismotectonic_Akb2010.map", model_name="CRISIS", verbose=True)
+	hms = read_MAP(r"X:\PSHA\CRISISvsOQ\crisis\Grid\Belgium_Seismotectonic_Akb2010.map", model_name="CRISIS", verbose=True)
 	hm = hms.getHazardMap(0)
 	hm.plot(amax=0.14)
