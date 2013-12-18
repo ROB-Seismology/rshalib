@@ -21,7 +21,7 @@ from ..geo import *
 from ..site import *
 from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, ProbabilityMatrix, DeaggregationSlice
 from ..logictree import GroundMotionSystem, SeismicSourceSystem
-from ..crisis import writeCRISIS2007
+from ..crisis import write_DAT_2007
 from ..openquake import OQ_Params
 from ..source import SourceModel
 from ..gsim import GroundMotionModel
@@ -559,7 +559,7 @@ class PSHAModel(PSHAModelBase):
 
 		## Write input file. This will also write the site file and attenuation
 		## tables if necessary.
-		writeCRISIS2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.get_sites(), site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], kappa=self.ref_soil_params["kappa"], mag_scale_rel=None, atn_Mmax=atn_Mmax, output={"gra": True, "map": True, "fue": True, "des": True, "smx": True, "eps": True, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
+		write_DAT_2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.get_sites(), site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], kappa=self.ref_soil_params["kappa"], mag_scale_rel=None, atn_Mmax=atn_Mmax, output={"gra": True, "map": True, "fue": True, "des": True, "smx": True, "eps": True, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
 
 		## Return name of output file
 		return filespec
