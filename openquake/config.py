@@ -169,7 +169,7 @@ class OQ_Params(ConfigObj):
 			elif key == "poes":
 				self["output"]["poes"] = " ".join(map(str, value))
 			elif key == "poes_disagg":
-				self["disaggregation"] = " ".join(map(str, value))
+				self["disaggregation"]["poes_disagg"] = " ".join(map(str, value))
 			elif key == "quantile_hazard_curves" and self["general"]["calculation_mode"] == "classical":
 				self["output"]["quantile_hazard_curves"] = ", ".join(map(str, value))
 			elif key == "percentiles" and self["general"]["calculation_mode"] == "classical":

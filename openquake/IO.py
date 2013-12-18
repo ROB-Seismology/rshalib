@@ -35,7 +35,7 @@ def _parse_hazard_curve(hazard_curve, site_names={}):
 	lon, lat = map(float, hazard_curve.findtext(".//{%s}pos" % GML).split())
 	site = SHASite(lon, lat, name=site_names.get((lon, lat), None))
 	poes = np.array(hazard_curve.findtext(".//{%s}poEs" % NRML).split(), float)
-	return site, poes.clip(10**-15)
+	return site, poes.clip(1E-15)
 
 
 def _parse_hazard_curves(hazard_curves, site_names={}):
@@ -153,12 +153,14 @@ def parse_hazard_map(xml_filespec):
 	return hm
 
 
-def parse_uh_spectra(xml_filespec, site_names={}):
+def parse_uh_spectra(xml_filespec, sites=[]):
 	"""
 	Parse OpenQuake nrml output file of type "uniform hazard spectra"
 
 	:param xml_filespec:
 		String, filespec of file to parse.
+	:param sites:
+		list with instances of :class:`..site.SHASite` (default: {})
 
 	:return:
 		instance of :class:`..result.UHSField`
@@ -171,16 +173,17 @@ def parse_uh_spectra(xml_filespec, site_names={}):
 	IMT = 'SA'
 	timespan = float(uh_spectra.get('investigationTime'))
 	poe = float(uh_spectra.get('poE'))
-	sites, intensities = [], []
+	uh_sites, intensities = [], []
 	for uh_spectrum in uh_spectra.findall('{%s}uhs' % NRML):
 		pos = uh_spectrum.find('{%s}Point' % GML).find('{%s}pos' % GML)
 		lon, lat = map(float, pos.text.split())
-		sites.append(SHASite(lon, lat, name=site_names.get((lon, lat), None)))
+		uh_sites.append(SHASite(lon, lat))
 		imls = uh_spectrum.find('{%s}IMLs' % NRML)
 		intensities.append(map(float, imls.text.split()))
-	uhs_field = UHSField(model_name, xml_filespec, sites, periods, IMT,
+	uhs_field = UHSField(model_name, xml_filespec, uh_sites, periods, IMT,
 		intensities=np.array(intensities), intensity_unit=intensity_unit[IMT],
 		timespan=timespan, poe=poe)
+	uhs_field.set_site_names(sites)
 	return uhs_field
 
 
@@ -277,23 +280,22 @@ def parse_any_output(xml_filespec):
 	raise "File is not an output of OpenQuake"
 
 
-def read_multi_folder(directory, site_names={}, add_stats=False):
+def read_multi_folder(directory, sites=[], add_stats=False):
 	"""
 	Read OpenQuake output folder with 'hazard_curve_multi' file(s)
 
 	:param directory:
 		str, path to folder
-	:param site_names:
-		{(float, float): str}, dict mapping (lon, lat) tuple of site to name of
-		site (default: {})
+	:param sites:
+		list with instances of :class:`..site.SHASite` (default: {})
 	:param add_stats:
 		bool, add mean and quantiles if present (default: False)
-	
+
 	:returns:
 		instance of :class:`..result.SpectralHazardCurveFieldTree`
 	"""
-	xml_filespec = os.path.join(directory, "hazard_curve_multi_00.xml")
-	shcft = parse_hazard_curves_multi(xml_filespec, site_names)
+	xml_filespec = os.path.join(directory, "hazard_curve_multi-rlz-001.xml")
+	shcft = parse_hazard_curves_multi(xml_filespec)
 	if add_stats:
 		mean_xml_filespec = os.path.join(directory, "hazard_curve_multi-mean.xml")
 		assert os.path.exists(mean_xml_filespec)
@@ -307,23 +309,23 @@ def read_multi_folder(directory, site_names={}, add_stats=False):
 				perc_levels.append(int(float(perc) * 100))
 		shcf_list = [shcf for shcf in shcft]
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, shcft.model_name, mean=mean_shcf, percentile_levels=perc_levels, percentiles=perc_shcf_list)
+	shcft.set_site_names(sites)
 	return shcft
 
 
-def read_curve_folder(directory, site_names={}, add_stats=False, verbose=True):
+def read_curve_folder(directory, sites=[], add_stats=False, verbose=True):
 	"""
 	Read OpenQuake output folder with subfolder for each imt with 'hazard_curve' file(s)
 
 	:param directory:
 		str, path to folder
-	:param site_names:
-		{(float, float): str}, dict mapping (lon, lat) tuple of site to name of
-		site (default: {})
+	:param sites:
+		list with instances of :class:`..site.SHASite` (default: {})
 	:param add_stats:
 		bool, add mean and quantiles if present (default: False)
 	:param verbose:
 		bool, print information (default: True)
-	
+
 	:returns:
 		instance of :class:`..result.SpectralHazardCurveFieldTree`
 	"""
@@ -364,36 +366,36 @@ def read_curve_folder(directory, site_names={}, add_stats=False, verbose=True):
 	else:
 		mean_shcf, perc_levels, perc_shcf_list = None, None, None
 	shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, shcf_list[0].model_name, mean=mean_shcf, percentile_levels=perc_levels, percentiles=perc_shcf_list)
+	shcft.set_site_names(sites)
 	return shcft
 
 
-def read_shcft(directory, site_names={}, add_stats=False):
+def read_shcft(directory, sites=[], add_stats=False):
 	"""
 	Read OpenQuake output folder with 'hazard_curve_multi' and/or 'hazard_curve' subfolders.
 	Read from the folder 'hazard_curve_multi' if present, else read individual hazard curves from the folder 'hazard_curve'.
-	
+
 	:param directory:
 		str, path to folder
-	:param site_names:
-		{(float, float): str}, dict mapping (lon, lat) tuple of site to name of
-		site (default: {})
+	:param sites:
+		list with instances of :class:`..site.SHASite` (default: {})
 	:param add_stats:
 		bool, add mean and quantiles if present (default: False)
-	
+
 	:returns:
 		instance of :class:`..result.SpectralHazardCurveFieldTree`
 	"""
 	multi_folder = os.path.join(directory, "hazard_curve_multi")
 	print multi_folder
 	if os.path.exists(multi_folder):
-		shcft = read_multi_folder(multi_folder, site_names, add_stats)
+		shcft = read_multi_folder(multi_folder, sites, add_stats)
 	else:
 		curve_folder = os.path.join(directory, "hazard_curve")
-		shcft = read_curve_folder(curve_folder, site_names, add_stats)
+		shcft = read_curve_folder(curve_folder, sites, add_stats)
 	return shcft
 
 
-def read_uhsft(directory, return_period, site_names={}, add_stats=False):
+def read_uhsft(directory, return_period, sites=[], add_stats=False):
 	"""
 	Read OpenQuake output folder with 'uh_spectra' file(s) or 'uh_spectra' subfolder with such files
 
@@ -401,12 +403,11 @@ def read_uhsft(directory, return_period, site_names={}, add_stats=False):
 		str, path to folder
 	:param return period:
 		float, return period
-	:param site_names:
-		{(float, float): str}, dict mapping (lon, lat) tuple of site to name of
-		site (default: {})
+	:param sites:
+		list with instances of :class:`..site.SHASite` (default: {})
 	:param add_stats:
 		bool, add mean and quantiles if present (default: False)
-	
+
 	:returns:
 		instance of :class:`..result.UHSFieldTree`
 	"""
@@ -439,5 +440,6 @@ def read_uhsft(directory, return_period, site_names={}, add_stats=False):
 	else:
 		mean, perc_list, perc_levels = None, None, None
 	uhsft = UHSFieldTree.from_branches(uhsf_list, uhsf_list[0].model_name, mean=mean, percentile_levels=perc_levels, percentiles=perc_list)
+	uhsft.set_site_names(sites)
 	return uhsft
 
