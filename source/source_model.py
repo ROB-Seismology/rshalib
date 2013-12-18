@@ -249,6 +249,20 @@ class SourceModel():
 				fault.mfd.min_mag = min_mag
 				fault.mfd.max_mag = max_mag
 
+	def get_bounding_box(self):
+		"""
+		Determine rectangular bounding box of source model
+
+		:return:
+			(west, east, south, north) tuple
+		"""
+		# TODO: implement for other source types as well
+		regions = [src.get_bounding_box() for src in self.get_area_sources()]
+		regions = numpy.array(regions)
+		w, _, s, _ = regions.min(axis=0)
+		_, e, _, n = regions.max(axis=0)
+		return (w, e, s, n)
+
 
 
 if __name__ == '__main__':

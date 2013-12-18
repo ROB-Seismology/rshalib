@@ -715,6 +715,48 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 		centroid = self.to_ogr_geometry().Centroid()
 		return (centroid.GetX(), centroid.GetY())
 
+	def get_discretized_mesh(self):
+		"""
+		Compute discretized mesh
+
+		:return:
+			instance of :class:`openquake.hazardlib.geo.Mesh`
+		"""
+		mesh = self.polygon.discretize(self.area_discretization)
+		return mesh
+
+	def get_discretized_locations(self):
+		"""
+		Compute discretized locations:
+
+		:return:
+			list of (lon, lat) tuples
+		"""
+		mesh = self.get_discretized_mesh()
+		return [(pt.longitude, pt.latitude) for pt in mesh]
+
+	def get_bounding_box(self):
+		"""
+		Determine rectangular bounding box
+
+		:return:
+			(west, east, south, north) tuple
+		"""
+		w = self.longitudes.min()
+		e = self.longitudes.max()
+		s = self.latitudes.min()
+		n = self.latitudes.max()
+		return (w, e, s, n)
+
+	def get_normalized_a_val(self, area=1E+5):
+		"""
+		Report a value normalized by area
+
+		:param area:
+			normalized surface area in sq. km (default: 1E+5)
+		"""
+		return self.mfd.a_val + np.log10(area / self.get_area())
+
 
 class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 	"""
