@@ -193,6 +193,8 @@ def parse_disaggregation(xml_filespec, site_name=None):
 
 	:param xml_filespec:
 		String, filespec of file to parse.
+	:param site_name:
+		String, name of site (default: None)
 
 	:return:
 		dict {disaggregation type: instance of :class:`..result.DeaggregationSlice`}
@@ -256,6 +258,50 @@ def parse_disaggregation(xml_filespec, site_name=None):
 		iml = disagg_matrix.get('iml')
 		deaggregation_slices[type] = DeaggregationSlice(bin_edges, deagg_matrix, site, imt, iml, period, timespan)
 	return deaggregation_slices
+
+
+def parse_disaggregation_full(xml_filespec, site_name=None):
+	"""
+	Parse OpenQuake nrml output file of type "disaggregation"
+
+	:param xml_filespec:
+		String, filespec of file to parse.
+	:param site_name:
+		String, name of site (default: None)
+	
+	:return:
+		dict {disaggregation type: instance of :class:`..result.DeaggregationSlice`}
+	"""
+	nrml = etree.parse(xml_filespec).getroot()
+	disagg_matrix = nrml.find('{%s}disaggMatrix' % NRML)
+	shape = tuple(map(int, disagg_matrix.get('dims').split(',')))
+	mag_bin_edges = np.array(disagg_matrix.get('magBinEdges').split(', '),
+		dtype=float)
+	dist_bin_edges = np.array(disagg_matrix.get('distBinEdges').split(', '),
+		dtype=float)
+	lon_bin_edges = np.array(disagg_matrix.get('lonBinEdges').split(', '),
+		dtype=float)
+	lat_bin_edges = np.array(disagg_matrix.get('latBinEdges').split(', '),
+		dtype=float)
+	eps_bin_edges = np.array(disagg_matrix.get('epsBinEdges').split(', '),
+		dtype=float)
+	tectonic_region_types = disagg_matrix.get(
+		'tectonicRegionTypes').split(', ')
+	bin_edges = (mag_bin_edges, dist_bin_edges, lon_bin_edges, lat_bin_edges, eps_bin_edges, tectonic_region_types)
+	lon = float(disagg_matrix.get('lon'))
+	lat = float(disagg_matrix.get('lat'))
+	site = SHASite(lon, lat, name=site_name)
+	imt = disagg_matrix.get('IMT')
+	period = float(disagg_matrix.get('saPeriod', 0.))
+	timespan = float(disagg_matrix.get('investigationTime'))
+	iml = disagg_matrix.get('iml')
+	prob_matrix = ProbabilityMatrix(np.zeros(shape))
+	for prob in disagg_matrix.findall('{%s}prob' % NRML):
+		index = prob.get("index")
+		value = prob.get("value")
+		prob_matrix[tuple(map(int, index.split(",")))] = value
+	deaggregation_slice = DeaggregationSlice(bin_edges, prob_matrix, site, imt, iml, period, timespan)
+	return deaggregation_slice
 
 
 def parse_any_output(xml_filespec):
