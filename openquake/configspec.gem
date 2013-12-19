@@ -38,7 +38,7 @@ poes_disagg = string(default="0.1")
 mag_bin_width = float(default=0.5)
 distance_bin_width = float(default=7.5)
 coordinate_bin_width = float(default=0.2)
-num_epsilon_bins = integer(default=3)
+num_epsilon_bins = integer(default=6)
 
 [event_based_params]
 ses_per_logic_tree_path = integer(default=5)

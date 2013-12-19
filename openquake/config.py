@@ -102,7 +102,7 @@ class OQ_Params(ConfigObj):
 			Disagg_params["mag_bin_width"] = 0.5
 			Disagg_params["distance_bin_width"] = 7.5
 			Disagg_params["coordinate_bin_width"] = 0.2
-			Disagg_params["num_epsilon_bins"] = 3
+			Disagg_params["num_epsilon_bins"] = 6
 
 			# TODO: the following output params are probably for event-based only
 			EventBasedOutput_params = ConfigObj()
