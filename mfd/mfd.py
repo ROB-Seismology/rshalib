@@ -204,9 +204,9 @@ class MFD(object):
 				if method == "poisson":
 					#prob = rnd.random()
 					#next_event_time = -np.log(1.0 - prob) / rate
-					next_event_time = random.expovariate(rate)
+					next_event_time = rnd.expovariate(rate)
 				elif method == "random":
-					epsilon = random.normalvariate(0, 1)
+					epsilon = rnd.normalvariate(0, 1)
 					next_event_time = (1. / rate) + sigma * epsilon
 				elif method == "time-dependent":
 					# TODO
@@ -241,6 +241,8 @@ class MFD(object):
 		"""
 		import random
 		import mx.DateTime as mxDateTime
+		rnd = random.Random()
+		rnd.seed(random_seed)
 		from eqcatalog.eqcatalog import EQCatalog, LocalEarthquake
 		inter_event_times = self.sample_inter_event_times(timespan, method, random_seed)
 		eq_list = []
@@ -251,6 +253,7 @@ class MFD(object):
 			num_lon_lats = len(lons)
 		except:
 			num_lon_lats = 0
+		start_date = mxDateTime.Date(start_year, 1, 1)
 		for M, iets in zip(self.get_magnitude_bin_centers(), inter_event_times):
 			if self.Mtype == "MW":
 				MW = M
@@ -261,18 +264,18 @@ class MFD(object):
 			elif self.Mtype == "ML":
 				ML = M
 				MS, MW = 0., 0.
-			years = start_year + np.floor(np.add.accumulate(iets)).astype('i')
-			for year in years:
-				date = mxDateTime.Date(year, 1, 1)
+
+			fractional_years = np.add.accumulate(iets)
+			for year in fractional_years:
+				date = start_date + mxDateTime.RelativeDateTime(year=year)
 				if num_lon_lats == 0:
 					lon, lat = 0., 0.
 				else:
-					idx = random.randint(0, num_lon_lats-1)
+					idx = rnd.randint(0, num_lon_lats-1)
 					lon, lat = lons[idx], lats[idx]
 				eq = LocalEarthquake(ID, date, None, lon, lat, depth, ML, MS, MW, name)
 				eq_list.append(eq)
 				ID += 1
-		start_date = mxDateTime.Date(start_year, 1, 1)
 		end_date = mxDateTime.Date(timespan+1, 1, 1)
 		return EQCatalog(eq_list, start_date, end_date)
 
