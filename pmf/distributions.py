@@ -41,7 +41,7 @@ class PMF(nhlib.pmf.PMF):
 		:return:
 			new instance of same class
 		"""
-		weights = np.array([Decimal(w) for w in weights])
+		weights = np.array([Decimal(str(w)) for w in weights])
 		weights /= sum(weights)
 		## If sum is not one, adjust last weight
 		if np.sum(weights) != 1.0:
