@@ -239,18 +239,15 @@ class RuptureSource():
 		pylab.title(self.name)
 		pylab.show()
 
-	def plot_rupture_centers_map(self, timespan=1):
-		ruptures = self.get_ruptures_Poisson(timespan=timespan)
-		lons, lats, depths = self.get_rupture_centers(ruptures)
-		pylab.plot(lons, lats, '.')
-		pylab.show()
-
-	def plot_rupture_bounds_map(self, mag, strike=None, dip=None, rake=None, timespan=1):
+	def plot_rupture_map(self, mag, bounds=True, strike=None, dip=None, rake=None, timespan=1):
 		"""
-		Plot map showing rupture bounds.
+		Plot map showing rupture bounds or rupture centers.
 
 		:param mag:
 			Float, magnitude value (center of bin) of ruptures to plot
+		:param bounds:
+			Bool, whether rupture bounds (True) or centers (False) should
+			be plotted (default: True)
 		:param strike:
 			Float, strike in degrees of ruptures to plot (default: None)
 		:param dip:
@@ -304,9 +301,14 @@ class RuptureSource():
 				color = 'r'
 			else:
 				color = 'b'
-			lons, lats, depths = self.get_rupture_bounds(rup)
+			if bounds == True:
+				lons, lats, depths = self.get_rupture_bounds(rup)
+				x, y = map(lons, lats)
+				map.plot(x, y, color)
+		if bounds == False:
+			lons, lats, depths = self.get_rupture_centers(ruptures)
 			x, y = map(lons, lats)
-			map.plot(x, y, color)
+			map.plot(x, y, 'o', color=color)
 
 		## Highlight first rupture if source is a fault
 		if isinstance(self, (SimpleFaultSource, ComplexFaultSource)):
