@@ -198,7 +198,8 @@ class MFD(object):
 			## Should we re-initialize random number generator for each bin?
 			inter_event_times.append([])
 			total_time, next_event_time = 0, 0
-			while total_time <= timespan:
+			#while total_time <= timespan:
+			while total_time < timespan:
 				if next_event_time:
 					inter_event_times[-1].append(next_event_time)
 				if method == "poisson":
@@ -276,7 +277,8 @@ class MFD(object):
 				eq = LocalEarthquake(ID, date, None, lon, lat, depth, ML, MS, MW, name)
 				eq_list.append(eq)
 				ID += 1
-		end_date = mxDateTime.Date(timespan+1, 1, 1)
+		#end_date = mxDateTime.Date(timespan+1, 1, 1)
+		end_date = mxDateTime.Date(timespan, 12, 31)
 		return EQCatalog(eq_list, start_date, end_date)
 
 
