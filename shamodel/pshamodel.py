@@ -382,14 +382,14 @@ class PSHAModel(PSHAModelBase):
 		if not mag_bin_width:
 			mag_bin_width = self.source_model[0].mfd.bin_width
 		site = self.get_sites()[site_index]
-		nhlib_site = nhlib.site.Site(Point(*site), **self.ref_soil_params)
+		#nhlib_site = nhlib.site.Site(Point(*site), **self.ref_soil_params)
 		#imt = self._get_nhlib_imts()
 		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
 		rsdf = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
 
 		#tom = nhlib.tom.PoissonTOM(self.time_span)
 		#bin_edges, deagg_matrix = nhlib.calc.disaggregation(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), tom, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
-		bin_edges, deagg_matrix = nhlib.calc.disaggregation_poissonian(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), self.time_span, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
+		bin_edges, deagg_matrix = nhlib.calc.disaggregation_poissonian(self.source_model, site, imt, iml, self._get_nhlib_trts_gsims_map(), self.time_span, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
 		deagg_matrix = ProbabilityMatrix(deagg_matrix)
 		imt_name = str(imt).split('(')[0]
 		if imt_name == "SA":
@@ -739,8 +739,12 @@ class PSHAModelTree(PSHAModelBase):
 		# TODO: adjust output_dir based on path?
 		output_dir = self.output_dir
 		optimized_gmpe_model = gmpe_model.get_optimized_model(source_model)
+		#if self.soil_site_model or self.grid_outline:
+		#	sites = []
+		#else:
+		#	sites = self.get_sites()
 		psha_model = PSHAModel(name, source_model, optimized_gmpe_model, output_dir,
-			sites=self.get_sites(), grid_outline=self.grid_outline, grid_spacing=self.grid_spacing,
+			sites=self.sites, grid_outline=self.grid_outline, grid_spacing=self.grid_spacing,
 			soil_site_model=self.soil_site_model, ref_soil_params=self.ref_soil_params,
 			imt_periods=self.imt_periods, intensities=self.intensities,
 			min_intensities=self.min_intensities, max_intensities=self.max_intensities,
