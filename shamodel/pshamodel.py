@@ -353,12 +353,12 @@ class PSHAModel(PSHAModelBase):
 				hazard_result[imt] = hazard_curves[eval(imt)()].reshape(num_sites, 1, self.num_intensities)
 		return hazard_result
 
-	def deagg_nhlib(self, site_index, imt, iml, n_epsilons=None, mag_bin_width=None, dist_bin_width=10., coord_bin_width=1.0):
+	def deagg_nhlib(self, site, imt, iml, n_epsilons=None, mag_bin_width=None, dist_bin_width=10., coord_bin_width=1.0):
 		"""
 		Run deaggregation with nhlib
 
-		:param site_index:
-			Int, index of site
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
 		:param imt:
 			Instance of :class:`nhlib.imt._IMT`, intensity measure type
 		:param iml:
@@ -381,8 +381,8 @@ class PSHAModel(PSHAModelBase):
 			n_epsilons = 2 * int(np.ceil(self.truncation_level))
 		if not mag_bin_width:
 			mag_bin_width = self.source_model[0].mfd.bin_width
-		site = self.get_sites()[site_index]
-		#nhlib_site = nhlib.site.Site(Point(*site), **self.ref_soil_params)
+		if not isinstance(site, SoilSite):
+			site = site.to_soil_site(self.ref_soil_params)
 		#imt = self._get_nhlib_imts()
 		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
 		rsdf = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
