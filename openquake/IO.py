@@ -198,6 +198,15 @@ def parse_disaggregation(xml_filespec, site_name=None):
 
 	:return:
 		dict {disaggregation type: instance of :class:`..result.DeaggregationSlice`}
+		Available disaggregation types:
+			- 'Mag'
+			- 'Dist'
+			- 'Lon,Lat'
+			- 'TRT'
+			- 'Mag,Dist'
+			- 'Mag,Dist,Eps'
+			- 'Mag,Lon,Lat'
+			- 'Lon,Lat,TRT'
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
 	disagg_matrices = nrml.find('{%s}disaggMatrices' % NRML)
@@ -262,15 +271,15 @@ def parse_disaggregation(xml_filespec, site_name=None):
 
 def parse_disaggregation_full(xml_filespec, site_name=None):
 	"""
-	Parse OpenQuake nrml output file of type "disaggregation"
+	Parse OpenQuake nrml output file containing full 6-D disaggregation matrix
 
 	:param xml_filespec:
 		String, filespec of file to parse.
 	:param site_name:
 		String, name of site (default: None)
-	
+
 	:return:
-		dict {disaggregation type: instance of :class:`..result.DeaggregationSlice`}
+		instance of :class:`..result.DeaggregationSlice`
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
 	disagg_matrix = nrml.find('{%s}disaggMatrix' % NRML)
