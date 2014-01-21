@@ -1,346 +1,237 @@
 """
-:mod:`rshalib.source.smoothed_seismicity` exports :class:`SmoothedSeismicity`
+Classes to smooth seismicity.
 """
 
 
-#import matplotlib
 import numpy as np
-import ogr
-#import osr
 
-from scipy.stats import norm
+from openquake.hazardlib.geo.geodetic import azimuth
+from openquake.hazardlib.geo.geodetic import geodetic_distance
 
-#from openquake.hazardlib.geo.geodetic import geodetic_distance, point_at
 
-from eqcatalog.calcGR import calcGR_Weichert
-from eqcatalog.source_models import read_source_model, rob_source_models_dict
 from ..geo import Point
-from ..mfd import EvenlyDiscretizedMFD, TruncatedGRMFD
-from ..source import PointSource, SourceModel
-#from mapping.Basemap.LayeredBasemap import *
-#from mapping.Basemap.cm.norm import PiecewiseLinearNorm
-#from mapping.geo.coordtrans import wgs84, get_utm_spec, get_utm_srs
-
-
-from ..site import SHASiteModel
-
-
-#class Grid(object):
-#	"""
-#	"""
-	
-#	def __init__(self, region, dlon, dlat):
-#		"""
-#		"""
-#		assert (region[1] - region[0]) / dlon == round((region[1] - region[0]) / dlon)
-#		assert (region[3] - region[2]) / dlat == round((region[3] - region[2]) / dlat)
-#		self.dlon = dlon
-#		self.dlat = dlat
-#		self.slons = sequence(region[0] + self.dlon / 2., region[1], self.dlon)
-#		self.slats = sequence(region[2] + self.dlat / 2., region[3], self.dlat)
-#		self.region = (
-#			region[0],
-#			self.slons[-1] + self.dlon / 2.,
-#			region[2],
-#			self.slats[-1] + self.dlat / 2.
-#			)
-#		self.shape = (len(self.slats), len(self.slons))
-#		grid = np.dstack(np.meshgrid(self.slons, self.slats[::-1]))
-#		self.lons = grid[:,:,0]
-#		self.lats = grid[:,:,1]
-	
-#	def __len__(self):
-#		"""
-#		:return:
-#			int, len of grid sites
-#		"""
-#		return np.prod(self.shape)
-	
-#	def __iter__(self):
-#		"""
-#		:return:
-#			iterable over (lon, lat) of grid sites
-#		"""
-#		for i in np.ndindex(self.shape):
-#			yield (self.lons[i], self.lats[i])
-	
-#	def __getitem__(self, i):
-#		"""
-#		:param i:
-#			index of grid site
-		
-#		:return:
-#			(float, float) tuple, (lon, lat) of site
-#		"""
-#		return self.lons[i], self.lats[i]
-	
-#	def get_distances(self, lon, lat):
-#		"""
-#		Get distances of grid sites to site.
-		
-#		:param lon:
-#			float, lon of site
-#		:param lat:
-#			float, lat of site
-		
-#		:return:
-#			2d np.array (~ self.shape), distances in km
-#		"""
-#		return geodetic_distance(self.lons, self.lats, lon, lat)
-	
-#	def get_index(self, lon, lat):
-#		"""
-#		Get index of grid site.
-		
-#		:param lon:
-#			float, lon of site
-#		:param lat:
-#			float, lat of site
-		
-#		:return:
-#			(int, int) tuple
-#		"""
-#		return np.unravel_index(self.get_distances(lon, lat).argmin(), self.shape)
-	
-#	def get_area(self):
-#		"""
-#		Get area of region.
-		
-#		:return:
-#			float, area in square km
-#		"""
-#		wgs84 = osr.SpatialReference()
-#		wgs84.SetWellKnownGeogCS("WGS84")
-#		ring = ogr.Geometry(ogr.wkbLinearRing)
-#		poly = ogr.Geometry(ogr.wkbPolygon)
-#		w, e, s, n = self.region
-#		ring.AddPoint(w, s)
-#		ring.AddPoint(e, s)
-#		ring.AddPoint(e, n)
-#		ring.AddPoint(w, n)
-#		ring.AddPoint(w, s)
-#		poly.AssignSpatialReference(wgs84)
-#		poly.AddGeometry(ring)
-#		centroid = poly.Centroid()
-#		coordTrans = osr.CoordinateTransformation(wgs84, get_utm_srs(get_utm_spec(centroid.GetX(), centroid.GetY())))
-#		poly.Transform(coordTrans)
-#		area = poly.GetArea() / 1E6
-#		return area
+from ..mfd import EvenlyDiscretizedMFD
+from source import PointSource
+from source_model import SourceModel
 
 
 class SmoothedSeismicity(object):
 	"""
+	Each earthquake of a catalog is smoothed over a grid by a smoothing kernel
+	with certain smoothing bandwidth. This bandwidth can be fixed for all
+	earthquakes or variable, calculated seperatly for each earthquake by a
+	smoothing number n, as the distance to the n-th closest earthquake. With a
+	smoothing number, the smoothing distance is a minumum. It is possible to
+	limit the smoothing to a certain distance. All smoothed values are summed
+	per magnitude bin and divided by the completeness timespan for the bin.
+	Estimated mfds can be calculated by providing maximum magnitude, b value and
+	estimation method.
 	"""
 	
-	def __init__(self, grid_outline, grid_spacing, catalog, min_mag, dmag, smoothing_kernel, smoothing_number, smoothing_bandwidth, smoothing_limit):
+	def __init__(self, catalog, grid, completeness, mag_type, mag_relation, mag_bin_width, smoothing_kernel, smoothing_number, smoothing_bandwidth, smoothing_limit):
 		"""
+		:param catalog:
+			instance of :class:`eqcatalog.EQCatalog`, cc catalog
+		:param grid:
+			instance of :class:`rshalib.site.SHASiteModel, grid of lons and lats
+		:param completeness:
+			instance of :class:`eqcatalog.Completeness`, completeness of catalog
+		:param mag_type:
+			see :method:`eqcatalog.EQCatalog.get_magnitudes`
+		:param mag_relation:
+			see :method:`eqcatalog.EQCatalog.get_magnitudes`
+		:param mag_bin_width:
+			float, magnitude bin width for smoothing
+		:param smoothing_kernel:
+			function, taking array of distances and bandwidth, and returning
+			smoothed values
+		:param smoothing_number:
+			int, number n to take distance to n-th closest earthquake is bandwidth
+		:param smoothing_bandwidth:
+			float, (minimum) bandwidth in km for smoothing kernel
+		:param smoothing_limit:
+			float, maximum distance in km for smoothing
 		"""
-		self.grid = SHASiteModel(
-			grid_outline=grid_outline,
-			grid_spacing=grid_spacing,
-			)
+		catalog.lons = catalog.lons
+		catalog.lats = catalog.lats
+		catalog.mags = catalog.get_magnitudes(mag_type, mag_relation)
 		self.catalog = catalog
-		self.min_mag = min_mag or self.catalog.completeness.min_mag
-		self.dmag = dmag
-		self._set_mag_bins()
-		self.shape = (
-			len(self.grid.slats),
-			len(self.grid.slons),
-			len(self.mag_bins)
-			)
+		self.grid = grid
+		self.completeness = completeness
+		self.mag_bin_width = mag_bin_width
+		self.mag_bins = self._get_mag_bins()
 		self.smoothing_kernel = smoothing_kernel
 		self.smoothing_number = smoothing_number
 		self.smoothing_bandwidth = smoothing_bandwidth
 		self.smoothing_limit = smoothing_limit
-		
-		self._set_smoothing_bandwidths()
-#		self._validate_smoothed_region()
-		self._smooth()
-		self._set_cum_occs()
-		self._set_inc_occ_rates()
-		self._set_cum_occ_rates()
-		self._set_trt_data()
+		self.smoothing_bandwidths = self._get_smoothing_bandwidths()
+		self.inc_occ_count = self._get_inc_occ_count()
+		self.inc_occ_rates = self._get_inc_occ_rates()
+		assert np.allclose(self.inc_occ_count.sum(), len(self.catalog.mags))
 	
-	def _set_mag_bins(self):
+	@property
+	def shape(self):
 		"""
+		:return:
+			tuple, shape of grid + mag bins
 		"""
-		self.mag_bins = sequence(self.min_mag, self.catalog.mags.max(), self.dmag)
+		return self.grid.shape + self.mag_bins.shape
 	
-	def _set_smoothing_bandwidths(self):
+	def _get_mag_bins(self):
 		"""
+		:return:
+			1d array, left edge of mag bins
+		""" 
+		return np.arange(self.completeness.min_mag, self.catalog.mags.max()+self.mag_bin_width, self.mag_bin_width)
+	
+	def _get_mag_bin_index(self, mag):
+		"""
+		:return:
+			int, index of mag bin of mag
+		"""
+		for i in range(len(self.mag_bins))[:-1]:
+			next_bin = self.mag_bins[i+1]
+			if mag < next_bin and not np.allclose(mag, next_bin):
+				return i
+		return i
+	
+	def _get_smoothing_bandwidths(self): # TODO: include in inc_occ_count loop?
+		"""
+		:return:
+			1d array (~ catalog) or None, smoothing bandwidths
 		"""
 		if self.smoothing_number:
-			self.smoothing_bandwidths = np.zeros(len(self.catalog))
-			for i in xrange(len(self.catalog)):
-				lon = self.catalog.lons[i]
-				lat = self.catalog.lats[i]
-				distances = sorted(self.catalog.get_epicentral_distances(lon, lat))
-				smoothing_bandwidth = distances[self.smoothing_number]
-				smoothing_bandwidth = max([smoothing_bandwidth, self.smoothing_bandwidth])
-				self.smoothing_bandwidths[i] = smoothing_bandwidth
-		else:
-			self.smoothing_bandwidths = None
+			smoothing_bandwidths = np.zeros(len(self.catalog))
+			for i in range(len(self.catalog)):
+				smoothing_bandwidths[i] = sorted(get_distance(
+					self.catalog.lons,
+					self.catalog.lats,
+					self.catalog.lons[i],
+					self.catalog.lats[i],
+					))[self.smoothing_number]
+			smoothing_bandwidths = smoothing_bandwidths.clip(self.smoothing_bandwidth)
+			return smoothing_bandwidths
 	
-##	def _validate_smoothed_region(self):
-##		"""
-##		"""
-##		for i in xrange(len(self.catalog)):
-##			lon = self.catalog.lons[i]
-##			lat = self.catalog.lats[i]
-##			if self.smoothing_number:
-##				smoothing_distance = self.smoothing_distances[i]
-##			else:
-##				smoothing_distance = self.smoothing_distance
-##			w = point_at(lon, lat, 270., smoothing_distance)[0]
-##			e = point_at(lon, lat, 090., smoothing_distance)[0]
-##			s = point_at(lon, lat, 180., smoothing_distance)[1]
-##			n = point_at(lon, lat, 000., smoothing_distance)[1]
-##			assert self.grid.region[0] < w or np.allclose(self.grid.region[0], w)
-##			assert self.grid.region[1] > e or np.allclose(self.grid.region[1], e)
-##			assert self.grid.region[2] < s or np.allclose(self.grid.region[2], s)
-##			assert self.grid.region[3] > n or np.allclose(self.grid.region[3], n)
-	
-	def _smooth(self):
+	def _get_inc_occ_count(self):
 		"""
+		:return:
+			3d array (~ shape), smoothed incremental occurrence count
 		"""
-		if not self.smoothing_number:
-			smoothing_bandwidth = self.smoothing_bandwidth
-		self.inc_occs = np.zeros(self.shape)
-		for i in xrange(len(self.catalog)):
-			lon = self.catalog.lons[i]
-			lat = self.catalog.lats[i]
-			mag = self.catalog.mags[i]
-			distances = self.grid.get_geographic_distances(lon, lat)
+		inc_occ_count = np.zeros(self.shape)
+		for i in range(len(self.catalog)):
+			grid_distances = get_distance(self.grid.lons, self.grid.lats, self.catalog.lons[i], self.catalog.lats[i])
+			if self.smoothing_limit:
+				grid_indices = np.where(grid_distances <= self.smoothing_limit)
+			else:
+				grid_indices = np.where(grid_distances)
 			if self.smoothing_number:
 				smoothing_bandwidth = self.smoothing_bandwidths[i]
-			if self.smoothing_limit:
-				indices = np.where(distances <= smoothing_bandwidth * self.smoothing_limit)
 			else:
-				indices = np.where(distances)
-			if self.smoothing_kernel == "uniform":
-				inc_occ = np.ones_like(distances[indices])
-			if self.smoothing_kernel == "reciprocal":
-				inc_occ = 1. / distances[indices]
-			if self.smoothing_kernel == "normal":
-				inc_occ = norm.pdf(distances[indices], 0, smoothing_bandwidth)
-			inc_occ /= inc_occ.sum()
-			k = np.abs(self.mag_bins - mag).argmin()
-			self.inc_occs[:,:,k][indices] += inc_occ
+				smoothing_bandwidth = self.smoothing_bandwidth
+			smoothed_vals = self.smoothing_kernel(grid_distances[grid_indices], smoothing_bandwidth)
+			smoothed_vals /= smoothed_vals.sum()
+			j = self._get_mag_bin_index(self.catalog.mags[i])
+			inc_occ_count[:,:,j][grid_indices] += smoothed_vals
+		return inc_occ_count
 	
-	def _set_cum_occs(self):
+	def _get_inc_occ_rates(self):
 		"""
-		:set cum_occs:
-			3d np array (~ self.shape)
+		:return:
+			3d array (~ shape), smoothed incremental occurrence rates
 		"""
-		self.cum_occs = np.add.accumulate(self.inc_occs[:,:,::-1], 2)[:,:,::-1]
-		self.cum_occs[np.where(self.cum_occs[:,:,0] == 0)] = [np.nan] * len(self.mag_bins)
+		return np.apply_along_axis(np.divide, 2, self.inc_occ_count, self.completeness.get_completeness_timespans(self.mag_bins, self.catalog.end_date))
 	
-	def _set_inc_occ_rates(self):
+	def set_mfds_obs(self, max_mag=None):
 		"""
-		:set inc_occ_rates:
-			3d np array (~ self.shape)
+		Set obs mfd for each grid cell.
+		
+		:param max_mag:
+			float, left edge of max mag bin
+		
+		:set:
+			"mfds_obs", np array (~ grid.shape) of None's or instances of :class:`rshalib.mfd.EvenlyDiscretizedMFD`
 		"""
-		self.inc_occ_rates = np.apply_along_axis(np.divide, 2, self.inc_occs, self.catalog.completeness.get_completeness_timespans(self.mag_bins, self.catalog.end_date))
-	
-	def _set_cum_occ_rates(self):
-		"""
-		:set cum_occ_rates:
-			3d np array (~ self.shape)
-		"""
-		self.cum_occ_rates = np.add.accumulate(self.inc_occ_rates[:,:,::-1], 2)[:,:,::-1]
-		self.cum_occ_rates[np.where(self.cum_occ_rates[:,:,0] == 0)] = [np.nan] * len(self.mag_bins)
-	
-#	def _set_trts(self):
-#		"""
-#		"""
-#		self.trts = np.zeros(self.grid.shape)
-#		self.trts.fill(np.nan)
-#		for i in np.ndindex(self.grid.shape):
-#			point = ogr.Geometry(ogr.wkbPoint)
-#			point.SetPoint(0, self.grid.lons[i], self.grid.lats[i])
-#			if area_source_model["RVRS"]['obj'].Contains(point):
-#				self.trts[i] = 1
-#			else:
-#				self.trts[i] = 0
-	
-	def _set_trt_data(self):
-		"""
-		"""
-		area_source_model = read_source_model("TwoZonev2", verbose=False)
-		self.max_mags, self.b_vals = np.zeros(self.grid.shape), np.zeros(self.grid.shape)
-		self.max_mags.fill(np.nan), self.b_vals.fill(np.nan)
+		min_mag = self.completeness.min_mag + self.mag_bin_width / 2.
+		if max_mag:
+			mag_bins = np.arange(min_mag, max_mag+self.mag_bin_width, self.mag_bin_width)
+		mfds_obs = np.zeros(self.grid.shape, dtype=np.object)
 		for i in np.ndindex(self.grid.shape):
-			point = ogr.Geometry(ogr.wkbPoint)
-			point.SetPoint(0, self.grid.lons[i], self.grid.lats[i])
-			if area_source_model["RVRS"]['obj'].Contains(point):
-				self.max_mags[i], self.b_vals[i] = 7.2, 0.942
+			inc_occ_rates = np.trim_zeros(self.inc_occ_rates[i], trim="b")
+			if not np.allclose(inc_occ_rates, 0.):
+				if max_mag:
+					zeros = np.zeros(len(mag_bins) - len(inc_occ_rates))
+					inc_occ_rates = np.concatenate((inc_occ_rates, zeros))
+				mfd_obs = EvenlyDiscretizedMFD(min_mag, self.mag_bin_width, inc_occ_rates)
 			else:
-				self.max_mags[i], self.b_vals[i] = 6.7, 0.948
+				mfd_obs = None
+			mfds_obs[i] = mfd_obs
+		self.mfds_obs = mfds_obs
 	
-	def get_a_val(self, i):
+	def set_mfds_est(self, max_mag, b_val, method):
 		"""
-		"""
-		inc_occs = np.trim_zeros(self.inc_occs[i], trim='b')
-		if not np.allclose(inc_occs, 0.):
-			completeness = self.catalog.completeness
-			end_date = self.catalog.end_date
-			mag_bins = sequence(self.min_mag, self.max_mags[i], self.dmag)
-			zeros = np.zeros((len(mag_bins) - len(inc_occs)))
-			inc_occs = np.concatenate((inc_occs, zeros))
-			a_val, _, _, _ = calcGR_Weichert(mag_bins, inc_occs, completeness, end_date, self.b_vals[i], False)
-			return a_val
-		else:
-			return np.nan
-	
-	def get_a_vals(self):
-		"""
-		Get a value for each grid site.
+		Set est mfd for each grid cell.
 		
-		:return:
-			2d np array (~ self.grid.shape)
+		:param max_mag:
+			float, left edge of max mag bin
+		:param b_val
+			float, b value
+		:param method
+			string, estimation method ("Weichert", "LSQi", or "LSQc")
+		
+		:set:
+			"mfds_est", np array (~ grid.shape) of None's or instances of :class:`rshalib.mfd.TruncatedGRMFD`
 		"""
-		a_vals = np.zeros(self.grid.shape)
-		a_vals.fill(np.nan)
+		self.set_mfds_obs(max_mag)
+		mfds_est = np.zeros(self.grid.shape, dtype=np.object)
 		for i in np.ndindex(self.grid.shape):
-			a_vals[i] = self.get_a_val(i)
-		return a_vals
+			mfds_est[i] = self.mfds_obs[i].to_truncated_GR_mfd(self.completeness, self.catalog.end_date, b_val=b_val, method=method, verbose=False) if self.mfds_obs[i] else None
+		self.mfds_est = mfds_est
 	
-	def get_mfd_obs(self, i):
+	def get_cum_occ_count(self):
 		"""
-		Get observed (evenly discretized) mfd for site.
-		
-		:param i:
-			??, index of site
+		Get smoothed cumulative occurrence count.
 		
 		:return:
-			instance of :class:`rshalib.mfd.EvenlyDiscretizedMFD` or None
+			3d array (~ shape)
 		"""
-		inc_occ_rates = np.trim_zeros(self.inc_occ_rates[i], trim='b')
-		if not np.allclose(inc_occ_rates, 0.):
-			return EvenlyDiscretizedMFD(self.min_mag + self.dmag / 2., self.dmag, inc_occ_rates)
-		else:
-			return None
+		return np.add.accumulate(self.inc_occ_count[:,:,::-1], 2)[:,:,::-1]
 	
-	def get_mfd_est(self, i):
+	def get_cum_occ_rates(self):
 		"""
-		Get estimated (truncated gr) mfd for site.
-		
-		:param i:
-			??, index of site
+		Get smoothed cumulative occurrence rates.
 		
 		:return:
-			instance of :class:`rshalib.mfd.TruncatedGRMFD` or None
+			3d array (~ shape)
 		"""
-		a_val = self.get_a_val(i)
-		if not np.isnan(a_val):
-			return TruncatedGRMFD(self.min_mag, self.max_mags[i], self.dmag, a_val, self.b_vals[i])
-		else:
-			return None
+		return np.add.accumulate(self.inc_occ_rates[:,:,::-1], 2)[:,:,::-1]
 	
-#	def get_mfd_johnston(self, max_mag, region="europe"):
-#		"""
-#		"""
-#		return TruncatedGRMFD.construct_Johnston1994MFD(self.min_mag, max_mag, self.dmag, self.grid.get_area(), region)
+	def get_smrs_obs(self):
+		"""
+		Get seismic moment rates obs.
+		
+		:return:
+			2d array (~ grid.shape)
+		"""
+		smrs_obs = np.zeros(self.grid.shape)
+		for i in np.ndindex(self.grid.shape):
+			mfd_obs = self.mfds_obs[i]
+			if mfd_obs:
+				smrs_obs[i] = mfd_obs._get_total_moment_rate()
+		return smrs_obs
+	
+	def get_smrs_est(self):
+		"""
+		Get seismic moment rates est.
+		
+		:return:
+			2d array (~ grid.shape)
+		"""
+		smrs_est = np.zeros(self.grid.shape)
+		for i in np.ndindex(self.grid.shape):
+			mfd_est = self.mfds_est[i]
+			if mfd_est:
+				smrs_est[i] = mfd_est._get_total_moment_rate()
+		return smrs_est
 	
 	def get_total_mfd_obs(self):
 		"""
@@ -351,12 +242,9 @@ class SmoothedSeismicity(object):
 		"""
 		total_mfd = None
 		for i in np.ndindex(self.grid.shape):
-			mfd_obs = self.get_mfd_obs(i)
+			mfd_obs = self.mfds_obs[i]
 			if mfd_obs:
-				if total_mfd:
-					total_mfd = mfd_obs + total_mfd
-				else:
-					total_mfd = mfd_obs
+				total_mfd = total_mfd + mfd_obs if total_mfd else mfd_obs
 		return total_mfd
 	
 	def get_total_mfd_est(self):
@@ -368,124 +256,82 @@ class SmoothedSeismicity(object):
 		"""
 		total_mfd = None
 		for i in np.ndindex(self.grid.shape):
-			mfd_est = self.get_mfd_est(i)
+			mfd_est = self.mfds_est[i]
 			if mfd_est:
-				if total_mfd:
-					total_mfd = mfd_est + total_mfd
-				else:
-					total_mfd = mfd_est
+				total_mfd = total_mfd + mfd_est if total_mfd else mfd_est
 		return total_mfd
 	
-	def get_smrs_obs(self):
+	def get_a_vals(self):
 		"""
-		Get seismic moment rates obs.
+		Get a values.
 		
 		:return:
-			2d np array (~ self.grid.shape)
+			2d array (~ grid.shape)
 		"""
-		smrs_obs = np.zeros(self.grid.shape)
+		a_vals = np.zeros(self.grid.shape)
 		for i in np.ndindex(self.grid.shape):
-			mfd_obs = self.get_mfd_obs(i)
-			if mfd_obs:
-				smrs_obs[i] = mfd_obs._get_total_moment_rate()
-		return smrs_obs
+			mfd_est = self.mfds_est[i]
+			a_vals[i] = mfd_est.a_val if mfd_est else np.NAN
+		return a_vals
 	
-	def get_smrs_est(self):
+	def get_b_vals(self):
 		"""
-		Get seismic moment rates est.
+		Get b values.
 		
-		2d np array (~ self.grid.shape)
+		:return:
+			2d array (~ grid.shape)
 		"""
-		smrs_est = np.zeros(self.grid.shape)
+		b_vals = np.zeros(self.grid.shape)
 		for i in np.ndindex(self.grid.shape):
-			mfd_est = self.get_mfd_est(i)
-			if mfd_est:
-				smrs_est[i] = mfd_est._get_total_moment_rate()
-		return smrs_est
-	
-	def to_source_model(self, source_model_name, trt, rms, msr, rar, usd, lsd, npd, hdd):
+			mfd_est = self.mfds_est[i]
+			b_vals[i] = mfd_est.b_val if mfd_est else np.NAN
+		return b_vals
+
+	def get_norm_a_vals(self, norm_area):
 		"""
-		Get source model from smoothed seismicity.
+		Get normalized a values.
+		
+		:param norm_area:
+			float, normalization area in km2
+		:return:
+			2d array (~ grid.shape)
+		"""
+		return np.log10((10**self.a_vals) * (norm_area / self.grid.areas))
+	
+	def to_source_model(self, smn, trt, rms, msr, rar, usd, lsd, npd, hdd):
+		"""
+		To source model.
+		
+		:param smn:
+			see :class:`rshalib.source.SourceModel`
+		:param trt:
+			see :class:`rshalib.source.PointSource`
+		:param rms:
+			see :class:`rshalib.source.PointSource`
+		:param msr:
+			see :class:`rshalib.source.PointSource`
+		:param rar:
+			see :class:`rshalib.source.PointSource`
+		:param usd:
+			see :class:`rshalib.source.PointSource`
+		:param lsd:
+			see :class:`rshalib.source.PointSource`
+		:param npd:
+			see :class:`rshalib.source.PointSource`
+		:param hdd:
+			see :class:`rshalib.source.PointSource`
 		
 		:return:
 			instance of :class:`rshalib.source.SourceModel`
 		"""
 		point_sources = []
 		for i in np.ndindex(self.grid.shape):
-			mfd = self.get_mfd_est(i)
-			if mfd:
+			mfd_est = self.mfds_est[i]
+			if mfd_est:
 				lon = self.grid.lons[i]
 				lat = self.grid.lats[i]
-				id = str(i)
-				name = str((lon, lat))
+				id, name = str(i), str((lon, lat))
 				point = Point(lon, lat)
-				point_sources.append(PointSource(id, name, trt, mfd, rms, msr, rar, usd, lsd, point, npd, hdd))
-		return SourceModel(source_model_name, point_sources)
-	
-#	def plot_map(self, data=None, grid=None, catalog=None, builtin=True, region=None, title="", label="", fig_filespec=""):
-#		"""
-#		"""
-#		map_layers = []
-#		if data != None:
-#			dd = GridData(self.grid.lons, self.grid.lats[::-1], data[::-1])
-##			vmin = np.nanmin(data)
-##			vmax = np.nanmax(data)
-##			norm = PiecewiseLinearNorm([-2.0, +2.0])
-#			ds = GridStyle(
-##				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label, ticks=[-2.0, -1.6, -1.2, -0.8, -0.4, 0.0, 0.4, 0.8, 1.2, 1.6, 2.0])),
-#				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label, ticks=sequence(-6.2, -0.6, 0.4))),
-##				color_map_theme=ThematicStyleColormap(colorbar_style=ColorbarStyle(title=label)),
-#				color_gradient="discontinuous",
-##				contour_levels=[-2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
-##				contour_levels=[-3.0, -2.8, -2.6, -2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
-#				contour_levels=sequence(-6.2, -0.6, 0.2)
-##				contour_levels=sequence(-4., 1.6, 0.2)
-#				)
-#			map_layers.append(MapLayer(dd, ds))
-#		if grid:
-#			gd = MultiPointData(self.grid.lons, self.grid.lats)
-#			gs = PointStyle(shape='.', size=5, line_color='k', fill_color='k')
-#			map_layers.append(MapLayer(gd, gs))
-#		if catalog:
-#			cd = MultiPointData(self.catalog.lons, self.catalog.lats)
-#			cs = PointStyle(shape='.', size=5, line_color='r', fill_color='r')
-#			map_layers.append(MapLayer(cd, cs))
-#		if builtin:
-#			coastline_layer = MapLayer(style=LineStyle(), data=BuiltinData("coastlines"))
-#			countries_layer = MapLayer(style=LineStyle(), data=BuiltinData("countries" ))
-#			map_layers.extend([coastline_layer, countries_layer])
-#		region = region or self.grid.region
-#		map = LayeredBasemap(layers=map_layers, region=region, projection="merc", resolution="i", title=title, legend_style=LegendStyle())
-#		map.plot(
-#			fig_filespec=fig_filespec
-#			)
-
-
-def sequence(min, max, step):
-	"""
-	Get sequence. sequence[-1] <= max.
-	
-	:param min:
-		float, minimum of sequence
-	:param max:
-		float, maximum of sequence
-	:param step:
-		float, step of sequence
-	
-	:return:
-		1d np array
-	"""
-	sequence = []
-	while min < max or np.allclose(min, max):
-		sequence.append(min)
-		min += step
-		if np.allclose(min, 0.):
-			min = 0.
-	return np.array(sequence)
-
-
-#if __name__ == "__main__":
-#	"""
-#	"""
-#	pass
+				point_sources.append(PointSource(id, name, trt, mfd_est, rms, msr, rar, usd, lsd, point, npd, hdd))
+		return SourceModel(smn, point_sources)
 
