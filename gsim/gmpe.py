@@ -374,7 +374,8 @@ class GMPE(object):
 			Float, CAV threshold (default: 0.16 g.s).
 		:param depsilon:
 			Float, bin width used to discretize epsilon pga. Should be
-			sufficiently small for PGA (default: 0.02).
+			sufficiently small for PGA, but is less sensitive for SA
+			(default: 0.02).
 		:param eps_correlation_model:
 			Str, name of model used for correlation of epsilon values
 			of PGA and SA, either "WUS" or "EUS" (default: "EUS").
@@ -425,14 +426,20 @@ class GMPE(object):
 			b1_WUS = np.array([0.59, 0.59, 0.6, 0.633, 0.787, 0.931, 0.956, 0.976])
 			b1_EUS = np.array([0.5, 0.55, 0.6, 0.75, 0.88, 0.9, 0.91, 0.93])
 			if eps_correlation_model == "WUS":
-				b1 = interpolate(1./b1_freqs, b1_WUS, [T])[0]
+				b1 = interpolate(b1_freqs, b1_WUS, [1./T])[0]
 			elif eps_correlation_model == "EUS":
-				b1 = interpolate(1./b1_freqs, b1_EUS, [T])[0]
+				b1 = interpolate(b1_freqs, b1_EUS, [1./T])[0]
 
 			## Determine median SA and sigma
 			sa_med = self.__call__(M, d, h=h, imt="SA", T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+			ln_sa_med = np.log(sa_med)
 			sigma_log_sa = self.log_sigma(M, d, h=h, imt="SA", T=T, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 			sigma_ln_sa = np.log(10) * sigma_log_sa
+
+			ln_iml = np.log(iml)
+
+			## Eq. 3-3
+			sigma_ln_sa_given_pga = np.sqrt(1 - b1**2) * sigma_ln_sa
 
 			## Loop over eps_pga
 			exceedance_prob = 0
@@ -441,19 +448,17 @@ class GMPE(object):
 				## Eq. 3-1
 				eps_sa = b1 * eps_pga
 				## Eq. 3-2
-				ln_sa_given_pga = np.log(sa_med) + eps_sa * sigma_ln_sa
-				## Eq. 3-3
-				sigma_ln_sa_given_pga = np.sqrt(1 - b1**2) * sigma_ln_sa
+				ln_sa_given_pga = ln_sa_med + eps_sa * sigma_ln_sa
 
 				## Determine probability of exceedance of SA given PGA
 				## Eq. 4-3
-				eps_sa_dot = (np.log(iml) - ln_sa_given_pga) / sigma_ln_sa_given_pga
+				eps_sa_dot = (ln_iml - ln_sa_given_pga) / sigma_ln_sa_given_pga
 				## Eq. 4-2
 				prob_sa_given_pga = 1.0 - scipy.stats.norm.cdf(eps_sa_dot)
 
 				exceedance_prob += (prob_eps_list[e] * cav_exceedance_prob[e] * prob_sa_given_pga)
 
-			## iml values close to truncation boundaries should have lower exceecance rates
+			## iml values close to truncation boundaries should have lower exceedance rates
 			## This also constrains iml between (-truncation_level, truncation_level)
 			exceedance_prob = np.minimum(exceedance_prob, sa_exceedance_prob)
 
