@@ -324,6 +324,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			raise TypeError("Operand must be MFD")
 
 	def __sub__(self, other):
+		# TODO: this doesn't work if max_mags are different, need to either pad or truncate
 		if isinstance(other, (TruncatedGRMFD, EvenlyDiscretizedMFD, YoungsCoppersmith1985MFD)):
 			if not self.is_compatible(other):
 				raise Exception("MFD's not compatible")
