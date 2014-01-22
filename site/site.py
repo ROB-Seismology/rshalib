@@ -412,15 +412,15 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 	def __len__(self):
 		return self.num_sites
 
-	def get_sites():
+	def get_sites(self):
 		"""
 		:return:
 			list with instances of :class:`SoilSite`
 		"""
 		sites = []
 		for i in range(self.num_sites):
-			lon = self.mesh_lons[i]
-			lat = self.mesh_lats[i]
+			lon = self.mesh.lons[i]
+			lat = self.mesh.lats[i]
 			depth = 0
 			vs30 = self.vs30[i]
 			vs30measured = self.vs30measured[i]
