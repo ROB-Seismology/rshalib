@@ -498,3 +498,57 @@ def read_uhsft(directory, return_period, sites=[], add_stats=False):
 	uhsft.set_site_names(sites)
 	return uhsft
 
+
+def write_disaggregation_slice(site, imt, period, iml, poe, timespan, bin_edges, matrix, nrml_filespec):
+	"""
+	Write disaggregation slice to nrml file.
+	
+	:param site:
+		tuple or instance of :class:`rshalib.site.SHASite`
+	:param imt:
+		str, intensity measure type
+	:param period:
+		float, period of imt
+	:param iml:
+		float, intensity measure level
+	:param poe:
+		float, probability of exceedance
+	:param timespan:
+		float, timespan
+	:param bin_edges:
+		list of tuples, defining edges for magnitudes, distances, lons, lats,
+		epsilons and tectonic region types
+	:param matrix:
+		6d array, probability of exceedances
+	:nrml_filespec:
+		str, filespec of nrml file to write to
+	"""
+	with open(nrml_filespec, "w") as nrml_file:
+		root = etree.Element("nrml", nsmap=ns.NSMAP)
+		diss = etree.SubElement(root, "disaggMatrix")
+		lon, lat = [c for c in site]
+		diss.set("lon", str(lon))
+		diss.set("lat", str(lat))
+		diss.set("imt", str(iml))
+		diss.set("saPeriod", str(period))
+		diss.set("iml", str(iml))
+		diss.set("poE", str(poe))
+		diss.set("investigationTime", str(timespan))
+		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = bin_edges
+		diss.set("magBinEdges", ", ".join(map(str, mag_bins)))
+		diss.set("distBinEdges", ", ".join(map(str, dist_bins)))
+		diss.set("lonBinEdges", ", ".join(map(str, lon_bins)))
+		diss.set("latBinEdges", ", ".join(map(str, lat_bins)))
+		diss.set("epsBinEdges", ", ".join(map(str, eps_bins)))
+		diss.set("tectonicRegionTypes", ", ".join(trts))
+		dims = ",".join(map(str, matrix.shape))
+		diss.set("dims", dims)
+		for index, value in np.ndenumerate(matrix):
+			if not np.allclose(value, 0.):
+				index = ",".join(map(str, index))
+				value = str(value)
+				prob = etree.SubElement(diss, "prob")
+				prob.set("index", index)
+				prob.set("value", value)
+		nrml_file.write(etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8"))
+
