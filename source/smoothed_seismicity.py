@@ -4,10 +4,9 @@ Classes to smooth seismicity.
 
 
 import numpy as np
+from scipy.stats import norm
 
-from openquake.hazardlib.geo.geodetic import azimuth
 from openquake.hazardlib.geo.geodetic import geodetic_distance
-
 
 from ..geo import Point
 from ..mfd import EvenlyDiscretizedMFD
@@ -43,8 +42,7 @@ class SmoothedSeismicity(object):
 		:param mag_bin_width:
 			float, magnitude bin width for smoothing
 		:param smoothing_kernel:
-			function, taking array of distances and bandwidth, and returning
-			smoothed values
+			function, taking array of distances and bandwidth, and returning weights
 		:param smoothing_number:
 			int, number n to take distance to n-th closest earthquake is bandwidth
 		:param smoothing_bandwidth:
@@ -103,7 +101,7 @@ class SmoothedSeismicity(object):
 		if self.smoothing_number:
 			smoothing_bandwidths = np.zeros(len(self.catalog))
 			for i in range(len(self.catalog)):
-				smoothing_bandwidths[i] = sorted(get_distance(
+				smoothing_bandwidths[i] = sorted(geodetic_distance(
 					self.catalog.lons,
 					self.catalog.lats,
 					self.catalog.lons[i],
@@ -119,7 +117,7 @@ class SmoothedSeismicity(object):
 		"""
 		inc_occ_count = np.zeros(self.shape)
 		for i in range(len(self.catalog)):
-			grid_distances = get_distance(self.grid.lons, self.grid.lats, self.catalog.lons[i], self.catalog.lats[i])
+			grid_distances = geodetic_distance(self.grid.lons, self.grid.lats, self.catalog.lons[i], self.catalog.lats[i])
 			if self.smoothing_limit:
 				grid_indices = np.where(grid_distances <= self.smoothing_limit)
 			else:
@@ -346,7 +344,22 @@ def normal_smoothing_kernel(distances, bandwidth):
 		float
 	
 	:return:
-		array (~ distances)
+		array (~ distances), weights
 	"""
 	return norm.pdf(distances, 0., bandwidth)
+
+
+def uniform_smoothing_kernel(distances, bandwidth):
+	"""
+	Uniform smoothing kernel.
+	
+	:param distances:
+		array
+	:param bandwidth:
+		float
+	
+	:return:
+		array (~ distances), weights
+	"""
+	return np.ones_like(distances)
 
