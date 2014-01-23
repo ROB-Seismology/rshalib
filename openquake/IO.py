@@ -349,7 +349,10 @@ def read_multi_folder(directory, sites=[], add_stats=False):
 	:returns:
 		instance of :class:`..result.SpectralHazardCurveFieldTree`
 	"""
-	xml_filespec = os.path.join(directory, "hazard_curve_multi-rlz-001.xml")
+	for filename in sorted(os.listdir(directory)):
+		if filename[:23] == "hazard_curve_multi-rlz-" and filename[-6:] == "01.xml":
+			break
+	xml_filespec = os.path.join(directory, filename)
 	shcft = parse_hazard_curves_multi(xml_filespec)
 	if add_stats:
 		mean_xml_filespec = os.path.join(directory, "hazard_curve_multi-mean.xml")
