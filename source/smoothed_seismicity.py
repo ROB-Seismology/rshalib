@@ -335,3 +335,18 @@ class SmoothedSeismicity(object):
 				point_sources.append(PointSource(id, name, trt, mfd_est, rms, msr, rar, usd, lsd, point, npd, hdd))
 		return SourceModel(smn, point_sources)
 
+
+def normal_smoothing_kernel(distances, bandwidth):
+	"""
+	Normal smoothing kernel.
+	
+	:param distances:
+		array
+	:param bandwidth:
+		float
+	
+	:return:
+		array (~ distances)
+	"""
+	return norm.pdf(distances, 0., bandwidth)
+
