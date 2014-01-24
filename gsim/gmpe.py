@@ -393,6 +393,7 @@ class GMPE(object):
 			vs30 = 800
 
 		iml = np.asarray(iml)
+		## Normally distributed epsilon values and corresponding probabilities
 		dist = scipy.stats.truncnorm(-truncation_level, truncation_level)
 		eps_pga_list = seq(-truncation_level, truncation_level, depsilon)
 		prob_eps_list = dist.pdf(eps_pga_list) * depsilon
@@ -415,7 +416,7 @@ class GMPE(object):
 
 			## Integrate explicitly over epsilon
 			exceedance_prob = np.zeros_like(iml)
-			for e in range(len((eps_pga_list))):
+			for e in range(len(eps_pga_list)):
 				exceedance_prob[pga_eps_pga_list[e] > iml] += (prob_eps_list[e] * cav_exceedance_prob[e])
 
 		else:
@@ -442,7 +443,7 @@ class GMPE(object):
 			sigma_ln_sa_given_pga = np.sqrt(1 - b1**2) * sigma_ln_sa
 
 			## Loop over eps_pga
-			exceedance_prob = 0
+			exceedance_prob = np.zeros_like(iml)
 			for e, eps_pga in enumerate(eps_pga_list):
 				## Determine epsilon value of SA, and sigma
 				## Eq. 3-1
