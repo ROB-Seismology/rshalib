@@ -19,7 +19,7 @@ from openquake.hazardlib.imt import PGA, SA, PGV, PGD, MMI
 from base import SHAModelBase
 from ..geo import *
 from ..site import *
-from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, ProbabilityMatrix, DeaggregationSlice
+from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, ProbabilityArray, ProbabilityMatrix, DeaggregationSlice
 from ..logictree import GroundMotionSystem, SeismicSourceSystem
 from ..crisis import write_DAT_2007
 from ..openquake import OQ_Params
@@ -287,7 +287,7 @@ class PSHAModel(PSHAModelBase):
 		self.source_model = source_model
 		self.ground_motion_model = ground_motion_model
 
-	def run_nhlib_shcf(self, plot=False, write=False, nrml_base_filespec=""):
+	def run_nhlib_shcf(self, plot=False, write=False, nrml_base_filespec="", cav_min=0.):
 		"""
 		Run PSHA model with nhlib, and store result in one or more
 		SpectralHazardCurfeField objects.
@@ -301,6 +301,8 @@ class PSHAModel(PSHAModelBase):
 		:param nrml_base_filespec:
 			String, base file specification for NRML output file
 			(default: "").
+		:param cav_min:
+			float, CAV threshold in g.s (default: 0. = no CAV filtering).
 
 		:return:
 			dict {imt (string) : SpectralHazardCurveField object}
@@ -310,13 +312,14 @@ class PSHAModel(PSHAModelBase):
 		else:
 			nrml_base_filespec = os.path.splitext(nrml_base_filespec)[0]
 		nhlib_params = self._get_nhlib_params()
-		hazard_result = self.run_nhlib_poes(nhlib_params)
+		hazard_result = self.run_nhlib_poes(nhlib_params, cav_min=cav_min)
 		imtls = self._get_imt_intensities()
 		shcfs = {}
 		site_names = [site.name for site in self.get_sites()]
 		for imt, periods in self.imt_periods.items():
 			# TODO: add method to PSHAModelBase to associate nhlib/OQ imt's with units
-			shcf = SpectralHazardCurveField(self.name, [''], self.get_sites(), periods, imt, imtls[imt], 'g', self.time_span, poes=hazard_result[imt], site_names=site_names)
+			poes = ProbabilityArray(hazard_result[imt])
+			shcf = SpectralHazardCurveField(self.name, poes, [''], self.get_sites(), periods, imt, imtls[imt], 'g', self.time_span)
 			nrml_filespec = nrml_base_filespec + '_%s.xml' % imt
 			shcfs[imt] = shcf
 			if plot:
@@ -325,7 +328,7 @@ class PSHAModel(PSHAModelBase):
 				shcf.write_nrml(nrml_filespec)
 		return shcfs
 
-	def run_nhlib_poes(self, nhlib_params=None):
+	def run_nhlib_poes(self, nhlib_params=None, cav_min=0.):
 		"""
 		Run PSHA model with nhlib. Output is a dictionary mapping intensity
 		measure types to probabilities of exceedance (poes).
@@ -334,6 +337,8 @@ class PSHAModel(PSHAModelBase):
 			dict containing parameters specific for nhlib, namely 'soil_site_model',
 			'imts', 'ssdf', and 'rsdf'. See :class:`PSHAModelBase`.`_get_nhlib_params`
 			for an explanation of these keys.
+		:param cav_min:
+			float, CAV threshold in g.s (default: 0. = no CAV filtering).
 
 		:return:
 			dict {imt (string) : poes (2-D numpy array of poes)}
@@ -341,7 +346,7 @@ class PSHAModel(PSHAModelBase):
 		if not nhlib_params:
 			nhlib_params = self._get_nhlib_params()
 		num_sites = len(nhlib_params['soil_site_model'])
-		hazard_curves = nhlib.calc.hazard_curves_poissonian(self.source_model, nhlib_params['soil_site_model'], nhlib_params['imts'], self.time_span, self._get_nhlib_trts_gsims_map(), self.truncation_level, nhlib_params['ssdf'], nhlib_params['rsdf'])
+		hazard_curves = nhlib.calc.hazard_curves_poissonian(self.source_model, nhlib_params['soil_site_model'], nhlib_params['imts'], self.time_span, self._get_nhlib_trts_gsims_map(), self.truncation_level, nhlib_params['ssdf'], nhlib_params['rsdf'], cav_min=cav_min)
 		hazard_result = {}
 		for imt, periods in self.imt_periods.items():
 			if len(periods) > 1:
