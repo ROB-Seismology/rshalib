@@ -52,8 +52,8 @@ for sm in source_models:
 #MFD_pmf_dict = {}
 
 ## Logic tree with relative uncertainties for all source models in both Mmax and MFD
-Mmax_pmf_dict = {None: {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}}
-MFD_pmf_dict = {None: {None: rshalib.pmf.MFDPMF([-0.1, 0.1], [0.4, 0.6])}}
+#Mmax_pmf_dict = {None: {None: rshalib.pmf.MmaxPMF([-0.2, 0, 0.2], [0.5, 0.3, 0.2], absolute=False)}}
+#MFD_pmf_dict = {None: {None: rshalib.pmf.MFDPMF([-0.1, 0.1], [0.4, 0.6])}}
 
 ## Logic tree with relative uncertainties for all sources in MFD
 #Mmax_pmf_dict = {}
@@ -105,13 +105,14 @@ source_model_lt2.plot_diagram(fig_filespec=fig_filespec)
 """
 
 ## Sample logic tree
-from hazard.psha.Projects.SHRE_NPP.params.gmpe import gmpe_lt
+from hazard.psha.Projects.SHRE_NPP.logictree.gmpe_lt import gmpe_lt
 
 random_seed = 1
 num_samples = 3
 verbose = True
 show_plot = True
-psha_model_tree = rshalib.shamodel.PSHAModelTree("Test", source_models, source_model_lt, gmpe_lt, "", random_seed=random_seed)
+sites = [rshalib.site.SHASite(4.5, 51.0)]
+psha_model_tree = rshalib.shamodel.PSHAModelTree("Test", source_model_lt, gmpe_lt, "", sites=sites, random_seed=random_seed)
 #psha_models = psha_model_tree.sample_source_model_lt(num_samples, verbose=verbose, show_plot=show_plot)
 #psha_model_tree.sample_gmpe_lt(num_samples, verbose=verbose)
 psha_models, weights = psha_model_tree.enumerate_source_model_lt(verbose=verbose, show_plot=show_plot)
