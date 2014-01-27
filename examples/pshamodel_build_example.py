@@ -221,6 +221,6 @@ if __name__ == '__main__':
 	"""
 	psha_model = create_psha_model("crisis")
 	gra_filespec = psha_model.write_crisis(overwrite=False)
-	#shcf = rshalib.crisis.readCRISIS_GRA(os.path.splitext(gra_filespec)[0])
+	#shcf = rshalib.crisis.read_GRA(os.path.splitext(gra_filespec)[0])
 	#shcf.plot()
 	"""
