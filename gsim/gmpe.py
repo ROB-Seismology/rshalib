@@ -406,7 +406,7 @@ class GMPE(object):
 			pga = self.__call__(M, d, h=h, imt="PGA", T=0, epsilon=eps_pga, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 			pga_eps_pga_list[e] = pga
 			## CAV exceedance probability for PGA
-			cav_exceedance_prob[e] = calc_CAV_exceedance_prob(pga, M, vs30, CAVmin=0.16, duration_dependent=True)
+			cav_exceedance_prob[e] = calc_CAV_exceedance_prob(pga, M, vs30, CAVmin=cav_min, duration_dependent=True)
 
 		if imt == "PGA":
 			## The following is not correct (no explicit integration over epsilon)
