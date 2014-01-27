@@ -4,9 +4,9 @@ Classes to smooth seismicity.
 
 
 import numpy as np
-from scipy.stats import norm
 
 from openquake.hazardlib.geo.geodetic import geodetic_distance
+from scipy.stats import norm
 
 from ..geo import Point
 from ..mfd import EvenlyDiscretizedMFD
@@ -203,62 +203,6 @@ class SmoothedSeismicity(object):
 		"""
 		return np.add.accumulate(self.inc_occ_rates[:,:,::-1], 2)[:,:,::-1]
 	
-	def get_smrs_obs(self):
-		"""
-		Get seismic moment rates obs.
-		
-		:return:
-			2d array (~ grid.shape)
-		"""
-		smrs_obs = np.zeros(self.grid.shape)
-		for i in np.ndindex(self.grid.shape):
-			mfd_obs = self.mfds_obs[i]
-			if mfd_obs:
-				smrs_obs[i] = mfd_obs._get_total_moment_rate()
-		return smrs_obs
-	
-	def get_smrs_est(self):
-		"""
-		Get seismic moment rates est.
-		
-		:return:
-			2d array (~ grid.shape)
-		"""
-		smrs_est = np.zeros(self.grid.shape)
-		for i in np.ndindex(self.grid.shape):
-			mfd_est = self.mfds_est[i]
-			if mfd_est:
-				smrs_est[i] = mfd_est._get_total_moment_rate()
-		return smrs_est
-	
-	def get_total_mfd_obs(self):
-		"""
-		Get total obs mfd (sum of all obs mfds).
-		
-		:return:
-			instance of :class:`rshalib.mfd.EvenlyDiscretizedMFD` or None
-		"""
-		total_mfd = None
-		for i in np.ndindex(self.grid.shape):
-			mfd_obs = self.mfds_obs[i]
-			if mfd_obs:
-				total_mfd = total_mfd + mfd_obs if total_mfd else mfd_obs
-		return total_mfd
-	
-	def get_total_mfd_est(self):
-		"""
-		Get total est mfd (sum of all est mfds).
-		
-		:return:
-			instance of :class:`rshalib.mfd.EvenlyDiscretizedMFD` or None
-		"""
-		total_mfd = None
-		for i in np.ndindex(self.grid.shape):
-			mfd_est = self.mfds_est[i]
-			if mfd_est:
-				total_mfd = total_mfd + mfd_est if total_mfd else mfd_est
-		return total_mfd
-	
 	def get_a_vals(self):
 		"""
 		Get a values.
@@ -296,6 +240,104 @@ class SmoothedSeismicity(object):
 		"""
 		return np.log10((10**self.a_vals) * (norm_area / self.grid.areas))
 	
+	def get_smrs_obs(self):
+		"""
+		Get seismic moment rates obs.
+		
+		:return:
+			2d array (~ grid.shape)
+		"""
+		smrs_obs = np.zeros(self.grid.shape)
+		for i in np.ndindex(self.grid.shape):
+			mfd_obs = self.mfds_obs[i]
+			if mfd_obs:
+				smrs_obs[i] = mfd_obs._get_total_moment_rate()
+		return smrs_obs
+	
+	def get_smrs_est(self):
+		"""
+		Get seismic moment rates est.
+		
+		:return:
+			2d array (~ grid.shape)
+		"""
+		smrs_est = np.zeros(self.grid.shape)
+		for i in np.ndindex(self.grid.shape):
+			mfd_est = self.mfds_est[i]
+			if mfd_est:
+				smrs_est[i] = mfd_est._get_total_moment_rate()
+		return smrs_est
+	
+	def get_area_sources_mfd_obs(self, source_model_name):
+		"""
+		Sum obs mfds for each area source of area source model
+		"""
+		import ogr
+		from eqcatalog.source_models import read_source_model
+		source_model = read_source_model(source_model_name, verbose=False)
+		mfds = {source_id: None for source_id in source_model if source_model[source_id]["obj"].GetGeometryName() == "POLYGON"}
+		for i in np.ndindex(self.grid.shape):
+			mfd_obs = self.mfds_obs[i]
+			if mfd_obs:
+				point = ogr.Geometry(ogr.wkbPoint)
+				point.SetPoint(0, self.grid.lons[i], self.grid.lats[i])
+				for source_id in mfds:
+					if source_model[source_id]["obj"].Contains(point):
+						if mfds[source_id]:
+							mfds[source_id] = mfd_obs + mfds[source_id]
+						else:
+							mfds[source_id] = mfd_obs
+		return mfds
+	
+	def get_area_sources_mfd_est(self, source_model_name):
+		"""
+		Sum est mfds for each area source of area source model
+		"""
+		import ogr
+		from eqcatalog.source_models import read_source_model
+		source_model = read_source_model(source_model_name, verbose=False)
+		mfds = {source_id: None for source_id in source_model if source_model[source_id]["obj"].GetGeometryName() == "POLYGON"}
+		for i in np.ndindex(self.grid.shape):
+			mfd_est = self.mfds_est[i]
+			if mfd_est:
+				point = ogr.Geometry(ogr.wkbPoint)
+				point.SetPoint(0, self.grid.lons[i], self.grid.lats[i])
+				for source_id in mfds:
+					if source_model[source_id]["obj"].Contains(point):
+						if mfds[source_id]:
+							mfds[source_id] = mfd_est + mfds[source_id]
+						else:
+							mfds[source_id] = mfd_est
+		return mfds
+	
+	def get_total_mfd_obs(self):
+		"""
+		Get total obs mfd (sum of all obs mfds).
+		
+		:return:
+			instance of :class:`rshalib.mfd.EvenlyDiscretizedMFD` or None
+		"""
+		total_mfd = None
+		for i in np.ndindex(self.grid.shape):
+			mfd_obs = self.mfds_obs[i]
+			if mfd_obs:
+				total_mfd = total_mfd + mfd_obs if total_mfd else mfd_obs
+		return total_mfd
+	
+	def get_total_mfd_est(self):
+		"""
+		Get total est mfd (sum of all est mfds).
+		
+		:return:
+			instance of :class:`rshalib.mfd.EvenlyDiscretizedMFD` or None
+		"""
+		total_mfd = None
+		for i in np.ndindex(self.grid.shape):
+			mfd_est = self.mfds_est[i]
+			if mfd_est:
+				total_mfd = total_mfd + mfd_est if total_mfd else mfd_est
+		return total_mfd
+	
 	def to_source_model(self, smn, trt, rms, msr, rar, usd, lsd, npd, hdd):
 		"""
 		To source model.
@@ -332,6 +374,21 @@ class SmoothedSeismicity(object):
 				point = Point(lon, lat)
 				point_sources.append(PointSource(id, name, trt, mfd_est, rms, msr, rar, usd, lsd, point, npd, hdd))
 		return SourceModel(smn, point_sources)
+	
+	def _plot_map(self, data, dlon=None, dlat=None, vmin=None, vmax=None, fig_title="", clb_title="", fig_filespec=None, fig_width=0, dpi=300):
+		"""
+		"""
+		import mapping.Basemap.LayeredBasemap as lbmap
+		map_layers = []
+		cmt = lbmap.ThematicStyleColormap("jet", vmin=vmin, vmax=vmax)
+		cbs = lbmap.ColorbarStyle(title=clb_title)
+		gd = lbmap.GridData(self.grid.lons, self.grid.lats, data)
+		gs = lbmap.GridStyle(color_map_theme=cmt, colorbar_style=cbs)
+		map_layers.append(lbmap.MapLayer(gd, gs))
+		for built_in in ("coastlines", "countries"):
+			map_layers.append(lbmap.MapLayer(style=lbmap.LineStyle(), data=lbmap.BuiltinData(built_in)))
+		map = lbmap.LayeredBasemap(layers=map_layers, region=self.grid.region, projection="merc", resolution="i", grid_interval=(dlon, dlat), title=fig_title)
+		map.plot(fig_filespec=fig_filespec, fig_width=fig_width, dpi=dpi)
 
 
 def normal_smoothing_kernel(distances, bandwidth):
