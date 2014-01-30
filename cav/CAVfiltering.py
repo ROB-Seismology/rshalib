@@ -173,24 +173,29 @@ def calc_CAV_exceedance_prob(pga, M, vs30, CAVmin=0.16, duration_dependent=True)
 	if np.isscalar(vs30):
 		vs30 = np.array([vs30])
 
-	if len(pga) > 1:
-		non_zero_indexes = np.where(pga >= 0.025)
-	else:
-		if pga[0] < 0.025:
-			non_zero_indexes = np.array([], dtype='i')
-		else:
-			non_zero_indexes = np.indices((max(len(M), len(vs30)),))
-
 	prob_shape = (max(len(pga), len(M), len(vs30)),)
-	prob = np.zeros(prob_shape, 'd')
 
-	if duration_dependent:
-		ln_CAV, sigma_ln_CAV = calc_ln_CAV2(pga, M, vs30)
+	if CAVmin > 0:
+		if len(pga) > 1:
+			non_zero_indexes = np.where(pga >= 0.025)
+		else:
+			if pga[0] < 0.025:
+				non_zero_indexes = np.array([], dtype='i')
+			else:
+				non_zero_indexes = np.indices((max(len(M), len(vs30)),))
+
+		prob = np.zeros(prob_shape, 'd')
+
+		if duration_dependent:
+			ln_CAV, sigma_ln_CAV = calc_ln_CAV2(pga, M, vs30)
+		else:
+			ln_CAV, sigma_ln_CAV = calc_ln_CAV1(pga, M, vs30)
+
+		epsilon_CAV = (np.log(CAVmin) - ln_CAV[non_zero_indexes]) / sigma_ln_CAV[non_zero_indexes]
+		prob[non_zero_indexes] = 1.0 - scipy.stats.norm.cdf(epsilon_CAV)
+
 	else:
-		ln_CAV, sigma_ln_CAV = calc_ln_CAV1(pga, M, vs30)
-
-	epsilon_CAV = (np.log(CAVmin) - ln_CAV[non_zero_indexes]) / sigma_ln_CAV[non_zero_indexes]
-	prob[non_zero_indexes] = 1.0 - scipy.stats.norm.cdf(epsilon_CAV)
+		prob = np.ones(prob_shape, 'd')
 
 	if scalar:
 		prob = prob[0]

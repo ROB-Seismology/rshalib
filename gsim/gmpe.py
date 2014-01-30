@@ -393,10 +393,44 @@ class GMPE(object):
 			vs30 = 800
 
 		iml = np.asarray(iml)
+
+		## Determine PGA truncation level corresponding to SA truncation level
+		if imt == "SA":
+			## Correlation coefficients between PGA and SA (Table 3-1)
+			if cav_min > 0:
+				b1_freqs = np.array([0.5, 1, 2.5, 5, 10, 20, 25, 35])
+				b1_WUS = np.array([0.59, 0.59, 0.6, 0.633, 0.787, 0.931, 0.956, 0.976])
+				b1_EUS = np.array([0.5, 0.55, 0.6, 0.75, 0.88, 0.9, 0.91, 0.93])
+				if eps_correlation_model == "WUS":
+					b1 = interpolate(b1_freqs, b1_WUS, [1./T])[0]
+				elif eps_correlation_model == "EUS":
+					b1 = interpolate(b1_freqs, b1_EUS, [1./T])[0]
+
+				#print "PGA truncation level: ", truncation_level / b1
+			else:
+				## This makes:
+				## eps_sa = 0
+				## sigma_ln_sa_given_pga = sigma_ln_sa
+				## ln_sa_given_pga = ln_sa_med
+				b1 = 0
+
+			sa_truncation_level = truncation_level * b1
+			#div, mod = divmod(sa_truncation_level, depsilon)
+			#if mod >= (depsilon / 2.):
+			#	div += 1
+			#sa_truncation_level = depsilon * div
+			print sa_truncation_level
+			eps_sa_dist = scipy.stats.truncnorm(-sa_truncation_level, sa_truncation_level)
+		#else:
+		pga_truncation_level = truncation_level
+
 		## Normally distributed epsilon values and corresponding probabilities
-		dist = scipy.stats.truncnorm(-truncation_level, truncation_level)
-		eps_pga_list = seq(-truncation_level, truncation_level, depsilon)
-		prob_eps_list = dist.pdf(eps_pga_list) * depsilon
+		neps = int(truncation_level / depsilon) * 2 + 1
+		eps_pga_list = np.linspace(-truncation_level, truncation_level, neps)
+		eps_dist = scipy.stats.truncnorm(-pga_truncation_level, pga_truncation_level)
+		prob_eps_list = eps_dist.pdf(eps_pga_list) * depsilon
+		prob_eps_list /= np.add.reduce(prob_eps_list)
+		#prob_eps_list = 1 - eps_dist.cdf(eps_pga_list)
 
 		## Pre-calculate CAV exceedance probabilities for epsilon PGA
 		pga_eps_pga_list = np.zeros_like(eps_pga_list)
@@ -408,6 +442,9 @@ class GMPE(object):
 			## CAV exceedance probability for PGA
 			cav_exceedance_prob[e] = calc_CAV_exceedance_prob(pga, M, vs30, CAVmin=cav_min, duration_dependent=True)
 
+		joint_exceedance_prob = np.zeros_like(iml)
+		#joint_exceedance_prob = np.ones_like(iml)
+
 		if imt == "PGA":
 			## The following is not correct (no explicit integration over epsilon)
 			#cav_exceedance_prob = calc_CAV_exceedance_prob(iml, M, vs30, CAVmin=cav_min, duration_dependent=True)
@@ -415,21 +452,12 @@ class GMPE(object):
 			#exceedance_prob = cav_exceedance_prob * pga_exceedance_prob
 
 			## Integrate explicitly over epsilon
-			exceedance_prob = np.zeros_like(iml)
 			for e in range(len(eps_pga_list)):
-				exceedance_prob[pga_eps_pga_list[e] > iml] += (prob_eps_list[e] * cav_exceedance_prob[e])
+				joint_exceedance_prob[pga_eps_pga_list[e] > iml] += (prob_eps_list[e] * cav_exceedance_prob[e])
+				#joint_exceedance_prob[pga_eps_pga_list[e] <= iml] = (prob_eps_list[e] * cav_exceedance_prob[e])
 
 		else:
 			sa_exceedance_prob = self.get_exceedance_probability(iml, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, truncation_level=truncation_level)
-
-			## Correlation coefficients between PGA and SA (Table 3-1)
-			b1_freqs = np.array([0.5, 1, 2.5, 5, 10, 20, 25, 35])
-			b1_WUS = np.array([0.59, 0.59, 0.6, 0.633, 0.787, 0.931, 0.956, 0.976])
-			b1_EUS = np.array([0.5, 0.55, 0.6, 0.75, 0.88, 0.9, 0.91, 0.93])
-			if eps_correlation_model == "WUS":
-				b1 = interpolate(b1_freqs, b1_WUS, [1./T])[0]
-			elif eps_correlation_model == "EUS":
-				b1 = interpolate(b1_freqs, b1_EUS, [1./T])[0]
 
 			## Determine median SA and sigma
 			sa_med = self.__call__(M, d, h=h, imt="SA", T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
@@ -442,28 +470,33 @@ class GMPE(object):
 			## Eq. 3-3
 			sigma_ln_sa_given_pga = np.sqrt(1 - b1**2) * sigma_ln_sa
 
-			## Loop over eps_pga
-			exceedance_prob = np.zeros_like(iml)
+			## Integrate over eps_pga (inner integral of Eq. 4.1)
 			for e, eps_pga in enumerate(eps_pga_list):
 				## Determine epsilon value of SA, and sigma
 				## Eq. 3-1
 				eps_sa = b1 * eps_pga
+				print eps_pga, eps_sa
 				## Eq. 3-2
 				ln_sa_given_pga = ln_sa_med + eps_sa * sigma_ln_sa
 
 				## Determine probability of exceedance of SA given PGA
 				## Eq. 4-3
+				#idxs = np.where(ln_sa_given_pga > ln_iml)
 				eps_sa_dot = (ln_iml - ln_sa_given_pga) / sigma_ln_sa_given_pga
+				#eps_sa_dot = eps_sa_dot[idxs]
+				print eps_sa_dot[-5:]
 				## Eq. 4-2
-				prob_sa_given_pga = 1.0 - scipy.stats.norm.cdf(eps_sa_dot)
+				prob_sa_given_pga = 1.0 - eps_dist.cdf(eps_sa_dot)
+				print prob_sa_given_pga[-5:]
 
-				exceedance_prob += (prob_eps_list[e] * cav_exceedance_prob[e] * prob_sa_given_pga)
+				joint_exceedance_prob += (prob_eps_list[e] * cav_exceedance_prob[e] * prob_sa_given_pga)
+				#joint_exceedance_prob[idxs] += (cav_exceedance_prob[e] * prob_sa_given_pga)
 
 			## iml values close to truncation boundaries should have lower exceedance rates
 			## This also constrains iml between (-truncation_level, truncation_level)
-			exceedance_prob = np.minimum(exceedance_prob, sa_exceedance_prob)
+			#joint_exceedance_prob = np.minimum(joint_exceedance_prob, sa_exceedance_prob)
 
-		return exceedance_prob
+		return joint_exceedance_prob
 
 
 	def is_depth_dependent(self):
