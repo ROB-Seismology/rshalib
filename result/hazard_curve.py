@@ -3912,7 +3912,7 @@ class HazardMapSet(HazardResult, HazardField):
 	intensities: 2-D array [p, i]
 	"""
 	def __init__(self, model_name, filespecs, sites, period, IMT, intensities, intensity_unit="g", timespan=50, poes=None, return_periods=None, vs30s=None):
-		if return_periods:
+		if not return_periods in (None, []):
 			hazard_values = ExceedanceRateArray(1./return_periods)
 		elif poes:
 			hazard_values = ProbabilityArray(poes)
@@ -3981,6 +3981,7 @@ class HazardMapSet(HazardResult, HazardField):
 			intensities = self.intensities[index]
 			return HazardMap(self.model_name, filespec, self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
 
+	# TODO: the following methods are perhaps better suited in a HazardMapTree class
 	def get_max_hazard_map(self):
 		"""
 		Get hazard map with for each site the maximum value of all hazard maps in the set.
@@ -3988,8 +3989,88 @@ class HazardMapSet(HazardResult, HazardField):
 		:returns:
 			instance of :class:`HazardMap`
 		"""
-		intensities = np.amax([intensities for intensities in self.intensities], axis=0)
-		return HazardMap(self.model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=1, vs30s=self.vs30s)
+		intensities = np.amax(self.intensities, axis=0)
+		if len(set(self.return_periods)) == 1:
+			return_period = self.return_periods[0]
+		else:
+			return_period = 1
+		model_name = "Max(%s)" % self.model_name
+		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
+	def get_min_hazard_map(self):
+		"""
+		Get hazard map with for each site the minimum value of all hazard maps in the set.
+
+		:returns:
+			instance of :class:`HazardMap`
+		"""
+		intensities = np.amin(self.intensities, axis=0)
+		if len(set(self.return_periods)) == 1:
+			return_period = self.return_periods[0]
+		else:
+			return_period = 1
+		model_name = "Min(%s)" % self.model_name
+		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
+	def get_mean_hazard_map(self):
+		"""
+		Get mean hazard map
+
+		:return:
+			instance of :class:`HazardMap`
+		"""
+		intensities = np.mean(self.intensities, axis=0)
+		if len(set(self.return_periods)) == 1:
+			return_period = self.return_periods[0]
+		else:
+			return_period = 1
+		model_name = "Mean(%s)" % self.model_name
+		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
+	def get_median_hazard_map(self):
+		"""
+		Get median hazard map
+
+		:return:
+			instance of :class:`HazardMap`
+		"""
+		intensities = np.median(self.intensities, axis=0)
+		if len(set(self.return_periods)) == 1:
+			return_period = self.return_periods[0]
+		else:
+			return_period = 1
+		model_name = "Median(%s)" % self.model_name
+		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
+	def get_variance_hazard_map(self):
+		"""
+		Get hazard map of variance at each site.
+
+		:return:
+			instance of :class:`HazardMap`
+		"""
+		intensities = np.var(self.intensities, axis=0)
+		if len(set(self.return_periods)) == 1:
+			return_period = self.return_periods[0]
+		else:
+			return_period = 1
+		model_name = "Var(%s)" % self.model_name
+		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
+	def get_std_hazard_map(self):
+		"""
+		Get hazard map of standard deviation at each site.
+
+		:return:
+			instance of :class:`HazardMap`
+		"""
+		intensities = np.std(self.intensities, axis=0)
+		if len(set(self.return_periods)) == 1:
+			return_period = self.return_periods[0]
+		else:
+			return_period = 1
+		model_name = "Std(%s)" % self.model_name
+		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
 
 	def export_VM(self, base_filespec):
 		for hazardmap in self:
