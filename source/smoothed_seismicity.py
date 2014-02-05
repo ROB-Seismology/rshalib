@@ -4,6 +4,7 @@ Classes to smooth seismicity.
 
 
 import numpy as np
+import ogr
 
 from openquake.hazardlib.geo.geodetic import geodetic_distance
 from scipy.stats import norm
@@ -74,6 +75,18 @@ class SmoothedSeismicity(object):
 			tuple, shape of grid + mag bins
 		"""
 		return self.grid.shape + self.mag_bins.shape
+	
+	def _get_index(self, lon, lat):
+		"""
+		:param lon:
+			float, lon of site
+		:param lat:
+			float, lat of site
+		
+		:return:
+			(int, int) tuple, index of site
+		"""
+		return np.unravel_index(geodetic_distance(self.grid.lons, self.grid.lats, lon, lat).argmin(), self.grid.shape)
 	
 	def _get_mag_bins(self):
 		"""
@@ -338,33 +351,44 @@ class SmoothedSeismicity(object):
 				total_mfd = total_mfd + mfd_est if total_mfd else mfd_est
 		return total_mfd
 	
-	def to_source_model(self, smn, trt, rms, msr, rar, usd, lsd, npd, hdd):
+	def to_source_model(self, smn, source_model_name=None, min_mag=None, trt=None, rms=None, msr=None, rar=None, usd=None, lsd=None, npd=None, hdd=None):
 		"""
 		To source model.
 		
 		:param smn:
 			see :class:`rshalib.source.SourceModel`
 		:param trt:
-			see :class:`rshalib.source.PointSource`
+			see :class:`rshalib.source.PointSource` (default: None, taken from
+			source model defined by :param:`source_model_name`)
 		:param rms:
-			see :class:`rshalib.source.PointSource`
+			see :class:`rshalib.source.PointSource` (default: None, taken from
+			source model defined by :param:`source_model_name`)
 		:param msr:
-			see :class:`rshalib.source.PointSource`
+			see :class:`rshalib.source.PointSource` (default: None, taken from
+			source model defined by :param:`source_model_name`)
 		:param rar:
-			see :class:`rshalib.source.PointSource`
+			see :class:`rshalib.source.PointSource` (default: None, taken from
+			source model defined by :param:`source_model_name`)
 		:param usd:
-			see :class:`rshalib.source.PointSource`
+			see :class:`rshalib.source.PointSource` (default: None, taken from
+			source model defined by :param:`source_model_name`)
 		:param lsd:
-			see :class:`rshalib.source.PointSource`
+			see :class:`rshalib.source.PointSource` (default: None, taken from
+			source model defined by :param:`source_model_name`)
 		:param npd:
-			see :class:`rshalib.source.PointSource`
+			see :class:`rshalib.source.PointSource` (default: None, taken from
+			source model defined by :param:`source_model_name`)
 		:param hdd:
-			see :class:`rshalib.source.PointSource`
+			see :class:`rshalib.source.PointSource` (default: None, taken from
+			source model defined by :param:`source_model_name`)
 		
 		:return:
 			instance of :class:`rshalib.source.SourceModel`
 		"""
+		from ..rob import create_rob_source_model
 		point_sources = []
+		if source_model_name:
+			source_model = create_rob_source_model(source_model_name, verbose=False)
 		for i in np.ndindex(self.grid.shape):
 			mfd_est = self.mfds_est[i]
 			if mfd_est:
@@ -372,7 +396,22 @@ class SmoothedSeismicity(object):
 				lat = self.grid.lats[i]
 				id, name = str(i), str((lon, lat))
 				point = Point(lon, lat)
-				point_sources.append(PointSource(id, name, trt, mfd_est, rms, msr, rar, usd, lsd, point, npd, hdd))
+				if min_mag:
+					mfd_est.min_mag = min_mag
+				if source_model_name:
+					ogr_point = ogr.Geometry(ogr.wkbPoint)
+					ogr_point.SetPoint(0, lon, lat)
+					for source in source_model.get_area_sources():
+						if source.to_ogr_geometry().Contains(ogr_point):
+							trt_ = trt or source.tectonic_region_type
+							rms_ = rms or source.rupture_mesh_spacing
+							msr_ = msr or source.magnitude_scaling_relationship
+							rar_ = rar or source.rupture_aspect_ratio
+							usd_ = usd or source.upper_seismogenic_depth
+							lsd_ = lsd or source.lower_seismogenic_depth
+							npd_ = npd or source.nodal_plane_distribution
+							hdd_ = hdd or source.hypocenter_distribution
+				point_sources.append(PointSource(id, name, trt_, mfd_est, rms_, msr_, rar_, usd_, lsd_, point, npd_, hdd_))
 		return SourceModel(smn, point_sources)
 	
 	def _plot_map(self, data, dlon=None, dlat=None, vmin=None, vmax=None, fig_title="", clb_title="", fig_filespec=None, fig_width=0, dpi=300):
