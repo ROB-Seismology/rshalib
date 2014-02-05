@@ -285,7 +285,6 @@ class SmoothedSeismicity(object):
 		"""
 		Sum obs mfds for each area source of area source model
 		"""
-		import ogr
 		from eqcatalog.source_models import read_source_model
 		source_model = read_source_model(source_model_name, verbose=False)
 		mfds = {source_id: None for source_id in source_model if source_model[source_id]["obj"].GetGeometryName() == "POLYGON"}
@@ -306,7 +305,6 @@ class SmoothedSeismicity(object):
 		"""
 		Sum est mfds for each area source of area source model
 		"""
-		import ogr
 		from eqcatalog.source_models import read_source_model
 		source_model = read_source_model(source_model_name, verbose=False)
 		mfds = {source_id: None for source_id in source_model if source_model[source_id]["obj"].GetGeometryName() == "POLYGON"}
@@ -350,6 +348,11 @@ class SmoothedSeismicity(object):
 			if mfd_est:
 				total_mfd = total_mfd + mfd_est if total_mfd else mfd_est
 		return total_mfd
+	
+	def get_goodness_of_fits(self):
+		"""
+		"""
+		return
 	
 	def to_source_model(self, smn, source_model_name=None, min_mag=None, trt=None, rms=None, msr=None, rar=None, usd=None, lsd=None, npd=None, hdd=None):
 		"""
