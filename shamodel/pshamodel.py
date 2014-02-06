@@ -19,7 +19,7 @@ from openquake.hazardlib.imt import PGA, SA, PGV, PGD, MMI
 from base import SHAModelBase
 from ..geo import *
 from ..site import *
-from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, ProbabilityArray, ProbabilityMatrix, DeaggregationSlice
+from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, ProbabilityArray, ProbabilityMatrix, DeaggregationSlice, SpectralDeaggregationCurve
 from ..logictree import GroundMotionSystem, SeismicSourceSystem
 from ..crisis import write_DAT_2007
 from ..openquake import OQ_Params
@@ -402,6 +402,57 @@ class PSHAModel(PSHAModelBase):
 		else:
 			period = 0
 		return DeaggregationSlice(bin_edges, deagg_matrix, site, imt_name, iml, period, self.time_span)
+
+	def deagg_nhlib_multi(self, site_imtls, n_epsilons=None, mag_bin_width=None, dist_bin_width=10., coord_bin_width=1.0):
+		"""
+		Run deaggregation with nhlib for multiple sites, multiple imt's
+		per site, and multiple iml's per iml
+
+		:param site_imtls:
+			nested dictionary mapping (lon, lat) tuples to dictionaries
+			mapping nhlib intensity measure type objects to 1-D arrays
+			of intensity measure levels
+		:param n_epsilons:
+			Int, number of epsilon bins (default: None, will result in bins
+				corresponding to integer epsilon values)
+		:param mag_bin_width:
+			Float, magnitude bin width (default: None, will take MFD bin width
+				of first source)
+		:param dist_bin_width:
+			Float, distance bin width in km (default: 10.)
+		:param coord_bin_width:
+			Float, lon/lat bin width in decimal degrees (default: 1.)
+
+		:return:
+			instance of :class:`SpectralDeaggregationCurve` or None
+		"""
+		if not n_epsilons:
+			n_epsilons = 2 * int(np.ceil(self.truncation_level))
+		if not mag_bin_width:
+			mag_bin_width = self.source_model[0].mfd.bin_width
+
+		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
+		rsdf = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
+
+		site_model = self.get_soil_site_model()
+		all_sites = site_model.get_sha_sites()
+		deagg_soil_sites = [site for site in site_model.get_sites() if (site.lon, site.lat) in site_imtls.keys()]
+		deagg_site_model = SoilSiteModel("", deagg_soil_sites)
+		for deagg_result in nhlib.calc.disaggregation_poissonian_multi(self.source_model, deagg_site_model, site_imtls, self._get_nhlib_trts_gsims_map(), self.time_span, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf):
+			deagg_site, bin_edges, deagg_matrix = deagg_result
+			if (bin_edges, deagg_matrix) == (None, None):
+				## No deaggregation results for this site
+				yield None
+			else:
+				for site in all_sites:
+					if deagg_site.location.longitude == site.lon and deagg_site.location.latitude == site.lat:
+						break
+				imtls = site_imtls[(site.lon, site.lat)]
+				imts = imtls.keys()
+				periods = [getattr(imt, "period", 0) for imt in imts]
+				intensities = np.array([imtls[imt] for imt in imts])
+				deagg_matrix = ProbabilityMatrix(deagg_matrix)
+				yield SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, "SA", intensities, periods, self.time_span)
 
 	def _get_implicit_openquake_params(self):
 		"""
