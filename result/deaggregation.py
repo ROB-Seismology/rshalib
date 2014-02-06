@@ -1076,7 +1076,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 	def __init__(self, bin_edges, deagg_matrix, site, imt, intensities, periods, timespan):
 		self.site = site
 		self.imt = imt
-		self.periods = periods
+		self.periods = np.array(periods)
 
 		## Make sure intensities are ordered from small to large
 		if intensities[0,0] > intensities[0,-1]:
@@ -1120,7 +1120,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 	def from_deaggregation_curves(self, deagg_curves):
 		"""
 		Construct new instance of :class:`SpectralDeaggregationCurve` from a
-		number of deaggregation slices.
+		number of deaggregation curves.
 
 		:param deagg_curves:
 			list of instances of :class:`DeaggregationCurve`
