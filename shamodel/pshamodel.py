@@ -146,7 +146,7 @@ class PSHAModelBase(SHAModelBase):
 		"""
 		imtls = {}
 		for imt, periods in self.imt_periods.items():
-			if len(periods) > 1:
+			if imt == "SA":
 				for k, period in enumerate(periods):
 					if self.intensities:
 						imtls[eval(imt)(period, 5.)] = np.array(self.intensities)
@@ -349,7 +349,7 @@ class PSHAModel(PSHAModelBase):
 		hazard_curves = nhlib.calc.hazard_curves_poissonian(self.source_model, nhlib_params['soil_site_model'], nhlib_params['imts'], self.time_span, self._get_nhlib_trts_gsims_map(), self.truncation_level, nhlib_params['ssdf'], nhlib_params['rsdf'], cav_min=cav_min)
 		hazard_result = {}
 		for imt, periods in self.imt_periods.items():
-			if len(periods) > 1:
+			if imt == "SA":
 				poes = np.zeros((num_sites, len(periods), self.num_intensities))
 				for k, period in enumerate(periods):
 					poes[:,k,:] = hazard_curves[eval(imt)(period, 5.)]
