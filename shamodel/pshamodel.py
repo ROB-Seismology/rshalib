@@ -454,6 +454,79 @@ class PSHAModel(PSHAModelBase):
 				deagg_matrix = ProbabilityMatrix(deagg_matrix)
 				yield SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, "SA", intensities, periods, self.time_span)
 
+	def deaggregate(self, site_imtls, n_epsilons=None, mag_bin_width=None, dist_bin_width=10., coord_bin_width=1.0):
+		"""
+		Attempt to write a more speed- and memory-efficient deaggregation
+		"""
+		if not n_epsilons:
+			n_epsilons = 2 * int(np.ceil(self.truncation_level))
+		if not mag_bin_width:
+			mag_bin_width = self.source_model[0].mfd.bin_width
+
+		## Determine bin edges first
+		## (copied from oqhazlib)
+		min_mag, max_mag = self.source_model.min_mag, self.source_model.max_mag
+		mag_bins = mag_bin_width * np.arange(
+			int(np.floor(mags.min() / mag_bin_width)),
+			int(np.ceil(mags.max() / mag_bin_width) + 1)
+		)
+
+		min_dist, max_dist = 0, self.integration_distance
+		dist_bins = dist_bin_width * numpy.arange(
+			int(np.floor(dists.min() / dist_bin_width)),
+			int(np.ceil(dists.max() / dist_bin_width) + 1)
+		)
+
+		west, east, north, south = self.source_model.get_bounding_box()
+		west = np.floor(west / coord_bin_width) * coord_bin_width
+		east = np.ceil(east / coord_bin_width) * coord_bin_width
+		lon_extent = get_longitudinal_extent(west, east)
+		lon_bins, _, _ = npoints_between(
+			west, 0, 0, east, 0, 0,
+			np.round(lon_extent / coord_bin_width) + 1
+		)
+
+		# Note: why is this different from lon_bins?
+		lat_bins = coord_bin_width * numpy.arange(
+			int(np.floor(south / coord_bin_width)),
+			int(np.ceil(north / coord_bin_width) + 1)
+		)
+
+		eps_bins = np.linspace(-truncation_level, truncation_level,
+								  n_epsilons + 1)
+
+		src_bins = np.arange(len(self.source_model))
+
+		## Create deaggregation matrices
+		deagg_result = {}
+		for site_key in site_imtls.keys():
+			deagg_result[site_key] = {}
+			imtls = site_imtls[site_key]
+			imts = imtls.keys()
+			num_imts = len(imts)
+			num_imls = len(imtls[imts[0]])
+
+			deagg_matrix_shape = (num_imts, num_imls, len(mag_bins) - 1, len(dist_bins) - 1, len(lon_bins) - 1,
+						len(lat_bins) - 1, len(eps_bins) - 1, len(src_bins))
+
+			## Initiate as non-exceedance probabilities !
+			deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape))
+			deagg_result[site_key] = deagg_matrix
+
+		## Perform deaggregation
+		tom = nhlib.tom.PoissonTOM(self.time_span)
+		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
+		rsdf = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
+
+		site_model = self.get_soil_site_model()
+		all_sites = site_model.get_sha_sites()
+		deagg_soil_sites = [site for site in site_model.get_sites() if (site.lon, site.lat) in site_imtls.keys()]
+		deagg_site_model = SoilSiteModel("", deagg_soil_sites)
+		sitemesh = deagg_site_model.mesh
+
+
+
+
 	def _get_implicit_openquake_params(self):
 		"""
 		Return a dictionary of implicit openquake parameters that are
