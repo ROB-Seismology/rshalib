@@ -358,7 +358,7 @@ class PSHAModel(PSHAModelBase):
 				hazard_result[imt] = hazard_curves[eval(imt)()].reshape(num_sites, 1, self.num_intensities)
 		return hazard_result
 
-	def deagg_nhlib(self, site, imt, iml, n_epsilons=None, mag_bin_width=None, dist_bin_width=10., coord_bin_width=1.0):
+	def deagg_nhlib(self, site, imt, iml, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0):
 		"""
 		Run deaggregation with nhlib
 
@@ -368,14 +368,14 @@ class PSHAModel(PSHAModelBase):
 			Instance of :class:`nhlib.imt._IMT`, intensity measure type
 		:param iml:
 			Float, intensity measure level
-		:param n_epsilons:
-			Int, number of epsilon bins (default: None, will result in bins
-				corresponding to integer epsilon values)
 		:param mag_bin_width:
 			Float, magnitude bin width (default: None, will take MFD bin width
 				of first source)
 		:param dist_bin_width:
 			Float, distance bin width in km (default: 10.)
+		:param n_epsilons:
+			Int, number of epsilon bins (default: None, will result in bins
+				corresponding to integer epsilon values)
 		:param coord_bin_width:
 			Float, lon/lat bin width in decimal degrees (default: 1.)
 
@@ -403,7 +403,7 @@ class PSHAModel(PSHAModelBase):
 			period = 0
 		return DeaggregationSlice(bin_edges, deagg_matrix, site, imt_name, iml, period, self.time_span)
 
-	def deagg_nhlib_multi(self, site_imtls, n_epsilons=None, mag_bin_width=None, dist_bin_width=10., coord_bin_width=1.0):
+	def deagg_nhlib_multi(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0):
 		"""
 		Run deaggregation with nhlib for multiple sites, multiple imt's
 		per site, and multiple iml's per iml
@@ -412,14 +412,14 @@ class PSHAModel(PSHAModelBase):
 			nested dictionary mapping (lon, lat) tuples to dictionaries
 			mapping nhlib intensity measure type objects to 1-D arrays
 			of intensity measure levels
-		:param n_epsilons:
-			Int, number of epsilon bins (default: None, will result in bins
-				corresponding to integer epsilon values)
 		:param mag_bin_width:
 			Float, magnitude bin width (default: None, will take MFD bin width
 				of first source)
 		:param dist_bin_width:
 			Float, distance bin width in km (default: 10.)
+		:param n_epsilons:
+			Int, number of epsilon bins (default: None, will result in bins
+				corresponding to integer epsilon values)
 		:param coord_bin_width:
 			Float, lon/lat bin width in decimal degrees (default: 1.)
 
@@ -454,10 +454,14 @@ class PSHAModel(PSHAModelBase):
 				deagg_matrix = ProbabilityMatrix(deagg_matrix)
 				yield SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, "SA", intensities, periods, self.time_span)
 
-	def deaggregate(self, site_imtls, n_epsilons=None, mag_bin_width=None, dist_bin_width=10., coord_bin_width=1.0):
+	def deaggregate(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0):
 		"""
 		Attempt to write a more speed- and memory-efficient deaggregation
 		"""
+		from openquake.hazardlib.geo.geodetic import npoints_between
+		from openquake.hazardlib.geo.utils import get_longitudinal_extent
+		from openquake.hazardlib.site import SiteCollection
+
 		if not n_epsilons:
 			n_epsilons = 2 * int(np.ceil(self.truncation_level))
 		if not mag_bin_width:
@@ -467,17 +471,20 @@ class PSHAModel(PSHAModelBase):
 		## (copied from oqhazlib)
 		min_mag, max_mag = self.source_model.min_mag, self.source_model.max_mag
 		mag_bins = mag_bin_width * np.arange(
-			int(np.floor(mags.min() / mag_bin_width)),
-			int(np.ceil(mags.max() / mag_bin_width) + 1)
+			int(np.floor(min_mag / mag_bin_width)),
+			int(np.ceil(max_mag / mag_bin_width) + 1)
 		)
 
 		min_dist, max_dist = 0, self.integration_distance
-		dist_bins = dist_bin_width * numpy.arange(
-			int(np.floor(dists.min() / dist_bin_width)),
-			int(np.ceil(dists.max() / dist_bin_width) + 1)
+		dist_bins = dist_bin_width * np.arange(
+			int(np.floor(min_dist / dist_bin_width)),
+			int(np.ceil(max_dist / dist_bin_width) + 1)
 		)
 
-		west, east, north, south = self.source_model.get_bounding_box()
+		## Note that ruptures may extend beyond source limits!
+		west, east, south, north = self.source_model.get_bounding_box()
+		west -= coord_bin_width
+		east += coord_bin_width
 		west = np.floor(west / coord_bin_width) * coord_bin_width
 		east = np.ceil(east / coord_bin_width) * coord_bin_width
 		lon_extent = get_longitudinal_extent(west, east)
@@ -487,20 +494,24 @@ class PSHAModel(PSHAModelBase):
 		)
 
 		# Note: why is this different from lon_bins?
-		lat_bins = coord_bin_width * numpy.arange(
+		south -= coord_bin_width
+		north += coord_bin_width
+		lat_bins = coord_bin_width * np.arange(
 			int(np.floor(south / coord_bin_width)),
 			int(np.ceil(north / coord_bin_width) + 1)
 		)
 
-		eps_bins = np.linspace(-truncation_level, truncation_level,
+		eps_bins = np.linspace(-self.truncation_level, self.truncation_level,
 								  n_epsilons + 1)
 
-		src_bins = np.arange(len(self.source_model))
+		src_bins = [src.source_id for src in self.source_model]
+
+		bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins)
 
 		## Create deaggregation matrices
-		deagg_result = {}
+		deagg_matrix_dict = {}
 		for site_key in site_imtls.keys():
-			deagg_result[site_key] = {}
+			deagg_matrix_dict[site_key] = {}
 			imtls = site_imtls[site_key]
 			imts = imtls.keys()
 			num_imts = len(imts)
@@ -509,23 +520,98 @@ class PSHAModel(PSHAModelBase):
 			deagg_matrix_shape = (num_imts, num_imls, len(mag_bins) - 1, len(dist_bins) - 1, len(lon_bins) - 1,
 						len(lat_bins) - 1, len(eps_bins) - 1, len(src_bins))
 
-			## Initiate as non-exceedance probabilities !
+			## Initialize array with ones representing NON-exceedance probabilities !
 			deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape))
-			deagg_result[site_key] = deagg_matrix
+			deagg_matrix_dict[site_key] = deagg_matrix
 
 		## Perform deaggregation
 		tom = nhlib.tom.PoissonTOM(self.time_span)
-		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
-		rsdf = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
+		gsims = self._get_nhlib_trts_gsims_map()
+		source_site_filter = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
+		rupture_site_filter = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
 
 		site_model = self.get_soil_site_model()
-		all_sites = site_model.get_sha_sites()
 		deagg_soil_sites = [site for site in site_model.get_sites() if (site.lon, site.lat) in site_imtls.keys()]
 		deagg_site_model = SoilSiteModel("", deagg_soil_sites)
-		sitemesh = deagg_site_model.mesh
+		#sitemesh = deagg_site_model.mesh
 
+		sources = self.source_model.sources
+		sources_sites = ((source, deagg_site_model) for source in sources)
+		for src_idx, (source, s_sites) in \
+				enumerate(source_site_filter(sources_sites)):
 
+			tect_reg = source.tectonic_region_type
+			gsim = gsims[tect_reg]
 
+			ruptures_sites = ((rupture, s_sites)
+							  for rupture in source.iter_ruptures(tom))
+			for rupture, r_sites in rupture_site_filter(ruptures_sites):
+				# extract rupture parameters of interest
+				mag_idx = np.digitize([rupture.mag], mag_bins)[0] - 1
+
+				sitemesh = r_sites.mesh
+				sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
+				if hasattr(dctx, "rjb"):
+					jb_dists = dctx["rjb"]
+				else:
+					jb_dists = rupture.surface.get_joyner_boore_distance(sitemesh)
+				closest_points = rupture.surface.get_closest_points(sitemesh)
+				lons = [pt.longitude for pt in closest_points]
+				lats = [pt.latitude for pt in closest_points]
+
+				dist_idxs = np.digitize(jb_dists, dist_bins) - 1
+				lon_idxs = np.digitize(lons, lon_bins) - 1
+				lat_idxs = np.digitize(lats, lat_bins) - 1
+
+				# compute probability of one or more rupture occurrences
+				prob_one_or_more = rupture.get_probability_one_or_more_occurrences()
+
+				# compute conditional probability of exceeding iml given
+				# the current rupture, and different epsilon level, that is
+				# ``P(IMT >= iml | rup, epsilon_bin)`` for each of epsilon bins
+				for site_idx, site in enumerate(r_sites):
+					dist_idx = dist_idxs[site_idx]
+					lon_idx = lon_idxs[site_idx]
+					lat_idx = lat_idxs[site_idx]
+					site_key = (site.location.longitude, site.location.latitude)
+					imtls = site_imtls[site_key]
+					imts = imtls.keys()
+					sctx2, rctx2, dctx2 = gsim.make_contexts(SiteCollection([site]), rupture)
+					for imt_idx, imt in enumerate(imts):
+						imls = imtls[imt]
+						# in contrast to what is stated in the documentation,
+						# disaggregate_poe does handle more than one iml
+						poes_given_rup_eps = gsim.disaggregate_poe(
+							sctx2, rctx2, dctx2, imt, imls, self.truncation_level, n_epsilons
+						)
+
+						## Probability of non-exceedance
+						pone = (1. - prob_one_or_more) ** poes_given_rup_eps
+
+						try:
+							deagg_matrix_dict[site_key][imt_idx, :, mag_idx, dist_idx, lon_idx, lat_idx, :, src_idx] *= pone
+						except IndexError:
+							## May fail if rupture extent is beyond (lon,lat) range
+							pass
+
+		## Create SpectralDeaggregationCurve for each site
+		deagg_result = {}
+		all_sites = site_model.get_sha_sites()
+		for deagg_site in deagg_site_model:
+			for site in all_sites:
+				if deagg_site.location.longitude == site.lon and deagg_site.location.latitude == site.lat:
+					break
+			site_key = (site.lon, site.lat)
+			imtls = site_imtls[site_key]
+			imts = imtls.keys()
+			periods = [getattr(imt, "period", 0) for imt in imts]
+			intensities = np.array([imtls[imt] for imt in imts])
+			deagg_matrix = 1 - deagg_matrix_dict[site_key]
+			deagg_result[site_key] = SpectralDeaggregationCurve(bin_edges,
+										deagg_matrix, site, "SA", intensities,
+										periods, self.time_span)
+
+		return deagg_result
 
 	def _get_implicit_openquake_params(self):
 		"""
