@@ -258,7 +258,9 @@ def create_rob_area_source(
 		zone_poly = source_rec['obj']
 		## Assume outer outline corresponds to first linear ring
 		linear_ring = zone_poly.GetGeometryRef(0)
-		points = linear_ring.GetPoints()
+		## In some versions of ogr, GetPoints method does not exist
+		#points = linear_ring.GetPoints()
+		points = [linear_ring.GetPoint(i) for i in range(linear_ring.GetPointCount())]
 		polygon = Polygon([Point(*pt) for pt in points])
 
 		## Calculate area
@@ -432,7 +434,9 @@ def create_rob_simple_fault_source(
 	if not fault_trace:
 		points = []
 		linear_ring = source_rec['obj']
-		points = linear_ring.GetPoints()
+		## In some versions of ogr, GetPoints method does not exist
+		#points = linear_ring.GetPoints()
+		points = [linear_ring.GetPoint(i) for i in range(linear_ring.GetPointCount())]
 		fault_trace = Line([Point(*pt) for pt in points])
 
 	## Dip
