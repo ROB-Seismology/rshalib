@@ -1358,9 +1358,9 @@ class PSHAModelTree(PSHAModelBase):
 			free_mem = min(free_mem, 2E+9)
 		print free_mem, matrix_size
 		num_processes = min(num_cores, np.floor(free_mem / matrix_size) - 1)
-		num_processes = 1
 		if verbose:
 			print("Starting %d simultaneous processes" % num_processes)
+			print("Estimated remaining memory: %s" % (free_mem - num_processes * matrix_size))
 
 		## Create function that will deaggregate a single logic-tree sample
 		## We pass all arguments explicitly, so that we do not depend on
@@ -1409,9 +1409,11 @@ class PSHAModelTree(PSHAModelBase):
 			# TODO: write to psha_model.output_dir
 
 		## Note: This doesn't work in Windows (must be behind a "main" section)
-		pool = multiprocessing.Pool(processes=num_processes)
-		f_args = [(deaggregate_psha_model, "psha_model", sample_idx, sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
-		return pool.map(eval_func_tuple, f_args)
+		#pool = multiprocessing.Pool(processes=num_processes)
+		f_args = [(deaggregate_psha_model, psha_model, sample_idx, sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
+		#return pool.map(eval_func_tuple, f_args)
+
+		return (num_processes, f_args)
 
 
 	def write_crisis(self, overwrite=True, enumerate_gmpe_lt=False, verbose=True):
