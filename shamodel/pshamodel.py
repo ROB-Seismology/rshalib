@@ -37,6 +37,18 @@ MIN_SINT_32 = -(2**31)
 MAX_SINT_32 = (2**31) - 1
 
 
+def eval_func_tuple(f_args):
+	"""
+	Function used for multithreading.
+	The function passed to Pool.map() must be accessible through an import
+	of the module
+	TThis function takes a tuple of a function and functin arguments,
+	evaluates and returns the result.
+	"""
+	print f_args[0]
+	return f_args[0](*f_args[1:])
+
+
 class PSHAModelBase(SHAModelBase):
 	"""
 	Base class for PSHA models, holding common attributes and methods.
@@ -454,20 +466,10 @@ class PSHAModel(PSHAModelBase):
 				deagg_matrix = ProbabilityMatrix(deagg_matrix)
 				yield SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, "SA", intensities, periods, self.time_span)
 
-	def deaggregate(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0):
-		"""
-		Attempt to write a more speed- and memory-efficient deaggregation
-		"""
+	def get_deagg_bin_edges(self, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width):
 		from openquake.hazardlib.geo.geodetic import npoints_between
 		from openquake.hazardlib.geo.utils import get_longitudinal_extent
-		from openquake.hazardlib.site import SiteCollection
 
-		if not n_epsilons:
-			n_epsilons = 2 * int(np.ceil(self.truncation_level))
-		if not mag_bin_width:
-			mag_bin_width = self.source_model[0].mfd.bin_width
-
-		## Determine bin edges first
 		## (copied from oqhazlib)
 		min_mag, max_mag = self.source_model.min_mag, self.source_model.max_mag
 		mag_bins = mag_bin_width * np.arange(
@@ -506,7 +508,23 @@ class PSHAModel(PSHAModelBase):
 
 		src_bins = [src.source_id for src in self.source_model]
 
-		bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins)
+		return (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins)
+
+	def deaggregate(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, verbose=False):
+		"""
+		Attempt to write a more speed- and memory-efficient deaggregation
+		"""
+		# TODO: add output_folder parameter
+		from openquake.hazardlib.site import SiteCollection
+
+		if not n_epsilons:
+			n_epsilons = 2 * int(np.ceil(self.truncation_level))
+		if not mag_bin_width:
+			mag_bin_width = self.source_model[0].mfd.bin_width
+
+		## Determine bin edges first
+		bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
+		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
 
 		## Create deaggregation matrices
 		deagg_matrix_dict = {}
@@ -521,7 +539,7 @@ class PSHAModel(PSHAModelBase):
 						len(lat_bins) - 1, len(eps_bins) - 1, len(src_bins))
 
 			## Initialize array with ones representing NON-exceedance probabilities !
-			deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape))
+			deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype='f'))
 			deagg_matrix_dict[site_key] = deagg_matrix
 
 		## Perform deaggregation
@@ -533,12 +551,14 @@ class PSHAModel(PSHAModelBase):
 		site_model = self.get_soil_site_model()
 		deagg_soil_sites = [site for site in site_model.get_sites() if (site.lon, site.lat) in site_imtls.keys()]
 		deagg_site_model = SoilSiteModel("", deagg_soil_sites)
-		#sitemesh = deagg_site_model.mesh
 
 		sources = self.source_model.sources
 		sources_sites = ((source, deagg_site_model) for source in sources)
 		for src_idx, (source, s_sites) in \
 				enumerate(source_site_filter(sources_sites)):
+
+			if verbose:
+				print source.source_id
 
 			tect_reg = source.tectonic_region_type
 			gsim = gsims[tect_reg]
@@ -546,7 +566,7 @@ class PSHAModel(PSHAModelBase):
 			ruptures_sites = ((rupture, s_sites)
 							  for rupture in source.iter_ruptures(tom))
 			for rupture, r_sites in rupture_site_filter(ruptures_sites):
-				# extract rupture parameters of interest
+				## Extract rupture parameters of interest
 				mag_idx = np.digitize([rupture.mag], mag_bins)[0] - 1
 
 				sitemesh = r_sites.mesh
@@ -563,12 +583,12 @@ class PSHAModel(PSHAModelBase):
 				lon_idxs = np.digitize(lons, lon_bins) - 1
 				lat_idxs = np.digitize(lats, lat_bins) - 1
 
-				# compute probability of one or more rupture occurrences
+				## Compute probability of one or more rupture occurrences
 				prob_one_or_more = rupture.get_probability_one_or_more_occurrences()
 
-				# compute conditional probability of exceeding iml given
-				# the current rupture, and different epsilon level, that is
-				# ``P(IMT >= iml | rup, epsilon_bin)`` for each of epsilon bins
+				## compute conditional probability of exceeding iml given
+				## the current rupture, and different epsilon level, that is
+				## ``P(IMT >= iml | rup, epsilon_bin)`` for each of epsilon bins
 				for site_idx, site in enumerate(r_sites):
 					dist_idx = dist_idxs[site_idx]
 					lon_idx = lon_idxs[site_idx]
@@ -579,8 +599,8 @@ class PSHAModel(PSHAModelBase):
 					sctx2, rctx2, dctx2 = gsim.make_contexts(SiteCollection([site]), rupture)
 					for imt_idx, imt in enumerate(imts):
 						imls = imtls[imt]
-						# in contrast to what is stated in the documentation,
-						# disaggregate_poe does handle more than one iml
+						## In contrast to what is stated in the documentation,
+						## disaggregate_poe does handle more than one iml
 						poes_given_rup_eps = gsim.disaggregate_poe(
 							sctx2, rctx2, dctx2, imt, imls, self.truncation_level, n_epsilons
 						)
@@ -606,7 +626,12 @@ class PSHAModel(PSHAModelBase):
 			imts = imtls.keys()
 			periods = [getattr(imt, "period", 0) for imt in imts]
 			intensities = np.array([imtls[imt] for imt in imts])
-			deagg_matrix = 1 - deagg_matrix_dict[site_key]
+			print deagg_matrix_dict[site_key].size
+			deagg_matrix = deagg_matrix_dict[site_key]
+			#deagg_matrix = 1 - deagg_matrix
+			## Modify matrix in-place to save memory
+			deagg_matrix -= 1
+			deagg_matrix *= -1
 			deagg_result[site_key] = SpectralDeaggregationCurve(bin_edges,
 										deagg_matrix, site, "SA", intensities,
 										periods, self.time_span)
@@ -914,6 +939,7 @@ class PSHAModelTree(PSHAModelBase):
 			seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
 			self.rnd.seed(seed)
 
+		# TODO: use yield instead?
 		return psha_models
 
 	def enumerate_logic_trees(self):
@@ -1302,6 +1328,92 @@ class PSHAModelTree(PSHAModelBase):
 			shcft.write_nrml(nrml_filespec)
 		return shcft
 
+	def deaggregate(self, hc_folder, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, verbose=False):
+		"""
+		Multithreaded deaggregation
+		"""
+		import platform
+		import multiprocessing
+		import psutil
+
+		# TODO: check that sites are in self.get_soil_site_model() and imts as well
+
+		## Generate all PSHA models
+		psha_models = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
+
+		## Determine number of simultaneous processes
+		bin_edges = psha_models[0].get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
+		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
+
+		num_imls = len(self.return_periods)
+		num_imts = np.sum([len(imt_periods[im]) for im in imt_periods.keys()])
+		matrix_size = (len(sites) * num_imts * num_imls * (len(mag_bins) - 1)
+						* (len(dist_bins) - 1) * (len(lon_bins) - 1) * (len(lat_bins) - 1)
+						* len(eps_bins) * len(src_bins) * 4)
+
+		num_cores = multiprocessing.cpu_count()
+		free_mem = psutil.phymem_usage()[2]
+		if platform.uname()[0] == "Windows":
+			## 32-bit limit
+			free_mem = min(free_mem, 2E+9)
+		print free_mem, matrix_size
+		num_processes = min(num_cores, np.floor(free_mem / matrix_size) - 1)
+		num_processes = 1
+		if verbose:
+			print("Starting %d simultaneous processes" % num_processes)
+
+		## Create function that will deaggregate a single logic-tree sample
+		## We pass all arguments explicitly, so that we do not depend on
+		## variables defined elsewhere.
+		def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose):
+			import openquake.hazardlib as oqhazlib
+			from ..openquake import parse_hazard_curves
+
+			if verbose:
+				print psha_model.name
+
+			## Determine intensity levels from saved hazard curves
+			site_imtls = {}
+			for site in deagg_sites:
+				site_imtls[(site.lon, site.lat)] = {}
+
+			for im in sorted(deagg_imt_periods.keys()):
+				for T in sorted(deagg_imt_periods[im]):
+					if im == "PGA":
+						imt = getattr(oqhazlib.imt, im)()
+					else:
+						imt = getattr(oqhazlib.imt, im)(T, 5.)
+
+					## Determine imls from hazard curves
+					if im == "PGA":
+						im_hc_folder = os.path.join(hc_folder, im)
+					else:
+						im_hc_folder = os.path.join(hc_folder, "%s-%s" % (im, T))
+
+					# TODO: number of leading zeros depends on num_lt_samples
+					hc_filename = "hazard_curve-rlz-%03d.xml" % (sample_idx + 1)
+					hc_filespec = os.path.join(im_hc_folder, hc_filename)
+					hcf = parse_hazard_curves(hc_filespec)
+					hcf.set_site_names(psha_model.get_sites())
+					for site in deagg_sites:
+						hc = hcf.getHazardCurve(site.name)
+						imls = hc.interpolate_return_periods(psha_model.return_periods)
+						#print imls
+						site_imtls[(site.lon, site.lat)][imt] = imls
+
+			## Deaggregation
+			if verbose:
+				print("Starting deaggregation of sample %d..." % sample_idx)
+			spectral_deagg_curve_dict = psha_model.deaggregate(site_imtls, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose=verbose)
+
+			# TODO: write to psha_model.output_dir
+
+		## Note: This doesn't work in Windows (must be behind a "main" section)
+		pool = multiprocessing.Pool(processes=num_processes)
+		f_args = [(deaggregate_psha_model, "psha_model", sample_idx, sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
+		return pool.map(eval_func_tuple, f_args)
+
+
 	def write_crisis(self, overwrite=True, enumerate_gmpe_lt=False, verbose=True):
 		"""
 		Write PSHA model tree input for Crisis.
@@ -1456,6 +1568,7 @@ class PSHAModelTree(PSHAModelBase):
 		Return enumerated logic tree sample.
 		"""
 		return self.enumerated_lts_samples.next()
+
 
 
 if __name__ == '__main__':
