@@ -428,7 +428,11 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 			z2pt5 = self.z2pt5[i]
 			kappa = self.kappa[i]
 			soil_params = {"vs30": vs30, "vs30measured": vs30measured, "z1pt0": z1pt0, "z2pt5": z2pt5, "kappa": kappa}
-			site = SoilSite(lon, lat, depth, soil_params)
+			try:
+				name = self.site_names[i]
+			except:
+				name = ""
+			site = SoilSite(lon, lat, depth, soil_params, name)
 			sites.append(site)
 		return sites
 
