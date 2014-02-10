@@ -784,9 +784,9 @@ class DeaggregationCurve(DeaggBase):
 		6-tuple, containing:
 			- magnitude bin edges
 			- distance bin edges
-			- epsilon bin edges
 			- longitude bin edges
 			- latitude bin edges
+			- epsilon bin edges
 			- tectonic region types
 
 	:param deagg_matrix:
@@ -795,9 +795,9 @@ class DeaggregationCurve(DeaggBase):
 			- intensity levels
 			- magnitude bins
 			- distance bins
-			- epsilon bins
 			- longitude bins
 			- latitude bins
+			- epsilon bins
 			- tectonic-region-type bins
 
 	:param site:
@@ -1041,9 +1041,9 @@ class SpectralDeaggregationCurve(DeaggBase):
 		6-tuple, containing:
 			- magnitude bin edges
 			- distance bin edges
-			- epsilon bin edges
 			- longitude bin edges
 			- latitude bin edges
+			- epsilon bin edges
 			- tectonic region types
 
 	:param deagg_matrix:
@@ -1053,9 +1053,9 @@ class SpectralDeaggregationCurve(DeaggBase):
 			- intensity levels
 			- magnitude bins
 			- distance bins
-			- epsilon bins
 			- longitude bins
 			- latitude bins
+			- epsilon bins
 			- tectonic-region-type bins
 
 	:param site:
