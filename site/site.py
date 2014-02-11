@@ -369,7 +369,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 		map.plot()
 
 
-class SoilSite(nhlib.site.Site, SHASite):
+class SoilSite(nhlib.site.Site):
 	"""
 	Class representing a site with soil characteristics.
 	This class extends :class:`nhlib.site.Site` by providing longitude,
@@ -389,8 +389,31 @@ class SoilSite(nhlib.site.Site, SHASite):
 	"""
 	def __init__(self, longitude, latitude, depth=0, soil_params=REF_SOIL_PARAMS, name=""):
 		location = Point(longitude, latitude, depth)
-		nhlib.site.Site.__init__(self, location, **soil_params)
-		SHASite.__init__(self, longitude, latitude, depth, name)
+		super(SoilSite, self).__init__(location, **soil_params)
+		self.name = name
+		#SHASite.__init__(self, longitude, latitude, depth, name)
+
+	@property
+	def lon(self):
+		return self.location.longitude
+
+	@property
+	def lat(self):
+		return self.location.latitude
+
+	@property
+	def depth(self):
+		return self.location.depth
+
+	def to_sha_site(self):
+		"""
+		Convert to a SHASite object, representing a site without
+		soil characteristics
+
+		:return:
+			instance of :class:`SHASite`
+		"""
+		return SHASite(self.lon, self.lat, self.depth, self.name)
 
 
 class SoilSiteModel(nhlib.site.SiteCollection):
