@@ -77,16 +77,18 @@ class SourceModel():
 		self.description = description
 		self.validate()
 
-	def __getattr__(self, name):
+	# Note: __getattr__ causes recursion when used in conjunction with
+	# multiprocesing
+	#def __getattr__(self, name):
 		"""
 		Make sources accessible with their ID as object properties
 		"""
-		try:
-			index = self.source_ids.index(name)
-		except ValueError:
-			raise AttributeError(name)
-		else:
-			return self.sources[index]
+	#	try:
+	#		index = self.source_ids.index(name)
+	#	except ValueError:
+	#		raise AttributeError(name)
+	#	else:
+	#		return self.sources[index]
 
 	def __getitem__(self, index_or_name):
 		"""
