@@ -48,9 +48,6 @@ def eval_func_tuple(f_args):
 	print f_args[0]
 	return f_args[0](*f_args[1:])
 
-def do_nothing(psha_model, sample_idx):
-	print("Doing nothing #%d (%s)" % (sample_idx, psha_model.name))
-
 
 def deaggregate_psha_model(psha_model, sample_idx, hc_folder, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose):
 	import openquake.hazardlib as oqhazlib
@@ -94,6 +91,10 @@ def deaggregate_psha_model(psha_model, sample_idx, hc_folder, deagg_sites, deagg
 	spectral_deagg_curve_dict = psha_model.deaggregate(site_imtls, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose=verbose)
 
 	# TODO: write to psha_model.output_dir
+
+
+def do_nothing(sample_idx, psha_model):
+	print("Doing nothing #%d" % (sample_idx,))
 
 
 class PSHAModelBase(SHAModelBase):
@@ -571,6 +572,8 @@ class PSHAModel(PSHAModelBase):
 
 		## Determine bin edges first
 		bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
+		if verbose:
+			print bin_edges
 		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
 
 		## Create deaggregation matrices
@@ -1383,10 +1386,18 @@ class PSHAModelTree(PSHAModelBase):
 		import multiprocessing
 		import psutil
 
-		# TODO: check that sites are in self.get_soil_site_model() and imts as well
-
 		## Generate all PSHA models
 		psha_models = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
+
+		## Convert sites to SHASite objects if necessary, because SoilSites
+		## cause problems when used in conjunction with multiprocessing
+		## (notably the name attribute, probably due to use of __slots__ in parent class)
+		deagg_sites = []
+		for site in deagg_sites:
+			if isinstance(site, SoilSite):
+				site = site.to_sha_site()
+			deagg_sites.append(site)
+		# TODO: check also that sites are in self.get_soil_site_model() and imts as well
 
 		## Determine number of simultaneous processes
 		bin_edges = psha_models[0].get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
@@ -1412,11 +1423,10 @@ class PSHAModelTree(PSHAModelBase):
 		## Create function that will deaggregate a single logic-tree sample
 		## We pass all arguments explicitly, so that we do not depend on
 		## variables defined elsewhere.
-
 		## Note: This doesn't work in Windows (must be behind a "main" section)
 		#pool = multiprocessing.Pool(processes=num_processes)
-		f_args = [(deaggregate_psha_model, psha_model, sample_idx, hc_folder, sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
-		#f_args = [(do_nothing, sample_idx) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
+		f_args = [(deaggregate_psha_model, psha_model, sample_idx, hc_folder, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
+		#f_args = [(do_nothing, sample_idx, psha_model) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
 		#return pool.map(eval_func_tuple, f_args)
 
 		return (num_processes, f_args)
