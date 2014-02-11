@@ -42,11 +42,58 @@ def eval_func_tuple(f_args):
 	Function used for multithreading.
 	The function passed to Pool.map() must be accessible through an import
 	of the module
-	TThis function takes a tuple of a function and functin arguments,
+	This function takes a tuple of a function and functin arguments,
 	evaluates and returns the result.
 	"""
 	print f_args[0]
 	return f_args[0](*f_args[1:])
+
+def do_nothing(psha_model, sample_idx):
+	print("Doing nothing #%d (%s)" % (sample_idx, psha_model.name))
+
+
+def deaggregate_psha_model(psha_model, sample_idx, hc_folder, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose):
+	import openquake.hazardlib as oqhazlib
+	from ..openquake import parse_hazard_curves
+
+	if verbose:
+		print psha_model.name
+
+	## Determine intensity levels from saved hazard curves
+	site_imtls = {}
+	for site in deagg_sites:
+		site_imtls[(site.lon, site.lat)] = {}
+
+	for im in sorted(deagg_imt_periods.keys()):
+		for T in sorted(deagg_imt_periods[im]):
+			if im == "PGA":
+				imt = getattr(oqhazlib.imt, im)()
+			else:
+				imt = getattr(oqhazlib.imt, im)(T, 5.)
+
+			## Determine imls from hazard curves
+			if im == "PGA":
+				im_hc_folder = os.path.join(hc_folder, im)
+			else:
+				im_hc_folder = os.path.join(hc_folder, "%s-%s" % (im, T))
+
+			# TODO: number of leading zeros depends on num_lt_samples
+			hc_filename = "hazard_curve-rlz-%03d.xml" % (sample_idx + 1)
+			hc_filespec = os.path.join(im_hc_folder, hc_filename)
+			hcf = parse_hazard_curves(hc_filespec)
+			hcf.set_site_names(psha_model.get_sites())
+			for site in deagg_sites:
+				hc = hcf.getHazardCurve(site.name)
+				imls = hc.interpolate_return_periods(psha_model.return_periods)
+				#print imls
+				site_imtls[(site.lon, site.lat)][imt] = imls
+
+	## Deaggregation
+	if verbose:
+		print("Starting deaggregation of sample %d..." % sample_idx)
+	spectral_deagg_curve_dict = psha_model.deaggregate(site_imtls, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose=verbose)
+
+	# TODO: write to psha_model.output_dir
 
 
 class PSHAModelBase(SHAModelBase):
@@ -1365,52 +1412,11 @@ class PSHAModelTree(PSHAModelBase):
 		## Create function that will deaggregate a single logic-tree sample
 		## We pass all arguments explicitly, so that we do not depend on
 		## variables defined elsewhere.
-		def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose):
-			import openquake.hazardlib as oqhazlib
-			from ..openquake import parse_hazard_curves
-
-			if verbose:
-				print psha_model.name
-
-			## Determine intensity levels from saved hazard curves
-			site_imtls = {}
-			for site in deagg_sites:
-				site_imtls[(site.lon, site.lat)] = {}
-
-			for im in sorted(deagg_imt_periods.keys()):
-				for T in sorted(deagg_imt_periods[im]):
-					if im == "PGA":
-						imt = getattr(oqhazlib.imt, im)()
-					else:
-						imt = getattr(oqhazlib.imt, im)(T, 5.)
-
-					## Determine imls from hazard curves
-					if im == "PGA":
-						im_hc_folder = os.path.join(hc_folder, im)
-					else:
-						im_hc_folder = os.path.join(hc_folder, "%s-%s" % (im, T))
-
-					# TODO: number of leading zeros depends on num_lt_samples
-					hc_filename = "hazard_curve-rlz-%03d.xml" % (sample_idx + 1)
-					hc_filespec = os.path.join(im_hc_folder, hc_filename)
-					hcf = parse_hazard_curves(hc_filespec)
-					hcf.set_site_names(psha_model.get_sites())
-					for site in deagg_sites:
-						hc = hcf.getHazardCurve(site.name)
-						imls = hc.interpolate_return_periods(psha_model.return_periods)
-						#print imls
-						site_imtls[(site.lon, site.lat)][imt] = imls
-
-			## Deaggregation
-			if verbose:
-				print("Starting deaggregation of sample %d..." % sample_idx)
-			spectral_deagg_curve_dict = psha_model.deaggregate(site_imtls, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose=verbose)
-
-			# TODO: write to psha_model.output_dir
 
 		## Note: This doesn't work in Windows (must be behind a "main" section)
 		#pool = multiprocessing.Pool(processes=num_processes)
-		f_args = [(deaggregate_psha_model, psha_model, sample_idx, sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
+		f_args = [(deaggregate_psha_model, psha_model, sample_idx, hc_folder, sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
+		#f_args = [(do_nothing, sample_idx) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
 		#return pool.map(eval_func_tuple, f_args)
 
 		return (num_processes, f_args)
