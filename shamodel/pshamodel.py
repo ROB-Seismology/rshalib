@@ -288,6 +288,14 @@ class PSHAModel(PSHAModelBase):
 		self.source_model = source_model
 		self.ground_motion_model = ground_motion_model
 
+	@property
+	def smlt_path(self):
+		return self.source_model.description
+
+	@property
+	def gmpelt_path(self):
+		return self.ground_motion_model.name
+
 	def run_nhlib_shcf(self, plot=False, write=False, nrml_base_filespec="", cav_min=0.):
 		"""
 		Run PSHA model with nhlib, and store result in one or more
@@ -663,10 +671,10 @@ class PSHAModel(PSHAModelBase):
 			imts = imtls.keys()
 			periods = [getattr(imt, "period", 0) for imt in imts]
 			intensities = np.array([imtls[imt] for imt in imts])
-			print deagg_matrix_dict[site_key].size
 			deagg_matrix = deagg_matrix_dict[site_key]
-			## Modify matrix in-place to save memory
+			## Convert probabilities of non-exceedance back to poes
 			#deagg_matrix = 1 - deagg_matrix
+			## Modify matrix in-place to save memory
 			deagg_matrix -= 1
 			deagg_matrix *= -1
 			deagg_result[site_key] = SpectralDeaggregationCurve(bin_edges,
@@ -674,6 +682,10 @@ class PSHAModel(PSHAModelBase):
 										periods, self.time_span)
 
 		return deagg_result
+
+	def deaggregate_mp(self):
+		# TODO: multiprocessing deaggregation (by source)
+		pass
 
 	def _get_implicit_openquake_params(self):
 		"""
@@ -951,6 +963,7 @@ class PSHAModelTree(PSHAModelBase):
 
 		if enumerate_gmpe_lt:
 			gmpe_models, _ = self.enumerate_gmpe_lt(verbose=verbose)
+			gmpelt_paths = self.gmpe_lt.root_branchset.enumerate_paths()
 
 		for i in xrange(num_samples):
 			## Generate 2nd-order random seeds
@@ -965,8 +978,9 @@ class PSHAModelTree(PSHAModelBase):
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
 			if not enumerate_gmpe_lt:
 				gmpe_models = [self._gmpe_sample_to_gmpe_model(gmpelt_path)]
+				gmpelt_paths = [gmpelt_path]
 
-			for gmpe_model in gmpe_models:
+			for gmpe_model, gmpelt_path in zip(gmpe_models, gmpelt_paths):
 				## Convert to PSHA model
 				name = "%s, LT sample %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i+1, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
 				psha_model = self._get_psha_model(source_model, gmpe_model, name)
@@ -1013,6 +1027,10 @@ class PSHAModelTree(PSHAModelBase):
 			region type to GMPE name
 		:param name:
 			string, name of PSHA model
+		:param smlt_path:
+			str, source-model logic-tree path
+		:param gmpelt_path:
+			str, GMPE logic-tree path
 		"""
 		# TODO: adjust output_dir based on path?
 		output_dir = self.output_dir
@@ -1368,6 +1386,9 @@ class PSHAModelTree(PSHAModelBase):
 	def deaggregate_mp(self, hc_folder, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, verbose=False):
 		"""
 		Deaggregate logic tree using multiprocessing.
+		Intensity measure levels corresponding to psha_model.return_periods
+		will be interpolated first, so the hazard curves must have been
+		computed before.
 
 		:param hc_folder:
 			Str, full path to top folder containing hazard curves for
@@ -1416,6 +1437,8 @@ class PSHAModelTree(PSHAModelBase):
 		import psutil
 		from mp import deaggregate_psha_model
 
+		# TODO: make hc_folder optional (determine from self.output_dir)
+
 		## Generate all PSHA models
 		psha_models = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
 
@@ -1423,14 +1446,17 @@ class PSHAModelTree(PSHAModelBase):
 		## cause problems when used in conjunction with multiprocessing
 		## (notably the name attribute cannot be accessed, probably due to
 		## the use of __slots__ in parent class)
+		## Note that this is similar to the deepcopy problem with MFD objects.
 		deagg_sites = []
+		sha_site_model = self.get_soil_site_model().to_sha_site_model()
 		for site in sites:
 			if isinstance(site, SoilSite):
 				site = site.to_sha_site()
-			deagg_sites.append(site)
-		# TODO: check also that sites are in self.get_soil_site_model() and imts as well
+			if site in sha_site_model:
+				deagg_sites.append(site)
+		# TODO: check imts as well
 
-		## Determine number of simultaneous processes based on estimated memory
+		## Determine number of simultaneous processes based on estimated memory consumption
 		bin_edges = psha_models[0].get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
 		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
 
@@ -1447,8 +1473,9 @@ class PSHAModelTree(PSHAModelBase):
 		free_mem = psutil.phymem_usage()[2]
 		if platform.uname()[0] == "Windows":
 			## 32-bit limit
+			# Note: is this limit valid for all subprocesses combined?
 			free_mem = min(free_mem, 2E+9)
-		print free_mem, matrix_size
+		#print free_mem, matrix_size
 		num_processes = min(num_cores, np.floor(free_mem / matrix_size))
 
 		if verbose:
