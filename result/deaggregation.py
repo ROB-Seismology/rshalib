@@ -773,7 +773,7 @@ class DeaggregationSlice(DeaggBase):
 			instance of :class:`DeaggregationSlice`
 		"""
 		return self.rebin(dist_bin_edges, axis=1)
-	
+
 	def write_nrml(self, nrml_filespec, sourceModelTreePath=None, gsimTreePath=None):
 		"""
 		"""
@@ -1173,7 +1173,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		Compute conditional mean spectrum as outlined in e.g., Baker (2011)
 		"""
 		pass
-	
+
 	def write_xml(self, nrml_filespec, sourceModelTreePath=None, gsimTreePath=None):
 		"""
 		"""
@@ -1197,11 +1197,11 @@ class SpectralDeaggregationCurve(DeaggBase):
 			sdc_elem.set("latBinEdges", ", ".join(map(str, lat_bins)))
 			sdc_elem.set("epsBinEdges", ", ".join(map(str, eps_bins)))
 			sdc_elem.set("tectonicRegionTypes", ", ".join(trts))
-			dims = ",".join(map(str, matrix.shape[2:]))
+			dims = ",".join(map(str, self.matrix.shape[2:]))
 			sdc_elem.set("dims", dims)
 			for dc in self:
 				dc_elem = etree.SubElement(sdc_elem, "deaggregationCurve")
-				dc_elem.set("imt", str(dc.iml))
+				dc_elem.set("imt", str(dc.imt))
 				dc_elem.set("saPeriod", str(dc.period))
 				for ds in dc:
 					ds_elem = etree.SubElement(dc_elem, "deaggregationSlice")
