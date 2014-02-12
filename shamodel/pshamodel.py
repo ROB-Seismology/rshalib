@@ -609,7 +609,7 @@ class PSHAModel(PSHAModelBase):
 				sitemesh = r_sites.mesh
 				sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
 				if hasattr(dctx, "rjb"):
-					jb_dists = dctx["rjb"]
+					jb_dists = getattr(dctx, "rjb")
 				else:
 					jb_dists = rupture.surface.get_joyner_boore_distance(sitemesh)
 				closest_points = rupture.surface.get_closest_points(sitemesh)
