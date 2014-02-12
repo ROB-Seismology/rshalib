@@ -159,6 +159,13 @@ class SHASiteModel(nhlib.geo.Mesh):
 			for i in xrange(len(self)):
 				yield (lons[i], lats[i])
 
+	def __contains__(self, site):
+		idx = np.argmin(np.abs(self.lons - site.lon))
+		if np.allclose([self.lons[idx], self.lats[idx]], [site.lon, site.lat], atol=1E-6):
+			return True
+		else:
+			return False
+
 	def _set_sites(self, sites):
 		"""
 		Sets lons, lats (and depths and names) from sites. Handles (lon, lat) or (lon, lat, depth) tuples, instances of SHASite, instances of Soilsites or instance of SHASiteModel.
