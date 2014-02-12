@@ -103,7 +103,7 @@ for source in source_model:
 	print source.mfd.a_val
 
 ## Example of how parameters of individual sources can be overridden
-source = source_model.RVG
+source = source_model["RVG"]
 #source.tectonic_region_type = trt
 
 ## Create ad hoc source model
