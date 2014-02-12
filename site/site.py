@@ -449,6 +449,14 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 		else:
 			return False
 
+	@property
+	def lons(self):
+		return self.mesh.lons
+
+	@property
+	def lats(self):
+		return self.mesh.lats
+
 	def get_sites(self):
 		"""
 		:return:
