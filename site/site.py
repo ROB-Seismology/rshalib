@@ -442,6 +442,13 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 	def __len__(self):
 		return self.num_sites
 
+	def __contains__(self, site):
+		idx = np.argmin(np.abs(self.lons - site.lon))
+		if np.allclose([self.lons[idx], self.lats[idx]], [site.lon, site.lat], atol=1E-6):
+			return True
+		else:
+			return False
+
 	def get_sites(self):
 		"""
 		:return:
