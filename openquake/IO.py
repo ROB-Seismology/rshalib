@@ -10,7 +10,7 @@ import os
 from lxml import etree
 
 from ..nrml import ns
-from ..result import DeaggregationSlice, HazardCurveField, HazardMap, Poisson, ProbabilityArray, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField, UHSFieldTree
+from ..result import DeaggregationSlice, DeaggregationCurve, SpectralDeaggregationCurve, HazardCurveField, HazardMap, Poisson, ProbabilityArray, ProbabilityMatrix, SpectralHazardCurveField, SpectralHazardCurveFieldTree, UHSField, UHSFieldTree
 from ..site import SHASite
 
 
@@ -313,6 +313,49 @@ def parse_disaggregation_full(xml_filespec, site_name=None):
 	return deaggregation_slice
 
 
+def parse_spectral_deaggregation_curve(xml_filespec, site_name=None):
+	"""
+	"""
+	nrml = etree.parse(xml_filespec).getroot()
+	sdc_elem = nrml.find('{%s}spectralDeaggregationCurve' % NRML)
+	shape = tuple(map(int, sdc_elem .get('dims').split(',')))
+	mag_bin_edges = np.array(sdc_elem.get('magBinEdges').split(', '),
+		dtype=float)
+	dist_bin_edges = np.array(sdc_elem.get('distBinEdges').split(', '),
+		dtype=float)
+	lon_bin_edges = np.array(sdc_elem.get('lonBinEdges').split(', '),
+		dtype=float)
+	lat_bin_edges = np.array(sdc_elem.get('latBinEdges').split(', '),
+		dtype=float)
+	eps_bin_edges = np.array(sdc_elem.get('epsBinEdges').split(', '),
+		dtype=float)
+	tectonic_region_types = sdc_elem.get(
+		'tectonicRegionTypes').split(', ')
+	bin_edges = (mag_bin_edges, dist_bin_edges, lon_bin_edges, lat_bin_edges, eps_bin_edges, tectonic_region_types)
+	lon = float(sdc_elem.get('lon'))
+	lat = float(sdc_elem.get('lat'))
+	site = SHASite(lon, lat, name=site_name)
+	timespan = float(sdc_elem.get('investigationTime'))
+	dcs = []
+	for dc_elem in sdc_elem.findall('{%s}deaggregationCurve' % NRML):
+		imt = dc_elem.get('imt')
+		period = float(dc_elem.get('saPeriod', 0.))
+		dss = []
+		for ds_elem in dc_elem.findall('{%s}deaggregationSlice' % NRML):
+			iml = float(ds_elem.get('iml'))
+			matrix = ProbabilityMatrix(np.zeros(shape))
+			for prob in ds_elem.findall('{%s}prob' % NRML):
+				index = prob.get('index')
+				value = prob.get('value')
+				prob_matrix[tuple(map(int, index.split(',')))] = value
+			ds = DeaggregationSlice(bin_edges, matrix, site, imt, iml, period, timespan)
+			dss.append(ds)
+		dc = DeaggregationCurve.from_deaggregation_slices(dss)
+		dcs.append(dc)
+	sdc = SpectralDeaggregationCurve.from_deaggregation_curves(dcs)
+	return sdc
+
+
 def parse_any_output(xml_filespec):
 	"""
 	Parse OpenQuake nrml output file of any type ("hazard curves", "hazard curves multi", "hazard map", "uniform hazard spectra" or "disaggregation").
@@ -502,7 +545,7 @@ def read_uhsft(directory, return_period, sites=[], add_stats=False):
 	return uhsft
 
 
-def write_disaggregation_slice(site, imt, period, iml, poe, timespan, bin_edges, matrix, nrml_filespec):
+def write_disaggregation_slice(site, imt, period, iml, poe, timespan, bin_edges, matrix, nrml_filespec, sourceModelTreePath=None, gsimTreePath=None):
 	"""
 	Write disaggregation slice to nrml file.
 	
@@ -529,7 +572,11 @@ def write_disaggregation_slice(site, imt, period, iml, poe, timespan, bin_edges,
 	with open(nrml_filespec, "w") as nrml_file:
 		root = etree.Element("nrml", nsmap=ns.NSMAP)
 		diss = etree.SubElement(root, "disaggMatrix")
-		lon, lat = [c for c in site]
+		if sourceModelTreePath:
+			diss.set("sourceModelTreePath", sourceModelTreePath)
+		if gsimTreePath:
+			diss.set("gsimTreePath", gsimTreePath)
+		lon, lat = site[0], site[1]
 		diss.set("lon", str(lon))
 		diss.set("lat", str(lat))
 		diss.set("imt", str(iml))
