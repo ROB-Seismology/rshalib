@@ -1448,11 +1448,11 @@ class PSHAModelTree(PSHAModelBase):
 		## the use of __slots__ in parent class)
 		## Note that this is similar to the deepcopy problem with MFD objects.
 		deagg_sites = []
-		sha_site_model = self.get_soil_site_model().to_sha_site_model()
+		site_model = self.get_soil_site_model()
 		for site in sites:
 			if isinstance(site, SoilSite):
 				site = site.to_sha_site()
-			if site in sha_site_model:
+			if site in site_model:
 				deagg_sites.append(site)
 		# TODO: check imts as well
 
