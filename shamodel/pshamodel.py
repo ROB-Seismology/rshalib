@@ -37,65 +37,6 @@ MIN_SINT_32 = -(2**31)
 MAX_SINT_32 = (2**31) - 1
 
 
-def eval_func_tuple(f_args):
-	"""
-	Function used for multithreading.
-	The function passed to Pool.map() must be accessible through an import
-	of the module
-	This function takes a tuple of a function and functin arguments,
-	evaluates and returns the result.
-	"""
-	print f_args[0]
-	return f_args[0](*f_args[1:])
-
-
-def deaggregate_psha_model(psha_model, sample_idx, hc_folder, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose):
-	import openquake.hazardlib as oqhazlib
-	from ..openquake import parse_hazard_curves
-
-	if verbose:
-		print psha_model.name
-
-	## Determine intensity levels from saved hazard curves
-	site_imtls = {}
-	for site in deagg_sites:
-		site_imtls[(site.lon, site.lat)] = {}
-
-	for im in sorted(deagg_imt_periods.keys()):
-		for T in sorted(deagg_imt_periods[im]):
-			if im == "PGA":
-				imt = getattr(oqhazlib.imt, im)()
-			else:
-				imt = getattr(oqhazlib.imt, im)(T, 5.)
-
-			## Determine imls from hazard curves
-			if im == "PGA":
-				im_hc_folder = os.path.join(hc_folder, im)
-			else:
-				im_hc_folder = os.path.join(hc_folder, "%s-%s" % (im, T))
-
-			# TODO: number of leading zeros depends on num_lt_samples
-			hc_filename = "hazard_curve-rlz-%03d.xml" % (sample_idx + 1)
-			hc_filespec = os.path.join(im_hc_folder, hc_filename)
-			hcf = parse_hazard_curves(hc_filespec)
-			hcf.set_site_names(psha_model.get_sites())
-			for site in deagg_sites:
-				hc = hcf.getHazardCurve(site.name)
-				imls = hc.interpolate_return_periods(psha_model.return_periods)
-				#print imls
-				site_imtls[(site.lon, site.lat)][imt] = imls
-
-	## Deaggregation
-	if verbose:
-		print("Starting deaggregation of sample %d..." % sample_idx)
-	spectral_deagg_curve_dict = psha_model.deaggregate(site_imtls, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose=verbose)
-
-	# TODO: write to psha_model.output_dir
-
-
-def do_nothing(sample_idx, psha_model):
-	print("Doing nothing #%d" % (sample_idx,))
-
 
 class PSHAModelBase(SHAModelBase):
 	"""
@@ -515,6 +456,29 @@ class PSHAModel(PSHAModelBase):
 				yield SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, "SA", intensities, periods, self.time_span)
 
 	def get_deagg_bin_edges(self, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width):
+		"""
+		Determine bin edges for deaggregation.
+		Note: no default values!
+
+		:param mag_bin_width:
+			Float, magnitude bin width
+		:param dist_bin_width:
+			Float, distance bin width in km
+		:param n_epsilons:
+			Int, number of epsilon bins
+			corresponding to integer epsilon values)
+		:param coord_bin_width:
+			Float, lon/lat bin width in decimal degrees
+
+		:return:
+			(mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins) tuple
+			- mag_bins: magnitude bin edges
+			- dist_bins: distance bin edges
+			- lon_bins: longitude bin edges
+			- lat_bins: latitude bin edges
+			- eps_bins: epsilon bin edges
+			- src_bins: source bins
+		"""
 		from openquake.hazardlib.geo.geodetic import npoints_between
 		from openquake.hazardlib.geo.utils import get_longitudinal_extent
 
@@ -560,7 +524,32 @@ class PSHAModel(PSHAModelBase):
 
 	def deaggregate(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, verbose=False):
 		"""
-		Attempt to write a more speed- and memory-efficient deaggregation
+		Hybrid rshalib/oqhazlib deaggregation for multiple sites, multiple
+		imt's per site, and multiple iml's per iml, that is more speed- and
+		memory-efficient than the standard deaggregation method in oqhazlib.
+		Note that deaggregation by tectonic region type is replaced with
+		deaggregation by source.
+
+		:param site_imtls:
+			nested dictionary mapping (lon, lat) tuples to dictionaries
+			mapping oqhazlib IMT objects to 1-D arrays of intensity measure
+			levels
+		:param mag_bin_width:
+			Float, magnitude bin width (default: None, will take MFD bin width
+			of first source)
+		:param dist_bin_width:
+			Float, distance bin width in km (default: 10.)
+		:param n_epsilons:
+			Int, number of epsilon bins (default: None, will result in bins
+			corresponding to integer epsilon values)
+		:param coord_bin_width:
+			Float, lon/lat bin width in decimal degrees (default: 1.)
+		:param verbose:
+			Bool, whether or not to print some progress information
+
+		:return:
+			dict, mapping site (lon, lat) tuples to instances of
+			:class:`SpectralDeaggregationCurve`
 		"""
 		# TODO: add output_folder parameter
 		from openquake.hazardlib.site import SiteCollection
@@ -572,8 +561,6 @@ class PSHAModel(PSHAModelBase):
 
 		## Determine bin edges first
 		bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
-		if verbose:
-			print bin_edges
 		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
 
 		## Create deaggregation matrices
@@ -678,8 +665,8 @@ class PSHAModel(PSHAModelBase):
 			intensities = np.array([imtls[imt] for imt in imts])
 			print deagg_matrix_dict[site_key].size
 			deagg_matrix = deagg_matrix_dict[site_key]
-			#deagg_matrix = 1 - deagg_matrix
 			## Modify matrix in-place to save memory
+			#deagg_matrix = 1 - deagg_matrix
 			deagg_matrix -= 1
 			deagg_matrix *= -1
 			deagg_result[site_key] = SpectralDeaggregationCurve(bin_edges,
@@ -1378,28 +1365,72 @@ class PSHAModelTree(PSHAModelBase):
 			shcft.write_nrml(nrml_filespec)
 		return shcft
 
-	def deaggregate(self, hc_folder, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, verbose=False):
+	def deaggregate_mp(self, hc_folder, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, verbose=False):
 		"""
-		Multithreaded deaggregation
+		Deaggregate logic tree using multiprocessing.
+
+		:param hc_folder:
+			Str, full path to top folder containing hazard curves for
+			different IMT's
+		:param sites:
+			list with instances of :class:`SHASite` for which deaggregation
+			will be performed. Note that instances of class:`SoilSite` will
+			not work with multiprocessing
+		:param imt_periods:
+			dictionary mapping instances of :class:`IMT` to lists of spectral
+			periods.
+		:param mag_bin_width:
+			Float, magnitude bin width (default: None, will take MFD bin width
+			of first source)
+		:param dist_bin_width:
+			Float, distance bin width in km (default: 10.)
+		:param n_epsilons:
+			Int, number of epsilon bins (default: None, will result in bins
+			corresponding to integer epsilon values)
+		:param coord_bin_width:
+			Float, lon/lat bin width in decimal degrees (default: 1.)
+		:param num_cores:
+			Int, number of cores to be used. Actual number of cores used
+			may be lower depending on available cores and memory
+			(default: None, will determine automatically)
+		:param verbose:
+			Bool, whether or not to print some progress information
+
+		:return:
+			(pool, func, pool_map_args) tuple
+			- pool: multiprocessing.Pool object
+			- func: function object that will do the actual deaggregation
+			- pool_map_args: list with arguments to be passed to func for
+				the different tasks
+
+			In the calling module, the multiprocessing deaggregation can
+			be launched as follows:
+
+				pool.map(func, pool_map_args)
+
+			Note that in Windows, this statement has to be executed in
+			a main section (i.e., behind if __name__ == "__main__":)
 		"""
 		import platform
 		import multiprocessing
 		import psutil
+		from mp import deaggregate_psha_model
 
 		## Generate all PSHA models
 		psha_models = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
 
 		## Convert sites to SHASite objects if necessary, because SoilSites
 		## cause problems when used in conjunction with multiprocessing
-		## (notably the name attribute, probably due to use of __slots__ in parent class)
+		## (notably the name attribute cannot be accessed, probably due to
+		## the use of __slots__ in parent class)
 		deagg_sites = []
-		for site in deagg_sites:
+		for site in sites:
 			if isinstance(site, SoilSite):
 				site = site.to_sha_site()
 			deagg_sites.append(site)
 		# TODO: check also that sites are in self.get_soil_site_model() and imts as well
 
-		## Determine number of simultaneous processes
+		## Determine number of simultaneous processes based on estimated memory
 		bin_edges = psha_models[0].get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
 		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
 
@@ -1409,27 +1440,29 @@ class PSHAModelTree(PSHAModelBase):
 						* (len(dist_bins) - 1) * (len(lon_bins) - 1) * (len(lat_bins) - 1)
 						* len(eps_bins) * len(src_bins) * 4)
 
-		num_cores = multiprocessing.cpu_count()
+		if not num_cores:
+			num_cores = multiprocessing.cpu_count()
+		else:
+			num_cores = min(multiprocessing.cpu_count(), num_cores)
 		free_mem = psutil.phymem_usage()[2]
 		if platform.uname()[0] == "Windows":
 			## 32-bit limit
 			free_mem = min(free_mem, 2E+9)
 		print free_mem, matrix_size
-		num_processes = min(num_cores, np.floor(free_mem / matrix_size) - 1)
+		num_processes = min(num_cores, np.floor(free_mem / matrix_size))
+
 		if verbose:
 			print("Starting %d simultaneous processes" % num_processes)
 			print("Estimated remaining memory: %s" % (free_mem - num_processes * matrix_size))
+		pool = multiprocessing.Pool(processes=num_processes)
 
-		## Create function that will deaggregate a single logic-tree sample
-		## We pass all arguments explicitly, so that we do not depend on
-		## variables defined elsewhere.
+		map_args = [(psha_model, sample_idx, hc_folder, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
 		## Note: This doesn't work in Windows (must be behind a "main" section)
-		#pool = multiprocessing.Pool(processes=num_processes)
-		f_args = [(deaggregate_psha_model, psha_model, sample_idx, hc_folder, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
-		#f_args = [(do_nothing, sample_idx, psha_model) for psha_model, sample_idx in zip(psha_models, range(self.num_lt_samples))]
-		#return pool.map(eval_func_tuple, f_args)
+		## So instead, we return pool
+		pool_map_args = [(psha_model, sample_idx, hc_folder, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
+		#return pool.map(deaggregate_psha_model, pool_map_args)
 
-		return (num_processes, f_args)
+		return (pool, deaggregate_psha_model, pool_map_args)
 
 
 	def write_crisis(self, overwrite=True, enumerate_gmpe_lt=False, verbose=True):
