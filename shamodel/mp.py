@@ -6,7 +6,40 @@ import os
 import openquake.hazardlib as oqhazlib
 
 
-def run_psha_model((psha_model, sample_idx, cav_min)):
+
+def calc_hc_source((psha_model, source_id, cav_min, verbose)):
+	"""
+	Stand-alone function that will compute hazard curves for a single
+	source.
+	"""
+	if verbose:
+		print source_id
+	sources = [psha_model.source_model[source_id]]
+	sites = psha_model.get_soil_site_model()
+	gsims = psha_model._get_nhlib_trts_gsims_map()
+	imts = psha_model._get_nhlib_imts()
+
+	# TODO: shared memory array to store curves
+
+	## Copied from openquake.hazardlib
+	total_sites = len(sites)
+	sources_sites = ((source, sites) for source in sources)
+	for source, s_sites in psha_model.source_site_filter(sources_sites):
+		ruptures_sites = ((rupture, s_sites)
+						  for rupture in source.iter_ruptures(tom))
+		for rupture, r_sites in psha_model.rupture_site_filter(ruptures_sites):
+			prob = rupture.get_probability_one_or_more_occurrences()
+			gsim = gsims[rupture.tectonic_region_type]
+			sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
+			for imt in imts:
+				poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imts[imt],
+									 psha_model.truncation_level, cav_min=cav_min)
+				curves[imt] *= r_sites.expand(
+					(1 - prob) ** poes, total_sites, placeholder=1
+				)
+
+
+def run_psha_model((psha_model, sample_idx, cav_min, verbose)):
 	"""
 	Stand-alone function that will compute hazard curves for a single
 	logic-tree sample.
@@ -17,6 +50,11 @@ def run_psha_model((psha_model, sample_idx, cav_min)):
 		str, sample index (formatted with adequate number of leading zeros)
 	:param cav_min:
 		float, CAV threshold in g.s
+	:param verbose:
+		Bool, whether or not to print some progress information
+
+	:return:
+		None
 	"""
 	## Run
 	if verbose:

@@ -83,6 +83,18 @@ class PSHAModelBase(SHAModelBase):
 		self.return_periods = np.array(return_periods)
 		self.time_span = time_span
 
+	@property
+	def source_site_filter(self):
+		return nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
+
+	@property
+	def rupture_site_filter(self):
+		return nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
+
+	@property
+	def poisson_tom(self):
+		return nhlib.tom.PoissonTOM(self.time_span)
+
 	def _get_intensities_limits(self, intensities_limits):
 		"""
 		Return dict, defining minimum or maximum intensity for intensity type and period.
@@ -588,10 +600,10 @@ class PSHAModel(PSHAModelBase):
 			deagg_matrix_dict[site_key] = deagg_matrix
 
 		## Perform deaggregation
-		tom = nhlib.tom.PoissonTOM(self.time_span)
+		tom = self.poisson_tom
 		gsims = self._get_nhlib_trts_gsims_map()
-		source_site_filter = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
-		rupture_site_filter = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
+		source_site_filter = self.source_site_filter
+		rupture_site_filter = self.rupture_site_filter
 
 		site_model = self.get_soil_site_model()
 		deagg_soil_sites = [site for site in site_model.get_sites() if (site.lon, site.lat) in site_imtls.keys()]
