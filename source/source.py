@@ -761,18 +761,24 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 
 	def to_point_sources(self):
 		"""
-		Decompose into point sources
+		Decompose area source into point sources.
 
 		:return:
-			list with instances of :class:`PointSource`
+			list with instances of :class:`PointSource`. Name and source_id
+			will be identical to that of the area source.
 		"""
 		polygon_mesh = self.polygon.discretize(self.area_discretization)
 		rate_scaling_factor = 1.0 / len(polygon_mesh)
 		point_sources = []
 		for epicenter in polygon_mesh:
-			ptsrc = PointSource(source_id, name, tectonic_region_type, mfd,
-								self.rupture_mesh_spacing, self.magnitude_scaling_relationship,
-								self.rupture_aspect_ratio, self.upper_seismogenic_depth, self.lower_seismogenic_depth, epicenter, self.nodal_plane_distribution, self.hypocenter_distribution)
+			mfd = self.mfd * rate_scaling_factor
+			ptsrc = PointSource(self.source_id, self.name, self.tectonic_region_type,
+								mfd, self.rupture_mesh_spacing,self.magnitude_scaling_relationship,
+								self.rupture_aspect_ratio, self.upper_seismogenic_depth,
+								self.lower_seismogenic_depth, epicenter,
+								self.nodal_plane_distribution, self.hypocenter_distribution)
+			point_sources.append(ptsrc)
+		return point_sources
 
 
 class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
