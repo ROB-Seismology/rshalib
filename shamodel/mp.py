@@ -6,6 +6,37 @@ import os
 import openquake.hazardlib as oqhazlib
 
 
+def run_psha_model((psha_model, sample_idx, cav_min)):
+	"""
+	Stand-alone function that will compute hazard curves for a single
+	logic-tree sample.
+
+	:param psha_model:
+		instace of :class:`PSHAModel`
+	:param sample_idx:
+		str, sample index (formatted with adequate number of leading zeros)
+	:param cav_min:
+		float, CAV threshold in g.s
+	"""
+	## Run
+	if verbose:
+		print("Starting hazard-curve calculation of sample %s..." % sample_idx)
+	shcfs = psha_model.run_nhlib_shcf(plot=False, write=False, cav_min=cav_min)
+
+	## Write XML file, creating directory if necessary
+	hc_folder = psha_model.output_dir
+	for subfolder in ("classical", "calc_oqhazlib",  "hazard_curve_multi"):
+		hc_folder = os.path.join(hc_folder, subfolder)
+		if not os.path.exists(hc_folder):
+			os.mkdir(hc_folder)
+	# TODO: number of leading zeros, cf. above ...
+	xml_filename = "hazard_curve_multi-rlz-%s.xml" % (lon, lat, sample_idx)
+	xml_filespec = os.path.join(deagg_folder, xml_filename)
+	shcfs.write_nrml(xml_filespec, psha_model.smlt_path, psha_model.gmpelt_path)
+
+	return None
+
+
 def deaggregate_psha_model((psha_model, sample_idx, hc_folder, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose)):
 	"""
 	Stand-alone function that will deaggregate a single logic-tree sample.
@@ -21,7 +52,7 @@ def deaggregate_psha_model((psha_model, sample_idx, hc_folder, deagg_sites, deag
 	:param psha_model:
 		instace of :class:`PSHAModel`
 	:param sample_idx:
-		int, sample index
+		str, sample index (formatted with adequate number of leading zeros)
 	:param hc_folder:
 		str, full path to top folder containing hazard curves for
 		different IMT's
@@ -74,8 +105,7 @@ def deaggregate_psha_model((psha_model, sample_idx, hc_folder, deagg_sites, deag
 			else:
 				im_hc_folder = os.path.join(hc_folder, "%s-%s" % (im, T))
 
-			# TODO: number of leading zeros depends on num_lt_samples
-			hc_filename = "hazard_curve-rlz-%03d.xml" % (sample_idx + 1)
+			hc_filename = "hazard_curve-rlz-%s.xml" % sample_idx
 			hc_filespec = os.path.join(im_hc_folder, hc_filename)
 			hcf = parse_hazard_curves(hc_filespec)
 			sha_sites = psha_model.get_soil_site_model().get_sha_sites()
@@ -88,8 +118,8 @@ def deaggregate_psha_model((psha_model, sample_idx, hc_folder, deagg_sites, deag
 
 	## Deaggregation
 	if verbose:
-		print("Starting deaggregation of sample %d..." % sample_idx)
-	spectral_deagg_curve_dict = psha_model.deaggregate(site_imtls, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose=verbose)
+		print("Starting deaggregation of sample %s..." % sample_idx)
+	spectral_deagg_curve_dict = psha_model.deaggregate(site_imtls, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, verbose=False)
 
 	## Write XML file(s), creating directory if necessary
 	for (lon, lat) in spectral_deagg_curve_dict.keys():
@@ -99,18 +129,18 @@ def deaggregate_psha_model((psha_model, sample_idx, hc_folder, deagg_sites, deag
 			deagg_folder = os.path.join(deagg_folder, subfolder)
 			if not os.path.exists(deagg_folder):
 				os.mkdir(deagg_folder)
-		# TODO: number of leading zeros, cf. above ...
-		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-rlz-%03d.xml" % (lon, lat, sample_idx + 1)
+		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-rlz-%s.xml" % (lon, lat, sample_idx)
 		xml_filespec = os.path.join(deagg_folder, xml_filename)
-		spectral_deagg_curve.write_xml(xml_filespec, psha_model.smlt_path, psha_model.gmpelt_path)
+		spectral_deagg_curve.write_nrml(xml_filespec, psha_model.smlt_path, psha_model.gmpelt_path)
 
 	## Don't return anything to preserve memory
+	return None
 
 
 def do_nothing(sample_idx, psha_model):
 	"""
 	Dummy function for testing multiprocessing.
 	"""
-	print("Doing nothing #%d" % (sample_idx,))
+	print("Doing nothing #%s" % (sample_idx,))
 
 

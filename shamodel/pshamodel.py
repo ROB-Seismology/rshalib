@@ -329,11 +329,11 @@ class PSHAModel(PSHAModelBase):
 			# TODO: add method to PSHAModelBase to associate nhlib/OQ imt's with units
 			poes = ProbabilityArray(hazard_result[imt])
 			shcf = SpectralHazardCurveField(self.name, poes, [''], self.get_sites(), periods, imt, imtls[imt], 'g', self.time_span)
-			nrml_filespec = nrml_base_filespec + '_%s.xml' % imt
 			shcfs[imt] = shcf
 			if plot:
 				shcf.plot()
 			if write:
+				nrml_filespec = nrml_base_filespec + '_%s.xml' % imt
 				shcf.write_nrml(nrml_filespec)
 		return shcfs
 
@@ -1383,6 +1383,31 @@ class PSHAModelTree(PSHAModelBase):
 			shcft.write_nrml(nrml_filespec)
 		return shcft
 
+	def run_mp(self, cav_min=0, num_cores=None, verbose=False):
+		"""
+		Compute hazard curves using multiprocessing.
+		"""
+		import multiprocessing
+		import psutil
+		from mp import run_psha_model
+
+		## Generate all PSHA models
+		psha_models = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
+
+		## Determine number of simultaneous processes
+		if not num_cores:
+			num_cores = multiprocessing.cpu_count()
+		else:
+			num_cores = min(multiprocessing.cpu_count(), num_cores)
+
+		if verbose:
+			print("Starting %d simultaneous processes" % num_cores)
+		pool = multiprocessing.Pool(processes=num_cores)
+		fmt = "%%0%dd" % len(str(self.num_lt_samples))
+		pool_map_args = [(psha_model, fmt % sample_idx, cav_min, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
+
+		return (pool, run_psha_model, pool_map_args)
+
 	def deaggregate_mp(self, hc_folder, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, verbose=False):
 		"""
 		Deaggregate logic tree using multiprocessing.
@@ -1483,14 +1508,15 @@ class PSHAModelTree(PSHAModelBase):
 			print("Estimated remaining memory: %s" % (free_mem - num_processes * matrix_size))
 		pool = multiprocessing.Pool(processes=num_processes)
 
-		map_args = [(psha_model, sample_idx, hc_folder, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
-		## Note: This doesn't work in Windows (must be behind a "main" section)
-		## So instead, we return pool
-		pool_map_args = [(psha_model, sample_idx, hc_folder, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
+		## Note: Starting pool.map here doesn't work
+		## So instead, we return (pool, func, pool_map_args)
+		## to allow starting pool.map in the calling routine
+		## (must be behind a "main" section in Windows)
+		fmt = "%%0%dd" % len(str(self.num_lt_samples))
+		pool_map_args = [(psha_model, fmt % sample_idx, hc_folder, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
 		#return pool.map(deaggregate_psha_model, pool_map_args)
 
 		return (pool, deaggregate_psha_model, pool_map_args)
-
 
 	def write_crisis(self, overwrite=True, enumerate_gmpe_lt=False, verbose=True):
 		"""
