@@ -93,7 +93,7 @@ def deaggregate_psha_model((psha_model, sample_idx, hc_folder, deagg_sites, deag
 
 	## Write XML file(s), creating directory if necessary
 	for (lon, lat) in spectral_deagg_curve_dict.keys():
-		spectral_deagg_curve = spectral_deagg_curve_dict[site_key]
+		spectral_deagg_curve = spectral_deagg_curve_dict[(lon, lat)]
 		deagg_folder = psha_model.output_dir
 		for subfolder in ("disaggregation", "calc_oqhazlib",  "disagg_matrix_multi"):
 			deagg_folder = os.path.join(deagg_folder, subfolder)
