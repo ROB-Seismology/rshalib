@@ -1466,7 +1466,9 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 				element (default: True)
 		"""
 		tree = create_nrml_root(self, encoding=encoding)
-		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+		fd = open(filespec, "w")
+		tree.write(fd, xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+		fd.close()
 
 
 class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
@@ -1851,7 +1853,9 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 				element (default: True)
 		"""
 		tree = create_nrml_root(self, encoding=encoding)
-		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+		fd = open(filespec, 'w')
+		tree.write(fd, xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+		fd.close()
 
 
 class SpectralHazardCurve(HazardResult, HazardSpectrum):
@@ -2331,7 +2335,9 @@ class HazardCurveField(HazardResult, HazardField):
 				element (default: True)
 		"""
 		tree = create_nrml_root(self, encoding=encoding)
-		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+		fd = open(filespec, 'w')
+		tree.write(fd, xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+		fd.close()
 
 
 class HazardCurve(HazardResult):

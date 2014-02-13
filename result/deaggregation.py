@@ -1174,46 +1174,47 @@ class SpectralDeaggregationCurve(DeaggBase):
 		"""
 		pass
 
-	def write_xml(self, nrml_filespec, sourceModelTreePath=None, gsimTreePath=None):
+	def write_nrml(self, nrml_filespec, sourceModelTreePath=None, gsimTreePath=None):
 		"""
 		"""
 		from lxml import etree
 		from ..nrml import ns
-		with open(nrml_filespec, "w") as nrml_file:
-			root = etree.Element("nrml", nsmap=ns.NSMAP)
-			sdc_elem = etree.SubElement(root, "spectralDeaggregationCurve")
-			if sourceModelTreePath:
-				sdc_elem.set("sourceModelTreePath", sourceModelTreePath)
-			if gsimTreePath:
-				sdc_elem.set("gsimTreePath", gsimTreePath)
-			lon, lat = self.site[0], self.site[1]
-			sdc_elem.set("lon", str(lon))
-			sdc_elem.set("lat", str(lat))
-			sdc_elem.set("investigationTime", str(self.timespan))
-			mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = self.bin_edges
-			sdc_elem.set("magBinEdges", ", ".join(map(str, mag_bins)))
-			sdc_elem.set("distBinEdges", ", ".join(map(str, dist_bins)))
-			sdc_elem.set("lonBinEdges", ", ".join(map(str, lon_bins)))
-			sdc_elem.set("latBinEdges", ", ".join(map(str, lat_bins)))
-			sdc_elem.set("epsBinEdges", ", ".join(map(str, eps_bins)))
-			sdc_elem.set("tectonicRegionTypes", ", ".join(trts))
-			dims = ",".join(map(str, self.matrix.shape[2:]))
-			sdc_elem.set("dims", dims)
-			for dc in self:
-				dc_elem = etree.SubElement(sdc_elem, "deaggregationCurve")
-				dc_elem.set("imt", str(dc.imt))
-				dc_elem.set("saPeriod", str(dc.period))
-				for ds in dc:
-					ds_elem = etree.SubElement(dc_elem, "deaggregationSlice")
-					ds_elem.set("iml", str(ds.iml))
-					poe = ds.deagg_matrix.get_total_probability(timespan=self.timespan)
-					ds_elem.set("poE", str(poe))
-					matrix = ds.deagg_matrix.to_probability_matrix(timespan=self.timespan)
-					for index, value in np.ndenumerate(matrix):
-						if not np.allclose(value, 0.):
-							index = ",".join(map(str, index))
-							value = str(value)
-							prob = etree.SubElement(ds_elem, "prob")
-							prob.set("index", index)
-							prob.set("value", value)
-			nrml_file.write(etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8"))
+		nrml_file = open(nrml_filespec, "w")
+		root = etree.Element("nrml", nsmap=ns.NSMAP)
+		sdc_elem = etree.SubElement(root, "spectralDeaggregationCurve")
+		if sourceModelTreePath:
+			sdc_elem.set("sourceModelTreePath", sourceModelTreePath)
+		if gsimTreePath:
+			sdc_elem.set("gsimTreePath", gsimTreePath)
+		lon, lat = self.site[0], self.site[1]
+		sdc_elem.set("lon", str(lon))
+		sdc_elem.set("lat", str(lat))
+		sdc_elem.set("investigationTime", str(self.timespan))
+		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = self.bin_edges
+		sdc_elem.set("magBinEdges", ", ".join(map(str, mag_bins)))
+		sdc_elem.set("distBinEdges", ", ".join(map(str, dist_bins)))
+		sdc_elem.set("lonBinEdges", ", ".join(map(str, lon_bins)))
+		sdc_elem.set("latBinEdges", ", ".join(map(str, lat_bins)))
+		sdc_elem.set("epsBinEdges", ", ".join(map(str, eps_bins)))
+		sdc_elem.set("tectonicRegionTypes", ", ".join(trts))
+		dims = ",".join(map(str, self.matrix.shape[2:]))
+		sdc_elem.set("dims", dims)
+		for dc in self:
+			dc_elem = etree.SubElement(sdc_elem, "deaggregationCurve")
+			dc_elem.set("imt", str(dc.imt))
+			dc_elem.set("saPeriod", str(dc.period))
+			for ds in dc:
+				ds_elem = etree.SubElement(dc_elem, "deaggregationSlice")
+				ds_elem.set("iml", str(ds.iml))
+				poe = ds.deagg_matrix.get_total_probability(timespan=self.timespan)
+				ds_elem.set("poE", str(poe))
+				matrix = ds.deagg_matrix.to_probability_matrix(timespan=self.timespan)
+				for index, value in np.ndenumerate(matrix):
+					if not np.allclose(value, 0.):
+						index = ",".join(map(str, index))
+						value = str(value)
+						prob = etree.SubElement(ds_elem, "prob")
+						prob.set("index", index)
+						prob.set("value", value)
+		nrml_file.write(etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8"))
+		nrml_file.close()
