@@ -160,6 +160,16 @@ class SHASiteModel(nhlib.geo.Mesh):
 				yield (lons[i], lats[i])
 
 	def __contains__(self, site):
+		"""
+		Determine if site model contains a given site (based on position
+		only).
+
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+
+		:return:
+			bool
+		"""
 		idx = np.argmin(np.abs(self.lons - site.lon))
 		if np.allclose([self.lons[idx], self.lats[idx]], [site.lon, site.lat], atol=1E-6):
 			return True
@@ -443,6 +453,16 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 		return self.num_sites
 
 	def __contains__(self, site):
+		"""
+		Determine if site model contains a given site (based on position
+		only).
+
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+
+		:return:
+			bool
+		"""
 		idx = np.argmin(np.abs(self.lons - site.lon))
 		if np.allclose([self.lons[idx], self.lats[idx]], [site.lon, site.lat], atol=1E-6):
 			return True
