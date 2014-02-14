@@ -3,26 +3,57 @@ Stand-alone functions needed for multiprocessing
 """
 
 import os
+import multiprocessing
+import numpy as np
 import openquake.hazardlib as oqhazlib
 
 
 
-def calc_hc_source((psha_model, source_id, cav_min, verbose)):
+def run_parallel(func, job_arg_list, num_processes):
+	"""
+	Wrapper
+	"""
+	num_processes = min(multiprocessing.cpu_count(), num_processes)
+	pool = multiprocessing.Pool(processes=num_processes)
+	result = pool.map(func, job_arg_list)
+	return result
+
+
+def square(x):
+	"""
+	Example function
+	"""
+	return x * x
+
+def np_array(x):
+	"""
+	Example function
+	"""
+	return np.array(range(x))
+
+
+def calc_hc_source((psha_model, source, cav_min, verbose)):
 	"""
 	Stand-alone function that will compute hazard curves for a single
 	source.
+
+	:return:
+		3-D numpy array [i,k,l] with probabilities of non-exceedance
 	"""
 	if verbose:
-		print source_id
-	sources = [psha_model.source_model[source_id]]
+		print source.source_id
+	sources = [source]
 	sites = psha_model.get_soil_site_model()
 	gsims = psha_model._get_nhlib_trts_gsims_map()
 	imts = psha_model._get_nhlib_imts()
+	tom = psha_model.poisson_tom
 
-	# TODO: shared memory array to store curves
+	# TODO: shared memory array to store curves?
+	total_sites = len(sites)
+	shape = (total_sites, len(imts), len(imts[imts.keys()[0]]))
+	curves = np.ones(shape)
 
 	## Copied from openquake.hazardlib
-	total_sites = len(sites)
 	sources_sites = ((source, sites) for source in sources)
 	for source, s_sites in psha_model.source_site_filter(sources_sites):
 		ruptures_sites = ((rupture, s_sites)
@@ -31,12 +62,13 @@ def calc_hc_source((psha_model, source_id, cav_min, verbose)):
 			prob = rupture.get_probability_one_or_more_occurrences()
 			gsim = gsims[rupture.tectonic_region_type]
 			sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
-			for imt in imts:
+			for k, imt in enumerate(imts):
 				poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imts[imt],
 									 psha_model.truncation_level, cav_min=cav_min)
-				curves[imt] *= r_sites.expand(
+				curves[:,k,:] *= r_sites.expand(
 					(1 - prob) ** poes, total_sites, placeholder=1
 				)
+	return curves
 
 
 def run_psha_model((psha_model, sample_idx, cav_min, verbose)):
@@ -182,3 +214,6 @@ def do_nothing(sample_idx, psha_model):
 	print("Doing nothing #%s" % (sample_idx,))
 
 
+
+if __name__ == "__main__":
+	print run_parallel(np_array, range(10), 3)

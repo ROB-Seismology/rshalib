@@ -379,6 +379,49 @@ class PSHAModel(PSHAModelBase):
 				hazard_result[imt] = hazard_curves[eval(imt)()].reshape(num_sites, 1, self.num_intensities)
 		return hazard_result
 
+	def calc_shcf_mp(self, cav_min=0, decompose_area_sources=False, num_cores=None, verbose=True):
+		"""
+		Parallellized computation of hazard curves
+
+		:return:
+			instance of :class:`SpectralHazardCurveField`
+		"""
+		import mp
+
+		if not num_cores:
+			num_cores = mp.multiprocessing.cpu_count()
+
+		if decompose_area_sources:
+			source_model = self.source_model.decompose_area_sources()
+		else:
+			source_model = self.source_model
+
+		job_args = []
+		for source in source_model:
+			job_args.append((self, source, cav_min, verbose))
+
+		curve_list = mp.run_parallel(mp.calc_hc_source, job_args, num_cores)
+		poes = ProbabilityArray(curve_list)
+		poes -= 1
+		poes *= -1
+
+		sites = self.get_sites()
+		ims = self.imt_periods.keys()
+		periods, intensities = [], []
+		imtls = self.get_nhlib_imts()
+		for im in ims:
+			periods.extend(self.imt_periods[im])
+			intensities.extend(imtls[im])
+		periods = np.array(periods)
+		intensities = np.array(intensities)
+		if len(ims) == 1:
+			im = ims[0]
+		else:
+			im = "SA"
+		shcf = SpectralHazardCurveField(self.name, poes, [], sites, periods, im, intensities, 'g', self.time_span)
+		return shcf
+
+
 	def deagg_nhlib(self, site, imt, iml, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0):
 		"""
 		Run deaggregation with nhlib
