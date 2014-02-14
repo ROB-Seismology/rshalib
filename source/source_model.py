@@ -265,6 +265,22 @@ class SourceModel():
 		_, e, _, n = regions.max(axis=0)
 		return (w, e, s, n)
 
+	def decompose_area_sources(self):
+		"""
+		Create a new source model where all area sources are replaced with
+		point sources.
+
+		:return:
+			instance of :class:`SourceModel`
+		"""
+		sources = []
+		for src in self.sources:
+			if isinstance(src, AreaSource):
+				sources.extend(src.to_point_sources())
+			else:
+				sources.append(src)
+		return SourceModel(self.name, sources, self.description)
+
 
 
 if __name__ == '__main__':
