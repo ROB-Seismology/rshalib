@@ -55,7 +55,22 @@ class SHAModelBase(object):
 		self.integration_distance = integration_distance
 
 	def get_sites(self):
+		"""
+		Get sites.
+
+		:return:
+			list with instance of :class:`SoilSite`
+		"""
 		return self.get_soil_site_model().get_sites()
+
+	def get_sha_sites(self):
+		"""
+		Get SHA sites.
+
+		:return:
+			list with instances of :class:`SHASite`
+		"""
+		return self.get_soil_site_model().get_sha_sites()
 
 	#@property
 	#def grid_outline(self):

@@ -5,6 +5,8 @@
 # TODO: check if documentation is compatibele with Sphinx
 # NOTE: damping for spectral periods is fixed at 5.
 
+# TODO: replace nhlib with oqhazlib
+
 ### imports
 import numpy as np
 import os
@@ -30,6 +32,14 @@ from ..pmf import get_uniform_weights
 
 
 # TODO: make distinction between imt (PGA, SA) and im (SA(0.5, 5.0), SA(1.0, 5.0))
+# (perhaps put all these functions in rshalib.imt)
+
+# im: intensity measure, e.g. "PGA", "SA"
+# imt: IMT object, e.g. PGA(), SA(0.2, 5.0)
+# imls: intensity measure levels, e.g. [0.1, 0.2, 0.3]
+# im_periods: dict mapping im to spectral periods, e.g. {"PGA": [0], "SA": [0.1, 0.5, 1.]}
+# imtls --> imt_imls: dict mapping IMT objects to imls (1-D arrays)
+# im_imls: dict mapping im strings to imls (2-D arrays)
 
 
 ## Minimum and maximum values for random number generator
@@ -42,8 +52,8 @@ class PSHAModelBase(SHAModelBase):
 	"""
 	Base class for PSHA models, holding common attributes and methods.
 
-	:param output_dir:
-		String, defining full path to output directory.
+	:param root_folder:
+		String, defining full path to root folder.
 	:param imt_periods:
 		see :class:`..site.SHASiteModel`
 	:param intensities:
@@ -65,12 +75,12 @@ class PSHAModelBase(SHAModelBase):
 		see :class:`..site.SHASiteModel`
 	"""
 
-	def __init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance):
+	def __init__(self, name, root_folder, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance):
 		"""
 		"""
 		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, truncation_level, integration_distance)
 
-		self.output_dir = output_dir
+		self.root_folder = root_folder
 		self.intensities = intensities
 		if self.intensities:
 			self.min_intensities = None
@@ -95,6 +105,111 @@ class PSHAModelBase(SHAModelBase):
 	def poisson_tom(self):
 		return nhlib.tom.PoissonTOM(self.time_span)
 
+	@property
+	def oq_root_folder(self):
+		return os.path.join(self.root_folder, "openquake")
+
+	@property
+	def crisis_root_folder(self):
+		return os.path.join(self.root_folder, "crisis")
+
+	@property
+	def oq_output_folder(self):
+		return os.path.join(self.oq_root_folder, "computed_output")
+
+	def get_oq_hc_folder(self, calc_id=None, multi=False):
+		"""
+		Return full path to OpenQuake hazard_curve folder
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+		:param multi:
+			bool, whether or not path to multi_folder should be returned
+			(default: False)
+
+		:return:
+			str, path spec
+		"""
+		folder = os.path.join(self.oq_output_folder, "classical")
+		if calc_id is None:
+			calc_id = self._get_oq_calc_id(folder)
+		hc_folder = os.path.join(folder, "calc_" + calc_id, "hazard_curve")
+		if multi:
+			hc_folder += "_multi"
+		return hc_folder
+
+	def get_oq_uhs_folder(self, calc_id=None):
+		"""
+		Return full path to OpenQuake uhs folder
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			str, path spec
+		"""
+		folder = os.path.join(self.oq_output_folder, "classical")
+		if calc_id is None:
+			calc_id = self._get_oq_calc_id(folder)
+		uhs_folder = os.path.join(folder, "calc_" + calc_id, "uh_spectra")
+		return uhs_folder
+
+	def get_oq_hm_folder(self, calc_id=None):
+		"""
+		Return full path to OpenQuake hazard-map folder
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			str, path spec
+		"""
+		folder = os.path.join(self.oq_output_folder, "classical")
+		if calc_id is None:
+			calc_id = self._get_oq_calc_id(folder)
+		hm_folder = os.path.join(folder, "calc_" + calc_id, "hazard_map")
+		return hm_folder
+
+	def get_oq_disagg_folder(self, calc_id=None, multi=False):
+		"""
+		Return full path to OpenQuake disaggregation folder
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+		:param multi:
+			bool, whether or not path to multi_folder should be returned
+			(default: False)
+
+		:return:
+			str, path spec
+		"""
+		folder = os.path.join(self.oq_output_folder, "disaggregation")
+		if calc_id is None:
+			calc_id = self._get_oq_calc_id(folder)
+		disagg_folder = os.path.join(folder, "calc_" + calc_id, "disagg_matrix")
+		if multi:
+			disagg_folder += "_multi"
+		return disagg_folder
+
+	def _get_oq_calc_id(self, folder):
+		"""
+		Get OpenQuake calculation ID. If there is more than one calc_
+		subfolder, the first one will be returned.
+
+		:param folder:
+			str, parent folder where calc_ subfolders are stored
+
+		:return:
+			str or None, calc_id
+		"""
+		for entry in os.listdir(folder):
+			if entry[:5] == "calc_":
+				return entry.split('_')[1]
+
 	def _get_intensities_limits(self, intensities_limits):
 		"""
 		Return dict, defining minimum or maximum intensity for intensity type and period.
@@ -106,27 +221,13 @@ class PSHAModelBase(SHAModelBase):
 			intensities_limits = {imt: [intensities_limits]*len(periods) for imt, periods in self.imt_periods.items()}
 		return intensities_limits
 
-	def _get_nhlib_params(self):
-		"""
-		Construct dict with nhlib params for both PSHAModel and PSHAModelTree.
-
-		:return:
-			dict with following key, value pairs:
-			'soil_site_model': soil site model object
-			'imts': dictionary mapping intensity measure type objects to intensities
-			'ssdf': source_to_site distance filter
-			'rsdf': rupture_to_site distance filter
-		"""
-		nhlib_params = {}
-		nhlib_params['soil_site_model'] = self.get_soil_site_model()
-		nhlib_params['imts'] = self._get_nhlib_imts()
-		nhlib_params['ssdf'] = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
-		nhlib_params['rsdf'] = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
-		return nhlib_params
-
-	def _get_imt_intensities(self):
+	def _get_im_imls(self, combine_pga_and_sa=True):
 		"""
 		Construct a dictionary containing a 2-D array [k, l] of intensities for each IMT.
+
+		:param combine_pga_and_sa:
+			bool, whether or not to combine PGA and SA, if present
+			(default: True)
 
 		:return:
 			dict {IMT (string): intensities (2-D numpy array of floats)}
@@ -146,9 +247,13 @@ class PSHAModelBase(SHAModelBase):
 					imtls[imt] = np.array(self.intensities).reshape(1, self.num_intensities)
 				else:
 					imtls[imt] = np.logspace(np.log10(self.min_intensities[imt][0]), np.log10(self.max_intensities[imt][0]), self.num_intensities).reshape(1, self.num_intensities)
+		if combine_pga_and_sa and "PGA" in self.imt_periods.keys() and "SA" in self.imt_periods.keys():
+			imtls["PGA"].shape = (1, self.num_intensities)
+			imtls["SA"] = np.concatenate([imtls["PGA"], imtls["SA"]], axis=0)
+			del imtls["PGA"]
 		return imtls
 
-	def _get_nhlib_imts(self):
+	def _get_imtls(self):
 		"""
 		Construct a dictionary mapping nhlib intensity measure type objects
 		to 1-D arrays of intensity measure levels. This dictionary can be passed
@@ -157,19 +262,21 @@ class PSHAModelBase(SHAModelBase):
 		:return:
 			dict {:mod:`nhlib.imt` object: 1-D numpy array of floats}
 		"""
-		imtls = {}
-		for imt, periods in self.imt_periods.items():
-			if imt == "SA":
+		imtls = OrderedDict()
+		for im, periods in sorted(self.imt_periods.items()):
+			if im == "SA":
 				for k, period in enumerate(periods):
+					imt = getattr(nhlib.imt, im)(period, damping=5.)
 					if self.intensities:
-						imtls[eval(imt)(period, 5.)] = np.array(self.intensities)
+						imtls[imt] = np.array(self.intensities)
 					else:
-						imtls[eval(imt)(period, 5.)] = np.logspace(np.log10(self.min_intensities[imt][k]), np.log10(self.max_intensities[imt][k]), self.num_intensities)
+						imtls[imt] = np.logspace(np.log10(self.min_intensities[im][k]), np.log10(self.max_intensities[im][k]), self.num_intensities)
 			else:
+				imt = getattr(nhlib.imt, im)()
 				if self.intensities:
-					imtls[eval(imt)()] = np.array(self.intensities)
+					imtls[imt] = np.array(self.intensities)
 				else:
-					imtls[eval(imt)()] = np.logspace(np.log10(self.min_intensities[imt][0]), np.log10(self.max_intensities[imt][0]), self.num_intensities)
+					imtls[imt] = np.logspace(np.log10(self.min_intensities[im][0]), np.log10(self.max_intensities[im][0]), self.num_intensities)
 		return imtls
 
 	def _get_openquake_imts(self):
@@ -262,13 +369,18 @@ class PSHAModelBase(SHAModelBase):
 
 		return grid_spacing
 
-	def _soil_site_model_or_ref_soil_params(self, output_dir, params):
+	def _handle_oq_soil_params(self, params):
 		"""
-		Write nrml file for soil site model if present and set file param, or set ref soil params
+		Write nrml file for soil site model if present and set file param,
+		or set reference soil params
+
+		:param params:
+			instance of :class:`OQ_Params` where soil parameters will
+			be added.
 		"""
 		if self.soil_site_model:
 			file_name = (self.soil_site_model.name or "soil_site_model") + ".xml"
-			self.soil_site_model.write_xml(os.path.join(output_dir, file_name))
+			self.soil_site_model.write_xml(os.path.join(self.oq_root_folder, file_name))
 			params.set_soil_site_model_or_reference_params(soil_site_model_file=file_name)
 		else:
 			params.set_soil_site_model_or_reference_params(
@@ -277,6 +389,100 @@ class PSHAModelBase(SHAModelBase):
 				reference_depth_to_1pt0km_per_sec=self.ref_soil_params["z1pt0"],
 				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"],
 				reference_kappa=self.ref_soil_params.get("kappa", None))
+
+	def read_oq_hcf(self, curve_name, im, T, calc_id=None):
+		"""
+		Read OpenQuake hazard curve field
+
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param im:
+			str, intensity measure
+		:param T:
+			float, spectral period
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
+
+		:return:
+			instance of :class:´HazardCurveField`
+		"""
+		from ..openquake import parse_hazard_curves
+
+		hc_folder = self.get_oq_hc_folder(calc_id=calc_id)
+		if im == "SA":
+			imt_subfolder = "SA-%s" % T
+		else:
+			imt_subfolder = im
+		xml_filename = "hazard_curve-%s.xml" % curve_name
+		#print xml_filename
+		xml_filespec = os.path.join(hc_folder, imt_subfolder, xml_filename)
+		hcf = parse_hazard_curves(xml_filespec)
+		hcf.set_site_names(self.get_sha_sites())
+
+		return hcf
+
+	def read_oq_uhs_field(self, curve_name, return_period, calc_id=None):
+		"""
+		Read OpenQuake hazard curve field
+
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param return period:
+			float, return period
+		:param calc_id:
+			int, calculation ID. (default: None, will determine from folder structure)
+
+		:return:
+			instance of :class:`UHSField`
+		"""
+		from ..result import Poisson
+		from ..openquake import parse_uh_spectra
+		poe = str(round(Poisson(life_time=self.life_time, return_period=return_period), 13))
+
+		uhs_folder = self.get_oq_uhs_folder(calc_id=calc_id)
+		xml_filename = "uh_spectra-poe_%s%s.xml" % (poe, curve_name)
+		#print xml_filename
+		xml_filespec = os.path.join(uhs_folder, xml_filename)
+		uhsf = parse_uh_spectra(xml_filespec)
+		uhsf.set_site_names(self.get_sha_sites())
+
+		return uhsf
+
+	def read_crisis_batch(self):
+		"""
+		Reach CRISIS batch file
+
+		:return:
+			list of gra_filespecs
+		"""
+		from ..crisis import read_batch
+
+		batch_filename = "lt_batch.dat"
+		batch_filespec = os.path.join(self.crisis_root_folder, batch_filename)
+		#print batch_filespec
+		return read_batch(batch_filespec)
+
+	def read_crisis_shcf(self, curve_name):
+		"""
+		Read CRISIS spectral hazard curve field
+
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01")
+
+		:return:
+			instance of :class:`SpectralHazardCurveField`
+		"""
+		from ..crisis import read_GRA
+
+		gra_filespecs, weights = self.read_crisis_batch(test_case)
+		for gra_filespec in gra_filespecs:
+			gra_filename = os.path.split(gra_filespec)[1]
+			if curve_name in gra_filename:
+				break
+		#print gra_filename
+
+		shcf = read_GRA(gra_filespec)
+		return shcf
 
 
 class PSHAModel(PSHAModelBase):
@@ -291,12 +497,12 @@ class PSHAModel(PSHAModelBase):
 	See :class:`PSHAModelBase` for other arguments.
 	"""
 
-	def __init__(self, name, source_model, ground_motion_model, output_dir, sites=[], grid_outline=[], grid_spacing=0.5, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200.):
+	def __init__(self, name, source_model, ground_motion_model, root_folder, sites=[], grid_outline=[], grid_spacing=0.5, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200.):
 
 		"""
 		"""
 		# TODO: consider moving 'name' parameter to third position, to be in accordance with order of parameters in docstring.
-		PSHAModelBase.__init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
+		PSHAModelBase.__init__(self, name, root_folder, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
 		self.source_model = source_model
 		self.ground_motion_model = ground_motion_model
 
@@ -308,66 +514,50 @@ class PSHAModel(PSHAModelBase):
 	def gmpelt_path(self):
 		return self.ground_motion_model.name
 
-	def run_nhlib_shcf(self, plot=False, write=False, nrml_base_filespec="", cav_min=0.):
+	def calc_shcf(self, cav_min=0., combine_pga_and_sa=True):
 		"""
 		Run PSHA model with nhlib, and store result in one or more
 		SpectralHazardCurfeField objects.
 
-		:param plot:
-			Boolean, defining whether to plot results or not
-			(default: True).
-		:param write:
-			Boolean, defining whether to write results or not
-			(default: False).
-		:param nrml_base_filespec:
-			String, base file specification for NRML output file
-			(default: "").
 		:param cav_min:
 			float, CAV threshold in g.s (default: 0. = no CAV filtering).
+		:param combine_pga_and_sa:
+			bool, whether or not to combine PGA and SA, if present
+			(default: True)
 
 		:return:
 			dict {imt (string) : SpectralHazardCurveField object}
 		"""
-		if not nrml_base_filespec:
-			nrml_base_filespec = os.path.join(self.output_dir, '%s' % self.name)
-		else:
-			nrml_base_filespec = os.path.splitext(nrml_base_filespec)[0]
-		nhlib_params = self._get_nhlib_params()
-		hazard_result = self.run_nhlib_poes(nhlib_params, cav_min=cav_min)
-		imtls = self._get_imt_intensities()
+		hazard_result = self.calc_poes(cav_min=cav_min, combine_pga_and_sa=combine_pga_and_sa)
+		im_imls = self._get_im_imls(combine_pga_and_sa=combine_pga_and_sa)
 		shcfs = {}
 		site_names = [site.name for site in self.get_sites()]
-		for imt, periods in self.imt_periods.items():
+		for imt in hazard_result.keys():
+			periods = self.imt_periods[imt]
+			if imt == "SA" and combine_pga_and_sa and "PGA" in self.imt_periods.keys():
+				periods = [0] + list(periods)
 			# TODO: add method to PSHAModelBase to associate nhlib/OQ imt's with units
 			poes = ProbabilityArray(hazard_result[imt])
-			shcf = SpectralHazardCurveField(self.name, poes, [''], self.get_sites(), periods, imt, imtls[imt], 'g', self.time_span)
+			shcf = SpectralHazardCurveField(self.name, poes, [''], self.get_sites(), periods, imt, im_imls[imt], 'g', self.time_span)
 			shcfs[imt] = shcf
-			if plot:
-				shcf.plot()
-			if write:
-				nrml_filespec = nrml_base_filespec + '_%s.xml' % imt
-				shcf.write_nrml(nrml_filespec)
 		return shcfs
 
-	def run_nhlib_poes(self, nhlib_params=None, cav_min=0.):
+	def calc_poes(self, cav_min=0., combine_pga_and_sa=True):
 		"""
 		Run PSHA model with nhlib. Output is a dictionary mapping intensity
 		measure types to probabilities of exceedance (poes).
 
-		:param nhlib_params:
-			dict containing parameters specific for nhlib, namely 'soil_site_model',
-			'imts', 'ssdf', and 'rsdf'. See :class:`PSHAModelBase`.`_get_nhlib_params`
-			for an explanation of these keys.
 		:param cav_min:
 			float, CAV threshold in g.s (default: 0. = no CAV filtering).
+		:param combine_pga_and_sa:
+			bool, whether or not to combine PGA and SA, if present
+			(default: True)
 
 		:return:
 			dict {imt (string) : poes (2-D numpy array of poes)}
 		"""
-		if not nhlib_params:
-			nhlib_params = self._get_nhlib_params()
-		num_sites = len(nhlib_params['soil_site_model'])
-		hazard_curves = nhlib.calc.hazard_curves_poissonian(self.source_model, nhlib_params['soil_site_model'], nhlib_params['imts'], self.time_span, self._get_nhlib_trts_gsims_map(), self.truncation_level, nhlib_params['ssdf'], nhlib_params['rsdf'], cav_min=cav_min)
+		num_sites = len(self.get_soil_site_model())
+		hazard_curves = nhlib.calc.hazard_curves_poissonian(self.source_model, self.get_soil_site_model(), self._get_imtls(), self.time_span, self._get_trt_gsim_dict(), self.truncation_level, self.source_site_filter, self.rupture_site_filter, cav_min=cav_min)
 		hazard_result = {}
 		for imt, periods in self.imt_periods.items():
 			if imt == "SA":
@@ -376,15 +566,40 @@ class PSHAModel(PSHAModelBase):
 					poes[:,k,:] = hazard_curves[eval(imt)(period, 5.)]
 				hazard_result[imt] = poes
 			else:
-				hazard_result[imt] = hazard_curves[eval(imt)()].reshape(num_sites, 1, self.num_intensities)
+				poes = hazard_curves[eval(imt)()].reshape(num_sites, 1, self.num_intensities)
+				hazard_result[imt] = poes
+		if combine_pga_and_sa and "PGA" in self.imt_periods.keys() and "SA" in self.imt_periods.keys():
+			hazard_result["SA"] = np.concatenate([hazard_result["PGA"], hazard_result["SA"]], axis=1)
+			del hazard_result["PGA"]
 		return hazard_result
 
-	def calc_shcf_mp(self, cav_min=0, decompose_area_sources=False, num_cores=None, verbose=True):
+	def calc_shcf_mp(self, cav_min=0, decompose_area_sources=False, individual_sources=False, num_cores=None, verbose=True):
 		"""
-		Parallellized computation of hazard curves
+		Parallellized computation of spectral hazard curve field.
+
+		Note: at least in Windows, this method has to be executed in
+		a main section (i.e., behind if __name__ == "__main__":)
+
+		:param cav_min:
+			float, CAV threshold in g.s (default: 0)
+		:param decompose_area_sources:
+			bool, whether or not area sources should be decomposed into
+			point sources for the computation (default: False)
+		:param individual_sources:
+			bool, whether or not hazard curves should be computed for each
+			source individually (default: False)
+		:param num_cores:
+			int, number of CPUs to be used. Actual number of cores used
+			may be lower depending on available cores and memory
+			(default: None, will determine automatically)
+		:param verbose:
+			bool, whether or not to print some progress information
+			(default: True)
 
 		:return:
-			instance of :class:`SpectralHazardCurveField`
+			instance of :class:`SpectralHazardCurveField` (if group_sources
+			is True) or dict mapping source IDs to instances of
+			:class:`SpectralHazardCurveField` (if group_sources is False)
 		"""
 		import mp
 
@@ -396,31 +611,74 @@ class PSHAModel(PSHAModelBase):
 		else:
 			source_model = self.source_model
 
+		## Create list with arguments for each job
 		job_args = []
 		for source in source_model:
 			job_args.append((self, source, cav_min, verbose))
 
-		curve_list = mp.run_parallel(mp.calc_hc_source, job_args, num_cores)
+		## Launch multiprocessing
+		curve_list = mp.run_parallel(mp.calc_shcf_by_source, job_args, num_cores)
 		poes = ProbabilityArray(curve_list)
+
+		## Recombine hazard curves computed for each source
+		if not individual_sources:
+			poes = np.prod(poes, axis=0)
+		else:
+			total_poes = np.prod(poes, axis=0)
+			if decompose_area_sources:
+				curve_list = []
+				prev_num_pts = 0
+				for src in self.source_model:
+					num_pts = len(src.polygon.discretize(src.area_discretization))
+					curve_list.append(np.prod(poes[prev_num_pts:prev_num_pts+num_pts], axis=0))
+					prev_num_pts += num_pts
+				poes = ProbabilityArray(curve_list)
+
+		## Convert non-exceedance to exceedance probabilities
 		poes -= 1
 		poes *= -1
+		if individual_sources:
+			total_poes -= 1
+			total_poes *= -1
 
+		## Construct spectral hazard curve field
+		# TODO: use _get_im_imls, and return shcf_dict, and correct order of periods !!
 		sites = self.get_sites()
+		imtls = self._get_imtls()
 		ims = self.imt_periods.keys()
-		periods, intensities = [], []
-		imtls = self.get_nhlib_imts()
-		for im in ims:
+		periods = []
+		for im in sorted(ims):
 			periods.extend(self.imt_periods[im])
-			intensities.extend(imtls[im])
+		intensities = []
+		for im in sorted(ims):
+			for T in self.imt_periods[im]:
+				if T == 0:
+					imt = getattr(nhlib.imt, im)()
+				else:
+					imt = getattr(nhlib.imt, im)(T, damping=5)
+				intensities.append(imtls[imt])
 		periods = np.array(periods)
 		intensities = np.array(intensities)
 		if len(ims) == 1:
 			im = ims[0]
 		else:
 			im = "SA"
-		shcf = SpectralHazardCurveField(self.name, poes, [], sites, periods, im, intensities, 'g', self.time_span)
-		return shcf
 
+		if individual_sources:
+			shcf_dict = OrderedDict()
+			for i, src in enumerate(self.source_model):
+				shcf_dict[src.source_id] = SpectralHazardCurveField(self.name,
+												poes[i], [""]*len(periods), sites,
+												periods, im, intensities, 'g',
+												self.time_span)
+				shcf_dict['Total'] = SpectralHazardCurveField(self.name, total_poes,
+											[""]*len(periods), sites, periods, im,
+											intensities, 'g', self.time_span)
+			return shcf_dict
+		else:
+			shcf = SpectralHazardCurveField(self.name, poes, [""]*len(periods),
+							sites, periods, im, intensities, 'g', self.time_span)
+			return shcf
 
 	def deagg_nhlib(self, site, imt, iml, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0):
 		"""
@@ -452,13 +710,13 @@ class PSHAModel(PSHAModelBase):
 			mag_bin_width = self.source_model[0].mfd.bin_width
 		if not isinstance(site, SoilSite):
 			site = site.to_soil_site(self.ref_soil_params)
-		#imt = self._get_nhlib_imts()
+		#imt = self._get_imtls()
 		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
 		rsdf = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
 
 		#tom = nhlib.tom.PoissonTOM(self.time_span)
-		#bin_edges, deagg_matrix = nhlib.calc.disaggregation(self.source_model, nhlib_site, imt, iml, self._get_nhlib_trts_gsims_map(), tom, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
-		bin_edges, deagg_matrix = nhlib.calc.disaggregation_poissonian(self.source_model, site, imt, iml, self._get_nhlib_trts_gsims_map(), self.time_span, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
+		#bin_edges, deagg_matrix = nhlib.calc.disaggregation(self.source_model, nhlib_site, imt, iml, self._get_trt_gsim_dict(), tom, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
+		bin_edges, deagg_matrix = nhlib.calc.disaggregation_poissonian(self.source_model, site, imt, iml, self._get_trt_gsim_dict(), self.time_span, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
 		deagg_matrix = ProbabilityMatrix(deagg_matrix)
 		imt_name = str(imt).split('(')[0]
 		if imt_name == "SA":
@@ -502,7 +760,7 @@ class PSHAModel(PSHAModelBase):
 		all_sites = site_model.get_sha_sites()
 		deagg_soil_sites = [site for site in site_model.get_sites() if (site.lon, site.lat) in site_imtls.keys()]
 		deagg_site_model = SoilSiteModel("", deagg_soil_sites)
-		for deagg_result in nhlib.calc.disaggregation_poissonian_multi(self.source_model, deagg_site_model, site_imtls, self._get_nhlib_trts_gsims_map(), self.time_span, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf):
+		for deagg_result in nhlib.calc.disaggregation_poissonian_multi(self.source_model, deagg_site_model, site_imtls, self._get_trt_gsim_dict(), self.time_span, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf):
 			deagg_site, bin_edges, deagg_matrix = deagg_result
 			if (bin_edges, deagg_matrix) == (None, None):
 				## No deaggregation results for this site
@@ -585,7 +843,7 @@ class PSHAModel(PSHAModelBase):
 
 		return (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins)
 
-	def deaggregate(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, verbose=False):
+	def deaggregate(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='f', verbose=False):
 		"""
 		Hybrid rshalib/oqhazlib deaggregation for multiple sites, multiple
 		imt's per site, and multiple iml's per iml, that is more speed- and
@@ -607,6 +865,8 @@ class PSHAModel(PSHAModelBase):
 			corresponding to integer epsilon values)
 		:param coord_bin_width:
 			Float, lon/lat bin width in decimal degrees (default: 1.)
+		:param dtype:
+			str, precision of deaggregation matrix (default: 'f')
 		:param verbose:
 			Bool, whether or not to print some progress information
 
@@ -614,8 +874,11 @@ class PSHAModel(PSHAModelBase):
 			dict, mapping site (lon, lat) tuples to instances of
 			:class:`SpectralDeaggregationCurve`
 		"""
-		# TODO: add output_folder parameter
+		# TODO: determine site_imtls from self.return_periods (separate method)
 		from openquake.hazardlib.site import SiteCollection
+
+		if site_imtls in (None, {}):
+			pass
 
 		if not n_epsilons:
 			n_epsilons = 2 * int(np.ceil(self.truncation_level))
@@ -639,12 +902,12 @@ class PSHAModel(PSHAModelBase):
 						len(lat_bins) - 1, len(eps_bins) - 1, len(src_bins))
 
 			## Initialize array with ones representing NON-exceedance probabilities !
-			deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype='f'))
+			deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype=dtype))
 			deagg_matrix_dict[site_key] = deagg_matrix
 
 		## Perform deaggregation
 		tom = self.poisson_tom
-		gsims = self._get_nhlib_trts_gsims_map()
+		gsims = self._get_trt_gsim_dict()
 		source_site_filter = self.source_site_filter
 		rupture_site_filter = self.rupture_site_filter
 
@@ -738,9 +1001,163 @@ class PSHAModel(PSHAModelBase):
 
 		return deagg_result
 
-	def deaggregate_mp(self):
-		# TODO: multiprocessing deaggregation (by source)
-		pass
+	def deaggregate_mp(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='f', num_cores=None, verbose=False):
+		"""
+		Hybrid rshalib/oqhazlib deaggregation for multiple sites, multiple
+		imt's per site, and multiple iml's per iml, using multiprocessing.
+		Note that deaggregation by tectonic region type is replaced with
+		deaggregation by source.
+
+		:param site_imtls:
+			nested dictionary mapping (lon, lat) tuples to dictionaries
+			mapping oqhazlib IMT objects to 1-D arrays of intensity measure
+			levels
+		:param mag_bin_width:
+			Float, magnitude bin width (default: None, will take MFD bin width
+			of first source)
+		:param dist_bin_width:
+			Float, distance bin width in km (default: 10.)
+		:param n_epsilons:
+			Int, number of epsilon bins (default: None, will result in bins
+			corresponding to integer epsilon values)
+		:param coord_bin_width:
+			Float, lon/lat bin width in decimal degrees (default: 1.)
+		:param dtype:
+			str, precision of deaggregation matrix (default: 'f')
+		:param num_cores:
+			int, number of CPUs to be used. Actual number of cores used
+			may be lower depending on available cores
+			(default: None, will determine automatically)
+		:param verbose:
+			Bool, whether or not to print some progress information
+
+		:return:
+			dict, mapping site (lon, lat) tuples to instances of
+			:class:`SpectralDeaggregationCurve`
+		"""
+		import mp
+
+		if not n_epsilons:
+			n_epsilons = 2 * int(np.ceil(self.truncation_level))
+		if not mag_bin_width:
+			mag_bin_width = self.source_model[0].mfd.bin_width
+
+		## Determine bin edges first
+		bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
+		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
+
+		## Create deaggregation matrices
+		deagg_matrix_dict = {}
+		for site_key in site_imtls.keys():
+			deagg_matrix_dict[site_key] = {}
+			imtls = site_imtls[site_key]
+			imts = imtls.keys()
+			num_imts = len(imts)
+			num_imls = len(imtls[imts[0]])
+
+			deagg_matrix_shape = (num_imts, num_imls, len(mag_bins) - 1, len(dist_bins) - 1, len(lon_bins) - 1,
+						len(lat_bins) - 1, len(eps_bins) - 1, len(src_bins))
+
+			## Initialize array with zeros representing exceedance probabilities !
+			deagg_matrix = ProbabilityMatrix(np.zeros(deagg_matrix_shape, dtype=dtype))
+			deagg_matrix_dict[site_key] = deagg_matrix
+
+		site_model = self.get_soil_site_model()
+		deagg_soil_sites = [site for site in site_model.get_sites() if (site.lon, site.lat) in site_imtls.keys()]
+		deagg_site_model = SoilSiteModel("", deagg_soil_sites)
+
+		## Convert imt's in site_imtls to tuples to avoid mangling up by mp
+		copy_of_site_imtls = OrderedDict()
+		for site_key in site_imtls.keys():
+			copy_of_site_imtls[site_key] = OrderedDict()
+			for imt in site_imtls[site_key]:
+				copy_of_site_imtls[site_key][tuple(imt)] = site_imtls[site_key][imt]
+
+		## Create list with arguments for each job
+		job_args = []
+		for source in self.source_model:
+			job_args.append((self, source, copy_of_site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose))
+
+		## Launch multiprocessing
+		if not num_cores:
+			num_cores = mp.multiprocessing.cpu_count()
+
+		for src_idx, src_deagg_matrix_dict in enumerate(mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores)):
+			for site_key in deagg_matrix_dict.keys():
+				deagg_matrix_dict[site_key][:,:,:,:,:,:,:,src_idx] = src_deagg_matrix_dict[site_key]
+
+		## Create SpectralDeaggregationCurve for each site
+		deagg_result = {}
+		all_sites = site_model.get_sha_sites()
+		for deagg_site in deagg_site_model:
+			for site in all_sites:
+				if deagg_site.location.longitude == site.lon and deagg_site.location.latitude == site.lat:
+					break
+			site_key = (site.lon, site.lat)
+			imtls = site_imtls[site_key]
+			imts = imtls.keys()
+			periods = [getattr(imt, "period", 0) for imt in imts]
+			intensities = np.array([imtls[imt] for imt in imts])
+			deagg_matrix = deagg_matrix_dict[site_key]
+			deagg_result[site_key] = SpectralDeaggregationCurve(bin_edges,
+										deagg_matrix, site, "SA", intensities,
+										periods, self.time_span)
+
+		return deagg_result
+
+	def _interpolate_oq_site_imtls(self, curve_name, sites, imt_periods, calc_id=None):
+		"""
+		Determine intensity levels corresponding to psha-model return periods
+		from saved hazard curves. Mainly useful as helper function for
+		deaggregation.
+
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param sites:
+			list with instances of :class:`SHASite` or instance of
+			:class:`SHASiteModel`. Note that instances
+			of class:`SoilSite` will not work with multiprocessing
+		:param imt_periods:
+			dictionary mapping intensity measure strings to lists of spectral
+			periods.
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
+
+		:return:
+			nested dictionary mapping (lon, lat) tuples to dictionaries
+			mapping oqhazlib IMT objects to 1-D arrays of intensity measure
+			levels
+		"""
+		site_imtls = OrderedDict()
+		for site in sites:
+			try:
+				lon, lat = site.lon, site.lat
+			except AttributeError:
+				lon, lat = site.location.longitude, site.location.latitude
+			site_imtls[(lon, lat)] = OrderedDict()
+
+		for im in sorted(imt_periods.keys()):
+			damping = 5.
+			for T in sorted(imt_periods[im]):
+				if im == "SA":
+					imt = getattr(nhlib.imt, im)(T, damping)
+				else:
+					imt = getattr(nhlib.imt, im)()
+
+				hcf = self.read_oq_hcf(curve_name, im, T, calc_id=calc_id)
+				for i, site in enumerate(sites):
+					try:
+						site_name = site.name
+					except AttributeError:
+						site_name = sites.site_names[i]
+						lon, lat = site.location.longitude, site.location.latitude
+					else:
+						lon, lat = site.lon, site.lat
+					hc = hcf.getHazardCurve(site_name)
+					imls = hc.interpolate_return_periods(self.return_periods)
+					site_imtls[(lon, lat)][imt] = imls
+
+		return site_imtls
 
 	def _get_implicit_openquake_params(self):
 		"""
@@ -807,23 +1224,26 @@ class PSHAModel(PSHAModelBase):
 		else:
 			params.set_grid_or_sites(sites=self.get_sites())
 
+		if not os.path.exists(self.oq_root_folder):
+			os.mkdir(self.oq_root_folder)
+
 		## write nrml file for source model
-		self.source_model.write_xml(os.path.join(self.output_dir, self.source_model.name + '.xml'))
+		self.source_model.write_xml(os.path.join(self.oq_root_folder, self.source_model.name + '.xml'))
 
 		## write nrml file for soil site model if present and set file param, or set ref soil params
-		self._soil_site_model_or_ref_soil_params(self.output_dir, params)
+		self._handle_oq_soil_params(params)
 
 		## validate source model logic tree and write nrml file
 		source_model_lt = SeismicSourceSystem(self.source_model.name, self.source_model)
 		source_model_lt.validate()
 		source_model_lt_file_name = 'source_model_lt.xml'
-		source_model_lt.write_xml(os.path.join(self.output_dir, source_model_lt_file_name))
+		source_model_lt.write_xml(os.path.join(self.oq_root_folder, source_model_lt_file_name))
 		params.source_model_logic_tree_file = source_model_lt_file_name
 
 		## create ground_motion_model logic tree and write nrml file
 		ground_motion_model_lt = self.ground_motion_model.get_optimized_model(self.source_model).to_ground_motion_system()
 		ground_motion_model_lt_file_name = 'ground_motion_model_lt.xml'
-		ground_motion_model_lt.write_xml(os.path.join(self.output_dir, ground_motion_model_lt_file_name))
+		ground_motion_model_lt.write_xml(os.path.join(self.oq_root_folder, ground_motion_model_lt_file_name))
 		params.gsim_logic_tree_file = ground_motion_model_lt_file_name
 
 		## convert return periods and time_span to poes
@@ -849,7 +1269,7 @@ class PSHAModel(PSHAModelBase):
 
 		# validate and write oq params to ini file
 		params.validate()
-		params.write_config(os.path.join(self.output_dir, 'job.ini'))
+		params.write_config(os.path.join(self.oq_root_folder, 'job.ini'))
 
 	def write_crisis(self, filespec="", atn_folder="", site_filespec="", atn_Mmax=None, overwrite=False):
 		"""
@@ -880,15 +1300,18 @@ class PSHAModel(PSHAModelBase):
 			if len(set(self.soil_site_model.vs30)) > 1 or len(set(self.soil_site_model.kappa)) > 1:
 				raise Exception("CRISIS2007 does not support sites with different VS30 and/or kappa!")
 
+		if not os.path.exists(self.crisis_root_folder):
+			os.mkdir(self.crisis_root_folder)
+
 		## Construct default filenames and paths if none are specified
 		if not filespec:
-			filespec = os.path.join(self.output_dir, self.name + '.dat')
+			filespec = os.path.join(self.crisis_root_folder, self.name + '.DAT')
 		if not atn_folder:
-			atn_folder = os.path.join(self.output_dir, 'gsims')
+			atn_folder = os.path.join(self.crisis_root_folder, 'gsims')
 		if not os.path.exists(atn_folder):
 			os.mkdir(atn_folder)
 		if not site_filespec:
-			site_filespec = os.path.join(self.output_dir, 'sites.ASC')
+			site_filespec = os.path.join(self.crisis_root_folder, 'sites.ASC')
 
 		## Map gsims to attenuation tables
 		gsim_atn_map = {}
@@ -908,16 +1331,18 @@ class PSHAModel(PSHAModelBase):
 		## Return name of output file
 		return filespec
 
-	def _get_nhlib_trts_gsims_map(self):
+	def _get_trt_gsim_dict(self):
 		"""
-		Return {str, GroundShakingIntensityModel object} dict, defining respectively tectonic region types and gsim for nhlib.
+		:return:
+			dict, mapping tectonic region types (str) to instances of
+			:class:` GroundShakingIntensityModel`
 		"""
-		#return {trt: NHLIB_GSIMS_MAP[self.ground_motion_model[trt]]() for trt in self._get_used_trts()}
 		return {trt: nhlib.gsim.get_available_gsims()[self.ground_motion_model[trt]]() for trt in self._get_used_trts()}
 
 	def _get_used_trts(self):
 		"""
-		Return list of strings, defining tectonic region types used in source model.
+		:return:
+			list of strings, defining tectonic region types used in source model.
 		"""
 		used_trts = set()
 		for source in self.source_model:
@@ -926,7 +1351,8 @@ class PSHAModel(PSHAModelBase):
 
 	def _get_used_gsims(self):
 		"""
-		Return list of strings, defining gsims of tectonic region types used in source model.
+		:return:
+			list of strings, defining gsims of tectonic region types used in source model.
 		"""
 		used_gsims = set()
 		for used_trt in self._get_used_trts():
@@ -951,11 +1377,11 @@ class PSHAModelTree(PSHAModelBase):
 
 	See :class:`PSHAModelBase` for other arguments.
 	"""
-	def __init__(self, name, source_model_lt, gmpe_lt, output_dir, sites=[], grid_outline=[], grid_spacing=0.5, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200., num_lt_samples=1, random_seed=42):
+	def __init__(self, name, source_model_lt, gmpe_lt, root_folder, sites=[], grid_outline=[], grid_spacing=0.5, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200., num_lt_samples=1, random_seed=42):
 		"""
 		"""
 		from openquake.engine.input.logictree import LogicTreeProcessor
-		PSHAModelBase.__init__(self, name, output_dir, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
+		PSHAModelBase.__init__(self, name, root_folder, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance)
 		self.source_model_lt = source_model_lt
 		self.gmpe_lt = gmpe_lt.get_optimized_system(self.source_models)
 		self.num_lt_samples = num_lt_samples
@@ -1087,14 +1513,13 @@ class PSHAModelTree(PSHAModelBase):
 		:param gmpelt_path:
 			str, GMPE logic-tree path
 		"""
-		# TODO: adjust output_dir based on path?
-		output_dir = self.output_dir
+		root_folder = self.root_folder
 		optimized_gmpe_model = gmpe_model.get_optimized_model(source_model)
 		#if self.soil_site_model or self.grid_outline:
 		#	sites = []
 		#else:
 		#	sites = self.get_sites()
-		psha_model = PSHAModel(name, source_model, optimized_gmpe_model, output_dir,
+		psha_model = PSHAModel(name, source_model, optimized_gmpe_model, root_folder,
 			sites=self.sites, grid_outline=self.grid_outline, grid_spacing=self.grid_spacing,
 			soil_site_model=self.soil_site_model, ref_soil_params=self.ref_soil_params,
 			imt_periods=self.imt_periods, intensities=self.intensities,
@@ -1337,10 +1762,8 @@ class PSHAModelTree(PSHAModelBase):
 		:param user_params:
 			{str, val} dict, defining respectively parameters and value for OpenQuake (default: None).
 		"""
-		#output_dir = os.path.join(self.output_dir, "openquake")
-		output_dir = self.output_dir
-		if not os.path.exists(output_dir):
-			os.mkdir(output_dir)
+		if not os.path.exists(self.oq_root_folder):
+			os.mkdir(self.oq_root_folder)
 
 		## set OQ_params object and override with params from user_params
 		params = OQ_Params(calculation_mode=calculation_mode, description=self.name)
@@ -1364,20 +1787,20 @@ class PSHAModelTree(PSHAModelBase):
 			## This is no longer necessary
 			#for source in source_model.sources:
 			#	source.source_id = source_model.name + '--' + source.source_id
-			source_model.write_xml(os.path.join(output_dir, source_model.name + '.xml'))
+			source_model.write_xml(os.path.join(self.oq_root_folder, source_model.name + '.xml'))
 
 		## write nrml file for soil site model if present and set file param, or set ref soil params
-		self._soil_site_model_or_ref_soil_params(self.output_dir, params)
+		self._handle_oq_soil_params(params)
 
 		## validate source model logic tree and write nrml file
 		self.source_model_lt.validate()
 		source_model_lt_file_name = 'source_model_lt.xml'
-		self.source_model_lt.write_xml(os.path.join(output_dir, source_model_lt_file_name))
+		self.source_model_lt.write_xml(os.path.join(self.oq_root_folder, source_model_lt_file_name))
 		params.source_model_logic_tree_file = source_model_lt_file_name
 
 		## create ground motion model logic tree and write nrml file
 		ground_motion_model_lt_file_name = 'ground_motion_model_lt.xml'
-		self.gmpe_lt.write_xml(os.path.join(output_dir, ground_motion_model_lt_file_name))
+		self.gmpe_lt.write_xml(os.path.join(self.oq_root_folder, ground_motion_model_lt_file_name))
 		params.gsim_logic_tree_file = ground_motion_model_lt_file_name
 
 		## convert return periods and time_span to poes
@@ -1398,7 +1821,7 @@ class PSHAModelTree(PSHAModelBase):
 		## disaggregation params
 
 		## write oq params to ini file
-		params.write_config(os.path.join(output_dir, 'job.ini'))
+		params.write_config(os.path.join(self.oq_root_folder, 'job.ini'))
 
 	def run_nhlib(self, nrml_base_filespec=""):
 		"""
@@ -1409,14 +1832,13 @@ class PSHAModelTree(PSHAModelBase):
 			String, base file specification for NRML output file
 			(default: "").
 		"""
-		# TODO: this method still needs to be updated
+		# TODO: this method is probably obsolete
 		if not nrml_base_filespec:
 			os.path.join(self.output_dir, '%s' % self.name)
 		else:
 			nrml_base_filespec = os.path.splitext(nrml_base_filespec)[0]
 
-		nhlib_params = self._get_nhlib_params()
-		num_sites = len(nhlib_params["soil_site_model"])
+		num_sites = len(self.get_soil_site_model())
 		hazard_results = {}
 		psha_models = self._get_psha_models()
 		for imt, periods in self.imt_periods.items():
@@ -1427,58 +1849,67 @@ class PSHAModelTree(PSHAModelBase):
 			print psha_model.name
 			psha_model_names.append(psha_model.name)
 			weights.append(1./len(psha_models))
-			hazard_result = psha_model.run_nhlib_poes(nhlib_params)
+			hazard_result = psha_model.run_nhlib_poes()
 			for imt in self.imt_periods.keys():
 				hazard_results[imt][:,j,:,:] = hazard_result[imt]
-		imtls = self._get_imt_intensities()
+		im_imls = self._get_im_imls()
 		site_names = [site.name for site in self.get_sites()]
 		for imt, periods in self.imt_periods.items():
-			shcft = SpectralHazardCurveFieldTree(self.name, psha_model_names, filespecs, weights, self.get_sites(), periods, imt, imtls[imt], 'g', self.time_span, poes=hazard_results[imt], site_names=site_names)
+			shcft = SpectralHazardCurveFieldTree(self.name, psha_model_names, filespecs, weights, self.get_sites(), periods, imt, im_imls[imt], 'g', self.time_span, poes=hazard_results[imt], site_names=site_names)
 			nrml_filespec = nrml_base_filespec + '_%s.xml' % imt
 			shcft.write_nrml(nrml_filespec)
 		return shcft
 
-	def run_mp(self, cav_min=0, num_cores=None, verbose=False):
+	def calc_shcf_mp(self, cav_min=0, num_cores=None, verbose=True):
 		"""
-		Compute hazard curves using multiprocessing.
+		Compute spectral hazard curve fields using multiprocessing.
+		The results are written to XML files.
+
+		:param cav_min:
+			float, CAV threshold in g.s (default: 0)
+		:param num_cores:
+			int, number of CPUs to be used. Actual number of cores used
+			may be lower depending on available cores and memory
+			(default: None, will determine automatically)
+		:param verbose:
+			bool whether or not to print some progress information
+			(default: True)
+
+		:return:
+			list of exit codes for each sample (0 for succesful execution,
+			1 for error)
 		"""
-		import multiprocessing
-		import psutil
-		from mp import run_psha_model
+		import mp
 
 		## Generate all PSHA models
 		psha_models = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
 
 		## Determine number of simultaneous processes
 		if not num_cores:
-			num_cores = multiprocessing.cpu_count()
+			num_cores = mp.multiprocessing.cpu_count()
 		else:
-			num_cores = min(multiprocessing.cpu_count(), num_cores)
+			num_cores = min(mp.multiprocessing.cpu_count(), num_cores)
 
-		if verbose:
-			print("Starting %d simultaneous processes" % num_cores)
-		pool = multiprocessing.Pool(processes=num_cores)
+		## Create list with arguments for each job
 		fmt = "%%0%dd" % len(str(self.num_lt_samples))
-		pool_map_args = [(psha_model, fmt % sample_idx, cav_min, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
+		job_args = [(psha_model, fmt % sample_idx, cav_min, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
 
-		return (pool, run_psha_model, pool_map_args)
+		## Launch multiprocessing
+		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose)
 
-	def deaggregate_mp(self, hc_folder, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, verbose=False):
+	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, dtype='f', verbose=False):
 		"""
 		Deaggregate logic tree using multiprocessing.
 		Intensity measure levels corresponding to psha_model.return_periods
 		will be interpolated first, so the hazard curves must have been
 		computed before.
 
-		:param hc_folder:
-			Str, full path to top folder containing hazard curves for
-			different IMT's
 		:param sites:
 			list with instances of :class:`SHASite` for which deaggregation
 			will be performed. Note that instances of class:`SoilSite` will
 			not work with multiprocessing
 		:param imt_periods:
-			dictionary mapping instances of :class:`IMT` to lists of spectral
+			dictionary mapping intensity measure strings to lists of spectral
 			periods.
 		:param mag_bin_width:
 			Float, magnitude bin width (default: None, will take MFD bin width
@@ -1491,33 +1922,21 @@ class PSHAModelTree(PSHAModelBase):
 		:param coord_bin_width:
 			Float, lon/lat bin width in decimal degrees (default: 1.)
 		:param num_cores:
-			Int, number of cores to be used. Actual number of cores used
+			Int, number of CPUs to be used. Actual number of cores used
 			may be lower depending on available cores and memory
 			(default: None, will determine automatically)
+		:param dtype:
+			str, precision of deaggregation matrix (default: 'f')
 		:param verbose:
 			Bool, whether or not to print some progress information
 
 		:return:
-			(pool, func, pool_map_args) tuple
-			- pool: multiprocessing.Pool object
-			- func: function object that will do the actual deaggregation
-			- pool_map_args: list with arguments to be passed to func for
-				the different tasks
-
-			In the calling module, the multiprocessing deaggregation can
-			be launched as follows:
-
-				pool.map(func, pool_map_args)
-
-			Note that in Windows, this statement has to be executed in
-			a main section (i.e., behind if __name__ == "__main__":)
+			list of exit codes for each sample (0 for succesful execution,
+			1 for error)
 		"""
 		import platform
-		import multiprocessing
 		import psutil
-		from mp import deaggregate_psha_model
-
-		# TODO: make hc_folder optional (determine from self.output_dir)
+		import mp
 
 		## Generate all PSHA models
 		psha_models = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
@@ -1547,9 +1966,9 @@ class PSHAModelTree(PSHAModelBase):
 						* len(eps_bins) * len(src_bins) * 4)
 
 		if not num_cores:
-			num_cores = multiprocessing.cpu_count()
+			num_cores = mp.multiprocessing.cpu_count()
 		else:
-			num_cores = min(multiprocessing.cpu_count(), num_cores)
+			num_cores = min(mp.multiprocessing.cpu_count(), num_cores)
 		free_mem = psutil.phymem_usage()[2]
 		if platform.uname()[0] == "Windows":
 			## 32-bit limit
@@ -1558,20 +1977,12 @@ class PSHAModelTree(PSHAModelBase):
 		#print free_mem, matrix_size
 		num_processes = min(num_cores, np.floor(free_mem / matrix_size))
 
-		if verbose:
-			print("Starting %d simultaneous processes" % num_processes)
-			print("Estimated remaining memory: %s" % (free_mem - num_processes * matrix_size))
-		pool = multiprocessing.Pool(processes=num_processes)
-
-		## Note: Starting pool.map here doesn't work
-		## So instead, we return (pool, func, pool_map_args)
-		## to allow starting pool.map in the calling routine
-		## (must be behind a "main" section in Windows)
+		## Create list with arguments for each job
 		fmt = "%%0%dd" % len(str(self.num_lt_samples))
-		pool_map_args = [(psha_model, fmt % sample_idx, hc_folder, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
-		#return pool.map(deaggregate_psha_model, pool_map_args)
+		job_args = [(psha_model, fmt % (sample_idx + 1), deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
 
-		return (pool, deaggregate_psha_model, pool_map_args)
+		## Launch multiprocessing
+		return mp.run_parallel(mp.deaggregate_psha_model, job_args, num_processes, verbose)
 
 	def write_crisis(self, overwrite=True, enumerate_gmpe_lt=False, verbose=True):
 		"""
@@ -1586,10 +1997,10 @@ class PSHAModelTree(PSHAModelBase):
 		:param verbose:
 			bool, whether or not to print some information (default: True)
 		"""
-		if not os.path.exists(self.output_dir):
-			os.mkdir(self.output_dir)
-		site_filespec = os.path.join(self.output_dir, 'sites.ASC')
-		gsims_dir = os.path.join(self.output_dir, 'gsims')
+		if not os.path.exists(self.crisis_root_folder):
+			os.mkdir(self.crisis_root_folder)
+		site_filespec = os.path.join(self.crisis_root_folder, 'sites.ASC')
+		gsims_dir = os.path.join(self.crisis_root_folder, 'gsims')
 		if not os.path.exists(gsims_dir):
 				os.mkdir(gsims_dir)
 
@@ -1599,7 +2010,7 @@ class PSHAModelTree(PSHAModelBase):
 		all_filespecs = []
 		for source_model in self.source_models:
 			sm_filespecs[source_model.name] = []
-			folder = os.path.join(self.output_dir, source_model.name)
+			folder = os.path.join(self.crisis_root_folder, source_model.name)
 			if not os.path.exists(folder):
 				os.makedirs(folder)
 			## If there is only one TRT, it is possible to make subdirectories for each GMPE
@@ -1613,7 +2024,7 @@ class PSHAModelTree(PSHAModelBase):
 		## Write CRISIS input files
 		max_mag = self.source_model_lt.get_max_mag()
 		for i, psha_model in enumerate(self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=enumerate_gmpe_lt, verbose=verbose)):
-			folder = os.path.join(self.output_dir, psha_model.source_model.name)
+			folder = os.path.join(self.crisis_root_folder, psha_model.source_model.name)
 			if len(trts) == 1:
 				folder = os.path.join(folder, psha_model.ground_motion_model[trts[0]])
 			filespec = os.path.join(folder, 'lt-rlz-%04d.dat' % (i+1))
@@ -1628,7 +2039,7 @@ class PSHAModelTree(PSHAModelBase):
 		# Write CRISIS batch file(s)
 		batch_filename = "lt_batch.dat"
 		for sm_name in sm_filespecs.keys():
-			folder = os.path.join(self.output_dir, sm_name)
+			folder = os.path.join(self.crisis_root_folder, sm_name)
 			batch_filespec = os.path.join(folder, batch_filename)
 			if os.path.exists(batch_filespec):
 				if overwrite:
@@ -1642,7 +2053,7 @@ class PSHAModelTree(PSHAModelBase):
 				of.write("%s, %s\n" % (filespec, weight))
 			of.close()
 
-		batch_filespec = os.path.join(self.output_dir, batch_filename)
+		batch_filespec = os.path.join(self.crisis_root_folder, batch_filename)
 		if os.path.exists(batch_filespec):
 			if overwrite:
 				os.unlink(batch_filespec)
@@ -1655,6 +2066,62 @@ class PSHAModelTree(PSHAModelBase):
 			of.write("%s, %s\n" % (filespec, weight))
 		of.close()
 
+	def read_oq_shcft(self, calc_id=None, add_stats=False):
+		"""
+		Read OpenQuake spectral hazard curve field tree.
+		Read from the folder 'hazard_curve_multi' if present, else read individual
+		hazard curves from the folder 'hazard_curve'.
+
+		:param calc_id:
+			list of ints, calculation IDs.
+			(default: None, will determine from folder structure)
+		:param add_stats:
+			bool indicating whether or not mean and quantiles have to be appended
+
+		:return:
+			instance of :class:`SpectralHazardCurveFieldTree`
+		"""
+		from ..openquake import read_shcft
+
+		hc_folder = self.get_oq_hc_folder(calc_id=calc_id)
+		## Go one level up, read_shcft will choose between hazard_curve and hazard_curve_multi
+		hc_folder = os.path.split(hc_folder)[0]
+		shcft = read_shcft(hc_folder, self.get_sha_sites(), add_stats=add_stats)
+		return shcft
+
+	def read_oq_uhsft(self, return_period, calc_id=None, add_stats=False):
+		"""
+		Read OpenQuake UHS field tree
+
+		:param return period:
+			float, return period
+		:param add_stats:
+			bool indicating whether or not mean and quantiles have to be appended
+
+		:return:
+			instance of :class:`UHSFieldTree`
+		"""
+		from ..openquake import read_uhsft
+
+		uhs_folder = self.get_oq_uhs_folder(calc_id=calc_id)
+		uhsft = read_uhsft(uhs_folder, return_period, self.get_sha_sites(), add_stats=add_stats)
+		return uhsft
+
+	def read_crisis_shcft(self):
+		"""
+		Read CRISIS spectral hazard curve field tree
+
+		:return:
+			instance of :class:`SpectralHazardCurveFieldTree`
+		"""
+		from ..crisis import read_GRA_multi
+
+		gra_filespecs, weights = self.read_crisis_batch(test_case)
+		shcft = read_GRA_multi(gra_filespecs, weights=weights)
+		return shcft
+
+	# TODO: the following methods are probably obsolete
+
 	def _get_psha_models(self):
 		"""
 		Return list of :class:`PSHAModel` objects, defining sampled PSHA models from logic tree.
@@ -1663,7 +2130,7 @@ class PSHAModelTree(PSHAModelBase):
 		for i in range(self.num_lts_samples):
 			source_model, ground_motion_model = self._sample_lts()
 			name = source_model.name + '_' + ground_motion_model.name
-			psha_models.append(PSHAModel(name, source_model, ground_motion_model, self.output_dir, self.get_sites(), self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance))
+			psha_models.append(PSHAModel(name, source_model, ground_motion_model, self.root_folder, self.get_sites(), self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance))
 		return psha_models
 
 	def _get_used_trts(self):
