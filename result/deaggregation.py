@@ -700,6 +700,21 @@ class DeaggregationSlice(DeaggBase):
 		"""
 		return self.get_contribution_above_threshold(dist, axis=1)
 
+	def get_trt_slice(self, trt):
+		"""
+		Obtain deaggregation slice for a given trt
+
+		:param trt:
+			str, tectonic region type
+
+		:return:
+			instance of :class:`DeaggregationSlice`
+		"""
+		trt_idx = self.trt_bins.index(trt)
+		bin_edges = (self.mag_bin_edges, self.dist_bin_edges, self.lon_bin_edges, self.lat_bin_edges, self.eps_bin_edges, [trt])
+		deagg_matrix = self.deagg_matrix[:,:,:,:,:,trt_idx:trt_idx+1]
+		return DeaggregationSlice(bin_edges, deagg_matrix, self.site, self.imt, self.iml, self.period, self.timespan)
+
 	def rebin(self, new_bin_edges, axis=0):
 		"""
 		Rebin deaggregation slice along a given axis
