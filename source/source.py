@@ -770,9 +770,10 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 		polygon_mesh = self.polygon.discretize(self.area_discretization)
 		rate_scaling_factor = 1.0 / len(polygon_mesh)
 		point_sources = []
-		for epicenter in polygon_mesh:
+		for i, epicenter in enumerate(polygon_mesh):
 			mfd = self.mfd * rate_scaling_factor
-			ptsrc = PointSource(self.source_id, self.name, self.tectonic_region_type,
+			source_id = self.source_id + "_#%d" % i
+			ptsrc = PointSource(source_id, self.name, self.tectonic_region_type,
 								mfd, self.rupture_mesh_spacing,self.magnitude_scaling_relationship,
 								self.rupture_aspect_ratio, self.upper_seismogenic_depth,
 								self.lower_seismogenic_depth, epicenter,
