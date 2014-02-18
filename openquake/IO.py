@@ -343,12 +343,12 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None):
 		dss = []
 		for ds_elem in dc_elem.findall('{%s}deaggregationSlice' % NRML):
 			iml = float(ds_elem.get('iml'))
-			matrix = ProbabilityMatrix(np.zeros(shape))
+			prob_matrix = ProbabilityMatrix(np.zeros(shape))
 			for prob in ds_elem.findall('{%s}prob' % NRML):
 				index = prob.get('index')
 				value = prob.get('value')
 				prob_matrix[tuple(map(int, index.split(',')))] = value
-			ds = DeaggregationSlice(bin_edges, matrix, site, imt, iml, period, timespan)
+			ds = DeaggregationSlice(bin_edges, prob_matrix, site, imt, iml, period, timespan)
 			dss.append(ds)
 		dc = DeaggregationCurve.from_deaggregation_slices(dss)
 		dcs.append(dc)
@@ -548,7 +548,7 @@ def read_uhsft(directory, return_period, sites=[], add_stats=False):
 def write_disaggregation_slice(site, imt, period, iml, poe, timespan, bin_edges, matrix, nrml_filespec, sourceModelTreePath=None, gsimTreePath=None):
 	"""
 	Write disaggregation slice to nrml file.
-	
+
 	:param site:
 		tuple or instance of :class:`rshalib.site.SHASite`
 	:param imt:

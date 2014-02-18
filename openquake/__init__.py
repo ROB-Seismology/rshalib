@@ -14,6 +14,6 @@ reload(config)
 from IO import (parse_hazard_curves, parse_hazard_curves_multi, parse_hazard_map,
 				parse_uh_spectra, parse_disaggregation, parse_disaggregation_full,
 				parse_any_output, read_curve_folder, read_multi_folder, read_shcft,
-				read_uhsft)
+				read_uhsft, parse_spectral_deaggregation_curve, write_disaggregation_slice)
 
 from config import OQ_Params
