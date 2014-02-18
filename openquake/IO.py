@@ -343,7 +343,7 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None):
 		dss = []
 		for ds_elem in dc_elem.findall('{%s}deaggregationSlice' % NRML):
 			iml = float(ds_elem.get('iml'))
-			prob_matrix = ProbabilityMatrix(np.zeros(shape))
+			prob_matrix = ProbabilityMatrix(np.zeros(shape, dtype='f'))
 			for prob in ds_elem.findall('{%s}prob' % NRML):
 				index = prob.get('index')
 				value = prob.get('value')

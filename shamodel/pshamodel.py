@@ -404,7 +404,7 @@ class PSHAModelBase(SHAModelBase):
 			str, calculation ID. (default: None, will determine from folder structure)
 
 		:return:
-			instance of :class:´HazardCurveField`
+			instance of :class:`HazardCurveField`
 		"""
 		from ..openquake import parse_hazard_curves
 
