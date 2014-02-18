@@ -185,11 +185,7 @@ def deaggregate_by_source((psha_model, source, site_imtls, deagg_site_model, mag
 	:param lat_bins:
 		list or array with latitude bin edges
 	:param dtype:
-		str, precision of deaggregation matrix (default: 'f')
-	:param num_cores:
-		int, number of CPUs to be used. Actual number of cores used
-		may be lower depending on available cores
-		(default: None, will determine automatically)
+		str, precision of deaggregation matrix
 	:param verbose:
 		Bool, whether or not to print some progress information
 
@@ -334,7 +330,7 @@ def deaggregate_psha_model((psha_model, sample_idx, deagg_sites, deagg_imt_perio
 	:param coord_bin_width:
 		Float, lon/lat bin width in decimal degrees
 	:param dtype:
-		str, precision of deaggregation matrix (default: 'f')
+		str, precision of deaggregation matrix
 	:param verbose:
 		Bool, whether or not to print some progress information
 

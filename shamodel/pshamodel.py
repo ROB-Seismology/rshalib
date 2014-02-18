@@ -843,7 +843,7 @@ class PSHAModel(PSHAModelBase):
 
 		return (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins)
 
-	def deaggregate(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='f', verbose=False):
+	def deaggregate(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', verbose=False):
 		"""
 		Hybrid rshalib/oqhazlib deaggregation for multiple sites, multiple
 		imt's per site, and multiple iml's per iml, that is more speed- and
@@ -866,7 +866,7 @@ class PSHAModel(PSHAModelBase):
 		:param coord_bin_width:
 			Float, lon/lat bin width in decimal degrees (default: 1.)
 		:param dtype:
-			str, precision of deaggregation matrix (default: 'f')
+			str, precision of deaggregation matrix (default: 'd')
 		:param verbose:
 			Bool, whether or not to print some progress information
 
@@ -1001,7 +1001,7 @@ class PSHAModel(PSHAModelBase):
 
 		return deagg_result
 
-	def deaggregate_mp(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='f', num_cores=None, verbose=False):
+	def deaggregate_mp(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', num_cores=None, verbose=False):
 		"""
 		Hybrid rshalib/oqhazlib deaggregation for multiple sites, multiple
 		imt's per site, and multiple iml's per iml, using multiprocessing.
@@ -1023,7 +1023,7 @@ class PSHAModel(PSHAModelBase):
 		:param coord_bin_width:
 			Float, lon/lat bin width in decimal degrees (default: 1.)
 		:param dtype:
-			str, precision of deaggregation matrix (default: 'f')
+			str, precision of deaggregation matrix (default: 'd')
 		:param num_cores:
 			int, number of CPUs to be used. Actual number of cores used
 			may be lower depending on available cores
@@ -1897,7 +1897,7 @@ class PSHAModelTree(PSHAModelBase):
 		## Launch multiprocessing
 		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose)
 
-	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, dtype='f', verbose=False):
+	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, dtype='d', verbose=False):
 		"""
 		Deaggregate logic tree using multiprocessing.
 		Intensity measure levels corresponding to psha_model.return_periods
@@ -1926,7 +1926,7 @@ class PSHAModelTree(PSHAModelBase):
 			may be lower depending on available cores and memory
 			(default: None, will determine automatically)
 		:param dtype:
-			str, precision of deaggregation matrix (default: 'f')
+			str, precision of deaggregation matrix (default: 'd')
 		:param verbose:
 			Bool, whether or not to print some progress information
 
