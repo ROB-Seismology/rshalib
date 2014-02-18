@@ -31,7 +31,65 @@ class DeaggMatrix(np.ndarray):
 		return len(self.shape)
 
 
-class ExceedanceRateMatrix(DeaggMatrix):
+class FractionalContributionMatrix(DeaggMatrix):
+	"""
+	Class representing a deaggregation matrix containing fractional
+	contributions
+
+	:param data:
+		ndarray, n-d float array containing fractional contributions
+	"""
+	def get_total_contribution(self):
+		"""
+		Return total contribution
+		"""
+		return np.sum(self.matrix)
+
+	def fold_axis(self, axis):
+		"""
+		Fold matrix along one axis.
+		Total contribution / exceedance rate in given axis is computed
+		as sum of all contributions / exceedance rates.
+
+		:param axis:
+			Int, index of axis to fold
+
+		:return:
+			instance of :class:`FractionalContributionMatrix` or
+			:class:`ExceedanceRateMatrix`
+		"""
+		if axis < 0:
+			axis = self.num_axes + axis
+		return self.sum(axis=axis)
+
+	def fold_axes(self, axes):
+		"""
+		Fold matrix along multiple axes
+
+		:param axes:
+			List of integers, indexes of axes to fold
+
+		:return:
+			instance of :class:`FractionalContributionMatrix` or
+			:class:`ExceedanceRateMatrix`
+		"""
+		matrix = self
+		axes = [{True: self.num_axes + axis, False: axis}[axis < 0] for axis in axes]
+		for axis in sorted(axes)[::-1]:
+			matrix = matrix.fold_axis(axis)
+		return matrix
+
+	def to_fractional_contribution_matrix(self):
+		"""
+		Renormalize.
+
+		:return:
+			instance of :class:`FractionalContributionMatrix`
+		"""
+		return FractionalContributionMatrix(self.matrix / self.get_total_contribution())
+
+
+class ExceedanceRateMatrix(FractionalContributionMatrix):
 	"""
 	Class representing a deaggregation matrix containing exceedance rates
 
@@ -84,47 +142,15 @@ class ExceedanceRateMatrix(DeaggMatrix):
 		"""
 		return ExceedanceRateMatrix(self.matrix)
 
-	def to_normalized_matrix(self):
+	def to_fractional_contribution_matrix(self):
 		"""
-		Convert to a normalized matrix, containing percentual contribution
+		Convert to a normalized matrix, containing fractional contribution
 		to hazard
 
 		:return:
 			ndarray
 		"""
-		return self.matrix / self.get_total_exceedance_rate()
-
-	def fold_axis(self, axis):
-		"""
-		Fold matrix along one axis.
-		Total exceedance rate in given axis is computed as sum of all
-		exceedance rates.
-
-		:param axis:
-			Int, index of axis to fold
-
-		:return:
-			instance of :class:`ExceedanceRateMatrix`
-		"""
-		if axis < 0:
-			axis = self.num_axes + axis
-		return self.sum(axis=axis)
-
-	def fold_axes(self, axes):
-		"""
-		Fold matrix along multiple axes
-
-		:param axes:
-			List of integers, indexes of axes to fold
-
-		:return:
-			instance of :class:`ExceedanceRateMatrix`
-		"""
-		matrix = self
-		axes = [{True: self.num_axes + axis, False: axis}[axis < 0] for axis in axes]
-		for axis in sorted(axes)[::-1]:
-			matrix = matrix.fold_axis(axis)
-		return matrix
+		return FractionalContributionMatrix(self.matrix / self.get_total_exceedance_rate())
 
 
 class ProbabilityMatrix(DeaggMatrix):
@@ -185,16 +211,16 @@ class ProbabilityMatrix(DeaggMatrix):
 		"""
 		return ExceedanceRateMatrix(1. / Poisson(life_time=timespan, prob=self.matrix))
 
-	def to_normalized_matrix(self):
+	def to_fractional_contribution_matrix(self):
 		"""
-		Convert to a normalized matrix, containing percentual contribution
+		Convert to a normalized matrix, containing fractional contribution
 		to hazard
 
 		:return:
 			ndarray
 		"""
 		ln_non_exceedance_probs = np.log(1. - self.matrix)
-		return ln_non_exceedance_probs / np.sum(ln_non_exceedance_probs)
+		return FractionalContributionMatrix(ln_non_exceedance_probs / np.sum(ln_non_exceedance_probs))
 
 	def fold_axis(self, axis):
 		"""
@@ -499,14 +525,14 @@ class DeaggBase(object):
 		"""
 		return self.deagg_matrix.fold_axes([-6,-5,-1])
 
-	def to_percent_contribution(self):
+	def to_fractional_contribution(self):
 		"""
-		Convert deaggregation values to percent contribution.
+		Convert deaggregation values to fractional contributions.
 
 		:return:
 			ndarray with same dimensions as self.deagg_matrix
 		"""
-		return self.deagg_matrix.to_normalized_matrix()
+		return self.deagg_matrix.to_fractional_contribution_matrix()
 
 
 class DeaggregationSlice(DeaggBase):
@@ -610,9 +636,9 @@ class DeaggregationSlice(DeaggBase):
 		"""
 		Plot magnitude / distance PMF.
 		"""
-		mag_dist_pmf = self.get_mag_dist_pmf().to_normalized_matrix()
+		mag_dist_pmf = self.get_mag_dist_pmf().to_fractional_contribution_matrix()
 		if self.neps > 1:
-			eps_pmf = self.get_eps_pmf().to_normalized_matrix()
+			eps_pmf = self.get_eps_pmf().to_fractional_contribution_matrix()
 		else:
 			eps_pmf = None
 		eps_bin_edges = self.eps_bin_edges[1:]
@@ -644,18 +670,18 @@ class DeaggregationSlice(DeaggBase):
 		Return mean magnitude according to formula in DOE-STD-1023-95,
 		appendix A, page 5.
 		"""
-		deagg_matrix = self.deagg_matrix.to_exceedance_rate_matrix(self.timespan)
+		deagg_matrix = self.deagg_matrix.to_fractional_contribution_matrix()
 		deagg_matrix = deagg_matrix.fold_axes([1,2,3,4,5])
-		return float(np.sum(self.mag_bin_centers * deagg_matrix)) / self.get_total_exceedance_rate()
+		return float(np.sum(self.mag_bin_centers * deagg_matrix))
 
 	def get_mean_distance(self):
 		"""
 		Return mean distance according to formula in DOE-STD-1023-95,
 		appendix A, page 6.
 		"""
-		deagg_matrix = self.deagg_matrix.to_exceedance_rate_matrix(self.timespan)
+		deagg_matrix = self.deagg_matrix.to_fractional_contribution_matrix()
 		deagg_matrix = deagg_matrix.fold_axes([0,2,3,4,5])
-		return np.exp(float(np.sum(np.log(self.dist_bin_centers) * deagg_matrix)) / self.get_total_exceedance_rate())
+		return np.exp(float(np.sum(np.log(self.dist_bin_centers) * deagg_matrix)))
 
 	def get_contribution_above_threshold(self, threshold, axis):
 		"""
@@ -670,11 +696,11 @@ class DeaggregationSlice(DeaggBase):
 			Float, percent contribution
 		"""
 		bin_indexes = np.where(self.get_axis_bin_centers(axis) > threshold)
-		deagg_matrix = self.deagg_matrix.to_exceedance_rate_matrix(self.timespan)
+		deagg_matrix = self.deagg_matrix.to_fractional_contribution_matrix()
 		axes_to_fold = np.arange(6)
 		axes_to_fold = np.delete(axes_to_fold, axis)
 		deagg_matrix = deagg_matrix.fold_axes(axes_to_fold)
-		return float(np.sum(deagg_matrix[bin_indexes])) / self.get_total_exceedance_rate()
+		return float(np.sum(deagg_matrix[bin_indexes]))
 
 	def get_contribution_above_magnitude(self, mag):
 		"""
@@ -1238,3 +1264,25 @@ class SpectralDeaggregationCurve(DeaggBase):
 						prob.set("value", value)
 		nrml_file.write(etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8"))
 		nrml_file.close()
+
+
+def get_mean_deaggregation_slice(self, deagg_slices):
+	"""
+	Compute mean deaggregation slice
+
+	:param deagg_slices:
+		list with instances of :class:`DeaggregationSlice`
+
+	:return:
+		instance of :class:`DeaggregationSlice`
+		Note that matrixes will be converted to instances of
+		:class:`FractionalContributionMatrix`
+	"""
+	ds0 = deagg_slices[0]
+	matrix = ds0.get_fractional_contribution_matrix()
+	for ds in deagg_slices[1:]:
+		assert ds.bin_edges == ds0.bin_edges
+		matrix += ds.get_fractional_contribution_matrix()
+	matrix /= np.sum(matrix)
+	return DeaggregationSlice(ds0.bin_edges, matrix, ds0.site, ds0.imt, ds0.iml, ds0.period, None)
+
