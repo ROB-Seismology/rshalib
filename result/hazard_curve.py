@@ -1826,6 +1826,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			encoding: unicode encoding (default: 'latin1')
 		"""
 		# TODO: add names to nrml namespace
+		# TODO: add sourceModelTreePath and gsimTreePath ?
 		shcf_elem = etree.Element(ns.SPECTRAL_HAZARD_CURVE_FIELD)
 		shcf_elem.set(ns.NAME, self.model_name)
 		shcf_elem.set(ns.IMT, self.IMT)
