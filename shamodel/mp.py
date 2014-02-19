@@ -157,7 +157,7 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 				if not os.path.exists(hc_folder):
 					os.mkdir(hc_folder)
 			xml_filespec = os.path.join(hc_folder, xml_filename)
-			shcf.write_nrml(xml_filespec, psha_model.smlt_path, psha_model.gmpelt_path)
+			shcf.write_nrml(xml_filespec)
 
 		return 0
 

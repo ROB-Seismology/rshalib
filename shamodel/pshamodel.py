@@ -706,7 +706,7 @@ class PSHAModel(PSHAModelBase):
 
 		## Construct spectral hazard curve field
 		# TODO: use _get_im_imls, and return shcf_dict, and correct order of periods !!
-		sites = self.get_sites()
+		sites = self.get_sha_sites()
 		imtls = self._get_imtls()
 		ims = self.imt_periods.keys()
 		periods = []
