@@ -105,7 +105,7 @@ def calc_shcf_by_source((psha_model, source, cav_min, verbose)):
 	return curves
 
 
-def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa=True, verbose)):
+def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, verbose)):
 	"""
 	Stand-alone function that will compute hazard curves for a single
 	logic-tree sample.
@@ -123,7 +123,6 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa=Tr
 		float, CAV threshold in g.s
 	:param combine_pga_and_sa:
 		bool, whether or not to combine PGA and SA, if present
-		(default: True)
 	:param verbose:
 		Bool, whether or not to print some progress information
 
