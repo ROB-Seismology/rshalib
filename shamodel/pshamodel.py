@@ -601,7 +601,7 @@ class PSHAModel(PSHAModelBase):
 				periods = [0] + list(periods)
 			# TODO: add method to PSHAModelBase to associate nhlib/OQ imt's with units
 			poes = ProbabilityArray(hazard_result[imt])
-			shcf = SpectralHazardCurveField(self.name, poes, [''], self.get_sites(), periods, imt, im_imls[imt], 'g', self.time_span)
+			shcf = SpectralHazardCurveField(self.name, poes, [''], self.get_sha_sites(), periods, imt, im_imls[imt], 'g', self.time_span)
 			im_shcf_dict[imt] = shcf
 		return im_shcf_dict
 
