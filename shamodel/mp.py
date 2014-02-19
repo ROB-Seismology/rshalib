@@ -105,7 +105,7 @@ def calc_shcf_by_source((psha_model, source, cav_min, verbose)):
 	return curves
 
 
-def calc_shcf_psha_model((psha_model, sample_idx, cav_min, verbose)):
+def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa=True, verbose)):
 	"""
 	Stand-alone function that will compute hazard curves for a single
 	logic-tree sample.
@@ -121,6 +121,9 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, verbose)):
 		str, sample index (formatted with adequate number of leading zeros)
 	:param cav_min:
 		float, CAV threshold in g.s
+	:param combine_pga_and_sa:
+		bool, whether or not to combine PGA and SA, if present
+		(default: True)
 	:param verbose:
 		Bool, whether or not to print some progress information
 
@@ -132,7 +135,7 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, verbose)):
 		print("Starting hazard-curve calculation of sample %s..." % sample_idx)
 
 	try:
-		shcfs = psha_model.calc_shcf(cav_min=cav_min)
+		im_shcf_dict = psha_model.calc_shcf(cav_min=cav_min, combine_pga_and_sa=combine_pga_and_sa)
 	except Exception, err:
 		msg = 'Warning: An error occurred with sample %s. Error: %s'
 		msg %= (sample_idx, err.message)
@@ -142,13 +145,20 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, verbose)):
 	else:
 		## Write XML file, creating directory if necessary
 		hc_folder = psha_model.oq_root_folder
-		for subfolder in ("classical", "calc_oqhazlib",  "hazard_curve_multi"):
-			hc_folder = os.path.join(hc_folder, subfolder)
-			if not os.path.exists(hc_folder):
-				os.mkdir(hc_folder)
-		xml_filename = "hazard_curve_multi-rlz-%s.xml" % (lon, lat, sample_idx)
-		xml_filespec = os.path.join(deagg_folder, xml_filename)
-		shcfs.write_nrml(xml_filespec, psha_model.smlt_path, psha_model.gmpelt_path)
+		subfolders = ["classical", "calc_oqhazlib"]
+		for im, shcf in im_shcf_dict.items():
+			if im == "SA":
+				subfolders.append("hazard_curve_multi")
+				xml_filename = "hazard_curve_multi-rlz-%s.xml" % (lon, lat, sample_idx)
+			else:
+				subfolders.extend(["hazard_curve", im])
+				xml_filename = "hazard_curve-rlz-%s.xml" % (lon, lat, sample_idx)
+			for subfolder in subfolders:
+				hc_folder = os.path.join(hc_folder, subfolder)
+				if not os.path.exists(hc_folder):
+					os.mkdir(hc_folder)
+			xml_filespec = os.path.join(hc_folder, xml_filename)
+			shcf.write_nrml(xml_filespec, psha_model.smlt_path, psha_model.gmpelt_path)
 
 		return 0
 

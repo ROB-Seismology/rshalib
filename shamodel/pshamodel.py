@@ -421,6 +421,10 @@ class PSHAModelBase(SHAModelBase):
 
 		return hcf
 
+	def read_oq_uhs_multi(self):
+		# TODO
+		pass
+
 	def read_oq_uhs_field(self, curve_name, return_period, calc_id=None):
 		"""
 		Read OpenQuake hazard curve field
@@ -430,15 +434,17 @@ class PSHAModelBase(SHAModelBase):
 		:param return period:
 			float, return period
 		:param calc_id:
-			int, calculation ID. (default: None, will determine from folder structure)
+			str, calculation ID. (default: None, will determine from folder structure)
 
 		:return:
 			instance of :class:`UHSField`
 		"""
 		from ..result import Poisson
 		from ..openquake import parse_uh_spectra
+
 		poe = str(round(Poisson(life_time=self.life_time, return_period=return_period), 13))
 
+		# TODO: site lon, lat in filename
 		uhs_folder = self.get_oq_uhs_folder(calc_id=calc_id)
 		xml_filename = "uh_spectra-poe_%s%s.xml" % (poe, curve_name)
 		#print xml_filename
@@ -447,6 +453,63 @@ class PSHAModelBase(SHAModelBase):
 		uhsf.set_site_names(self.get_sha_sites())
 
 		return uhsf
+
+	def read_oq_disagg_matrix(self, curve_name, im, T, return_period, site, calc_id=None):
+		"""
+		Read OpenQuake deaggregation matrix for a particular im, spectral period,
+		return period and site.
+
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param im:
+			str, intensity measure
+		:param T:
+			float, spectral period
+		:param return period:
+			float, return period
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
+
+		:return:
+			instance of :class:`DeaggregationSlice`
+		"""
+		poe = str(round(Poisson(life_time=self.life_time, return_period=return_period), 13))
+
+		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=False)
+		xml_filename = "disagg_matrix(%s)-lon_%s-lat_%s-%s.xml"
+		xml_filename %= (poe, site.lon, site.lat, curve_name)
+		xml_filespec = os.path.join(uhs_folder, xml_filename)
+		ds = parse_disaggregation(xml_filespec, site.name)
+		return ds
+
+	def read_oq_disagg_matrix_full(self):
+		# TODO
+		pass
+
+	def read_oq_disagg_matrix_multi(self, curve_name, site, calc_id=None):
+		"""
+		Read OpenQuake multi-deaggregation matrix for a particular site.
+
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
+
+		:return:
+			instance of :class:`SpectralDeaggregationCurve`
+		"""
+		from ..openquake import parse_spectral_deaggregation_curve
+
+		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=True)
+		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
+		xml_filename %= (site.lon, site.lat, curve_name)
+		xml_filespec = os.path.join(disagg_folder, xml_filename)
+		sdc = parse_spectral_deaggregation_curve(xml_filespec, site.name)
+		return sdc
 
 	def read_crisis_batch(self):
 		"""
@@ -530,7 +593,7 @@ class PSHAModel(PSHAModelBase):
 		"""
 		hazard_result = self.calc_poes(cav_min=cav_min, combine_pga_and_sa=combine_pga_and_sa)
 		im_imls = self._get_im_imls(combine_pga_and_sa=combine_pga_and_sa)
-		shcfs = {}
+		im_shcf_dict = {}
 		site_names = [site.name for site in self.get_sites()]
 		for imt in hazard_result.keys():
 			periods = self.imt_periods[imt]
@@ -539,8 +602,8 @@ class PSHAModel(PSHAModelBase):
 			# TODO: add method to PSHAModelBase to associate nhlib/OQ imt's with units
 			poes = ProbabilityArray(hazard_result[imt])
 			shcf = SpectralHazardCurveField(self.name, poes, [''], self.get_sites(), periods, imt, im_imls[imt], 'g', self.time_span)
-			shcfs[imt] = shcf
-		return shcfs
+			im_shcf_dict[imt] = shcf
+		return im_shcf_dict
 
 	def calc_poes(self, cav_min=0., combine_pga_and_sa=True):
 		"""
@@ -1008,6 +1071,9 @@ class PSHAModel(PSHAModelBase):
 		Note that deaggregation by tectonic region type is replaced with
 		deaggregation by source.
 
+		Note: at least in Windows, this method has to be executed in
+		a main section (i.e., behind if __name__ == "__main__":)
+
 		:param site_imtls:
 			nested dictionary mapping (lon, lat) tuples to dictionaries
 			mapping oqhazlib IMT objects to 1-D arrays of intensity measure
@@ -1418,7 +1484,7 @@ class PSHAModelTree(PSHAModelBase):
 		num_gmpelt_paths = self.gmpe_logic_tree.get_num_paths()
 		return num_smlt_paths * num_gmpelt_paths
 
-	def sample_logic_trees(self, num_samples=1, enumerate_gmpe_lt=False, verbose=False):
+	def sample_logic_trees(self, num_samples=None, enumerate_gmpe_lt=False, verbose=False):
 		"""
 		Sample both source-model and GMPE logic trees, in a way that is
 		similar to :meth:`_initialize_realizations_montecarlo` of
@@ -1427,7 +1493,7 @@ class PSHAModelTree(PSHAModelBase):
 		:param num_samples:
 			int, number of random samples
 			If zero, :meth:`enumerate_logic_trees` will be called
-			(default: 1)
+			(default: None, will use num_lt_samples)
 		:param enumerate_gmpe_lt:
 			bool, whether or not to enumerate the GMPE logic tree
 			(default: False)
@@ -1439,6 +1505,8 @@ class PSHAModelTree(PSHAModelBase):
 		"""
 		if num_samples == 0:
 			return self.enumerate_logic_trees()
+		elif num_samples is None:
+			num_samples = self.num_lt_samples
 
 		psha_models = []
 
@@ -1860,13 +1928,19 @@ class PSHAModelTree(PSHAModelBase):
 			shcft.write_nrml(nrml_filespec)
 		return shcft
 
-	def calc_shcf_mp(self, cav_min=0, num_cores=None, verbose=True):
+	def calc_shcf_mp(self, cav_min=0, combine_pga_and_sa=True, num_cores=None, verbose=True):
 		"""
 		Compute spectral hazard curve fields using multiprocessing.
 		The results are written to XML files.
 
+		Note: at least in Windows, this method has to be executed in
+		a main section (i.e., behind if __name__ == "__main__":)
+
 		:param cav_min:
 			float, CAV threshold in g.s (default: 0)
+		:param combine_pga_and_sa:
+			bool, whether or not to combine PGA and SA, if present
+			(default: True)
 		:param num_cores:
 			int, number of CPUs to be used. Actual number of cores used
 			may be lower depending on available cores and memory
@@ -1892,7 +1966,7 @@ class PSHAModelTree(PSHAModelBase):
 
 		## Create list with arguments for each job
 		fmt = "%%0%dd" % len(str(self.num_lt_samples))
-		job_args = [(psha_model, fmt % sample_idx, cav_min, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
+		job_args = [(psha_model, fmt % sample_idx, cav_min, combine_pga_and_sa, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
 
 		## Launch multiprocessing
 		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose)
@@ -1903,6 +1977,9 @@ class PSHAModelTree(PSHAModelBase):
 		Intensity measure levels corresponding to psha_model.return_periods
 		will be interpolated first, so the hazard curves must have been
 		computed before.
+
+		Note: at least in Windows, this method has to be executed in
+		a main section (i.e., behind if __name__ == "__main__":)
 
 		:param sites:
 			list with instances of :class:`SHASite` for which deaggregation
