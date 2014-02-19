@@ -144,17 +144,17 @@ def create_oq_params():
 	return OQparams
 
 
-def create_psha_model(engine="nhlib"):
+def create_psha_model(engine="oqhazlib"):
 	"""
 	:param engine:
-		String, name of hazard engine: "nhlib", "openquake" or "crisis"
-		(default: "nhlib")
+		String, name of hazard engine: "oqhazlib", "openquake" or "crisis"
+		(default: "oqhazlib")
 	"""
-	output_folder = os.path.join(psha_model_folder, engine)
-	if not os.path.exists(output_folder):
-		os.mkdir(output_folder)
+	root_folder = os.path.join(psha_model_folder, engine)
+	if not os.path.exists(root_folder):
+		os.mkdir(root_folder)
 	return rshalib.shamodel.PSHAModel(psha_model_name, source_model, ground_motion_model,
-					output_dir=output_folder,
+					root_folder=root_folder,
 					sites=sites,
 					grid_outline=grid_outline,
 					grid_spacing=grid_spacing,
@@ -176,20 +176,21 @@ if __name__ == '__main__':
 	"""
 	import time
 
-	## nhlib
-	"""
-	psha_model = create_psha_model("nhlib")
+	## oqhazlib
+	psha_model = create_psha_model("oqhazlib")
 	start_time = time.time()
-	shcfs = psha_model.run_nhlib_shcf(write=False)
+	#shcf_dict = psha_model.calc_shcf()
+	shcf = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=4)
 	end_time = time.time()
 	print end_time - start_time
-	shcfs['PGA'].plot()
-	"""
+	#shcf = shcf_dict['PGA']
+	shcf.write_nrml(r"C:\Temp\shcf.xml")
+	shcf.plot()
 
 
-	## nhlib deaggregation
+	## oqhazlib deaggregation
 	"""
-	psha_model = create_psha_model("nhlib")
+	psha_model = create_psha_model("oqhazlib")
 	#import jsonpickle
 	#json = jsonpickle.encode(psha_model)
 	#psha_model = jsonpickle.decode(json)
@@ -211,10 +212,11 @@ if __name__ == '__main__':
 	"""
 
 	## OpenQuake
+	"""
 	psha_model = create_psha_model("openquake")
 	OQparams = create_oq_params()
 	psha_model.write_openquake(user_params=OQparams)
-
+	"""
 
 
 	## Crisis
