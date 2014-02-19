@@ -144,7 +144,7 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 	else:
 		## Write XML file, creating directory if necessary
 		hc_folder = psha_model.oq_root_folder
-		subfolders = ["classical", "calc_oqhazlib"]
+		subfolders = ["computed_output", "classical", "calc_oqhazlib"]
 		for im, shcf in im_shcf_dict.items():
 			if im == "SA":
 				subfolders.append("hazard_curve_multi")

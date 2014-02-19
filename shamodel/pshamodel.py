@@ -594,7 +594,7 @@ class PSHAModel(PSHAModelBase):
 		hazard_result = self.calc_poes(cav_min=cav_min, combine_pga_and_sa=combine_pga_and_sa)
 		im_imls = self._get_im_imls(combine_pga_and_sa=combine_pga_and_sa)
 		im_shcf_dict = {}
-		site_names = [site.name for site in self.get_sites()]
+		site_names = [site.name for site in self.get_sha_sites()]
 		for imt in hazard_result.keys():
 			periods = self.imt_periods[imt]
 			if imt == "SA" and combine_pga_and_sa and "PGA" in self.imt_periods.keys():
@@ -1923,7 +1923,7 @@ class PSHAModelTree(PSHAModelBase):
 		im_imls = self._get_im_imls()
 		site_names = [site.name for site in self.get_sites()]
 		for imt, periods in self.imt_periods.items():
-			shcft = SpectralHazardCurveFieldTree(self.name, psha_model_names, filespecs, weights, self.get_sites(), periods, imt, im_imls[imt], 'g', self.time_span, poes=hazard_results[imt], site_names=site_names)
+			shcft = SpectralHazardCurveFieldTree(self.name, psha_model_names, filespecs, weights, self.get_sha_sites(), periods, imt, im_imls[imt], 'g', self.time_span, poes=hazard_results[imt], site_names=site_names)
 			nrml_filespec = nrml_base_filespec + '_%s.xml' % imt
 			shcft.write_nrml(nrml_filespec)
 		return shcft
