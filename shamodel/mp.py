@@ -148,10 +148,10 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 		for im, shcf in im_shcf_dict.items():
 			if im == "SA":
 				subfolders.append("hazard_curve_multi")
-				xml_filename = "hazard_curve_multi-rlz-%s.xml" % (lon, lat, sample_idx)
+				xml_filename = "hazard_curve_multi-rlz-%s.xml" % (sample_idx)
 			else:
 				subfolders.extend(["hazard_curve", im])
-				xml_filename = "hazard_curve-rlz-%s.xml" % (lon, lat, sample_idx)
+				xml_filename = "hazard_curve-rlz-%s.xml" % (sample_idx)
 			for subfolder in subfolders:
 				hc_folder = os.path.join(hc_folder, subfolder)
 				if not os.path.exists(hc_folder):
