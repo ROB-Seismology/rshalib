@@ -13,7 +13,10 @@ reload(plot)
 
 from hazard_curve import *
 
-from deaggregation import (ExceedanceRateMatrix, ProbabilityMatrix, FractionalContributionMatrix,
-	DeaggregationSlice, DeaggregationCurve, SpectralDeaggregationCurve)
+from deaggregation import (ExceedanceRateMatrix, ProbabilityMatrix,
+	FractionalContributionMatrix, DeaggregationSlice, DeaggregationCurve,
+	SpectralDeaggregationCurve, get_mean_deaggregation_slice,
+	get_mean_deaggregation_curve)
 
-from plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram, plot_deaggregation
+from plot import (plot_hazard_curve, plot_hazard_spectrum, plot_histogram,
+					plot_deaggregation)

@@ -30,6 +30,27 @@ class DeaggMatrix(np.ndarray):
 	def num_axes(self):
 		return len(self.shape)
 
+	def slice_axis(self, axis, start=None, stop=None):
+		"""
+		Slice matrix along a given axis.
+
+		:param axis:
+			Int, index of axis to slice
+		:param start:
+			Int, start index (default: None)
+		:param stop:
+			Int, end index (default: None)
+
+		:return:
+			instance of subclass of :class:`DeaggMatrix`
+		"""
+		if start is None:
+			start = 0
+		if stop is None:
+			stop = self.shape[axis]
+		idxs = range(start, stop)
+		return self.take(idxs, axis=axis)
+
 
 class FractionalContributionMatrix(DeaggMatrix):
 	"""
@@ -291,7 +312,7 @@ class DeaggBase(object):
 		assert deagg_matrix.shape[-3] == max(1, len(bin_edges[3]) - 1), "Number of latitude bins not in accordance with specified bin edges!"
 		assert deagg_matrix.shape[-2] == max(1, len(bin_edges[4]) - 1), "Number of epsilon bins not in accordance with specified bin edges!"
 		assert deagg_matrix.shape[-1] == max(1, len(bin_edges[5])), "Number of tectonic-region-type bins not in accordance with specified bin edges!"
-		assert isinstance(deagg_matrix, (ExceedanceRateMatrix, ProbabilityMatrix)), "deagg_matrix must be instance of ExceedanceRateMatrix or ProbabilityMatrix!"
+		assert isinstance(deagg_matrix, DeaggMatrix), "deagg_matrix must be instance of DeaggMatrix!"
 		self.deagg_matrix = deagg_matrix
 		self.timespan = timespan
 
@@ -391,6 +412,46 @@ class DeaggBase(object):
 	@property
 	def trt_bins(self):
 		return self.bin_edges[5]
+
+	@property
+	def min_mag(self):
+		return self.mag_bin_edges[0]
+
+	@property
+	def max_mag(self):
+		return self.mag_bin_edges[-1]
+
+	@property
+	def min_dist(self):
+		return self.dist_bin_edges[0]
+
+	@property
+	def max_dist(self):
+		return self.dist_bin_edges[-1]
+
+	@property
+	def min_lon(self):
+		return self.lon_bin_edges[0]
+
+	@property
+	def max_lon(self):
+		return self.lon_bin_edges[-1]
+
+	@property
+	def min_lat(self):
+		return self.lat_bin_edges[0]
+
+	@property
+	def max_lat(self):
+		return self.lat_bin_edges[-1]
+
+	@property
+	def min_eps(self):
+		return self.eps_bin_edges[0]
+
+	@property
+	def max_eps(self):
+		return self.eps_bin_edges[-1]
 
 	def get_axis_bin_edges(self, axis):
 		"""
@@ -525,7 +586,7 @@ class DeaggBase(object):
 		"""
 		return self.deagg_matrix.fold_axes([-6,-5,-1])
 
-	def to_fractional_contribution(self):
+	def get_fractional_contribution_matrix(self):
 		"""
 		Convert deaggregation values to fractional contributions.
 
@@ -581,18 +642,22 @@ class DeaggregationSlice(DeaggBase):
 	:param iml:
 		float, intensity level
 
-	:period:
+	:param period:
 		float, spectral period
+
+	:param return_period:
+		float, return period corresponding to iml
 
 	:param timespan:
 		Float, time span in Poisson formula.
 	"""
-	def __init__(self, bin_edges, deagg_matrix, site, imt, iml, period, timespan):
+	def __init__(self, bin_edges, deagg_matrix, site, imt, iml, period, return_period, timespan):
 		DeaggBase.__init__(self, bin_edges, deagg_matrix, timespan)
 		self.site = site
 		self.imt = imt
 		self.iml = iml
 		self.period = period
+		self.return_period = return_period
 
 	def to_exceedance_rate(self):
 		"""
@@ -602,7 +667,7 @@ class DeaggregationSlice(DeaggBase):
 			instance of :class:`DeaggregationSlice`
 		"""
 		deagg_matrix = self.deagg_matrix.to_exceedance_rate_matrix(self.timespan)
-		return DeaggregationSlice(self.bin_edges, deagg_matrix, self.site, self.imt, self.iml, self.period, self.timespan)
+		return DeaggregationSlice(self.bin_edges, deagg_matrix, self.site, self.imt, self.iml, self.period, self.return_period, self.timespan)
 
 	def to_probability(self):
 		"""
@@ -612,7 +677,7 @@ class DeaggregationSlice(DeaggBase):
 			ndarray, 6-D
 		"""
 		deagg_matrix = self.deagg_matrix.to_probability_matrix(self.timespan)
-		return DeaggregationSlice(self.bin_edges, deagg_matrix, self.site, self.imt, self.iml, self.period, self.timespan)
+		return DeaggregationSlice(self.bin_edges, deagg_matrix, self.site, self.imt, self.iml, self.period, self.return_period, self.timespan)
 
 	def get_total_probability(self):
 		"""
@@ -642,8 +707,7 @@ class DeaggregationSlice(DeaggBase):
 		else:
 			eps_pmf = None
 		eps_bin_edges = self.eps_bin_edges[1:]
-		return_period = self.get_return_period()
-		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=self.period, title_comment=title, fig_filespec=fig_filespec)
+		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, self.return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=self.period, title_comment=title, fig_filespec=fig_filespec)
 
 	def get_modal_eq_scenario(self):
 		"""
@@ -683,7 +747,111 @@ class DeaggregationSlice(DeaggBase):
 		deagg_matrix = deagg_matrix.fold_axes([0,2,3,4,5])
 		return np.exp(float(np.sum(np.log(self.dist_bin_centers) * deagg_matrix)))
 
-	def get_contribution_above_threshold(self, threshold, axis):
+	def get_fractional_contribution_matrix_above(self, threshold, axis, renormalize=False):
+		"""
+		Return deaggregation matrix sliced above a given threshold value
+		for a given axis as fractional contribution.
+		Note: threshold value will be replaced with bin edge that is
+		lower than or equal to threshold.
+
+		:param threshold:
+			float, threshold (minimum) value
+		:param axis:
+			int, axis index
+		:param renormalize;
+			bool, whether or not resulting matrix should be renormalized
+			(default: False)
+
+		:return:
+			instance of :class:`FractionalContributionMatrix`
+		"""
+		axis_bin_edges = self.get_axis_bin_edges(axis)
+		start_idx = np.digitize([threshold], axis_bin_edges)[0] - 1
+		matrix = self.get_fractional_contribution_matrix()
+		matrix = matrix.slice_axis(axis, start=start_idx)
+		if renormalize:
+			matrix /= np.sum(matrix)
+		return matrix
+
+	def get_fractional_contribution_matrix_below(self, threshold, axis, renormalize=False):
+		"""
+		Return deaggregation matrix sliced below a given threshold value
+		for a given axis as fractional contribution.
+		Note: threshold value will be replaced with bin edge that is
+		larger than or equal to threshold.
+
+		:param threshold:
+			float, threshold (minimum) value
+		:param axis:
+			int, axis index
+		:param renormalize;
+			bool, whether or not resulting matrix should be renormalized
+			(default: False)
+
+		:return:
+			instance of :class:`FractionalContributionMatrix`
+		"""
+		axis_bin_edges = self.get_axis_bin_edges(axis)
+		stop_idx = np.digitize([threshold], axis_bin_edges)[0]
+		matrix = self.get_fractional_contribution_matrix()
+		matrix = matrix.slice_axis(axis, stop=stop_idx)
+		if renormalize:
+			matrix /= np.sum(matrix)
+		return matrix
+
+	def get_fractional_contribution_slice_above(self, threshold, axis, renormalize=False):
+		"""
+		Return deaggregation slice sliced above a given threshold value
+		for a given axis.
+		Note: threshold value will be replaced with bin edge that is
+		lower than or equal to threshold.
+
+		:param threshold:
+			float, threshold (minimum) value
+		:param axis:
+			int, axis index
+		:param renormalize;
+			bool, whether or not resulting matrix should be renormalized
+			(default: False)
+
+		:return:
+			instance of :class:`DeaggregationSlice`
+		"""
+		matrix = self.get_fractional_contribution_matrix_above(threshold, axis, renormalize=renormalize)
+		bin_edges = list(self.bin_edges)
+		axis_bin_edges = self.get_axis_bin_edges(axis)
+		start_idx = np.digitize([threshold], axis_bin_edges)[0] - 1
+		axis_bin_edges = axis_bin_edges[start_idx:]
+		bin_edges[axis] = axis_bin_edges
+		return DeaggregationSlice(tuple(bin_edges), matrix, self.site, self.imt, self.iml, self.period, self.return_period, self.timespan)
+
+	def get_fractional_contribution_slice_below(self, threshold, axis, renormalize=False):
+		"""
+		Return deaggregation slice sliced below a given threshold value
+		for a given axis.
+		Note: threshold value will be replaced with bin edge that is
+		larger than or equal to threshold.
+
+		:param threshold:
+			float, threshold (minimum) value
+		:param axis:
+			int, axis index
+		:param renormalize;
+			bool, whether or not resulting matrix should be renormalized
+			(default: False)
+
+		:return:
+			instance of :class:`DeaggregationSlice`
+		"""
+		matrix = self.get_fractional_contribution_matrix_below(threshold, axis, renormalize=renormalize)
+		bin_edges = list(self.bin_edges)
+		axis_bin_edges = self.get_axis_bin_edges(axis)
+		stop_idx = np.digitize([threshold], axis_bin_edges)[0]
+		axis_bin_edges = axis_bin_edges[:stop_idx]
+		bin_edges[axis] = axis_bin_edges
+		return DeaggregationSlice(tuple(bin_edges), matrix, self.site, self.imt, self.iml, self.period, self.return_period, self.timespan)
+
+	def get_contribution_above(self, threshold, axis):
 		"""
 		Determine contribution of bins above a threshold value.
 
@@ -693,14 +861,25 @@ class DeaggregationSlice(DeaggBase):
 			Int, index of axis
 
 		:return:
-			Float, percent contribution
+			Float, fractional contribution
 		"""
-		bin_indexes = np.where(self.get_axis_bin_centers(axis) > threshold)
-		deagg_matrix = self.deagg_matrix.to_fractional_contribution_matrix()
-		axes_to_fold = np.arange(6)
-		axes_to_fold = np.delete(axes_to_fold, axis)
-		deagg_matrix = deagg_matrix.fold_axes(axes_to_fold)
-		return float(np.sum(deagg_matrix[bin_indexes]))
+		matrix = self.get_fractional_contribution_matrix_above(threshold, axis, renormalize=False)
+		return np.sum(matrix)
+
+	def get_contribution_below(self, threshold, axis):
+		"""
+		Determine contribution of bins below a threshold value.
+
+		:param threshold:
+			Float, threshold value in given axis
+		:param axis:
+			Int, index of axis
+
+		:return:
+			Float, fractional contribution
+		"""
+		matrix = self.get_fractional_contribution_matrix_below(threshold, axis, renormalize=False)
+		return np.sum(matrix)
 
 	def get_contribution_above_magnitude(self, mag):
 		"""
@@ -712,7 +891,7 @@ class DeaggregationSlice(DeaggBase):
 		:return:
 			Float, percent contribution
 		"""
-		return self.get_contribution_above_threshold(mag, axis=0)
+		return self.get_contribution_above(mag, axis=0)
 
 	def get_contribution_above_distance(self, dist):
 		"""
@@ -724,7 +903,7 @@ class DeaggregationSlice(DeaggBase):
 		:return:
 			Float, percent contribution
 		"""
-		return self.get_contribution_above_threshold(dist, axis=1)
+		return self.get_contribution_above(dist, axis=1)
 
 	def get_trt_slice(self, trt):
 		"""
@@ -739,7 +918,7 @@ class DeaggregationSlice(DeaggBase):
 		trt_idx = self.trt_bins.index(trt)
 		bin_edges = (self.mag_bin_edges, self.dist_bin_edges, self.lon_bin_edges, self.lat_bin_edges, self.eps_bin_edges, [trt])
 		deagg_matrix = self.deagg_matrix[:,:,:,:,:,trt_idx:trt_idx+1]
-		return DeaggregationSlice(bin_edges, deagg_matrix, self.site, self.imt, self.iml, self.period, self.timespan)
+		return DeaggregationSlice(bin_edges, deagg_matrix, self.site, self.imt, self.iml, self.period, self.return_period, self.timespan)
 
 	def rebin(self, new_bin_edges, axis=0):
 		"""
@@ -785,7 +964,7 @@ class DeaggregationSlice(DeaggBase):
 		bin_edges = list(self.bin_edges)
 		bin_edges[axis] = new_bin_edges
 		bin_edges = tuple(bin_edges)
-		return DeaggregationSlice(bin_edges, rebinned_deagg, self.site, self.imt, self.iml, self.period, self.timespan)
+		return DeaggregationSlice(bin_edges, rebinned_deagg, self.site, self.imt, self.iml, self.period, self.return_period, self.timespan)
 
 	def rebin_magnitudes(self, mag_bin_edges):
 		"""
@@ -857,16 +1036,20 @@ class DeaggregationCurve(DeaggBase):
 	:param intensities:
 		float array, intensity levels
 
-	:period:
+	:param period:
 		float, spectral period
+
+	:param return_periods:
+		float array, return periods corresponding to intensities
 
 	:param timespan:
 		Float, time span in Poisson formula.
 	"""
-	def __init__(self, bin_edges, deagg_matrix, site, imt, intensities, period, timespan):
+	def __init__(self, bin_edges, deagg_matrix, site, imt, intensities, period, return_periods, timespan):
 		self.site = site
 		self.imt = imt
 		self.period = period
+		self.return_periods = np.array(return_periods)
 
 		## Make sure intensities are ordered from small to large
 		if intensities[0] > intensities[-1]:
@@ -916,7 +1099,7 @@ class DeaggregationCurve(DeaggBase):
 		else:
 			iml = self.intensities[iml_index]
 		matrix = self.deagg_matrix[iml_index]
-		return DeaggregationSlice(self.bin_edges, matrix, self.site, self.imt, iml, self.period, self.timespan)
+		return DeaggregationSlice(self.bin_edges, matrix, self.site, self.imt, iml, self.period, self.return_periods[iml_index], self.timespan)
 
 	def get_hazard_curve(self):
 		"""
@@ -968,8 +1151,9 @@ class DeaggregationCurve(DeaggBase):
 		site = deagg_slices[0].site
 		imt = deagg_slices[0].imt
 		period = deagg_slices[0].period
+		return_periods = [ds.return_period for ds in deagg_slices]
 		timespan = deagg_slices[0].timespan
-		return DeaggregationCurve(bin_edges, deagg_matrix, site, imt, imls, period, timespan)
+		return DeaggregationCurve(bin_edges, deagg_matrix, site, imt, imls, period, return_periods, timespan)
 
 	def filter_cav(self, vs30, CAVmin=0.16, gmpe_name=""):
 		"""
@@ -994,7 +1178,7 @@ class DeaggregationCurve(DeaggBase):
 		## Reduce to magnitude-distance pmf, and store in a new DeaggregationCurve object
 		deagg_matrix = self.get_mag_dist_pmf()[:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 		bin_edges = (self.mag_bin_edges, self.dist_bin_edges, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
-		CAV_deagg_curve = DeaggregationCurve(bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.period, self.timespan)
+		CAV_deagg_curve = DeaggregationCurve(bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.period, self.return_periods, self.timespan)
 
 		intensities = self.get_intensity_bin_centers()
 
@@ -1115,16 +1299,20 @@ class SpectralDeaggregationCurve(DeaggBase):
 	:param intensities:
 		float array, intensity levels
 
-	:periods:
+	:param periods:
 		float array, spectral periods
+
+	:param return_periods:
+		float array, return periods corresponding to intensities
 
 	:param timespan:
 		Float, time span in Poisson formula.
 	"""
-	def __init__(self, bin_edges, deagg_matrix, site, imt, intensities, periods, timespan):
+	def __init__(self, bin_edges, deagg_matrix, site, imt, intensities, periods, return_periods, timespan):
 		self.site = site
 		self.imt = imt
 		self.periods = np.array(periods)
+		self.return_periods = np.array(return_periods)
 
 		## Make sure intensities are ordered from small to large
 		if intensities[0,0] > intensities[0,-1]:
@@ -1162,7 +1350,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 			period = self.periods[period_index]
 		matrix = self.deagg_matrix[period_index]
 		intensities = self.intensities[period_index]
-		return DeaggregationCurve(self.bin_edges, matrix, self.site, self.imt, intensities, period, self.timespan)
+		return DeaggregationCurve(self.bin_edges, matrix, self.site, self.imt, intensities, period, self.return_periods, self.timespan)
 
 	@classmethod
 	def from_deaggregation_curves(self, deagg_curves):
@@ -1185,8 +1373,9 @@ class SpectralDeaggregationCurve(DeaggBase):
 		bin_edges = deagg_curves[0].bin_edges
 		site = deagg_curves[0].site
 		imt = deagg_curves[0].imt
+		return_periods = deagg_curves[0].return_periods
 		timespan = deagg_curves[0].timespan
-		return SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, imt, intensities, periods, timespan)
+		return SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, imt, intensities, periods, return_periods, timespan)
 
 	def filter_cav(self, vs30, CAVmin=0.16, gmpe_name=""):
 		"""
@@ -1266,7 +1455,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		nrml_file.close()
 
 
-def get_mean_deaggregation_slice(self, deagg_slices):
+def get_mean_deaggregation_slice(deagg_slices):
 	"""
 	Compute mean deaggregation slice
 
@@ -1284,5 +1473,25 @@ def get_mean_deaggregation_slice(self, deagg_slices):
 		assert ds.bin_edges == ds0.bin_edges
 		matrix += ds.get_fractional_contribution_matrix()
 	matrix /= np.sum(matrix)
-	return DeaggregationSlice(ds0.bin_edges, matrix, ds0.site, ds0.imt, ds0.iml, ds0.period, None)
+	return DeaggregationSlice(ds0.bin_edges, matrix, ds0.site, ds0.imt, ds0.iml, ds0.period, ds0.return_period, ds0.timespan)
+
+def get_mean_deaggregation_curve(deagg_curves):
+	"""
+	Compute mean deaggregation slice
+
+	:param deagg_slices:
+		list with instances of :class:`DeaggregationSlice`
+
+	:return:
+		instance of :class:`DeaggregationSlice`
+		Note that matrixes will be converted to instances of
+		:class:`FractionalContributionMatrix`
+	"""
+	dc0 = deagg_curves[0]
+	matrix = dc0.get_fractional_contribution_matrix()
+	for dc in deagg_curves[1:]:
+		assert dc.bin_edges == dc0.bin_edges
+		matrix += dc.get_fractional_contribution_matrix()
+	matrix /= np.sum(matrix)
+	return DeaggregationCurve(dc0.bin_edges, matrix, dc0.site, dc0.imt, dc0.intensities, dc0.period, dc0.return_periods, dc0.timespan)
 
