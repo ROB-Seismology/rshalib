@@ -1454,6 +1454,50 @@ class SpectralDeaggregationCurve(DeaggBase):
 		nrml_file.write(etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8"))
 		nrml_file.close()
 
+	def analyze_controlling_earthquakes(self, remote_distance=100):
+		"""
+		Print magnitude and distance of controlling earthquakes.
+
+		:param remote_distance:
+			float, threshold distance (in km) considered for remote
+			low-frequency earthquakes (default: 100)
+		"""
+
+		dc_dict = {}
+		periods = np.array([0.1, 0.2, 0.4, 1])
+		freqs = 1./periods
+		for period in (0.1, 0.2, 0.4, 1):
+			freq = 1./period
+			if not period in self.periods:
+				period_index = np.argmin(np.abs(self.periods - T))
+				msg = "Warning: Period %s s not found, using %s s instead"
+				msg %= (period, self.periods[period_index])
+				print(msg)
+				period = self.periods[period_index]
+			dc_dict[str(freq)] = sdc.get_curve(period=period)
+
+		for i, return_period in enumerate(self.return_periods):
+			print("Return period: %s yr" % return_period)
+
+			ds_dict = {}
+			for freq in freqs:
+				ds_dict[str(freq)] = dc_dict[str(freq)].get_slice(iml_index=i)
+
+			high_freq_ds_list = [ds_dict[str(freq)] for freq in freqs[:2]]
+			low_freq_ds_list = [ds_dict[str(freq)] for freq in freqs[2:]]
+			mean_high_freq_ds = rshalib.result.get_mean_deaggregation_slice(high_freq_ds_list)
+			mean_low_freq_ds = rshalib.result.get_mean_deaggregation_slice(low_freq_ds_list)
+
+			contrib = mean_low_freq_ds.get_contribution_above_distance(remote_distance)
+			print("  Low-freq contribution for d > %s km: %.2f %%" % (remote_distance, contrib * 100))
+
+			mean_mag, mean_dist = mean_high_freq_ds.get_mean_eq_scenario()
+			print("  High-frequency controlling earthquake: M=%.1f, d=%.0f km" % (mean_mag, mean_dist))
+
+			mean_remote_low_freq_ds = mean_low_freq_ds.get_fractional_contribution_slice_above(remote_distance, 1)
+			mean_mag, mean_dist = mean_remote_low_freq_ds.get_mean_eq_scenario()
+			print("  Remote low-frequency controlling earthquake: M=%.1f, d=%.0f km" % (mean_mag, mean_dist))
+
 
 def get_mean_deaggregation_slice(deagg_slices):
 	"""
