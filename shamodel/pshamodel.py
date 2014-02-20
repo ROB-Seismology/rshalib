@@ -743,7 +743,7 @@ class PSHAModel(PSHAModelBase):
 							sites, periods, im, intensities, 'g', self.time_span)
 			return shcf
 
-	def deagg_nhlib(self, site, imt, iml, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0):
+	def deagg_nhlib(self, site, imt, iml, return_period, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0):
 		"""
 		Run deaggregation with nhlib
 
@@ -753,6 +753,8 @@ class PSHAModel(PSHAModelBase):
 			Instance of :class:`nhlib.imt._IMT`, intensity measure type
 		:param iml:
 			Float, intensity measure level
+		:param return_period:
+			Float, return period corresponding to iml
 		:param mag_bin_width:
 			Float, magnitude bin width (default: None, will take MFD bin width
 				of first source)
@@ -786,7 +788,7 @@ class PSHAModel(PSHAModelBase):
 			period = imt.period
 		else:
 			period = 0
-		return DeaggregationSlice(bin_edges, deagg_matrix, site, imt_name, iml, period, self.time_span)
+		return DeaggregationSlice(bin_edges, deagg_matrix, site, imt_name, iml, period, return_period, self.time_span)
 
 	def deagg_nhlib_multi(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0):
 		"""
@@ -837,7 +839,7 @@ class PSHAModel(PSHAModelBase):
 				periods = [getattr(imt, "period", 0) for imt in imts]
 				intensities = np.array([imtls[imt] for imt in imts])
 				deagg_matrix = ProbabilityMatrix(deagg_matrix)
-				yield SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, "SA", intensities, periods, self.time_span)
+				yield SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, "SA", intensities, periods, self.return_periods, self.time_span)
 
 	def get_deagg_bin_edges(self, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width):
 		"""
@@ -1060,7 +1062,7 @@ class PSHAModel(PSHAModelBase):
 			deagg_matrix *= -1
 			deagg_result[site_key] = SpectralDeaggregationCurve(bin_edges,
 										deagg_matrix, site, "SA", intensities,
-										periods, self.time_span)
+										periods, self.return_periods, self.time_span)
 
 		return deagg_result
 
@@ -1167,7 +1169,7 @@ class PSHAModel(PSHAModelBase):
 			deagg_matrix = deagg_matrix_dict[site_key]
 			deagg_result[site_key] = SpectralDeaggregationCurve(bin_edges,
 										deagg_matrix, site, "SA", intensities,
-										periods, self.time_span)
+										periods, self.return_periods, self.time_span)
 
 		return deagg_result
 
