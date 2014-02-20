@@ -265,7 +265,9 @@ def parse_disaggregation(xml_filespec, site_name=None):
 			bin_edges = ([], [], lon_bin_edges, lat_bin_edges, [], tectonic_region_types)
 		deagg_matrix = ProbabilityMatrix(probs)
 		iml = disagg_matrix.get('iml')
-		deaggregation_slices[type] = DeaggregationSlice(bin_edges, deagg_matrix, site, imt, iml, period, timespan)
+		poe = float(disagg_matrix.get('poE'))
+		return_period = Poisson(life_time=timespan, prob=poe)
+		deaggregation_slices[type] = DeaggregationSlice(bin_edges, deagg_matrix, site, imt, iml, period, return_period, timespan)
 	return deaggregation_slices
 
 
@@ -303,13 +305,15 @@ def parse_disaggregation_full(xml_filespec, site_name=None):
 	imt = disagg_matrix.get('IMT')
 	period = float(disagg_matrix.get('saPeriod', 0.))
 	timespan = float(disagg_matrix.get('investigationTime'))
-	iml = disagg_matrix.get('iml')
+	iml = float(disagg_matrix.get('iml'))
+	poe = float(disagg_matrix.get('poE'))
+	return_period = Poisson(life_time=timespan, prob=poe)
 	prob_matrix = ProbabilityMatrix(np.zeros(shape))
 	for prob in disagg_matrix.findall('{%s}prob' % NRML):
 		index = prob.get("index")
 		value = prob.get("value")
 		prob_matrix[tuple(map(int, index.split(",")))] = value
-	deaggregation_slice = DeaggregationSlice(bin_edges, prob_matrix, site, imt, iml, period, timespan)
+	deaggregation_slice = DeaggregationSlice(bin_edges, prob_matrix, site, imt, iml, period, return_period, timespan)
 	return deaggregation_slice
 
 
@@ -341,14 +345,16 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None):
 		imt = dc_elem.get('imt')
 		period = float(dc_elem.get('saPeriod', 0.))
 		dss = []
-		for ds_elem in dc_elem.findall('{%s}deaggregationSlice' % NRML):
+		for iml_idx, ds_elem in enumerate(dc_elem.findall('{%s}deaggregationSlice' % NRML)):
 			iml = float(ds_elem.get('iml'))
+			poe = float(ds_elem.get('poE'))
+			return_period = Poisson(life_time=timespan, prob=poe)
 			prob_matrix = ProbabilityMatrix(np.zeros(shape, dtype='f'))
 			for prob in ds_elem.findall('{%s}prob' % NRML):
 				index = prob.get('index')
 				value = prob.get('value')
 				prob_matrix[tuple(map(int, index.split(',')))] = value
-			ds = DeaggregationSlice(bin_edges, prob_matrix, site, imt, iml, period, timespan)
+			ds = DeaggregationSlice(bin_edges, prob_matrix, site, imt, iml, period, return_period, timespan)
 			dss.append(ds)
 		dc = DeaggregationCurve.from_deaggregation_slices(dss)
 		dcs.append(dc)
