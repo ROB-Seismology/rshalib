@@ -118,7 +118,8 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 	:param psha_model:
 		instace of :class:`PSHAModel`
 	:param sample_idx:
-		str, sample index (formatted with adequate number of leading zeros)
+		str, sample index (formatted with adequate number of leading zeros,
+		and starting from 1)
 	:param cav_min:
 		float, CAV threshold in g.s
 	:param combine_pga_and_sa:
@@ -320,7 +321,8 @@ def deaggregate_psha_model((psha_model, sample_idx, deagg_sites, deagg_imt_perio
 	:param psha_model:
 		instace of :class:`PSHAModel`
 	:param sample_idx:
-		str, sample index (formatted with adequate number of leading zeros)
+		str, sample index (formatted with adequate number of leading zeros,
+		and starting from 1)
 	:param deagg_sites:
 		list with instances of :class:`SHASite` for which deaggregation
 		will be performed. Note that instances of class:`SoilSite` will

@@ -1966,7 +1966,7 @@ class PSHAModelTree(PSHAModelBase):
 
 		## Create list with arguments for each job
 		fmt = "%%0%dd" % len(str(self.num_lt_samples))
-		job_args = [(psha_model, fmt % sample_idx, cav_min, combine_pga_and_sa, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
+		job_args = [(psha_model, fmt % (sample_idx + 1), cav_min, combine_pga_and_sa, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
 
 		## Launch multiprocessing
 		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose)
