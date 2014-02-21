@@ -273,7 +273,7 @@ class SeismicSourceSystem(LogicTree):
 					## in previous branching level
 					bl_other_end_branch_ids = [bl_branch_ids[key][-1] for key in source_model_names if not key == sm_name]
 					bl_end_branch_ids = bl_branch_ids[sm_name][-1]
-					if len(bl_end_branch_ids.difference(*bl_other_end_branch_ids)) < len(bl_other_end_branch_ids):
+					if len(bl_end_branch_ids.difference(*bl_other_end_branch_ids)) < len(bl_end_branch_ids):
 						raise Exception("Not possible to connect source model %s" % sm_name)
 				sm_index = source_model_names.index(sm_name)
 				if correlated == True:
