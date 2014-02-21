@@ -1505,10 +1505,11 @@ class PSHAModelTree(PSHAModelBase):
 		:return:
 			list of instances of :class:`PSHAModel`
 		"""
-		if num_samples == 0:
-			return self.enumerate_logic_trees()
-		elif num_samples is None:
+		if num_samples is None:
 			num_samples = self.num_lt_samples
+
+		if num_samples == 0:
+			return self.enumerate_logic_trees(verbose=verbose)[0]
 
 		psha_models = []
 
@@ -1544,11 +1545,14 @@ class PSHAModelTree(PSHAModelBase):
 		# TODO: use yield instead?
 		return psha_models
 
-	def enumerate_logic_trees(self):
+	def enumerate_logic_trees(self, verbose=False):
 		"""
 		Enumerate both source-model and GMPE logic trees, in a way that is
 		similar to :meth:`_initialize_realizations_enumeration` of
 		:class:`BaseHazardCalculator` in oq-engine
+
+		:param verbose:
+			bool, whether or not to print some information (default: False)
 
 		:return:
 			tuple of:
@@ -1559,7 +1563,7 @@ class PSHAModelTree(PSHAModelBase):
 		for i, path_info in enumerate(self.ltp.enumerate_paths()):
 			sm_name, weight, smlt_path, gmpelt_path = path_info
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
-			gmpe_model = self._gmpe_sample_to_gmpe_model(path)
+			gmpe_model = self._gmpe_sample_to_gmpe_model(gmpelt_path)
 			name = "%s, LT enum %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i, source_model.description, gmpe_model.name)
 			psha_model = self._get_psha_model(source_model, gmpe_model, name)
 			psha_models.append(psha_model)
