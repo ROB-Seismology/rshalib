@@ -134,7 +134,7 @@ class PSHAModelBase(SHAModelBase):
 		folder = os.path.join(self.oq_output_folder, "classical")
 		if calc_id is None:
 			calc_id = self._get_oq_calc_id(folder)
-		hc_folder = os.path.join(folder, "calc_" + calc_id, "hazard_curve")
+		hc_folder = os.path.join(folder, "calc_%s" % calc_id, "hazard_curve")
 		if multi:
 			hc_folder += "_multi"
 		return hc_folder
@@ -153,7 +153,7 @@ class PSHAModelBase(SHAModelBase):
 		folder = os.path.join(self.oq_output_folder, "classical")
 		if calc_id is None:
 			calc_id = self._get_oq_calc_id(folder)
-		uhs_folder = os.path.join(folder, "calc_" + calc_id, "uh_spectra")
+		uhs_folder = os.path.join(folder, "calc_%s" % calc_id, "uh_spectra")
 		return uhs_folder
 
 	def get_oq_hm_folder(self, calc_id=None):
@@ -170,7 +170,7 @@ class PSHAModelBase(SHAModelBase):
 		folder = os.path.join(self.oq_output_folder, "classical")
 		if calc_id is None:
 			calc_id = self._get_oq_calc_id(folder)
-		hm_folder = os.path.join(folder, "calc_" + calc_id, "hazard_map")
+		hm_folder = os.path.join(folder, "calc_%s" % calc_id, "hazard_map")
 		return hm_folder
 
 	def get_oq_disagg_folder(self, calc_id=None, multi=False):
@@ -190,7 +190,7 @@ class PSHAModelBase(SHAModelBase):
 		folder = os.path.join(self.oq_output_folder, "disaggregation")
 		if calc_id is None:
 			calc_id = self._get_oq_calc_id(folder)
-		disagg_folder = os.path.join(folder, "calc_" + calc_id, "disagg_matrix")
+		disagg_folder = os.path.join(folder, "calc_%s" % calc_id, "disagg_matrix")
 		if multi:
 			disagg_folder += "_multi"
 		return disagg_folder
