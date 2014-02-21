@@ -1404,11 +1404,14 @@ class SpectralDeaggregationCurve(DeaggBase):
 		"""
 		pass
 
-	def write_nrml(self, nrml_filespec, return_periods, sourceModelTreePath=None, gsimTreePath=None):
+	def write_nrml(self, nrml_filespec, sourceModelTreePath=None, gsimTreePath=None):
 		"""
-		:param poes:
-			list with return periods for which deaggregation matrixes have
-			been computed.
+		:param nrml_filespec:
+			str, full path to output file
+		:param sourceModelTreePath:
+			str, source-model logic-tree path (default: None)
+		:param gsimTreePath:
+			str, ground-motion logic-tree path (default: None)
 		"""
 		from lxml import etree
 		from ..nrml import ns
@@ -1441,7 +1444,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 				ds_elem.set("iml", str(ds.iml))
 				## Write intended poe, not actual poe
 				#poe = ds.deagg_matrix.get_total_probability(timespan=self.timespan)
-				poe = Poisson(return_period=return_periods[ds_idx], life_time=self.timespan)
+				poe = Poisson(return_period=self.return_periods[ds_idx], life_time=self.timespan)
 				ds_elem.set("poE", str(poe))
 				matrix = ds.deagg_matrix.to_probability_matrix(timespan=self.timespan)
 				for index, value in np.ndenumerate(matrix):
