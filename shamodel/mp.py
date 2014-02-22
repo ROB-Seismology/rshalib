@@ -40,6 +40,7 @@ def run_parallel(func, job_arg_list, num_processes, verbose=True):
 		list with values returned by func for each job in order
 	"""
 	num_processes = min(multiprocessing.cpu_count(), num_processes)
+	num_processes = min(num_processes, len(job_arg_list))
 	if verbose:
 		print("Starting %d parallel processes" % num_processes)
 	pool = multiprocessing.Pool(processes=num_processes)
