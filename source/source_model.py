@@ -281,6 +281,19 @@ class SourceModel():
 				sources.append(src)
 		return SourceModel(self.name, sources, self.description)
 
+	def get_num_decomposed_sources(self):
+		"""
+		Return list with number of decomposed sources for each source.
+		"""
+		num_decomposed_sources = []
+		for src in self.sources:
+			if isinstance(src, AreaSource):
+				polygon_mesh = self.polygon.discretize(self.area_discretization)
+				num_decomposed_sources.append(len(polygon_mesh))
+			else:
+				num_decomposed_sources.append(1)
+		return num_decomposed_sources
+
 
 
 if __name__ == '__main__':
