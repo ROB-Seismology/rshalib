@@ -288,7 +288,7 @@ class SourceModel():
 		num_decomposed_sources = []
 		for src in self.sources:
 			if isinstance(src, AreaSource):
-				polygon_mesh = self.polygon.discretize(self.area_discretization)
+				polygon_mesh = src.polygon.discretize(self.area_discretization)
 				num_decomposed_sources.append(len(polygon_mesh))
 			else:
 				num_decomposed_sources.append(1)
