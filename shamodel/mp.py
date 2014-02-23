@@ -202,6 +202,7 @@ def deaggregate_by_source((psha_model, source, site_imtls, deagg_site_model, mag
 
 	:return:
 		dict mapping (lon, lat) tuples to 7-D deaggregation matrixes
+		representing NON-exceedance probabilities
 		(instances o :class:`ProbabilityMatrix`
 		(imt, iml, mag_bin, dist_bin, lon_bin, lat_bin, eps_bin)
 	"""
@@ -298,11 +299,6 @@ def deaggregate_by_source((psha_model, source, site_imtls, deagg_site_model, mag
 					except IndexError:
 						## May fail if rupture extent is beyond (lon,lat) range
 						pass
-
-	## Convert to exceedance probabilities
-	for site_key in deagg_matrix_dict:
-		deagg_matrix_dict[site_key] -= 1
-		deagg_matrix_dict[site_key] *= -1
 
 	return deagg_matrix_dict
 

@@ -390,6 +390,24 @@ class PSHAModelBase(SHAModelBase):
 				reference_depth_to_2pt5km_per_sec=self.ref_soil_params["z2pt5"],
 				reference_kappa=self.ref_soil_params.get("kappa", None))
 
+	def _get_oq_imt_subfolder(self, im, T):
+		"""
+		Determine OpenQuake subfolder name for a particular IMT
+
+		:param im:
+			str, intensity measure, e.g. "SA", "PGA"
+		:param T:
+			float, spectral period in seconds
+
+		:return:
+			str, IMT subfolder
+		"""
+		if im == "SA":
+			imt_subfolder = "SA-%s" % T
+		else:
+			imt_subfolder = im
+		return imt_subfolder
+
 	def read_oq_hcf(self, curve_name, im, T, calc_id=None):
 		"""
 		Read OpenQuake hazard curve field
@@ -408,11 +426,8 @@ class PSHAModelBase(SHAModelBase):
 		"""
 		from ..openquake import parse_hazard_curves
 
-		hc_folder = self.get_oq_hc_folder(calc_id=calc_id)
-		if im == "SA":
-			imt_subfolder = "SA-%s" % T
-		else:
-			imt_subfolder = im
+		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=False)
+		imt_subfolder = self._get_oq_imt_subfolder(im, T)
 		xml_filename = "hazard_curve-%s.xml" % curve_name
 		#print xml_filename
 		xml_filespec = os.path.join(hc_folder, imt_subfolder, xml_filename)
@@ -420,6 +435,50 @@ class PSHAModelBase(SHAModelBase):
 		hcf.set_site_names(self.get_sha_sites())
 
 		return hcf
+
+	def write_oq_hcf(self, hcf, calc_id=None):
+		"""
+		Write OpenQuake hazard curve field
+
+		:param hcf:
+			instance of :class:`HazardCurveField`
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
+		"""
+		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=False)
+		imt_subfolder = self._get_oq_imt_subfolder(hcf.imt, hcf.T)
+		xml_filename = "hazard_curve-%s.xml" % curve_name
+		xml_filespec = os.path.join(hc_folder, imt_subfolder, xml_filename)
+		hcf.write_nrml(xml_filespec)
+
+	def read_oq_shcf(self, curve_name, calc_id=None):
+		"""
+		Read OpenQuake spectral hazard curve field
+
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
+
+		:return:
+			instance of :class:`SpectralHazardCurveField`
+		"""
+		from ..openquake import parse_hazard_curves
+
+		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
+		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
+		#print xml_filename
+		xml_filespec = os.path.join(hc_folder, xml_filename)
+		shcf = parse_hazard_curves(xml_filespec)
+		shcf.set_site_names(self.get_sha_sites())
+
+		return shcf
+
+	def write_oq_shcf(self, shcf):
+		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
+		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
+		xml_filespec = os.path.join(hc_folder, xml_filename)
+		shcf.write_nrml(xml_filespec)
 
 	def read_oq_uhs_multi(self):
 		# TODO
@@ -442,7 +501,7 @@ class PSHAModelBase(SHAModelBase):
 		from ..result import Poisson
 		from ..openquake import parse_uh_spectra
 
-		poe = str(round(Poisson(life_time=self.life_time, return_period=return_period), 13))
+		poe = str(round(Poisson(life_time=self.time_span, return_period=return_period), 13))
 
 		# TODO: site lon, lat in filename
 		uhs_folder = self.get_oq_uhs_folder(calc_id=calc_id)
@@ -453,6 +512,10 @@ class PSHAModelBase(SHAModelBase):
 		uhsf.set_site_names(self.get_sha_sites())
 
 		return uhsf
+
+	def write_oq_uhs_field(self, uhsf):
+		# TODO
+		pass
 
 	def read_oq_disagg_matrix(self, curve_name, im, T, return_period, site, calc_id=None):
 		"""
@@ -475,14 +538,35 @@ class PSHAModelBase(SHAModelBase):
 		:return:
 			instance of :class:`DeaggregationSlice`
 		"""
-		poe = str(round(Poisson(life_time=self.life_time, return_period=return_period), 13))
+		poe = str(round(Poisson(life_time=self.time_span, return_period=return_period), 13))
 
 		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=False)
+		imt_subfolder = self._get_oq_imt_subfolder(im, T)
 		xml_filename = "disagg_matrix(%s)-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (poe, site.lon, site.lat, curve_name)
-		xml_filespec = os.path.join(uhs_folder, xml_filename)
+		xml_filespec = os.path.join(disagg_folder, imt_subfolder, xml_filename)
 		ds = parse_disaggregation(xml_filespec, site.name)
 		return ds
+
+	def write_oq_disagg_matrix(self, ds, curve_name, calc_id=None):
+		"""
+		Write OpenQuake deaggregation matrix
+
+		:param ds:
+			instance of :class:`DeaggregationSlice`
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
+		"""
+		poe = str(round(Poisson(life_time=ds.time_span, return_period=ds.return_period), 13))
+
+		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=False)
+		imt_subfolder = self._get_oq_imt_subfolder(ds.imt, ds.period)
+		xml_filename = "disagg_matrix(%s)-lon_%s-lat_%s-%s.xml"
+		xml_filename %= (poe, ds.site.lon, ds.site.lat, curve_name)
+		xml_filespec = os.path.join(disagg_folder, imt_subfolder, xml_filename)
+		ds.write_nrml(xml_filespec, self.sourceModelTreePath, self.gsimTreePath)
 
 	def read_oq_disagg_matrix_full(self):
 		# TODO
@@ -511,33 +595,54 @@ class PSHAModelBase(SHAModelBase):
 		sdc = parse_spectral_deaggregation_curve(xml_filespec, site.name)
 		return sdc
 
-	def read_crisis_batch(self):
+	def write_oq_disagg_matrix_multi(self, sdc, curve_name, calc_id=None):
+		"""
+		Write OpenQuake multi-deaggregation matrix.
+
+		:param sdc:
+			instance of :class:`SpectralDeaggregationCurve`
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
+		"""
+		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=True)
+		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
+		xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
+		xml_filespec = os.path.join(disagg_folder, xml_filename)
+		sdc.write_nrml(xml_filespec, self.sourceModelTreePath, self.gsimTreePath)
+
+	def read_crisis_batch(self, batch_filename = "lt_batch.dat"):
 		"""
 		Reach CRISIS batch file
+
+		:param batch_filename:
+			str, name of batch file (default: "lt_batch.dat")
 
 		:return:
 			list of gra_filespecs
 		"""
 		from ..crisis import read_batch
 
-		batch_filename = "lt_batch.dat"
 		batch_filespec = os.path.join(self.crisis_root_folder, batch_filename)
 		#print batch_filespec
 		return read_batch(batch_filespec)
 
-	def read_crisis_shcf(self, curve_name):
+	def read_crisis_shcf(self, curve_name, batch_filename="lt_batch.dat"):
 		"""
 		Read CRISIS spectral hazard curve field
 
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01")
+		:param batch_filename:
+			str, name of batch file (default: "lt_batch.dat")
 
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
 		from ..crisis import read_GRA
 
-		gra_filespecs, weights = self.read_crisis_batch(test_case)
+		gra_filespecs, weights = self.read_crisis_batch(batch_filename)
 		for gra_filespec in gra_filespecs:
 			gra_filename = os.path.split(gra_filespec)[1]
 			if curve_name in gra_filename:
@@ -1066,7 +1171,7 @@ class PSHAModel(PSHAModelBase):
 
 		return deagg_result
 
-	def deaggregate_mp(self, site_imtls, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', num_cores=None, verbose=False):
+	def deaggregate_mp(self, site_imtls, decompose_area_sources=False, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', num_cores=None, verbose=False):
 		"""
 		Hybrid rshalib/oqhazlib deaggregation for multiple sites, multiple
 		imt's per site, and multiple iml's per iml, using multiprocessing.
@@ -1080,6 +1185,10 @@ class PSHAModel(PSHAModelBase):
 			nested dictionary mapping (lon, lat) tuples to dictionaries
 			mapping oqhazlib IMT objects to 1-D arrays of intensity measure
 			levels
+		:param decompose_area_sources:
+			bool, whether or not area sources should be decomposed into
+			point sources for the computation (default: False)
+			Note: This requires a LOT of memory!
 		:param mag_bin_width:
 			Float, magnitude bin width (default: None, will take MFD bin width
 			of first source)
@@ -1126,8 +1235,8 @@ class PSHAModel(PSHAModelBase):
 			deagg_matrix_shape = (num_imts, num_imls, len(mag_bins) - 1, len(dist_bins) - 1, len(lon_bins) - 1,
 						len(lat_bins) - 1, len(eps_bins) - 1, len(src_bins))
 
-			## Initialize array with zeros representing exceedance probabilities !
-			deagg_matrix = ProbabilityMatrix(np.zeros(deagg_matrix_shape, dtype=dtype))
+			## Initialize array with ones representing non-exceedance probabilities !
+			deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype=dtype))
 			deagg_matrix_dict[site_key] = deagg_matrix
 
 		site_model = self.get_soil_site_model()
@@ -1141,18 +1250,34 @@ class PSHAModel(PSHAModelBase):
 			for imt in site_imtls[site_key]:
 				copy_of_site_imtls[site_key][tuple(imt)] = site_imtls[site_key][imt]
 
+		if decompose_area_sources:
+			source_model = self.source_model.decompose_area_sources()
+			num_decomposed_sources = self.source_model.get_num_decomposed_sources()
+			cum_num_decomposed_sources = np.add.accumulate(num_decomposed_sources)
+		else:
+			source_model = self.source_model
+
 		## Create list with arguments for each job
 		job_args = []
-		for source in self.source_model:
+		for source in source_model:
 			job_args.append((self, source, copy_of_site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose))
 
 		## Launch multiprocessing
 		if not num_cores:
 			num_cores = mp.multiprocessing.cpu_count()
 
-		for src_idx, src_deagg_matrix_dict in enumerate(mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores)):
+		for idx, src_deagg_matrix_dict in enumerate(mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores)):
+			if decompose_area_sources:
+				src_idx = np.where(cum_num_decomposed_sources > idx)[0][0]
+			else:
+				src_idx = idx
 			for site_key in deagg_matrix_dict.keys():
-				deagg_matrix_dict[site_key][:,:,:,:,:,:,:,src_idx] = src_deagg_matrix_dict[site_key]
+				deagg_matrix_dict[site_key][:,:,:,:,:,:,:,src_idx] *= src_deagg_matrix_dict[site_key]
+
+		## Convert to exceedance probabilities
+		for site_key in deagg_matrix_dict.keys():
+			deagg_matrix_dict[site_key] -= 1
+			deagg_matrix_dict[site_key] *= -1
 
 		## Create SpectralDeaggregationCurve for each site
 		deagg_result = {}
@@ -1503,18 +1628,19 @@ class PSHAModelTree(PSHAModelBase):
 			bool, whether or not to print some information (default: False)
 
 		:return:
-			list of instances of :class:`PSHAModel`
+			list with (instance of :class:`PSHAModel`, weight) tuples
 		"""
+		#from itertools import izip
 		if num_samples is None:
 			num_samples = self.num_lt_samples
 
 		if num_samples == 0:
 			return self.enumerate_logic_trees(verbose=verbose)[0]
 
-		psha_models = []
+		psha_models_weights = []
 
 		if enumerate_gmpe_lt:
-			gmpe_models, _ = self.enumerate_gmpe_lt(verbose=verbose)
+			gmpe_models_weights = self.enumerate_gmpe_lt(verbose=verbose)
 			gmpelt_paths = self.gmpe_lt.root_branchset.enumerate_paths()
 
 		for i in xrange(num_samples):
@@ -1529,21 +1655,22 @@ class PSHAModelTree(PSHAModelBase):
 			## Convert to objects
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
 			if not enumerate_gmpe_lt:
-				gmpe_models = [self._gmpe_sample_to_gmpe_model(gmpelt_path)]
+				gmpe_models_weights = [(self._gmpe_sample_to_gmpe_model(gmpelt_path), 1)]
 				gmpelt_paths = [gmpelt_path]
 
-			for gmpe_model, gmpelt_path in zip(gmpe_models, gmpelt_paths):
+			for (gmpe_model, gmpelt_weight), gmpelt_path in zip(gmpe_models_weights, gmpelt_paths):
 				## Convert to PSHA model
 				name = "%s, LT sample %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i+1, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
 				psha_model = self._get_psha_model(source_model, gmpe_model, name)
-				psha_models.append(psha_model)
+				psha_models_weights.append((psha_model, gmpelt_weight))
+				yield (psha_model, gmpelt_weight)
 
 			## Update the seed for the next realization
 			seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
 			self.rnd.seed(seed)
 
 		# TODO: use yield instead?
-		return psha_models
+		return psha_models_weights
 
 	def enumerate_logic_trees(self, verbose=False):
 		"""
@@ -1555,20 +1682,18 @@ class PSHAModelTree(PSHAModelBase):
 			bool, whether or not to print some information (default: False)
 
 		:return:
-			tuple of:
-			- list of instances of :class:`PSHAModel`
-			- list of corresponding weights
+			list with (instance of :class:`PSHAModel`, weight) tuples
 		"""
-		psha_models, weights = [], []
+		psha_models_weights = []
 		for i, path_info in enumerate(self.ltp.enumerate_paths()):
 			sm_name, weight, smlt_path, gmpelt_path = path_info
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
 			gmpe_model = self._gmpe_sample_to_gmpe_model(gmpelt_path)
 			name = "%s, LT enum %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i, source_model.description, gmpe_model.name)
 			psha_model = self._get_psha_model(source_model, gmpe_model, name)
-			psha_models.append(psha_model)
-			weights.append(weight)
-		return psha_models, weights
+			psha_models_weights.append((psha_model, weight))
+			#yield (psha_model, weight)
+		return psha_models_weights
 
 	def _get_psha_model(self, source_model, gmpe_model, name):
 		"""
@@ -1586,13 +1711,12 @@ class PSHAModelTree(PSHAModelBase):
 			str, source-model logic-tree path
 		:param gmpelt_path:
 			str, GMPE logic-tree path
+
+		:return:
+			instance of :class:`PSHAModel`
 		"""
 		root_folder = self.root_folder
 		optimized_gmpe_model = gmpe_model.get_optimized_model(source_model)
-		#if self.soil_site_model or self.grid_outline:
-		#	sites = []
-		#else:
-		#	sites = self.get_sites()
 		psha_model = PSHAModel(name, source_model, optimized_gmpe_model, root_folder,
 			sites=self.sites, grid_outline=self.grid_outline, grid_spacing=self.grid_spacing,
 			soil_site_model=self.soil_site_model, ref_soil_params=self.ref_soil_params,
@@ -1618,12 +1742,12 @@ class PSHAModelTree(PSHAModelBase):
 			(default: False)
 
 		:return:
-			list of instances of :class:`SourceModel`, one for each sample
+			list with (instance of :class:`SourceModel`, weight) tuples
 		"""
 		if num_samples == 0:
 			return self.enumerate_source_model_lt(verbose=verbose, show_plot=show_plot)
 
-		modified_source_models = []
+		modified_source_models_weights = []
 		for i in xrange(num_samples):
 			## Generate 2nd-order random seed
 			random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
@@ -1635,8 +1759,10 @@ class PSHAModelTree(PSHAModelBase):
 				self.source_model_lt.plot_diagram(highlight_path=path)
 			## Apply uncertainties
 			source_model = self._smlt_sample_to_source_model(sm_name, path, verbose=verbose)
-			modified_source_models.append(source_model)
-		return modified_source_models
+			weight = 1./num_samples
+			modified_source_models_weights.append((source_model, weight))
+			#yield (source_model, weight)
+		return modified_source_models_weights
 
 	def enumerate_source_model_lt(self, verbose=False, show_plot=False):
 		"""
@@ -1649,11 +1775,9 @@ class PSHAModelTree(PSHAModelBase):
 			(default: False)
 
 		:return:
-			tuple of:
-			- list of instances of :class:`SourceModel`, one for each sample
-			- list of corresponding weights
+			list with (instance of :class:`SourceModel`, weight) tuples
 		"""
-		weights, modified_source_models = [], []
+		modified_source_models_weights = []
 		for smlt_path_weight, smlt_branches in self.source_model_lt.root_branchset.enumerate_paths():
 			smlt_path = [branch.branch_id for branch in smlt_branches]
 			sm_name = os.path.splitext(smlt_branches[0].value)[0]
@@ -1663,9 +1787,9 @@ class PSHAModelTree(PSHAModelBase):
 				self.source_model_lt.plot_diagram(highlight_path=smlt_path)
 			## Apply uncertainties
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
-			modified_source_models.append(source_model)
-			weights.append(smlt_path_weight)
-		return modified_source_models, weights
+			modified_source_models_weights.append((source_model, smlt_path_weight))
+			#yield (source_model, smlt_path_weight)
+		return modified_source_models_weights
 
 	def _smlt_sample_to_source_model(self, sm_name, path, verbose=False):
 		"""
@@ -1719,12 +1843,12 @@ class PSHAModelTree(PSHAModelBase):
 			(default: False)
 
 		:return:
-			list of instances of :class:`GroundMotionModel`, one for each sample
+			list with (instance of :class:`GroundMotionModel`, weight) tuples
 		"""
 		if num_samples == 0:
 			return self.enumerate_gmpe_lt(verbose=verbose, show_plot=show_plot)
 
-		gmpe_models = []
+		gmpe_models_weights = []
 		for i in xrange(num_samples):
 			## Generate 2nd-order random seed
 			random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
@@ -1736,10 +1860,12 @@ class PSHAModelTree(PSHAModelBase):
 				self.gmpe_lt.plot_diagram(highlight_path=path)
 			## Convert to GMPE model
 			gmpe_model = self._gmpe_sample_to_gmpe_model(path)
-			gmpe_models.append(gmpe_model)
+			weight = 1./num_samples
+			gmpe_models_weights.append((gmpe_model, weight))
 			if verbose:
 				print gmpe_model
-		return gmpe_models
+			#yield (gmpe_model, weight)
+		return gmpe_models_weights
 
 	def enumerate_gmpe_lt(self, verbose=False, show_plot=False):
 		"""
@@ -1752,11 +1878,9 @@ class PSHAModelTree(PSHAModelBase):
 			(default: False)
 
 		:return:
-			tuple of:
-			- list of instances of :class:`GroundMotionModel`, one for each sample
-			- list of corresponding weights
+			list with (instance of :class:`GroundMotionModel`, weight) tuples
 		"""
-		gmpe_models, weights = [], []
+		gmpe_models_weights = []
 		for gmpelt_path_weight, gmpelt_branches in self.gmpe_lt.root_branchset.enumerate_paths():
 			gmpelt_path = [branch.branch_id for branch in gmpelt_branches]
 			if verbose:
@@ -1764,9 +1888,9 @@ class PSHAModelTree(PSHAModelBase):
 			if show_plot:
 				self.gmpe_lt.plot_diagram(highlight_path=gmpelt_path)
 			gmpe_model = self._gmpe_sample_to_gmpe_model(gmpelt_path)
-			gmpe_models.append(gmpe_model)
-			weights.append(gmpelt_path_weight)
-		return gmpe_models, weights
+			gmpe_models_weights.append((gmpe_model, gmpelt_path_weight))
+			#yield (gmpe_model, gmpelt_path_weight)
+		return gmpe_models_weights
 
 	def _gmpe_sample_to_gmpe_model(self, path):
 		"""
@@ -2149,15 +2273,12 @@ class PSHAModelTree(PSHAModelBase):
 			of.write("%s, %s\n" % (filespec, weight))
 		of.close()
 
-	def read_oq_shcft(self, calc_id=None, add_stats=False):
+	def read_oq_shcft(self, add_stats=False, calc_id=None):
 		"""
 		Read OpenQuake spectral hazard curve field tree.
 		Read from the folder 'hazard_curve_multi' if present, else read individual
 		hazard curves from the folder 'hazard_curve'.
 
-		:param calc_id:
-			list of ints, calculation IDs.
-			(default: None, will determine from folder structure)
 		:param add_stats:
 			bool indicating whether or not mean and quantiles have to be appended
 
@@ -2172,7 +2293,11 @@ class PSHAModelTree(PSHAModelBase):
 		shcft = read_shcft(hc_folder, self.get_sha_sites(), add_stats=add_stats)
 		return shcft
 
-	def read_oq_uhsft(self, return_period, calc_id=None, add_stats=False):
+	def write_oq_shcft(self, shcft):
+		# TODO
+		pass
+
+	def read_oq_uhsft(self, return_period, add_stats=False, calc_id=None):
 		"""
 		Read OpenQuake UHS field tree
 
@@ -2180,6 +2305,9 @@ class PSHAModelTree(PSHAModelBase):
 			float, return period
 		:param add_stats:
 			bool indicating whether or not mean and quantiles have to be appended
+		:param calc_id:
+			list of ints, calculation IDs.
+			(default: None, will determine from folder structure)
 
 		:return:
 			instance of :class:`UHSFieldTree`
@@ -2190,16 +2318,23 @@ class PSHAModelTree(PSHAModelBase):
 		uhsft = read_uhsft(uhs_folder, return_period, self.get_sha_sites(), add_stats=add_stats)
 		return uhsft
 
-	def read_crisis_shcft(self):
+	def write_oq_uhsft(self, uhsft):
+		# TODO
+		pass
+
+	def read_crisis_shcft(self, batch_filename="lt_batch.dat"):
 		"""
 		Read CRISIS spectral hazard curve field tree
+
+		:param batch_filename:
+			str, name of batch file (default: "lt_batch.dat")
 
 		:return:
 			instance of :class:`SpectralHazardCurveFieldTree`
 		"""
 		from ..crisis import read_GRA_multi
 
-		gra_filespecs, weights = self.read_crisis_batch(test_case)
+		gra_filespecs, weights = self.read_crisis_batch(batch_filename)
 		shcft = read_GRA_multi(gra_filespecs, weights=weights)
 		return shcft
 
