@@ -1663,7 +1663,7 @@ class PSHAModelTree(PSHAModelBase):
 				name = "%s, LT sample %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i+1, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
 				psha_model = self._get_psha_model(source_model, gmpe_model, name)
 				psha_models_weights.append((psha_model, gmpelt_weight))
-				yield (psha_model, gmpelt_weight)
+				#yield (psha_model, gmpelt_weight)
 
 			## Update the seed for the next realization
 			seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
