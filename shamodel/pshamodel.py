@@ -2086,7 +2086,7 @@ class PSHAModelTree(PSHAModelBase):
 		import mp
 
 		## Generate all PSHA models
-		psha_models = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
+		psha_models_weights = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
 
 		## Determine number of simultaneous processes
 		if not num_cores:
@@ -2095,8 +2095,10 @@ class PSHAModelTree(PSHAModelBase):
 			num_cores = min(mp.multiprocessing.cpu_count(), num_cores)
 
 		## Create list with arguments for each job
+		job_args = []
 		fmt = "%%0%dd" % len(str(self.num_lt_samples))
-		job_args = [(psha_model, fmt % (sample_idx + 1), cav_min, combine_pga_and_sa, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
+		for sample_idx, (psha_model, weight) in enumerate(psha_models_weights):
+			job_args.append((psha_model, fmt % (sample_idx + 1), cav_min, combine_pga_and_sa, verbose))
 
 		## Launch multiprocessing
 		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose)
@@ -2146,7 +2148,7 @@ class PSHAModelTree(PSHAModelBase):
 		import mp
 
 		## Generate all PSHA models
-		psha_models = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
+		psha_models_weights = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
 
 		## Convert sites to SHASite objects if necessary, because SoilSites
 		## cause problems when used in conjunction with multiprocessing
@@ -2185,8 +2187,10 @@ class PSHAModelTree(PSHAModelBase):
 		num_processes = min(num_cores, np.floor(free_mem / matrix_size))
 
 		## Create list with arguments for each job
+		job_args = []
 		fmt = "%%0%dd" % len(str(self.num_lt_samples))
-		job_args = [(psha_model, fmt % (sample_idx + 1), deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, verbose) for (psha_model, sample_idx) in zip(psha_models, range(self.num_lt_samples))]
+		for sample_idx, (psha_model, weight) in enumerate(psha_models_weights):
+			job_args.append((psha_model, fmt % (sample_idx + 1), deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, verbose))
 
 		## Launch multiprocessing
 		return mp.run_parallel(mp.deaggregate_psha_model, job_args, num_processes, verbose)
@@ -2230,7 +2234,7 @@ class PSHAModelTree(PSHAModelBase):
 
 		## Write CRISIS input files
 		max_mag = self.source_model_lt.get_max_mag()
-		for i, psha_model in enumerate(self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=enumerate_gmpe_lt, verbose=verbose)):
+		for i, (psha_model, weight) in enumerate(self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=enumerate_gmpe_lt, verbose=verbose)):
 			folder = os.path.join(self.crisis_root_folder, psha_model.source_model.name)
 			if len(trts) == 1:
 				folder = os.path.join(folder, psha_model.ground_motion_model[trts[0]])
