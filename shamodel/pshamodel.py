@@ -1635,7 +1635,7 @@ class PSHAModelTree(PSHAModelBase):
 			num_samples = self.num_lt_samples
 
 		if num_samples == 0:
-			return self.enumerate_logic_trees(verbose=verbose)[0]
+			return self.enumerate_logic_trees(verbose=verbose)
 
 		psha_models_weights = []
 
