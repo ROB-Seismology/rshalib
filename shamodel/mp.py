@@ -145,6 +145,7 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 		return 1
 	else:
 		## Write XML file, creating directory if necessary
+		# TODO: replace with psha_model.write_oq_shcf()
 		hc_folder = psha_model.oq_root_folder
 		subfolders = ["computed_output", "classical", "calc_oqhazlib"]
 		for im, shcf in im_shcf_dict.items():
@@ -164,7 +165,7 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 		return 0
 
 
-def deaggregate_by_source((psha_model, source, site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose)):
+def deaggregate_by_source((psha_model, source, src_idx, shared_deagg_matrix_dict, site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose)):
 	"""
 	Stand-alone function that will deaggregate for a single source.
 
@@ -173,6 +174,12 @@ def deaggregate_by_source((psha_model, source, site_imtls, deagg_site_model, mag
 	:param source:
 		instance of :class:`PointSource`, :class:`AreaSource`,
 		:class:`SimpleFaultSource` or :class:`ComplexFaultSource`
+	:param src_idx:
+		int, source index in 8-D deaggregation matrix
+	:param shared_deagg_matrix_dict:
+		dictionary mapping (lon, lat) tuples to shared-memory 8-D
+		deaggregation matrix where computed non-exceedance probabilities
+		will be multiplied with.
 	:param site_imtls:
 		nested dictionary mapping (lon, lat) tuples to dictionaries
 		mapping oqhazlib IMT objects to 1-D arrays of intensity measure
@@ -201,106 +208,117 @@ def deaggregate_by_source((psha_model, source, site_imtls, deagg_site_model, mag
 		Bool, whether or not to print some progress information
 
 	:return:
-		dict mapping (lon, lat) tuples to 7-D deaggregation matrixes
-		representing NON-exceedance probabilities
-		(instances o :class:`ProbabilityMatrix`
-		(imt, iml, mag_bin, dist_bin, lon_bin, lat_bin, eps_bin)
+		0 (successful execution) or 1 (error occurred)
 	"""
 	# TODO: make param deagg_site_model in agreement with deaggregate_psha_model
 	import openquake.hazardlib as oqhazlib
 	from openquake.hazardlib.site import SiteCollection
-	from ..result import ProbabilityMatrix
 
-	## Create deaggregation matrices
-	deagg_matrix_dict = {}
-	for site_key in site_imtls.keys():
-		deagg_matrix_dict[site_key] = {}
-		imtls = site_imtls[site_key]
-		imts = imtls.keys()
-		num_imts = len(imts)
-		num_imls = len(imtls[imts[0]])
+	try:
+		## Create deaggregation matrices
+		deagg_matrix_dict = {}
+		for site_key in site_imtls.keys():
+			deagg_matrix_dict[site_key] = {}
+			imtls = site_imtls[site_key]
+			imts = imtls.keys()
+			num_imts = len(imts)
+			num_imls = len(imtls[imts[0]])
 
-		deagg_matrix_shape = (num_imts, num_imls, len(mag_bins) - 1, len(dist_bins) - 1, len(lon_bins) - 1,
-					len(lat_bins) - 1, len(eps_bins) - 1)
+			deagg_matrix_shape = (num_imts, num_imls, len(mag_bins) - 1, len(dist_bins) - 1, len(lon_bins) - 1,
+						len(lat_bins) - 1, len(eps_bins) - 1)
 
-		## Initialize array with ones representing NON-exceedance probabilities !
-		deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype=dtype))
-		deagg_matrix_dict[site_key] = deagg_matrix
+			## Initialize array with ones representing NON-exceedance probabilities !
+			deagg_matrix = np.ones(deagg_matrix_shape, dtype=dtype)
+			deagg_matrix_dict[site_key] = deagg_matrix
 
-	n_epsilons = len(eps_bins) - 1
+		n_epsilons = len(eps_bins) - 1
 
-	## Perform deaggregation
-	tom = psha_model.poisson_tom
-	gsims = psha_model._get_trt_gsim_dict()
-	source_site_filter = psha_model.source_site_filter
-	rupture_site_filter = psha_model.rupture_site_filter
+		## Perform deaggregation
+		tom = psha_model.poisson_tom
+		gsims = psha_model._get_trt_gsim_dict()
+		source_site_filter = psha_model.source_site_filter
+		rupture_site_filter = psha_model.rupture_site_filter
 
-	# TODO: add try statement ?
-	sources = [source]
-	sources_sites = ((source, deagg_site_model) for source in sources)
-	for src_idx, (source, s_sites) in \
-			enumerate(source_site_filter(sources_sites)):
+		sources = [source]
+		sources_sites = ((source, deagg_site_model) for source in sources)
+		for src_idx, (source, s_sites) in \
+				enumerate(source_site_filter(sources_sites)):
 
-		if verbose:
-			print source.source_id
+			if verbose:
+				print source.source_id
 
-		tect_reg = source.tectonic_region_type
-		gsim = gsims[tect_reg]
+			tect_reg = source.tectonic_region_type
+			gsim = gsims[tect_reg]
 
-		ruptures_sites = ((rupture, s_sites)
-						  for rupture in source.iter_ruptures(tom))
-		for rupture, r_sites in rupture_site_filter(ruptures_sites):
-			## Extract rupture parameters of interest
-			mag_idx = np.digitize([rupture.mag], mag_bins)[0] - 1
+			ruptures_sites = ((rupture, s_sites)
+							  for rupture in source.iter_ruptures(tom))
+			for rupture, r_sites in rupture_site_filter(ruptures_sites):
+				## Extract rupture parameters of interest
+				mag_idx = np.digitize([rupture.mag], mag_bins)[0] - 1
 
-			sitemesh = r_sites.mesh
-			sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
-			if hasattr(dctx, "rjb"):
-				jb_dists = getattr(dctx, "rjb")
-			else:
-				jb_dists = rupture.surface.get_joyner_boore_distance(sitemesh)
-			closest_points = rupture.surface.get_closest_points(sitemesh)
-			lons = [pt.longitude for pt in closest_points]
-			lats = [pt.latitude for pt in closest_points]
+				sitemesh = r_sites.mesh
+				sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
+				if hasattr(dctx, "rjb"):
+					jb_dists = getattr(dctx, "rjb")
+				else:
+					jb_dists = rupture.surface.get_joyner_boore_distance(sitemesh)
+				closest_points = rupture.surface.get_closest_points(sitemesh)
+				lons = [pt.longitude for pt in closest_points]
+				lats = [pt.latitude for pt in closest_points]
 
-			dist_idxs = np.digitize(jb_dists, dist_bins) - 1
-			lon_idxs = np.digitize(lons, lon_bins) - 1
-			lat_idxs = np.digitize(lats, lat_bins) - 1
+				dist_idxs = np.digitize(jb_dists, dist_bins) - 1
+				lon_idxs = np.digitize(lons, lon_bins) - 1
+				lat_idxs = np.digitize(lats, lat_bins) - 1
 
-			## Compute probability of one or more rupture occurrences
-			prob_one_or_more = rupture.get_probability_one_or_more_occurrences()
+				## Compute probability of one or more rupture occurrences
+				prob_one_or_more = rupture.get_probability_one_or_more_occurrences()
 
-			## compute conditional probability of exceeding iml given
-			## the current rupture, and different epsilon level, that is
-			## ``P(IMT >= iml | rup, epsilon_bin)`` for each of epsilon bins
-			for site_idx, site in enumerate(r_sites):
-				dist_idx = dist_idxs[site_idx]
-				lon_idx = lon_idxs[site_idx]
-				lat_idx = lat_idxs[site_idx]
-				site_key = (site.location.longitude, site.location.latitude)
-				imtls = site_imtls[site_key]
-				imts = imtls.keys()
-				sctx2, rctx2, dctx2 = gsim.make_contexts(SiteCollection([site]), rupture)
-				for imt_idx, imt_tuple in enumerate(imts):
-					imls = imtls[imt_tuple]
-					## Reconstruct imt from tuple
-					imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
-					## In contrast to what is stated in the documentation,
-					## disaggregate_poe does handle more than one iml
-					poes_given_rup_eps = gsim.disaggregate_poe(
-						sctx2, rctx2, dctx2, imt, imls, psha_model.truncation_level, n_epsilons
-					)
+				## compute conditional probability of exceeding iml given
+				## the current rupture, and different epsilon level, that is
+				## ``P(IMT >= iml | rup, epsilon_bin)`` for each of epsilon bins
+				for site_idx, site in enumerate(r_sites):
+					dist_idx = dist_idxs[site_idx]
+					lon_idx = lon_idxs[site_idx]
+					lat_idx = lat_idxs[site_idx]
+					site_key = (site.location.longitude, site.location.latitude)
+					imtls = site_imtls[site_key]
+					imts = imtls.keys()
+					sctx2, rctx2, dctx2 = gsim.make_contexts(SiteCollection([site]), rupture)
+					for imt_idx, imt_tuple in enumerate(imts):
+						imls = imtls[imt_tuple]
+						## Reconstruct imt from tuple
+						imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
+						## In contrast to what is stated in the documentation,
+						## disaggregate_poe does handle more than one iml
+						poes_given_rup_eps = gsim.disaggregate_poe(
+							sctx2, rctx2, dctx2, imt, imls, psha_model.truncation_level, n_epsilons
+						)
 
-					## Probability of non-exceedance
-					pone = (1. - prob_one_or_more) ** poes_given_rup_eps
+						## Probability of non-exceedance
+						pone = (1. - prob_one_or_more) ** poes_given_rup_eps
 
-					try:
-						deagg_matrix_dict[site_key][imt_idx, :, mag_idx, dist_idx, lon_idx, lat_idx, :] *= pone
-					except IndexError:
-						## May fail if rupture extent is beyond (lon,lat) range
-						pass
+						try:
+							deagg_matrix_dict[site_key][imt_idx, :, mag_idx, dist_idx, lon_idx, lat_idx, :] *= pone
+						except IndexError:
+							## May fail if rupture extent is beyond (lon,lat) range
+							pass
 
-	return deagg_matrix_dict
+		## Update shared matrix
+		## Lock is probably not necessary
+		#lock.acquire()
+		for site_key in deagg_matrix_dict.keys():
+			shared_deagg_matrix_dict[site_key][:,:,:,:,:,:,:,src_idx] *= deagg_matrix_dict[site_key]
+		#lock.release()
+
+	except Exception, err:
+		msg = 'Warning: An error occurred with source %s. Error: %s'
+		msg %= (source.source_id, err.message)
+		#raise RuntimeError(msg)
+		print(msg)
+		return 1
+	else:
+		#return deagg_matrix_dict
+		return 0
 
 
 def deaggregate_psha_model((psha_model, sample_idx, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, verbose)):
@@ -372,15 +390,8 @@ def deaggregate_psha_model((psha_model, sample_idx, deagg_sites, deagg_imt_perio
 	else:
 		## Write XML file(s), creating directory if necessary
 		for (lon, lat) in spectral_deagg_curve_dict.keys():
-			spectral_deagg_curve = spectral_deagg_curve_dict[(lon, lat)]
-			deagg_folder = psha_model.oq_root_folder
-			for subfolder in ("disaggregation", "calc_oqhazlib",  "disagg_matrix_multi"):
-				deagg_folder = os.path.join(deagg_folder, subfolder)
-				if not os.path.exists(deagg_folder):
-					os.mkdir(deagg_folder)
-			xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-rlz-%s.xml" % (lon, lat, sample_idx)
-			xml_filespec = os.path.join(deagg_folder, xml_filename)
-			spectral_deagg_curve.write_nrml(xml_filespec, psha_model.smlt_path, psha_model.gmpelt_path)
+			sdc = spectral_deagg_curve_dict[(lon, lat)]
+			psha_model.read_oq_disagg_matrix_multi(sdc, calc_id="oqhazlib")
 
 		## Don't return deaggregation results to preserve memory
 		return 0

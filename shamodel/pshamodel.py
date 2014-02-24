@@ -117,6 +117,22 @@ class PSHAModelBase(SHAModelBase):
 	def oq_output_folder(self):
 		return os.path.join(self.oq_root_folder, "computed_output")
 
+	def create_folder_structure(self, path):
+		"""
+		Create folder structure if it does not exist yet.
+		Note: Only folders below the root folder will be created.
+
+		:param path:
+			str, absolute path
+		"""
+		path = path.split(self.root_folder)[1]
+		subfolders = path.split(os.path.sep)
+		partial_path = self.root_folder
+		for subfolder in subfolders:
+			partial_path = os.path.join(partial_path, subfolder)
+			if not os.path.exists(partial_path):
+				os.mkdir(partial_path)
+
 	def get_oq_hc_folder(self, calc_id=None, multi=False):
 		"""
 		Return full path to OpenQuake hazard_curve folder
@@ -438,7 +454,8 @@ class PSHAModelBase(SHAModelBase):
 
 	def write_oq_hcf(self, hcf, calc_id=None):
 		"""
-		Write OpenQuake hazard curve field
+		Write OpenQuake hazard curve field. Folder structure will be
+		created, if necessary.
 
 		:param hcf:
 			instance of :class:`HazardCurveField`
@@ -447,8 +464,10 @@ class PSHAModelBase(SHAModelBase):
 		"""
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=False)
 		imt_subfolder = self._get_oq_imt_subfolder(hcf.imt, hcf.T)
+		imt_hc_folder = os.path.join(hc_folder, imt_subfolder)
+		self.create_folder_structure(imt_hc_folder)
 		xml_filename = "hazard_curve-%s.xml" % curve_name
-		xml_filespec = os.path.join(hc_folder, imt_subfolder, xml_filename)
+		xml_filespec = os.path.join(imt_hc_folder, xml_filename)
 		hcf.write_nrml(xml_filespec)
 
 	def read_oq_shcf(self, curve_name, calc_id=None):
@@ -475,7 +494,15 @@ class PSHAModelBase(SHAModelBase):
 		return shcf
 
 	def write_oq_shcf(self, shcf):
+		"""
+		Write OpenQuake spectral hazard curve field. Folder structure
+		will be created, if necessary.
+
+		:param shcf:
+			instance of :class:`SpectralHazardCurveField`
+		"""
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
+		self.create_folder_structure(hc_folder)
 		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
 		xml_filespec = os.path.join(hc_folder, xml_filename)
 		shcf.write_nrml(xml_filespec)
@@ -486,7 +513,7 @@ class PSHAModelBase(SHAModelBase):
 
 	def read_oq_uhs_field(self, curve_name, return_period, calc_id=None):
 		"""
-		Read OpenQuake hazard curve field
+		Read OpenQuake hazard curve field.
 
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
@@ -550,7 +577,8 @@ class PSHAModelBase(SHAModelBase):
 
 	def write_oq_disagg_matrix(self, ds, curve_name, calc_id=None):
 		"""
-		Write OpenQuake deaggregation matrix
+		Write OpenQuake deaggregation matrix. Folder structure will be
+		created, if necessary.
 
 		:param ds:
 			instance of :class:`DeaggregationSlice`
@@ -563,9 +591,11 @@ class PSHAModelBase(SHAModelBase):
 
 		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=False)
 		imt_subfolder = self._get_oq_imt_subfolder(ds.imt, ds.period)
+		imt_disagg_folder = os.path.join(disagg_folder, imt_subfolder)
+		self.create_folder_structure(imt_disagg_folder)
 		xml_filename = "disagg_matrix(%s)-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (poe, ds.site.lon, ds.site.lat, curve_name)
-		xml_filespec = os.path.join(disagg_folder, imt_subfolder, xml_filename)
+		xml_filespec = os.path.join(imt_disagg_folder, xml_filename)
 		ds.write_nrml(xml_filespec, self.sourceModelTreePath, self.gsimTreePath)
 
 	def read_oq_disagg_matrix_full(self):
@@ -597,7 +627,8 @@ class PSHAModelBase(SHAModelBase):
 
 	def write_oq_disagg_matrix_multi(self, sdc, curve_name, calc_id=None):
 		"""
-		Write OpenQuake multi-deaggregation matrix.
+		Write OpenQuake multi-deaggregation matrix. Folder structure
+		will be created, if necessary.
 
 		:param sdc:
 			instance of :class:`SpectralDeaggregationCurve`
@@ -607,6 +638,7 @@ class PSHAModelBase(SHAModelBase):
 			str, calculation ID. (default: None, will determine from folder structure)
 		"""
 		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=True)
+		self.create_folder_structure(disagg_folder)
 		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
 		xml_filespec = os.path.join(disagg_folder, xml_filename)
@@ -1234,10 +1266,17 @@ class PSHAModel(PSHAModelBase):
 
 			deagg_matrix_shape = (num_imts, num_imls, len(mag_bins) - 1, len(dist_bins) - 1, len(lon_bins) - 1,
 						len(lat_bins) - 1, len(eps_bins) - 1, len(src_bins))
+			deagg_matrix_len = np.prod(deagg_matrix_shape)
+
+			## Create shared-memory array, and expose it as a numpy array
+			shared_deagg_matrix_base = mp.multiprocessing.Array(dtype, deagg_matrix_len, lock=True)
+			shared_deagg_matrix = np.ctypeslib.as_array(shared_deagg_matrix_base.get_obj())
+			shared_deagg_matrix = shared_deagg_matrix.reshape(deagg_matrix_shape)
 
 			## Initialize array with ones representing non-exceedance probabilities !
-			deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype=dtype))
-			deagg_matrix_dict[site_key] = deagg_matrix
+			#deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype=dtype))
+			shared_deagg_matrix += 1
+			deagg_matrix_dict[site_key] = shared_deagg_matrix
 
 		site_model = self.get_soil_site_model()
 		deagg_soil_sites = [site for site in site_model.get_sites() if (site.lon, site.lat) in site_imtls.keys()]
@@ -1258,21 +1297,24 @@ class PSHAModel(PSHAModelBase):
 			source_model = self.source_model
 
 		## Create list with arguments for each job
+		#manager = mp.multiprocessing.Manager()
+		#lock = manager.Lock()
 		job_args = []
-		for source in source_model:
-			job_args.append((self, source, copy_of_site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose))
+		for idx, source in enumerate(source_model.sources):
+			if decompose_area_sources:
+				src_idx = np.where(cum_num_decomposed_sources > idx)[0][0]
+			else:
+				src_idx = idx
+			job_args.append((self, source, src_idx, deagg_matrix_dict, copy_of_site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose))
 
 		## Launch multiprocessing
 		if not num_cores:
 			num_cores = mp.multiprocessing.cpu_count()
 
-		for idx, src_deagg_matrix_dict in enumerate(mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores)):
-			if decompose_area_sources:
-				src_idx = np.where(cum_num_decomposed_sources > idx)[0][0]
-			else:
-				src_idx = idx
-			for site_key in deagg_matrix_dict.keys():
-				deagg_matrix_dict[site_key][:,:,:,:,:,:,:,src_idx] *= src_deagg_matrix_dict[site_key]
+		#for idx, src_deagg_matrix_dict in enumerate(mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores)):
+		#	for site_key in deagg_matrix_dict.keys():
+		#		deagg_matrix_dict[site_key][:,:,:,:,:,:,:,src_idx] *= src_deagg_matrix_dict[site_key]
+		mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores)
 
 		## Convert to exceedance probabilities
 		for site_key in deagg_matrix_dict.keys():
@@ -1291,7 +1333,7 @@ class PSHAModel(PSHAModelBase):
 			imts = imtls.keys()
 			periods = [getattr(imt, "period", 0) for imt in imts]
 			intensities = np.array([imtls[imt] for imt in imts])
-			deagg_matrix = deagg_matrix_dict[site_key]
+			deagg_matrix = ProbabilityMatrix(deagg_matrix_dict[site_key])
 			deagg_result[site_key] = SpectralDeaggregationCurve(bin_edges,
 										deagg_matrix, site, "SA", intensities,
 										periods, self.return_periods, self.time_span)
