@@ -179,6 +179,8 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 def deaggregate_by_source((psha_model, source, src_idx, deagg_matrix_shape, site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose)):
 	"""
 	Stand-alone function that will deaggregate for a single source.
+	The computed non-exceedance probabilities will be multiplied with
+	the full 9-D deaggregation matrix in shared memory.
 
 	:param psha_model:
 		instance of :class:`PSHAModel`
@@ -186,7 +188,7 @@ def deaggregate_by_source((psha_model, source, src_idx, deagg_matrix_shape, site
 		instance of :class:`PointSource`, :class:`AreaSource`,
 		:class:`SimpleFaultSource` or :class:`ComplexFaultSource`
 	:param src_idx:
-		int, source index in 8-D deaggregation matrix
+		int, source index in shared 9-D deaggregation matrix
 	:param shared_deagg_matrix_shape:
 		tuple describing shape of full deaggregation matrix in shared
 		memory
@@ -314,7 +316,6 @@ def deaggregate_by_source((psha_model, source, src_idx, deagg_matrix_shape, site
 		print(msg)
 		return 1
 	else:
-		#return deagg_matrix_dict
 		return 0
 
 

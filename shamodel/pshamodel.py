@@ -808,6 +808,8 @@ class PSHAModel(PSHAModelBase):
 
 		if decompose_area_sources:
 			source_model = self.source_model.decompose_area_sources()
+			num_decomposed_sources = self.source_model.get_num_decomposed_sources()
+			cum_num_decomposed_sources = np.concatenate([[0], np.add.accumulate(num_decomposed_sources)])
 		else:
 			source_model = self.source_model
 
@@ -827,11 +829,10 @@ class PSHAModel(PSHAModelBase):
 			total_poes = np.prod(poes, axis=0)
 			if decompose_area_sources:
 				curve_list = []
-				prev_num_pts = 0
-				for src in self.source_model:
-					num_pts = len(src.polygon.discretize(src.area_discretization))
-					curve_list.append(np.prod(poes[prev_num_pts:prev_num_pts+num_pts], axis=0))
-					prev_num_pts += num_pts
+				for src_idx, src in enumerate(self.source_model):
+					start = cum_num_decomposed_sources[src_idx]
+					stop = cum_num_decomposed_sources[src_idx+1]
+					curve_list.append(np.prod(poes[start:stop], axis=0))
 				poes = ProbabilityArray(curve_list)
 
 		## Convert non-exceedance to exceedance probabilities
@@ -1270,7 +1271,6 @@ class PSHAModel(PSHAModelBase):
 		shared_deagg_array = mp.multiprocessing.Array(dtype, deagg_matrix_len, lock=True)
 
 		## Initialize array with ones representing non-exceedance probabilities !
-		#deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype=dtype))
 		deagg_matrix = np.frombuffer(shared_deagg_array.get_obj())
 		deagg_matrix = deagg_matrix.reshape(deagg_matrix_shape)
 		deagg_matrix += 1
@@ -1302,8 +1302,6 @@ class PSHAModel(PSHAModelBase):
 			source_model = self.source_model
 
 		## Create list with arguments for each job
-		#manager = mp.multiprocessing.Manager()
-		#lock = manager.Lock()
 		job_args = []
 		for idx, source in enumerate(source_model.sources):
 			if decompose_area_sources:
@@ -1316,15 +1314,11 @@ class PSHAModel(PSHAModelBase):
 		if not num_cores:
 			num_cores = mp.multiprocessing.cpu_count()
 
-		#for idx, src_deagg_matrix_dict in enumerate(mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores)):
-		#	for site_key in deagg_matrix_dict.keys():
-		#		deagg_matrix_dict[site_key][:,:,:,:,:,:,:,src_idx] *= src_deagg_matrix_dict[site_key]
 		mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores, shared_arr=shared_deagg_array)
 
 		## Convert to exceedance probabilities
 		deagg_matrix -= 1
 		deagg_matrix *= -1
-		print np.sum(deagg_matrix)
 
 		## Create SpectralDeaggregationCurve for each site
 		deagg_result = {}
