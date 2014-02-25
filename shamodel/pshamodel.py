@@ -1269,7 +1269,7 @@ class PSHAModel(PSHAModelBase):
 
 			## Create shared-memory array, and expose it as a numpy array
 			shared_deagg_matrix_base = mp.multiprocessing.Array(dtype, deagg_matrix_len, lock=True)
-			shared_deagg_matrix = np.from_buffer(shared_deagg_matrix_base.get_obj())
+			shared_deagg_matrix = np.frombuffer(shared_deagg_matrix_base.get_obj())
 			#shared_deagg_matrix = shared_deagg_matrix.reshape(deagg_matrix_shape)
 
 			## Initialize array with ones representing non-exceedance probabilities !
