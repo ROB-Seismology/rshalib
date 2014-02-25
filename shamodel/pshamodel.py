@@ -1267,11 +1267,11 @@ class PSHAModel(PSHAModelBase):
 		deagg_matrix_len = np.prod(deagg_matrix_shape)
 
 		## Create shared-memory array, and expose it as a numpy array
-		shared_deagg_matrix = mp.multiprocessing.Array(dtype, deagg_matrix_len, lock=True)
+		shared_deagg_array = mp.multiprocessing.Array(dtype, deagg_matrix_len, lock=True)
 
 		## Initialize array with ones representing non-exceedance probabilities !
 		#deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype=dtype))
-		deagg_matrix = np.frombuffer(shared_deagg_matrix.get_obj())
+		deagg_matrix = np.frombuffer(shared_deagg_array.get_obj())
 		deagg_matrix = deagg_matrix.reshape(deagg_matrix_shape)
 		deagg_matrix += 1
 
@@ -1319,7 +1319,7 @@ class PSHAModel(PSHAModelBase):
 		#for idx, src_deagg_matrix_dict in enumerate(mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores)):
 		#	for site_key in deagg_matrix_dict.keys():
 		#		deagg_matrix_dict[site_key][:,:,:,:,:,:,:,src_idx] *= src_deagg_matrix_dict[site_key]
-		mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores, shared_arr=shared_deagg_matrix)
+		mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores, shared_arr=shared_deagg_array)
 
 		## Convert to exceedance probabilities
 		deagg_matrix -= 1

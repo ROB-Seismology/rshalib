@@ -228,13 +228,13 @@ def deaggregate_by_source((psha_model, source, src_idx, deagg_matrix_shape, site
 		## Initialize deaggregation matrix with ones representing NON-exceedance probabilities !
 		src_deagg_matrix = np.ones(deagg_matrix_shape[:-1], dtype=dtype)
 
-		n_epsilons = len(eps_bins) - 1
-
 		## Perform deaggregation
 		tom = psha_model.poisson_tom
 		gsims = psha_model._get_trt_gsim_dict()
 		source_site_filter = psha_model.source_site_filter
 		rupture_site_filter = psha_model.rupture_site_filter
+
+		n_epsilons = len(eps_bins) - 1
 
 		sources = [source]
 		sources_sites = ((source, deagg_site_model) for source in sources)
@@ -304,7 +304,7 @@ def deaggregate_by_source((psha_model, source, src_idx, deagg_matrix_shape, site
 		with shared_arr.get_lock(): # synchronize access
 			for site_idx, site_key in enumerate(sorted(site_imtls.keys())):
 				shared_deagg_matrix = np.frombuffer(shared_arr.get_obj()) # no data copying
-				shared_deagg_matrix.reshape(deagg_matrix_shape)
+				shared_deagg_matrix = shared_deagg_matrix.reshape(deagg_matrix_shape)
 				shared_deagg_matrix[site_idx,:,:,:,:,:,:,:,src_idx] *= src_deagg_matrix[site_idx]
 
 	except Exception, err:
