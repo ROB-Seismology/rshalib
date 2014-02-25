@@ -304,11 +304,11 @@ def deaggregate_by_source((psha_model, source, src_idx, shared_deagg_matrix_dict
 							pass
 
 		## Update shared matrix
-		## Lock is probably not necessary
-		#lock.acquire()
 		for site_key in deagg_matrix_dict.keys():
-			shared_deagg_matrix_dict[site_key][:,:,:,:,:,:,:,src_idx] *= deagg_matrix_dict[site_key]
-		#lock.release()
+			shared_deagg_matrix = shared_deagg_matrix_dict[site_key]
+			with shared_deagg_matrix.get_lock(): # synchronize access
+				arr = np.frombuffer(shared_deagg_matrix.get_obj()) # no data copying
+				arr[:,:,:,:,:,:,:,src_idx] *= deagg_matrix_dict[site_key]
 
 	except Exception, err:
 		msg = 'Warning: An error occurred with source %s. Error: %s'
