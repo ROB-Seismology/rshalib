@@ -156,22 +156,13 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 		return 1
 	else:
 		## Write XML file, creating directory if necessary
-		# TODO: replace with psha_model.write_oq_shcf()
-		hc_folder = psha_model.oq_root_folder
-		subfolders = ["computed_output", "classical", "calc_oqhazlib"]
+		curve_name = "rlz-%s.xml" % (sample_idx)
 		for im, shcf in im_shcf_dict.items():
 			if im == "SA":
-				subfolders.append("hazard_curve_multi")
-				xml_filename = "hazard_curve_multi-rlz-%s.xml" % (sample_idx)
+				psha_model.write_oq_shcf(shcf, curve_name)
 			else:
-				subfolders.extend(["hazard_curve", im])
-				xml_filename = "hazard_curve-rlz-%s.xml" % (sample_idx)
-			for subfolder in subfolders:
-				hc_folder = os.path.join(hc_folder, subfolder)
-				if not os.path.exists(hc_folder):
-					os.mkdir(hc_folder)
-			xml_filespec = os.path.join(hc_folder, xml_filename)
-			shcf.write_nrml(xml_filespec)
+				hcf = shcf.getHazardCurve(period_spec=0)
+				psha_model.write_oq_hcf(hcf, curve_name)
 
 		return 0
 

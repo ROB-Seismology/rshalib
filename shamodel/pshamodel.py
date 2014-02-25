@@ -295,6 +295,34 @@ class PSHAModelBase(SHAModelBase):
 					imtls[imt] = np.logspace(np.log10(self.min_intensities[im][0]), np.log10(self.max_intensities[im][0]), self.num_intensities)
 		return imtls
 
+	def _get_imts(self):
+		"""
+		Construct ordered list of IMT objects
+		"""
+		imts = []
+		for im, periods in sorted(self.imt_periods.items()):
+			for period in periods:
+				imts.append(self._construct_imt(im, period))
+		return imts
+
+	def _construct_imt(self, im, period):
+		"""
+		Construct IMT object from intensity measure and period.
+
+		:param im:
+			str, intensity measure, e.g. "PGA", "SA"
+		:param period:
+			float, spectral period
+
+		:return:
+			instance of :class:`IMT`
+		"""
+		if im == "SA":
+			imt = getattr(nhlib.imt, im)(period, damping=5.)
+		else:
+			imt = getattr(nhlib.imt, im)()
+		return imt
+
 	def _get_openquake_imts(self):
 		"""
 		Construct a dictionary mapping intensity measure type strings
@@ -452,13 +480,15 @@ class PSHAModelBase(SHAModelBase):
 
 		return hcf
 
-	def write_oq_hcf(self, hcf, calc_id=None):
+	def write_oq_hcf(self, hcf, curve_name, calc_id=None):
 		"""
 		Write OpenQuake hazard curve field. Folder structure will be
 		created, if necessary.
 
 		:param hcf:
 			instance of :class:`HazardCurveField`
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
 		:param calc_id:
 			str, calculation ID. (default: None, will determine from folder structure)
 		"""
@@ -493,13 +523,17 @@ class PSHAModelBase(SHAModelBase):
 
 		return shcf
 
-	def write_oq_shcf(self, shcf):
+	def write_oq_shcf(self, shcf, curve_name, calc_id=None):
 		"""
 		Write OpenQuake spectral hazard curve field. Folder structure
 		will be created, if necessary.
 
 		:param shcf:
 			instance of :class:`SpectralHazardCurveField`
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
 		"""
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
 		self.create_folder_structure(hc_folder)
@@ -773,7 +807,7 @@ class PSHAModel(PSHAModelBase):
 			del hazard_result["PGA"]
 		return hazard_result
 
-	def calc_shcf_mp(self, cav_min=0, decompose_area_sources=False, individual_sources=False, num_cores=None, verbose=True):
+	def calc_shcf_mp(self, cav_min=0, decompose_area_sources=False, individual_sources=False, num_cores=None, combine_pga_and_sa=True, verbose=True):
 		"""
 		Parallellized computation of spectral hazard curve field.
 
@@ -792,13 +826,18 @@ class PSHAModel(PSHAModelBase):
 			int, number of CPUs to be used. Actual number of cores used
 			may be lower depending on available cores and memory
 			(default: None, will determine automatically)
+		:param combine_pga_and_sa:
+			bool, whether or not to combine PGA and SA, if present
+			(default: True)
 		:param verbose:
 			bool, whether or not to print some progress information
 			(default: True)
 
 		:return:
-			instance of :class:`SpectralHazardCurveField` (if group_sources
-			is True) or dict mapping source IDs to instances of
+			dictionary mapping intensity measure (str) to:
+			- instance of :class:`SpectralHazardCurveField` (if group_sources
+			is True) or
+			- dict mapping source IDs to instances of
 			:class:`SpectralHazardCurveField` (if group_sources is False)
 		"""
 		import mp
@@ -843,43 +882,41 @@ class PSHAModel(PSHAModelBase):
 			total_poes *= -1
 
 		## Construct spectral hazard curve field
-		# TODO: use _get_im_imls, and return shcf_dict, and correct order of periods !!
+		shcf_dict = {}
 		sites = self.get_sha_sites()
-		imtls = self._get_imtls()
-		ims = self.imt_periods.keys()
-		periods = []
-		for im in sorted(ims):
-			periods.extend(self.imt_periods[im])
-		intensities = []
-		for im in sorted(ims):
-			for T in self.imt_periods[im]:
-				if T == 0:
-					imt = getattr(nhlib.imt, im)()
-				else:
-					imt = getattr(nhlib.imt, im)(T, damping=5)
-				intensities.append(imtls[imt])
-		periods = np.array(periods)
-		intensities = np.array(intensities)
-		if len(ims) == 1:
-			im = ims[0]
-		else:
-			im = "SA"
+		imts = self._get_imts()
+		im_imls = self._get_im_imls(combine_pga_and_sa=combine_pga_and_sa)
+		for im, intensities in im_imls.items():
+			periods = self.imt_periods[im]
+			## Determine period indexes in poes array
+			period_idxs = []
+			for T in periods:
+				imt = self._construct_imt(im, T)
+				period_idxs.append(imts.index(imt))
+			if combine_pga_and_sa and "PGA" in self.imt_periods.keys():
+				periods = np.concatenate([[0], periods])
+				imt = self._construct_imt("PGA", 0)
+				period_idxs.insert(0, imts.index(imt))
+			print period_idxs
+			print poes.shape
 
-		if individual_sources:
-			shcf_dict = OrderedDict()
-			for i, src in enumerate(self.source_model):
-				shcf_dict[src.source_id] = SpectralHazardCurveField(self.name,
-												poes[i], [""]*len(periods), sites,
-												periods, im, intensities, 'g',
-												self.time_span)
-				shcf_dict['Total'] = SpectralHazardCurveField(self.name, total_poes,
+			if individual_sources:
+				src_shcf_dict = OrderedDict()
+				for i, src in enumerate(self.source_model):
+					src_shcf_dict[src.source_id] = SpectralHazardCurveField(self.name,
+													poes[i][:,period_idxs,:], [""]*len(periods), sites,
+													periods, im, intensities, 'g',
+													self.time_span)
+				src_shcf_dict['Total'] = SpectralHazardCurveField(self.name, total_poes[:,period_idxs,:],
 											[""]*len(periods), sites, periods, im,
 											intensities, 'g', self.time_span)
-			return shcf_dict
-		else:
-			shcf = SpectralHazardCurveField(self.name, poes, [""]*len(periods),
-							sites, periods, im, intensities, 'g', self.time_span)
-			return shcf
+				shcf_dict[im] = src_shcf_dict
+			else:
+				shcf = SpectralHazardCurveField(self.name, poes[:,period_idxs,:], [""]*len(periods),
+								sites, periods, im, intensities, 'g', self.time_span)
+				shcf_dict[im] = shcf
+
+		return shcf_dict
 
 	def deagg_nhlib(self, site, imt, iml, return_period, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0):
 		"""
