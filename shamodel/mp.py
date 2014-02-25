@@ -302,7 +302,7 @@ def deaggregate_by_source((psha_model, source, src_idx, deagg_matrix_shape, site
 
 		## Update shared matrix
 		with shared_arr.get_lock(): # synchronize access
-			for site_idx, site_key in enumerate(sorted(site_imtls.keys()):
+			for site_idx, site_key in enumerate(sorted(site_imtls.keys())):
 				shared_deagg_matrix = np.frombuffer(shared_arr.get_obj()) # no data copying
 				shared_deagg_matrix.reshape(deagg_matrix_shape)
 				shared_deagg_matrix[site_idx,:,:,:,:,:,:,:,src_idx] *= deagg_matrix[site_idx]
