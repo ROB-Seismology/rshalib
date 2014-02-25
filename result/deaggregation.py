@@ -1437,12 +1437,12 @@ class SpectralDeaggregationCurve(DeaggBase):
 		dims = ",".join(map(str, self.matrix.shape[2:]))
 		sdc_elem.set("dims", dims)
 		for dc in self:
-			print dc, time.time()
+			#print dc, time.time()
 			dc_elem = etree.SubElement(sdc_elem, "deaggregationCurve")
 			dc_elem.set("imt", str(dc.imt))
 			dc_elem.set("saPeriod", str(dc.period))
 			for ds_idx, ds in enumerate(dc):
-				print ds, time.time()
+				#print ds, time.time()
 				ds_elem = etree.SubElement(dc_elem, "deaggregationSlice")
 				ds_elem.set("iml", str(ds.iml))
 				## Write intended poe, not actual poe
