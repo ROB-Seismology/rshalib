@@ -1269,13 +1269,13 @@ class PSHAModel(PSHAModelBase):
 
 			## Create shared-memory array, and expose it as a numpy array
 			shared_deagg_matrix_base = mp.multiprocessing.Array(dtype, deagg_matrix_len, lock=True)
-			#shared_deagg_matrix = np.from_buffer(shared_deagg_matrix_base.get_obj())
+			shared_deagg_matrix = np.from_buffer(shared_deagg_matrix_base.get_obj())
 			#shared_deagg_matrix = shared_deagg_matrix.reshape(deagg_matrix_shape)
 
 			## Initialize array with ones representing non-exceedance probabilities !
 			#deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype=dtype))
-			#shared_deagg_matrix += 1
-			shared_deagg_matrix_base[:] = 1
+			shared_deagg_matrix += 1
+			#shared_deagg_matrix_base[:] = 1
 			deagg_matrix_dict[site_key] = shared_deagg_matrix_base
 
 		site_model = self.get_soil_site_model()
@@ -1323,6 +1323,7 @@ class PSHAModel(PSHAModelBase):
 			deagg_matrix -= 1
 			deagg_matrix *= -1
 			print deagg_matrix.max()
+			deagg_matrix_dict[site_key] = deagg_matrix
 
 		## Create SpectralDeaggregationCurve for each site
 		deagg_result = {}
