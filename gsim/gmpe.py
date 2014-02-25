@@ -3446,6 +3446,35 @@ class ZhaoEtAl2006Asc(NhlibGMPE):
 		self.plot_distance(mags=[5., 6., 7., 8.], mechanism="strike-slip", soil_type="SC II", dmin=1, dmax=400, amin=5E-4, amax=3.0, plot_style="loglog")
 
 
+class RietbrockEtAl2013(NhlibGMPE):
+	def __init__(self):
+		name, short_name = "RietbrockEtAl2013", "R_2013"
+		distance_metric = "Joyner-Boore"
+		Mmin, Mmax = 2.0, 4.7
+		dmin, dmax = 1., 300.
+		Mtype = "MW"
+		dampings = [5.]
+		
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+	
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+		"""
+		"""
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
+	
+	def plot_Figure4(self, T=0):
+		"""
+		Plot Figure 4 on p. 69.
+
+		:param T:
+			Float, period, either 0 (PGA), 0.1 (SA), 0.2 (SA) or 1.0 (SA)
+		"""
+		if T==0:
+			imt = "PGA"
+		else:
+			imt = "SA"
+		self.plot_distance(mags=[4., 6.], imt=imt, imt_unit="cms2", T=T, soil_type="hard rock", dmin=1, dmax=300, amin=0.01, amax=2000)
+
 def adjust_hard_rock_to_rock(imt, periods, gm, gm_logsigma=None):
 	"""
 	Adjust hard rock (vs30=2800 m/s) to rock (vs30=760 m/s, kappa=0.03)
