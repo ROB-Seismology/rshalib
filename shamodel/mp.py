@@ -295,7 +295,7 @@ def deaggregate_by_source((psha_model, source, src_idx, deagg_matrix_shape, site
 						pone = (1. - prob_one_or_more) ** poes_given_rup_eps
 
 						try:
-							deagg_matrix_dict[site_key][imt_idx, :, mag_idx, dist_idx, lon_idx, lat_idx, :] *= pone
+							src_deagg_matrix[site_idx, imt_idx, :, mag_idx, dist_idx, lon_idx, lat_idx, :] *= pone
 						except IndexError:
 							## May fail if rupture extent is beyond (lon,lat) range
 							pass
@@ -305,7 +305,7 @@ def deaggregate_by_source((psha_model, source, src_idx, deagg_matrix_shape, site
 			for site_idx, site_key in enumerate(sorted(site_imtls.keys())):
 				shared_deagg_matrix = np.frombuffer(shared_arr.get_obj()) # no data copying
 				shared_deagg_matrix.reshape(deagg_matrix_shape)
-				shared_deagg_matrix[site_idx,:,:,:,:,:,:,:,src_idx] *= deagg_matrix[site_idx]
+				shared_deagg_matrix[site_idx,:,:,:,:,:,:,:,src_idx] *= src_deagg_matrix[site_idx]
 
 	except Exception, err:
 		msg = 'Warning: An error occurred with source %s. Error: %s'
