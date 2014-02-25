@@ -1220,7 +1220,6 @@ class PSHAModel(PSHAModelBase):
 		:param decompose_area_sources:
 			bool, whether or not area sources should be decomposed into
 			point sources for the computation (default: False)
-			Note: This requires a LOT of memory!
 		:param mag_bin_width:
 			Float, magnitude bin width (default: None, will take MFD bin width
 			of first source)
@@ -1320,6 +1319,7 @@ class PSHAModel(PSHAModelBase):
 		for site_key in deagg_matrix_dict.keys():
 			deagg_matrix_dict[site_key] -= 1
 			deagg_matrix_dict[site_key] *= -1
+			print deagg_matrix_dict[site_key].max()
 
 		## Create SpectralDeaggregationCurve for each site
 		deagg_result = {}
