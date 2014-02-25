@@ -1273,7 +1273,7 @@ class PSHAModel(PSHAModelBase):
 		#deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype=dtype))
 		deagg_matrix = np.frombuffer(shared_deagg_matrix.get_obj())
 		deagg_matrix = deagg_matrix.reshape(deagg_matrix_shape)
-		shared_deagg_matrix += 1
+		deagg_matrix += 1
 
 
 		## Create soil site model for deaggregation sites, making sure
