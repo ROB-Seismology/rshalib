@@ -1255,31 +1255,36 @@ class PSHAModel(PSHAModelBase):
 		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
 
 		## Create deaggregation matrices
-		deagg_matrix_dict = {}
-		for site_key in site_imtls.keys():
-			deagg_matrix_dict[site_key] = {}
-			imtls = site_imtls[site_key]
-			imts = imtls.keys()
-			num_imts = len(imts)
-			num_imls = len(imtls[imts[0]])
+		num_sites = len(site_imtls.keys())
+		imtls = site_imtls[site_imtls.keys()[0]]
+		num_imts = len(imtls.keys())
+		imls = imtls[imtls.keys()[0]]
+		num_imls = len(imls)
 
-			deagg_matrix_shape = (num_imts, num_imls, len(mag_bins) - 1, len(dist_bins) - 1, len(lon_bins) - 1,
-						len(lat_bins) - 1, len(eps_bins) - 1, len(src_bins))
-			deagg_matrix_len = np.prod(deagg_matrix_shape)
+		deagg_matrix_shape = (num_sites, num_imts, num_imls, len(mag_bins) - 1,
+					len(dist_bins) - 1, len(lon_bins) - 1, len(lat_bins) - 1,
+					len(eps_bins) - 1, len(src_bins))
+		deagg_matrix_len = np.prod(deagg_matrix_shape)
 
-			## Create shared-memory array, and expose it as a numpy array
-			shared_deagg_matrix_base = mp.multiprocessing.Array(dtype, deagg_matrix_len, lock=True)
-			shared_deagg_matrix = np.frombuffer(shared_deagg_matrix_base.get_obj())
-			#shared_deagg_matrix = shared_deagg_matrix.reshape(deagg_matrix_shape)
+		## Create shared-memory array, and expose it as a numpy array
+		shared_deagg_matrix = mp.multiprocessing.Array(dtype, deagg_matrix_len, lock=True)
 
-			## Initialize array with ones representing non-exceedance probabilities !
-			#deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype=dtype))
-			shared_deagg_matrix += 1
-			#shared_deagg_matrix_base[:] = 1
-			deagg_matrix_dict[site_key] = shared_deagg_matrix_base
+		## Initialize array with ones representing non-exceedance probabilities !
+		#deagg_matrix = ProbabilityMatrix(np.ones(deagg_matrix_shape, dtype=dtype))
+		deagg_matrix = np.frombuffer(shared_deagg_matrix.get_obj())
+		deagg_matrix = deagg_matrix.reshape(deagg_matrix_shape)
+		shared_deagg_matrix += 1
 
+
+		## Create soil site model for deaggregation sites, making sure
+		## order is same as sorted keys of site_imtls
 		site_model = self.get_soil_site_model()
-		deagg_soil_sites = [site for site in site_model.get_sites() if (site.lon, site.lat) in site_imtls.keys()]
+		deagg_soil_sites = []
+		for (site_lon, site_lat) in sorted(site_imtls.keys()):
+			for site in site_model.get_sites():
+				if (site.lon, site.lat) == (site_lon, site_lat):
+					deagg_soil_sites.append(site)
+					break
 		deagg_site_model = SoilSiteModel("", deagg_soil_sites)
 
 		## Convert imt's in site_imtls to tuples to avoid mangling up by mp
@@ -1305,7 +1310,7 @@ class PSHAModel(PSHAModelBase):
 				src_idx = np.where(cum_num_decomposed_sources > idx)[0][0]
 			else:
 				src_idx = idx
-			job_args.append((self, source, src_idx, deagg_matrix_dict, copy_of_site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose))
+			job_args.append((self, source, src_idx, deagg_matrix_shape, copy_of_site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose))
 
 		## Launch multiprocessing
 		if not num_cores:
@@ -1314,32 +1319,28 @@ class PSHAModel(PSHAModelBase):
 		#for idx, src_deagg_matrix_dict in enumerate(mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores)):
 		#	for site_key in deagg_matrix_dict.keys():
 		#		deagg_matrix_dict[site_key][:,:,:,:,:,:,:,src_idx] *= src_deagg_matrix_dict[site_key]
-		mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores)
+		mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores, shared_arr=shared_deagg_matrix)
 
 		## Convert to exceedance probabilities
-		for site_key in deagg_matrix_dict.keys():
-			deagg_matrix = np.from_buffer(deagg_matrix_dict[site_key])
-			deagg_matrix = deagg_matrix.reshape(deagg_matrix_shape)
-			deagg_matrix -= 1
-			deagg_matrix *= -1
-			print deagg_matrix.max()
-			deagg_matrix_dict[site_key] = deagg_matrix
+		deagg_matrix -= 1
+		deagg_matrix *= -1
+		print np.sum(deagg_matrix)
 
 		## Create SpectralDeaggregationCurve for each site
 		deagg_result = {}
 		all_sites = site_model.get_sha_sites()
-		for deagg_site in deagg_site_model:
+		for site_idx, site_key in enumerate(sorted(site_imtls.keys())):
+			site_lon, site_lat = site_key
 			for site in all_sites:
-				if deagg_site.location.longitude == site.lon and deagg_site.location.latitude == site.lat:
+				if site.lon == site_lon and site.lat == site_lat:
 					break
-			site_key = (site.lon, site.lat)
 			imtls = site_imtls[site_key]
 			imts = imtls.keys()
 			periods = [getattr(imt, "period", 0) for imt in imts]
 			intensities = np.array([imtls[imt] for imt in imts])
-			deagg_matrix = ProbabilityMatrix(deagg_matrix_dict[site_key])
+			site_deagg_matrix = ProbabilityMatrix(deagg_matrix[site_idx])
 			deagg_result[site_key] = SpectralDeaggregationCurve(bin_edges,
-										deagg_matrix, site, "SA", intensities,
+										site_deagg_matrix, site, "SA", intensities,
 										periods, self.return_periods, self.time_span)
 
 		return deagg_result

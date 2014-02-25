@@ -11,7 +11,7 @@ import openquake.hazardlib as oqhazlib
 # TODO: use logging facilities instead of print statements
 
 
-def run_parallel(func, job_arg_list, num_processes, verbose=True):
+def run_parallel(func, job_arg_list, num_processes, shared_arr=None, verbose=True):
 	"""
 	Generic function to run multiple jobs in parallel with a given
 	function.
@@ -43,9 +43,20 @@ def run_parallel(func, job_arg_list, num_processes, verbose=True):
 	num_processes = min(num_processes, len(job_arg_list))
 	if verbose:
 		print("Starting %d parallel processes" % num_processes)
-	pool = multiprocessing.Pool(processes=num_processes)
+	if shared_arr is None:
+		pool = multiprocessing.Pool(processes=num_processes)
+	else:
+		pool = multiprocessing.Pool(processes=num_processes, initializer=init_shared_arr, initargs=(shared_arr,))
 	result = pool.map(func, job_arg_list)
 	return result
+
+
+def init_shared_arr(shared_arr_):
+	"""
+	Make shared array available
+	"""
+	global shared_arr
+	shared_arr = shared_arr_ # must be inhereted, not passed as an argument
 
 
 def calc_shcf_by_source((psha_model, source, cav_min, verbose)):
@@ -165,7 +176,7 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 		return 0
 
 
-def deaggregate_by_source((psha_model, source, src_idx, shared_deagg_matrix_dict, site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose)):
+def deaggregate_by_source((psha_model, source, src_idx, deagg_matrix_shape, site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose)):
 	"""
 	Stand-alone function that will deaggregate for a single source.
 
@@ -176,10 +187,9 @@ def deaggregate_by_source((psha_model, source, src_idx, shared_deagg_matrix_dict
 		:class:`SimpleFaultSource` or :class:`ComplexFaultSource`
 	:param src_idx:
 		int, source index in 8-D deaggregation matrix
-	:param shared_deagg_matrix_dict:
-		dictionary mapping (lon, lat) tuples to shared-memory 8-D
-		deaggregation matrix where computed non-exceedance probabilities
-		will be multiplied with.
+	:param shared_deagg_matrix_shape:
+		tuple describing shape of full deaggregation matrix in shared
+		memory
 	:param site_imtls:
 		nested dictionary mapping (lon, lat) tuples to dictionaries
 		mapping oqhazlib IMT objects to 1-D arrays of intensity measure
@@ -215,21 +225,8 @@ def deaggregate_by_source((psha_model, source, src_idx, shared_deagg_matrix_dict
 	from openquake.hazardlib.site import SiteCollection
 
 	try:
-		## Create deaggregation matrices
-		deagg_matrix_dict = {}
-		for site_key in site_imtls.keys():
-			deagg_matrix_dict[site_key] = {}
-			imtls = site_imtls[site_key]
-			imts = imtls.keys()
-			num_imts = len(imts)
-			num_imls = len(imtls[imts[0]])
-
-			deagg_matrix_shape = (num_imts, num_imls, len(mag_bins) - 1, len(dist_bins) - 1, len(lon_bins) - 1,
-						len(lat_bins) - 1, len(eps_bins) - 1)
-
-			## Initialize array with ones representing NON-exceedance probabilities !
-			deagg_matrix = np.ones(deagg_matrix_shape, dtype=dtype)
-			deagg_matrix_dict[site_key] = deagg_matrix
+		## Initialize deaggregation matrix with ones representing NON-exceedance probabilities !
+		src_deagg_matrix = np.ones(deagg_matrix_shape[:-1], dtype=dtype)
 
 		n_epsilons = len(eps_bins) - 1
 
@@ -304,11 +301,11 @@ def deaggregate_by_source((psha_model, source, src_idx, shared_deagg_matrix_dict
 							pass
 
 		## Update shared matrix
-		for site_key in deagg_matrix_dict.keys():
-			shared_deagg_matrix = shared_deagg_matrix_dict[site_key]
-			with shared_deagg_matrix.get_lock(): # synchronize access
-				arr = np.frombuffer(shared_deagg_matrix.get_obj()) # no data copying
-				arr[:,:,:,:,:,:,:,src_idx] *= deagg_matrix_dict[site_key]
+		with shared_arr.get_lock(): # synchronize access
+			for site_idx, site_key in enumerate(sorted(site_imtls.keys()):
+				shared_deagg_matrix = np.frombuffer(shared_arr.get_obj()) # no data copying
+				shared_deagg_matrix.reshape(deagg_matrix_shape)
+				shared_deagg_matrix[site_idx,:,:,:,:,:,:,:,src_idx] *= deagg_matrix[site_idx]
 
 	except Exception, err:
 		msg = 'Warning: An error occurred with source %s. Error: %s'
