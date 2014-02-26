@@ -480,7 +480,7 @@ class PSHAModelBase(SHAModelBase):
 
 		return hcf
 
-	def write_oq_hcf(self, hcf, curve_name, calc_id=None):
+	def write_oq_hcf(self, hcf, curve_name, calc_id="oqhazlib"):
 		"""
 		Write OpenQuake hazard curve field. Folder structure will be
 		created, if necessary.
@@ -490,7 +490,7 @@ class PSHAModelBase(SHAModelBase):
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
 		:param calc_id:
-			str, calculation ID. (default: None, will determine from folder structure)
+			str, calculation ID. (default: "oqhazlib")
 		"""
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=False)
 		imt_subfolder = self._get_oq_imt_subfolder(hcf.imt, hcf.T)
@@ -523,7 +523,7 @@ class PSHAModelBase(SHAModelBase):
 
 		return shcf
 
-	def write_oq_shcf(self, shcf, curve_name, calc_id=None):
+	def write_oq_shcf(self, shcf, curve_name, calc_id="oqhazlib"):
 		"""
 		Write OpenQuake spectral hazard curve field. Folder structure
 		will be created, if necessary.
@@ -533,7 +533,7 @@ class PSHAModelBase(SHAModelBase):
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
 		:param calc_id:
-			str, calculation ID. (default: None, will determine from folder structure)
+			str, calculation ID. (default: "oqhazlib")
 		"""
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
 		self.create_folder_structure(hc_folder)
@@ -609,7 +609,7 @@ class PSHAModelBase(SHAModelBase):
 		ds = parse_disaggregation(xml_filespec, site.name)
 		return ds
 
-	def write_oq_disagg_matrix(self, ds, curve_name, calc_id=None):
+	def write_oq_disagg_matrix(self, ds, curve_name, calc_id="oqhazlib"):
 		"""
 		Write OpenQuake deaggregation matrix. Folder structure will be
 		created, if necessary.
@@ -619,7 +619,7 @@ class PSHAModelBase(SHAModelBase):
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
 		:param calc_id:
-			str, calculation ID. (default: None, will determine from folder structure)
+			str, calculation ID. (default: "oqhazlib")
 		"""
 		poe = str(round(Poisson(life_time=ds.time_span, return_period=ds.return_period), 13))
 
@@ -659,7 +659,7 @@ class PSHAModelBase(SHAModelBase):
 		sdc = parse_spectral_deaggregation_curve(xml_filespec, site.name)
 		return sdc
 
-	def write_oq_disagg_matrix_multi(self, sdc, curve_name, calc_id=None):
+	def write_oq_disagg_matrix_multi(self, sdc, curve_name, calc_id="oqhazlib"):
 		"""
 		Write OpenQuake multi-deaggregation matrix. Folder structure
 		will be created, if necessary.
@@ -669,7 +669,7 @@ class PSHAModelBase(SHAModelBase):
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
 		:param calc_id:
-			str, calculation ID. (default: None, will determine from folder structure)
+			str, calculation ID. (default: "oqhazlib")
 		"""
 		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=True)
 		self.create_folder_structure(disagg_folder)

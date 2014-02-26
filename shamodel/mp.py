@@ -159,10 +159,10 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 		curve_name = "rlz-%s.xml" % (sample_idx)
 		for im, shcf in im_shcf_dict.items():
 			if im == "SA":
-				psha_model.write_oq_shcf(shcf, curve_name)
+				psha_model.write_oq_shcf(shcf, curve_name, calc_id="oqhazlib")
 			else:
-				hcf = shcf.getHazardCurve(period_spec=0)
-				psha_model.write_oq_hcf(hcf, curve_name)
+				hcf = shcf.getHazardCurveField(period_spec=0)
+				psha_model.write_oq_hcf(hcf, curve_name, calc_id="oqhazlib")
 
 		return 0
 
@@ -380,7 +380,7 @@ def deaggregate_psha_model((psha_model, sample_idx, deagg_sites, deagg_imt_perio
 		## Write XML file(s), creating directory if necessary
 		for (lon, lat) in spectral_deagg_curve_dict.keys():
 			sdc = spectral_deagg_curve_dict[(lon, lat)]
-			psha_model.read_oq_disagg_matrix_multi(sdc, calc_id="oqhazlib")
+			psha_model.write_oq_disagg_matrix_multi(sdc, calc_id="oqhazlib")
 
 		## Don't return deaggregation results to preserve memory
 		return 0
