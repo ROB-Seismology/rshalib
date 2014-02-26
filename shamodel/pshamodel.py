@@ -859,7 +859,7 @@ class PSHAModel(PSHAModelBase):
 			job_args.append((self, source, cav_min, verbose))
 
 		## Launch multiprocessing
-		curve_list = mp.run_parallel(mp.calc_shcf_by_source, job_args, num_cores)
+		curve_list = mp.run_parallel(mp.calc_shcf_by_source, job_args, num_cores, verbose=verbose)
 		poes = ProbabilityArray(curve_list)
 
 		## Recombine hazard curves computed for each source
@@ -1350,7 +1350,7 @@ class PSHAModel(PSHAModelBase):
 		if not num_cores:
 			num_cores = mp.multiprocessing.cpu_count()
 
-		mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores, shared_arr=shared_deagg_array)
+		mp.run_parallel(mp.deaggregate_by_source, job_args, num_cores, shared_arr=shared_deagg_array, verbose=verbose)
 
 		## Convert to exceedance probabilities
 		deagg_matrix -= 1
@@ -2178,7 +2178,7 @@ class PSHAModelTree(PSHAModelBase):
 			job_args.append((psha_model, fmt % (sample_idx + 1), cav_min, combine_pga_and_sa, verbose))
 
 		## Launch multiprocessing
-		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose)
+		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose=verbose)
 
 	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, dtype='d', verbose=False):
 		"""
@@ -2271,7 +2271,7 @@ class PSHAModelTree(PSHAModelBase):
 			job_args.append((psha_model, fmt % (sample_idx + 1), deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, verbose))
 
 		## Launch multiprocessing
-		return mp.run_parallel(mp.deaggregate_psha_model, job_args, num_processes, verbose)
+		return mp.run_parallel(mp.deaggregate_psha_model, job_args, num_processes, verbose=verbose)
 
 	def write_crisis(self, overwrite=True, enumerate_gmpe_lt=False, verbose=True):
 		"""
