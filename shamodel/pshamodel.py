@@ -337,7 +337,7 @@ class PSHAModelBase(SHAModelBase):
 		# TODO: probably better to move this into config.py, where we had a similar method
 		imtls = {}
 		for imt, periods in self.imt_periods.items():
-			if len(periods) > 1:
+			if imt == "SA":
 				for k, period in enumerate(periods):
 					if self.intensities:
 						imtls[imt + "(%s)" % period] = list(self.intensities)
