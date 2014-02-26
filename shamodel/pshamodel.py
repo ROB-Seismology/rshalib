@@ -897,14 +897,12 @@ class PSHAModel(PSHAModelBase):
 				periods = np.concatenate([[0], periods])
 				imt = self._construct_imt("PGA", 0)
 				period_idxs.insert(0, imts.index(imt))
-			print period_idxs
-			print poes.shape
 
 			if individual_sources:
 				src_shcf_dict = OrderedDict()
 				for i, src in enumerate(self.source_model):
 					src_shcf_dict[src.source_id] = SpectralHazardCurveField(self.name,
-													poes[i][:,period_idxs,:], [""]*len(periods), sites,
+													poes[i,:,period_idxs,:], [""]*len(periods), sites,
 													periods, im, intensities, 'g',
 													self.time_span)
 				src_shcf_dict['Total'] = SpectralHazardCurveField(self.name, total_poes[:,period_idxs,:],
