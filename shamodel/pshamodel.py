@@ -222,9 +222,10 @@ class PSHAModelBase(SHAModelBase):
 		:return:
 			str or None, calc_id
 		"""
-		for entry in os.listdir(folder):
-			if entry[:5] == "calc_":
-				return entry.split('_')[1]
+		if os.path.exists(folder):
+			for entry in os.listdir(folder):
+				if entry[:5] == "calc_":
+					return entry.split('_')[1]
 
 	def _get_intensities_limits(self, intensities_limits):
 		"""
