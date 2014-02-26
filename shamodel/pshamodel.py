@@ -2241,7 +2241,8 @@ class PSHAModelTree(PSHAModelBase):
 		# TODO: check imts as well
 
 		## Determine number of simultaneous processes based on estimated memory consumption
-		bin_edges = psha_models[0].get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
+		psha_model0 = psha_models_weights[0][0]
+		bin_edges = psha_model0.get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
 		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
 
 		num_imls = len(self.return_periods)
