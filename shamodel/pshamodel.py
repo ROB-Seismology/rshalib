@@ -34,7 +34,7 @@ from ..pmf import get_uniform_weights
 # TODO: make distinction between imt (PGA, SA) and im (SA(0.5, 5.0), SA(1.0, 5.0))
 # (perhaps put all these functions in rshalib.imt)
 
-# im: intensity measure, e.g. "PGA", "SA"
+# im (or imt_name?): intensity measure, e.g. "PGA", "SA"
 # imt: IMT object, e.g. PGA(), SA(0.2, 5.0)
 # imls: intensity measure levels, e.g. [0.1, 0.2, 0.3]
 # im_periods: dict mapping im to spectral periods, e.g. {"PGA": [0], "SA": [0.1, 0.5, 1.]}
@@ -565,9 +565,8 @@ class PSHAModelBase(SHAModelBase):
 
 		poe = str(round(Poisson(life_time=self.time_span, return_period=return_period), 13))
 
-		# TODO: site lon, lat in filename
 		uhs_folder = self.get_oq_uhs_folder(calc_id=calc_id)
-		xml_filename = "uh_spectra-poe_%s%s.xml" % (poe, curve_name)
+		xml_filename = "uh_spectra-poe_%s-%s.xml" % (poe, curve_name)
 		#print xml_filename
 		xml_filespec = os.path.join(uhs_folder, xml_filename)
 		uhsf = parse_uh_spectra(xml_filespec)
@@ -950,11 +949,9 @@ class PSHAModel(PSHAModelBase):
 		if not isinstance(site, SoilSite):
 			site = site.to_soil_site(self.ref_soil_params)
 		#imt = self._get_imtls()
-		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
-		rsdf = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
+		ssdf = self.source_site_distance_filter
+		rsdf = self.rupture_site_distance_filter
 
-		#tom = nhlib.tom.PoissonTOM(self.time_span)
-		#bin_edges, deagg_matrix = nhlib.calc.disaggregation(self.source_model, nhlib_site, imt, iml, self._get_trt_gsim_dict(), tom, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
 		bin_edges, deagg_matrix = nhlib.calc.disaggregation_poissonian(self.source_model, site, imt, iml, self._get_trt_gsim_dict(), self.time_span, self.truncation_level, n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width, ssdf, rsdf)
 		deagg_matrix = ProbabilityMatrix(deagg_matrix)
 		imt_name = str(imt).split('(')[0]
@@ -992,8 +989,8 @@ class PSHAModel(PSHAModelBase):
 		if not mag_bin_width:
 			mag_bin_width = self.source_model[0].mfd.bin_width
 
-		ssdf = nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
-		rsdf = nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
+		ssdf = self.source_site_distance_filter
+		rsdf = self.rupture_site_distance_filter
 
 		site_model = self.get_soil_site_model()
 		all_sites = site_model.get_sha_sites()
@@ -1113,9 +1110,9 @@ class PSHAModel(PSHAModelBase):
 			dict, mapping site (lon, lat) tuples to instances of
 			:class:`SpectralDeaggregationCurve`
 		"""
-		# TODO: determine site_imtls from self.return_periods (separate method)
 		from openquake.hazardlib.site import SiteCollection
 
+		# TODO: determine site_imtls from self.return_periods (separate method)
 		if site_imtls in (None, {}):
 			pass
 
@@ -1407,12 +1404,8 @@ class PSHAModel(PSHAModelBase):
 			site_imtls[(lon, lat)] = OrderedDict()
 
 		for im in sorted(imt_periods.keys()):
-			damping = 5.
 			for T in sorted(imt_periods[im]):
-				if im == "SA":
-					imt = getattr(nhlib.imt, im)(T, damping)
-				else:
-					imt = getattr(nhlib.imt, im)()
+				imt = self._construct_imt(im, T)
 
 				hcf = self.read_oq_hcf(curve_name, im, T, calc_id=calc_id)
 				for i, site in enumerate(sites):
