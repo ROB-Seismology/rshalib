@@ -156,7 +156,7 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 		return 1
 	else:
 		## Write XML file, creating directory if necessary
-		curve_name = "rlz-%s.xml" % (sample_idx)
+		curve_name = "rlz-%s" % (sample_idx)
 		for im, shcf in im_shcf_dict.items():
 			if im == "SA":
 				psha_model.write_oq_shcf(shcf, curve_name, calc_id="oqhazlib")

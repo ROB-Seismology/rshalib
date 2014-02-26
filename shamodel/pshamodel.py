@@ -2173,7 +2173,8 @@ class PSHAModelTree(PSHAModelBase):
 
 		## Create list with arguments for each job
 		job_args = []
-		fmt = "%%0%dd" % len(str(self.num_lt_samples))
+		num_lt_samples = self.num_lt_samples or self.get_num_paths()
+		fmt = "%%0%dd" % len(str(num_lt_samples))
 		for sample_idx, (psha_model, weight) in enumerate(psha_models_weights):
 			job_args.append((psha_model, fmt % (sample_idx + 1), cav_min, combine_pga_and_sa, verbose))
 
@@ -2266,7 +2267,8 @@ class PSHAModelTree(PSHAModelBase):
 
 		## Create list with arguments for each job
 		job_args = []
-		fmt = "%%0%dd" % len(str(self.num_lt_samples))
+		num_lt_samples = self.num_lt_samples or self.get_num_paths()
+		fmt = "%%0%dd" % len(str(num_lt_samples))
 		for sample_idx, (psha_model, weight) in enumerate(psha_models_weights):
 			job_args.append((psha_model, fmt % (sample_idx + 1), deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, verbose))
 
