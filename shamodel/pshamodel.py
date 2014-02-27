@@ -513,13 +513,16 @@ class PSHAModelBase(SHAModelBase):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		from ..openquake import parse_hazard_curves
+		from ..openquake import parse_hazard_curves, parse_spectral_hazard_curve_field
 
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
 		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
 		#print xml_filename
 		xml_filespec = os.path.join(hc_folder, xml_filename)
-		shcf = parse_hazard_curves(xml_filespec)
+		try:
+			shcf = parse_hazard_curves(xml_filespec)
+		except:
+			shcf = parse_spectral_hazard_curve_field(xml_filespec)
 		shcf.set_site_names(self.get_sha_sites())
 
 		return shcf
@@ -630,7 +633,7 @@ class PSHAModelBase(SHAModelBase):
 		xml_filename = "disagg_matrix(%s)-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (poe, ds.site.lon, ds.site.lat, curve_name)
 		xml_filespec = os.path.join(imt_disagg_folder, xml_filename)
-		ds.write_nrml(xml_filespec, self.sourceModelTreePath, self.gsimTreePath)
+		ds.write_nrml(xml_filespec, self.smlt_path, self.gmpelt_path)
 
 	def read_oq_disagg_matrix_full(self):
 		# TODO
@@ -676,7 +679,7 @@ class PSHAModelBase(SHAModelBase):
 		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
 		xml_filespec = os.path.join(disagg_folder, xml_filename)
-		sdc.write_nrml(xml_filespec, self.sourceModelTreePath, self.gsimTreePath)
+		sdc.write_nrml(xml_filespec, self.smlt_path, self.gmpelt_path)
 
 	def read_crisis_batch(self, batch_filename = "lt_batch.dat"):
 		"""
