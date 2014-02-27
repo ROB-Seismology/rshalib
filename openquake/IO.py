@@ -34,7 +34,10 @@ def _parse_hazard_curve(hazard_curve, site_names={}):
 	"""
 	lon, lat = map(float, hazard_curve.findtext(".//{%s}pos" % GML).split())
 	site = SHASite(lon, lat, name=site_names.get((lon, lat), None))
-	poes = np.array(hazard_curve.findtext(".//{%s}poEs" % NRML).split(), float)
+	try:
+		poes = np.array(hazard_curve.findtext(".//{%s}poEs" % NRML).split(), float)
+	except:
+		poes = np.array(hazard_curve.findtext(".//{%s}poes" % NRML).split(), float)
 	return site, poes.clip(1E-15)
 
 
@@ -117,6 +120,60 @@ def parse_hazard_curves_multi(xml_filespec, site_names={}):
 	## Order spectral periods
 	result.reorder_periods()
 	return result
+
+
+def parse_spectral_hazard_curve_field(xml_filespec, site_names={}, timespan=50):
+	"""
+	Parse spectralHazardCurveField as written by :meth:`write_nrml` of
+	:class:`..result.SpectralHazardCurveField`
+
+	:param xml_filespec:
+		String, filespec of file to parse.
+	:param site_names:
+		Dict, mapping (lon, lat) tuples to site names (default: {})
+	:param timespan:
+		Float, time span in years (default: 50)
+
+	:return:
+		instance of :class:`..result.SpectralHazardCurveField`
+	"""
+	nrml = etree.parse(xml_filespec).getroot()
+	shcf_elem = nrml.find('{%s}spectralHazardCurveField' % NRML)
+	imt = shcf_elem.get('IMT')
+	model_name = shcf_elem.get('name')
+	periods = []
+	imls = []
+	sites = []
+	poes = []
+
+	for hcf_elem in shcf_elem.findall('{%s}hazardCurveField' % NRML):
+		period_poes = []
+		# Note: 'saPeriod'
+		period = float(hcf_elem.get('period', 0.))
+		periods.append(period)
+		# Note: 'IMLs'
+		period_imls = map(float, hcf_elem.findtext("{%s}IMLS" % NRML).split())
+		imls.append(period_imls)
+		for hc_elem in hcf_elem.findall("{%s}hazardCurve" % NRML):
+			# Note: poes instead of poEs
+			site, site_poes = _parse_hazard_curve(hc_elem, site_names=site_names)
+			if len(periods) == 1:
+				sites.append(site)
+			period_poes.append(site_poes)
+		poes.append(period_poes)
+	# Note: no timespan, sourceModelTreePath, gsimTreePath
+
+	periods = np.array(periods)
+	imls = np.array(imls)
+	poes = ProbabilityArray(poes)
+	poes = poes.swapaxes(0, 1)
+
+	filespecs = [xml_filespec] * len(periods)
+	shcf = SpectralHazardCurveField(model_name, poes, filespecs, sites, periods, imt, imls, timespan=timespan)
+
+	## Order spectral periods
+	shcf.reorder_periods()
+	return shcf
 
 
 def parse_hazard_map(xml_filespec):
@@ -384,7 +441,7 @@ def parse_any_output(xml_filespec):
 	raise "File is not an output of OpenQuake"
 
 
-def read_multi_folder(directory, sites=[], add_stats=False):
+def read_multi_folder(directory, sites=[], add_stats=False, model_name=""):
 	"""
 	Read OpenQuake output folder with 'hazard_curve_multi' file(s)
 
@@ -394,6 +451,8 @@ def read_multi_folder(directory, sites=[], add_stats=False):
 		list with instances of :class:`..site.SHASite` (default: {})
 	:param add_stats:
 		bool, add mean and quantiles if present (default: False)
+	:param model_name:
+		str, name of logictree
 
 	:returns:
 		instance of :class:`..result.SpectralHazardCurveFieldTree`
@@ -402,7 +461,17 @@ def read_multi_folder(directory, sites=[], add_stats=False):
 		if filename[:23] == "hazard_curve_multi-rlz-" and filename[-6:] == "01.xml":
 			break
 	xml_filespec = os.path.join(directory, filename)
-	shcft = parse_hazard_curves_multi(xml_filespec)
+	try:
+		shcft = parse_hazard_curves_multi(xml_filespec)
+	except:
+		shcf_list = []
+		for filename in sorted(os.listdir(directory)):
+			if filename[:23] == "hazard_curve_multi-rlz-":
+				xml_filespec = os.path.join(directory, filename)
+				shcf = parse_spectral_hazard_curve_field(xml_filespec)
+				shcf_list.append(shcf)
+		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, "")
+
 	if add_stats:
 		mean_xml_filespec = os.path.join(directory, "hazard_curve_multi-mean.xml")
 		assert os.path.exists(mean_xml_filespec)
@@ -414,8 +483,10 @@ def read_multi_folder(directory, sites=[], add_stats=False):
 				perc_shcf_list.append(parse_hazard_curves_multi(xml_filespec))
 				perc = os.path.splitext(multi_filename)[0].split("quantile_")[1]
 				perc_levels.append(int(float(perc) * 100))
-		shcf_list = [shcf for shcf in shcft]
-		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, shcft.model_name, mean=mean_shcf, percentile_levels=perc_levels, percentiles=perc_shcf_list)
+		shcft.set_mean(mean_shcf)
+		shcft.set_percentiles(perc_shcf_list, perc_levels)
+
+	shcft.model_name = model_name
 	shcft.set_site_names(sites)
 	return shcft
 
