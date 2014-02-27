@@ -1061,7 +1061,7 @@ class PSHAModel(PSHAModelBase):
 		lon_extent = get_longitudinal_extent(west, east)
 		lon_bins, _, _ = npoints_between(
 			west, 0, 0, east, 0, 0,
-			np.round(lon_extent / coord_bin_width) + 1
+			np.round(lon_extent / coord_bin_width)
 		)
 
 		# Note: why is this different from lon_bins?
@@ -1069,7 +1069,7 @@ class PSHAModel(PSHAModelBase):
 		north += coord_bin_width
 		lat_bins = coord_bin_width * np.arange(
 			int(np.floor(south / coord_bin_width)),
-			int(np.ceil(north / coord_bin_width) + 1)
+			int(np.ceil(north / coord_bin_width))
 		)
 
 		eps_bins = np.linspace(-self.truncation_level, self.truncation_level,
