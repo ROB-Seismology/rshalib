@@ -3102,9 +3102,9 @@ class UHSFieldSet(HazardResult, HazardField, HazardSpectrum):
 	return_periods: 1-D [p] array of return periods
 	"""
 	def __init__(self, model_name, filespecs, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, poes=None, return_periods=None):
-		if return_periods:
+		if not return_periods in (None, []):
 			hazard_values = ExceedanceRateArray(1./return_periods)
-		elif poes:
+		elif not poes in (None, []):
 			hazard_values = ProbabilityArray(poes)
 		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
 		HazardField.__init__(self, sites)
