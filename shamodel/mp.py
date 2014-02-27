@@ -380,7 +380,7 @@ def deaggregate_psha_model((psha_model, sample_idx, deagg_sites, deagg_imt_perio
 		## Write XML file(s), creating directory if necessary
 		for (lon, lat) in spectral_deagg_curve_dict.keys():
 			sdc = spectral_deagg_curve_dict[(lon, lat)]
-			psha_model.write_oq_disagg_matrix_multi(sdc, calc_id="oqhazlib")
+			psha_model.write_oq_disagg_matrix_multi(sdc, curve_name, calc_id="oqhazlib")
 
 		## Don't return deaggregation results to preserve memory
 		return 0
