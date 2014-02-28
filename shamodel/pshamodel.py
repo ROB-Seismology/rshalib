@@ -1015,7 +1015,7 @@ class PSHAModel(PSHAModelBase):
 				deagg_matrix = ProbabilityMatrix(deagg_matrix)
 				yield SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, "SA", intensities, periods, self.return_periods, self.time_span)
 
-	def get_deagg_bin_edges(self, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width):
+	def get_deagg_bin_edges(self, mag_bin_width, dist_bin_width, coord_bin_width, n_epsilons):
 		"""
 		Determine bin edges for deaggregation.
 		Note: no default values!
@@ -1024,11 +1024,11 @@ class PSHAModel(PSHAModelBase):
 			Float, magnitude bin width
 		:param dist_bin_width:
 			Float, distance bin width in km
+		:param coord_bin_width:
+			Float, lon/lat bin width in decimal degrees
 		:param n_epsilons:
 			Int, number of epsilon bins
 			corresponding to integer epsilon values)
-		:param coord_bin_width:
-			Float, lon/lat bin width in decimal degrees
 
 		:return:
 			(mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins) tuple
@@ -1057,22 +1057,20 @@ class PSHAModel(PSHAModelBase):
 
 		## Note that ruptures may extend beyond source limits!
 		west, east, south, north = self.source_model.get_bounding_box()
+		print west, east, south, north
 		west -= coord_bin_width
 		east += coord_bin_width
-		west = np.floor(west / coord_bin_width) * coord_bin_width
-		east = np.ceil(east / coord_bin_width) * coord_bin_width
-		lon_extent = get_longitudinal_extent(west, east)
-		lon_bins, _, _ = npoints_between(
-			west, 0, 0, east, 0, 0,
-			np.round(lon_extent / coord_bin_width)
+
+		lon_bins = coord_bin_width * np.arange(
+			int(np.floor(west / coord_bin_width)),
+			int(np.ceil(east / coord_bin_width) + 1)
 		)
 
-		# Note: why is this different from lon_bins?
 		south -= coord_bin_width
 		north += coord_bin_width
 		lat_bins = coord_bin_width * np.arange(
 			int(np.floor(south / coord_bin_width)),
-			int(np.ceil(north / coord_bin_width))
+			int(np.ceil(north / coord_bin_width) + 1)
 		)
 
 		eps_bins = np.linspace(-self.truncation_level, self.truncation_level,
@@ -1125,7 +1123,7 @@ class PSHAModel(PSHAModelBase):
 			mag_bin_width = self.source_model[0].mfd.bin_width
 
 		## Determine bin edges first
-		bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
+		bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, coord_bin_width, n_epsilons)
 		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
 
 		## Create deaggregation matrices
@@ -1288,7 +1286,7 @@ class PSHAModel(PSHAModelBase):
 			mag_bin_width = self.source_model[0].mfd.bin_width
 
 		## Determine bin edges first
-		bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
+		bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, coord_bin_width, n_epsilons)
 		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
 
 		## Create deaggregation matrices
@@ -2240,7 +2238,7 @@ class PSHAModelTree(PSHAModelBase):
 
 		## Determine number of simultaneous processes based on estimated memory consumption
 		psha_model0 = psha_models_weights[0][0]
-		bin_edges = psha_model0.get_deagg_bin_edges(mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width)
+		bin_edges = psha_model0.get_deagg_bin_edges(mag_bin_width, dist_bin_width, coord_bin_width, n_epsilons)
 		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins = bin_edges
 
 		num_imls = len(self.return_periods)
@@ -2417,6 +2415,86 @@ class PSHAModelTree(PSHAModelBase):
 		gra_filespecs, weights = self.read_crisis_batch(batch_filename)
 		shcft = read_GRA_multi(gra_filespecs, weights=weights)
 		return shcft
+
+	def get_deagg_bin_edges(self, mag_bin_width, dist_bin_width, coord_bin_width, n_epsilons):
+		"""
+		Obtain overall deaggregation bin edges
+
+		:param mag_bin_width:
+			Float, magnitude bin width
+		:param dist_bin_width:
+			Float, distance bin width in km
+		:param coord_bin_width:
+			Float, lon/lat bin width in decimal degrees
+		:param n_epsilons:
+			Int, number of epsilon bins
+			corresponding to integer epsilon values)
+
+		:return:
+			(mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, src_bins) tuple
+			- mag_bins: magnitude bin edges
+			- dist_bins: distance bin edges
+			- lon_bins: longitude bin edges
+			- lat_bins: latitude bin edges
+			- eps_bins: epsilon bin edges
+			- trt_bins: source or tectonic-region-type bins
+		"""
+		min_mag = 9
+		max_mag = 0
+		min_lon, max_lon = 180, -180
+		min_lat, max_lat = 90, -90
+		for i, (psha_model, weight) in enumerate(self.sample_logic_trees()):
+			source_model = psha_model.source_model
+			if source_model.max_mag > max_mag:
+				max_mag = source_model.max_mag
+			if source_model.min_mag < min_mag:
+				min_mag = source_model.min_mag
+			west, east, south, north = source_model.get_bounding_box()
+			if west < min_lon:
+				min_lon = west
+			if east > max_lon:
+				max_lon = east
+			if south < min_lat:
+				min_lat = south
+			if north > max_lat:
+				max_lat = north
+
+		trt_bins = set()
+		if len(self.source_models) > 1:
+			## Collect tectonic region types
+			for source_model in self.source_models:
+				for src in source_model:
+					trt_bins.add(src.tectonic_region_type)
+		else:
+			## Collect source IDs
+			for src in self.source_models[0]:
+				trt_bins.add(src.source_id)
+
+		min_mag = np.floor(min_mag / mag_bin_width) * mag_bin_width
+		max_mag = np.ceil(max_mag / mag_bin_width) * mag_bin_width
+		min_dist = 0
+		max_dist = self.integration_distance
+		## Note that ruptures may extend beyond source limits
+		min_lon = (np.floor(min_lon / coord_bin_width) - 1)* coord_bin_width
+		min_lat = (np.floor(min_lat / coord_bin_width) + 1) * coord_bin_width
+		max_lon = (np.ceil(max_lon / coord_bin_width) - 1) * coord_bin_width
+		max_lat = (np.ceil(max_lat / coord_bin_width) + 1) * coord_bin_width
+
+		nmags = int((max_mag - min_mag) / mag_bin_width)
+		ndists = int(self.integration_distance / dist_bin_width)
+		nlons = int((max_lon - min_lon) / coord_bin_width)
+		nlats = int((max_lat - min_lat) / coord_bin_width)
+
+		mag_bins = np.linspace(min_mag, max_mag, nmags + 1)
+		dist_bins = np.linspace(min_dist, max_dist, ndists + 1)
+		lon_bins = np.linspace(min_lon, max_lon, nlons + 1)
+		lat_bins = np.linspace(min_lat, max_lat, nlats + 1)
+		eps_bins = np.linspace(-self.truncation_level, self.truncation_level,
+								  n_epsilons + 1)
+		trt_bins = sorted(trt_bins)
+
+		return (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trt_bins)
+
 
 	# TODO: the following methods are probably obsolete
 
