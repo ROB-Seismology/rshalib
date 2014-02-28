@@ -4049,6 +4049,24 @@ class HazardMapSet(HazardResult, HazardField):
 		model_name = "Median(%s)" % self.model_name
 		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
 
+	def get_percentile_hazard_map(self, perc):
+		"""
+		Get hazard map corresponding to percentile level
+
+		:param perc:
+			int, percentile in range [0, 100]
+
+		:return:
+			instance of :class:`HazardMap`
+		"""
+		intensities = scoreatpercentile(self.intensities, axis=0)
+		if len(set(self.return_periods)) == 1:
+			return_period = self.return_periods[0]
+		else:
+			return_period = 1
+		model_name = "Perc%d%s)" % (perc, self.model_name)
+		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
 	def get_variance_hazard_map(self):
 		"""
 		Get hazard map of variance at each site.
