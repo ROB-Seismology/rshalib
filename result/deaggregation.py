@@ -354,6 +354,11 @@ class DeaggBase(object):
 		return mag_bin_edges[1:] - mag_bin_edges[:-1]
 
 	@property
+	def mag_bin_width(self):
+		mag_bin_edges = self.mag_bin_edges
+		return mag_bin_edges[1] - mag_bin_edges[0]
+
+	@property
 	def mag_bin_centers(self):
 		return self.mag_bin_edges[:-1] + self.mag_bin_widths / 2
 
@@ -365,6 +370,11 @@ class DeaggBase(object):
 	def dist_bin_widths(self):
 		dist_bin_edges = self.dist_bin_edges
 		return dist_bin_edges[1:] - dist_bin_edges[:-1]
+
+	@property
+	def dist_bin_width(self):
+		dist_bin_edges = self.dist_bin_edges
+		return dist_bin_edges[1] - dist_bin_edges[0]
 
 	@property
 	def dist_bin_centers(self):
@@ -380,6 +390,11 @@ class DeaggBase(object):
 		return lon_bin_edges[1:] - lon_bin_edges[:-1]
 
 	@property
+	def lon_bin_width(self):
+		lon_bin_edges = self.lon_bin_edges
+		return lon_bin_edges[1] - lon_bin_edges[0]
+
+	@property
 	def lon_bin_centers(self):
 		return self.lon_bin_edges[:-1] + self.lon_bin_widths / 2
 
@@ -393,6 +408,11 @@ class DeaggBase(object):
 		return lat_bin_edges[1:] - lat_bin_edges[:-1]
 
 	@property
+	def lat_bin_width(self):
+		lat_bin_edges = self.lat_bin_edges
+		return lat_bin_edges[1] - lat_bin_edges[0]
+
+	@property
 	def lat_bin_centers(self):
 		return self.lat_bin_edges[:-1] + self.lat_bin_widths / 2
 
@@ -404,6 +424,11 @@ class DeaggBase(object):
 	def eps_bin_widths(self):
 		eps_bin_edges = self.eps_bin_edges
 		return eps_bin_edges[1:] - eps_bin_edges[:-1]
+
+	@property
+	def eps_bin_width(self):
+		eps_bin_edges = self.eps_bin_edges
+		return eps_bin_edges[1] - eps_bin_edges[0]
 
 	@property
 	def eps_bin_centers(self):
@@ -640,7 +665,7 @@ class DeaggregationSlice(DeaggBase):
 		str, intensity measure type
 
 	:param iml:
-		float, intensity level
+		float, intensity level corresponding to :param:`return_period`
 
 	:param period:
 		float, spectral period
@@ -1034,7 +1059,7 @@ class DeaggregationCurve(DeaggBase):
 		str, intensity measure type
 
 	:param intensities:
-		float array, intensity levels
+		float array, intensity levels corresponding to :param:`return_periods`
 
 	:param period:
 		float, spectral period
@@ -1297,7 +1322,8 @@ class SpectralDeaggregationCurve(DeaggBase):
 		str, intensity measure type
 
 	:param intensities:
-		float array, intensity levels
+		2-D float array, intensity levels for each spectral period
+		and each return period
 
 	:param periods:
 		float array, spectral periods
