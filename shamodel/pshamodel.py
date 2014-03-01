@@ -1726,14 +1726,14 @@ class PSHAModelTree(PSHAModelBase):
 			## Convert to objects
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
 			if not enumerate_gmpe_lt:
-				gmpe_models_weights = [(self._gmpe_sample_to_gmpe_model(gmpelt_path), 1)]
+				gmpe_models_weights = [(self._gmpe_sample_to_gmpe_model(gmpelt_path), 1.)]
 				gmpelt_paths = [gmpelt_path]
 
 			for (gmpe_model, gmpelt_weight), gmpelt_path in zip(gmpe_models_weights, gmpelt_paths):
 				## Convert to PSHA model
 				name = "%s, LT sample %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i+1, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
 				psha_model = self._get_psha_model(source_model, gmpe_model, name)
-				psha_models_weights.append((psha_model, gmpelt_weight))
+				psha_models_weights.append((psha_model, gmpelt_weight/num_samples))
 				#yield (psha_model, gmpelt_weight)
 
 			## Update the seed for the next realization
@@ -2494,6 +2494,84 @@ class PSHAModelTree(PSHAModelBase):
 		trt_bins = sorted(trt_bins)
 
 		return (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trt_bins)
+
+	def get_mean_deagg_sdc(self, site, calc_id="oqhazlib"):
+		"""
+		Compute mean spectral deaggregation curve from individual models.
+
+		:param site:
+
+		:return:
+			instance of :class:`SpectralDeaggregationCurve`
+		"""
+		import gc
+
+		## Read saved deaggregation files for given site
+		num_lt_samples = self.num_lt_samples or self.get_num_paths()
+		fmt = "%%0%dd" % len(str(num_lt_samples))
+		for i, (psha_model, weight) in enumerate(self.sample_logic_trees()):
+			curve_name = fmt % (i+1)
+			print curve_name
+			sdc = self.read_oq_disagg_matrix_multi(curve_name, site, calc_id=calc_id)
+			## Apply weight
+			sdc_matrix = sdc.deagg_matrix.to_fractional_contribution_matrix()
+			sdc_matrix *= weight
+
+			if i == 0:
+				## Obtain overall bin edges
+				mag_bin_width = sdc.mag_bin_width
+				dist_bin_width = sdc.dist_bin_width
+				coord_bin_width = sdc.lon_bin_wdith
+				num_epsilon_bins = sdc.neps
+
+				bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, coord_bin_width, num_epsilon_bins)
+				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trt_bins = bin_edges
+
+				## Create empty matrix
+				nmags = len(mag_bins) - 1
+				ndists = len(dist_bins) - 1
+				nlons = len(lon_bins) - 1
+				nlats = len(lat_bins) - 1
+				neps = num_epsilon_bins
+				ntrts = len(trt_bins)
+				num_periods = len(sdc.periods)
+
+				shape = (num_periods, nmags, ndists, nlons, nlats, neps, ntrts)
+				mean_deagg_matrix = rshalib.result.FractionalContributionMatrix(np.zeros(shape, sdc.dtype))
+
+			## Sum deaggregation results of logic_tree samples
+			## Assume min_mag, distance bins and eps bins are the same for all models
+			max_mag_idx = sdc.nmags
+			min_lon_idx = (sdc.min_lon - lon_bins[0]) / coord_bin_width
+			max_lon_idx = min_lon_idx + sdc.nlons
+			min_lat_idx = (sdc.min_lat - lat_bins[0]) / coord_bin_width
+			max_lat_idx = min_lat_idx + sdc.nlats
+			#print max_mag_idx
+			#print sdc.min_lon, sdc.max_lon
+			#print min_lon_idx, max_lon_idx
+			#print sdc.min_lat, sdc.max_lat
+			#print min_lat_idx, max_lat_idx
+
+			if len(self.source_models) == 1:
+				## trt bins correspond to source IDs
+				mean_deagg_matrix[:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,:] += sdc_matrix
+			else:
+				## trt bins correspond to tectonic region types
+				for trt_idx, trt in enumerate(trt_bins):
+					src_idxs = []
+					for src_id in sdc.trt_bins:
+						src = psha_model.source_model[src_id]
+						if src.tectonic_region_type == trt:
+							src_idxs.append(src_id)
+				mean_deagg_matrix[:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc_matrix[:,:,:,:,:,:,:,src_idxs]
+
+			del sdc_matrix
+			gc.collect()
+
+		intensities = np.zeros_like(sdc.intensities)
+
+		return SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+
 
 
 	# TODO: the following methods are probably obsolete
