@@ -2359,6 +2359,9 @@ class PSHAModelTree(PSHAModelBase):
 
 		:param add_stats:
 			bool indicating whether or not mean and quantiles have to be appended
+		:param calc_id:
+			list of ints, calculation IDs.
+			(default: None, will determine from folder structure)
 
 		:return:
 			instance of :class:`SpectralHazardCurveFieldTree`
@@ -2495,11 +2498,15 @@ class PSHAModelTree(PSHAModelBase):
 
 		return (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trt_bins)
 
-	def get_mean_deagg_sdc(self, site, calc_id="oqhazlib"):
+	def get_oq_mean_sdc(self, site, calc_id=None):
 		"""
 		Compute mean spectral deaggregation curve from individual models.
 
 		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+		:param calc_id:
+			list of ints, calculation IDs.
+			(default: None, will determine from folder structure)
 
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
@@ -2528,15 +2535,16 @@ class PSHAModelTree(PSHAModelBase):
 				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trt_bins = bin_edges
 
 				## Create empty matrix
+				num_periods = len(sdc.periods)
+				num_intensities = len(sdc.return_periods)
 				nmags = len(mag_bins) - 1
 				ndists = len(dist_bins) - 1
 				nlons = len(lon_bins) - 1
 				nlats = len(lat_bins) - 1
 				neps = num_epsilon_bins
 				ntrts = len(trt_bins)
-				num_periods = len(sdc.periods)
 
-				shape = (num_periods, nmags, ndists, nlons, nlats, neps, ntrts)
+				shape = (num_periods, num_intensities, nmags, ndists, nlons, nlats, neps, ntrts)
 				mean_deagg_matrix = rshalib.result.FractionalContributionMatrix(np.zeros(shape, sdc.dtype))
 
 			## Sum deaggregation results of logic_tree samples
@@ -2552,9 +2560,9 @@ class PSHAModelTree(PSHAModelBase):
 			#print sdc.min_lat, sdc.max_lat
 			#print min_lat_idx, max_lat_idx
 
-			if len(self.source_models) == 1:
+			if sdc.trt_bins == trt_bins:
 				## trt bins correspond to source IDs
-				mean_deagg_matrix[:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,:] += sdc_matrix
+				mean_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,:] += sdc_matrix
 			else:
 				## trt bins correspond to tectonic region types
 				for trt_idx, trt in enumerate(trt_bins):
@@ -2563,7 +2571,7 @@ class PSHAModelTree(PSHAModelBase):
 						src = psha_model.source_model[src_id]
 						if src.tectonic_region_type == trt:
 							src_idxs.append(src_id)
-				mean_deagg_matrix[:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc_matrix[:,:,:,:,:,:,:,src_idxs]
+				mean_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc_matrix[:,:,:,:,:,:,:,src_idxs].fold_axis(-1)
 
 			del sdc_matrix
 			gc.collect()
