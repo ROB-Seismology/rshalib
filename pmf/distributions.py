@@ -63,7 +63,7 @@ class PMF(nhlib.pmf.PMF):
 
 	def __iter__(self):
 		for value, weight in self.data:
-			yield (nodal_plane, weight)
+			yield (value, weight)
 
 
 class NumericPMF(PMF):
