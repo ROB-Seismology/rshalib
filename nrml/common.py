@@ -30,14 +30,14 @@ def xmlstr(s, encoding='latin1'):
 		return str(s)
 
 
-def create_nrml_root(xml_elem, encoding='latin1'):
+def create_nrml_root(xml_elem, encoding='latin1', **kwargs):
 	"""
 	Create nrml root
 	Arguments:
 		encoding: unicode encoding (default: 'latin1')
 	"""
 	nrml_elem = etree.Element(ns.ROOT, nsmap=ns.NSMAP)
-	nrml_elem.append(xml_elem.create_xml_element(encoding=encoding))
+	nrml_elem.append(xml_elem.create_xml_element(encoding=encoding, **kwargs))
 
 	root = etree.ElementTree(nrml_elem)
 
