@@ -1819,20 +1819,25 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 					f.write("\n")
 		f.close()
 
-	def create_xml_element(self, encoding='latin1'):
+	def create_xml_element(self, smlt_path=None, gmpelt_path=None, encoding='latin1'):
 		"""
 		Create xml element (NRML SpectralHazardCurveField element)
 		Arguments:
 			encoding: unicode encoding (default: 'latin1')
 		"""
-		# TODO: add names to nrml namespace
-		# TODO: add sourceModelTreePath and gsimTreePath ?
 		shcf_elem = etree.Element(ns.SPECTRAL_HAZARD_CURVE_FIELD)
-		shcf_elem.set(ns.NAME, self.model_name)
 		shcf_elem.set(ns.IMT, self.IMT)
+		shcf_elem.set(ns.INVESTIGATION_TIME, str(self.timespan))
+		if smlt_path:
+			shcf_elem.set(ns.SMLT_PATH, smlt_path)
+		if gmpelt_path:
+			shcf_elem.set(ns.GMPELT_path, gmpelt_path)
+		shcf_elem.set(ns.NAME, self.model_name)
 		for k, period in enumerate(self.periods):
+			# TODO: put following in HazardCurveField and HazardCurve !
 			hcf_elem = etree.SubElement(shcf_elem, ns.HAZARD_CURVE_FIELD)
 			hcf_elem.set(ns.PERIOD, str(period))
+			# TODO: add damping for SA ?
 			imls_elem = etree.SubElement(hcf_elem, ns.IMLS)
 			imls_elem.text = " ".join(map(str, self.intensities[k,:]))
 			for i, site in enumerate(self.sites):
@@ -1844,7 +1849,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 				poes_elem.text = " ".join(map(str, self.poes[i,k,:]))
 		return shcf_elem
 
-	def write_nrml(self, filespec, encoding='latin1', pretty_print=True):
+	def write_nrml(self, filespec, smlt_path=None, gmpelt_path=None, encoding='latin1', pretty_print=True):
 		"""
 		Write spectral hazard curve field to XML file
 		Arguments:
@@ -1853,7 +1858,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			pretty_print: boolean indicating whether or not to indent each
 				element (default: True)
 		"""
-		tree = create_nrml_root(self, encoding=encoding)
+		tree = create_nrml_root(self, encoding=encoding, smlt_path=smlt_path, gmpelt_path=gmpelt_path)
 		fd = open(filespec, 'w')
 		tree.write(fd, xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
 		fd.close()
