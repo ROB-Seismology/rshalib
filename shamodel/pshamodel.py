@@ -494,7 +494,7 @@ class PSHAModelBase(SHAModelBase):
 			str, calculation ID. (default: "oqhazlib")
 		"""
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=False)
-		imt_subfolder = self._get_oq_imt_subfolder(hcf.imt, hcf.T)
+		imt_subfolder = self._get_oq_imt_subfolder(hcf.IMT, hcf.period)
 		imt_hc_folder = os.path.join(hc_folder, imt_subfolder)
 		self.create_folder_structure(imt_hc_folder)
 		xml_filename = "hazard_curve-%s.xml" % curve_name
@@ -543,7 +543,7 @@ class PSHAModelBase(SHAModelBase):
 		self.create_folder_structure(hc_folder)
 		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
 		xml_filespec = os.path.join(hc_folder, xml_filename)
-		shcf.write_nrml(xml_filespec)
+		shcf.write_nrml(xml_filespec, smlt_path=self.smlt_path, gmpelt_path=self.gmpelt_path)
 
 	def read_oq_uhs_multi(self):
 		# TODO
@@ -1057,7 +1057,6 @@ class PSHAModel(PSHAModelBase):
 
 		## Note that ruptures may extend beyond source limits!
 		west, east, south, north = self.source_model.get_bounding_box()
-		print west, east, south, north
 		west -= coord_bin_width
 		east += coord_bin_width
 
