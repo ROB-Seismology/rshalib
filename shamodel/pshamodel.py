@@ -2452,6 +2452,10 @@ class PSHAModelTree(PSHAModelBase):
 			if source_model.min_mag < min_mag:
 				min_mag = source_model.min_mag
 			west, east, south, north = source_model.get_bounding_box()
+			west -= coord_bin_width
+			east += coord_bin_width
+			south -= coord_bin_width
+			north += coord_bin_width
 			if west < min_lon:
 				min_lon = west
 			if east > max_lon:
@@ -2477,10 +2481,10 @@ class PSHAModelTree(PSHAModelBase):
 		min_dist = 0
 		max_dist = self.integration_distance
 		## Note that ruptures may extend beyond source limits
-		min_lon = (np.floor(min_lon / coord_bin_width) - 1)* coord_bin_width
-		min_lat = (np.floor(min_lat / coord_bin_width) + 1) * coord_bin_width
-		max_lon = (np.ceil(max_lon / coord_bin_width) - 1) * coord_bin_width
-		max_lat = (np.ceil(max_lat / coord_bin_width) + 1) * coord_bin_width
+		min_lon = np.floor(min_lon / coord_bin_width) * coord_bin_width
+		min_lat = np.floor(min_lat / coord_bin_width) * coord_bin_width
+		max_lon = np.ceil(max_lon / coord_bin_width) * coord_bin_width
+		max_lat = np.ceil(max_lat / coord_bin_width) * coord_bin_width
 
 		nmags = int((max_mag - min_mag) / mag_bin_width)
 		ndists = int(self.integration_distance / dist_bin_width)
@@ -2511,13 +2515,14 @@ class PSHAModelTree(PSHAModelBase):
 			instance of :class:`SpectralDeaggregationCurve`
 		"""
 		import gc
+		from ..result import FractionalContributionMatrix, SpectralDeaggregationCurve
 
 		## Read saved deaggregation files for given site
 		num_lt_samples = self.num_lt_samples or self.get_num_paths()
-		fmt = "%%0%dd" % len(str(num_lt_samples))
+		fmt = "rlz-%%0%dd" % len(str(num_lt_samples))
 		for i, (psha_model, weight) in enumerate(self.sample_logic_trees()):
 			curve_name = fmt % (i+1)
-			print curve_name
+			#print curve_name
 			sdc = self.read_oq_disagg_matrix_multi(curve_name, site, calc_id=calc_id)
 			## Apply weight
 			sdc_matrix = sdc.deagg_matrix.to_fractional_contribution_matrix()
@@ -2527,11 +2532,17 @@ class PSHAModelTree(PSHAModelBase):
 				## Obtain overall bin edges
 				mag_bin_width = sdc.mag_bin_width
 				dist_bin_width = sdc.dist_bin_width
-				coord_bin_width = sdc.lon_bin_wdith
+				coord_bin_width = sdc.lon_bin_width
 				num_epsilon_bins = sdc.neps
 
 				bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, coord_bin_width, num_epsilon_bins)
 				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trt_bins = bin_edges
+				#print mag_bins
+				#print dist_bins
+				#print lon_bins
+				#print lat_bins
+				#print eps_bins
+				#print trt_bins
 
 				## Create empty matrix
 				num_periods = len(sdc.periods)
@@ -2544,14 +2555,14 @@ class PSHAModelTree(PSHAModelBase):
 				ntrts = len(trt_bins)
 
 				shape = (num_periods, num_intensities, nmags, ndists, nlons, nlats, neps, ntrts)
-				mean_deagg_matrix = rshalib.result.FractionalContributionMatrix(np.zeros(shape, sdc.dtype))
+				mean_deagg_matrix = FractionalContributionMatrix(np.zeros(shape, sdc.deagg_matrix.dtype))
 
 			## Sum deaggregation results of logic_tree samples
 			## Assume min_mag, distance bins and eps bins are the same for all models
 			max_mag_idx = sdc.nmags
-			min_lon_idx = (sdc.min_lon - lon_bins[0]) / coord_bin_width
+			min_lon_idx = int((sdc.min_lon - lon_bins[0]) / coord_bin_width)
 			max_lon_idx = min_lon_idx + sdc.nlons
-			min_lat_idx = (sdc.min_lat - lat_bins[0]) / coord_bin_width
+			min_lat_idx = int((sdc.min_lat - lat_bins[0]) / coord_bin_width)
 			max_lat_idx = min_lat_idx + sdc.nlats
 			#print max_mag_idx
 			#print sdc.min_lon, sdc.max_lon
@@ -2566,10 +2577,10 @@ class PSHAModelTree(PSHAModelBase):
 				## trt bins correspond to tectonic region types
 				for trt_idx, trt in enumerate(trt_bins):
 					src_idxs = []
-					for src_id in sdc.trt_bins:
+					for src_idx, src_id in enumerate(sdc.trt_bins):
 						src = psha_model.source_model[src_id]
 						if src.tectonic_region_type == trt:
-							src_idxs.append(src_id)
+							src_idxs.append(src_idx)
 				mean_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc_matrix[:,:,:,:,:,:,:,src_idxs].fold_axis(-1)
 
 			del sdc_matrix
