@@ -138,30 +138,33 @@ def parse_spectral_hazard_curve_field(xml_filespec, site_names={}, timespan=50):
 		instance of :class:`..result.SpectralHazardCurveField`
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
-	shcf_elem = nrml.find('{%s}spectralHazardCurveField' % NRML)
-	imt = shcf_elem.get('IMT')
-	model_name = shcf_elem.get('name')
+	shcf_elem = nrml.find(ns.SPECTRAL_HAZARD_CURVE_FIELD)
+	imt = shcf_elem.get("IMT")
+	timespan = float(shcf_elem.get("investigationTime", timespan))
+	model_name = shcf_elem.get("name")
+	smlt_path = shcf_elem.get("sourceModelTreePath", '')
+	gmpelt_path = shcf_elem.get("gsimTreePath", '')
+
 	periods = []
 	imls = []
 	sites = []
 	poes = []
 
-	for hcf_elem in shcf_elem.findall('{%s}hazardCurveField' % NRML):
+	for hcf_elem in shcf_elem.findall(ns.HAZARD_CURVE_FIELD):
 		period_poes = []
 		# Note: 'saPeriod'
-		period = float(hcf_elem.get('period', 0.))
+		period = float(hcf_elem.get("saPeriod", 0.))
 		periods.append(period)
 		# Note: 'IMLs'
-		period_imls = map(float, hcf_elem.findtext("{%s}IMLS" % NRML).split())
+		period_imls = map(float, hcf_elem.findtext(ns.IMLS).split())
 		imls.append(period_imls)
-		for hc_elem in hcf_elem.findall("{%s}hazardCurve" % NRML):
+		for hc_elem in hcf_elem.findall(ns.HAZARD_CURVE):
 			# Note: poes instead of poEs
 			site, site_poes = _parse_hazard_curve(hc_elem, site_names=site_names)
 			if len(periods) == 1:
 				sites.append(site)
 			period_poes.append(site_poes)
 		poes.append(period_poes)
-	# Note: no timespan, sourceModelTreePath, gsimTreePath
 
 	periods = np.array(periods)
 	imls = np.array(imls)
