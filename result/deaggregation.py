@@ -1498,15 +1498,17 @@ class SpectralDeaggregationCurve(DeaggBase):
 		"""
 		dc_list = []
 		periods = np.array([0.4, 1])
-		for period in periods:
+		for k, period in enumerate(periods):
 			if not period in self.periods:
 				period_index = np.argmin(np.abs(self.periods - period))
 				msg = "Warning: Period %s s not found, using %s s instead"
 				msg %= (period, self.periods[period_index])
 				print(msg)
 				period = self.periods[period_index]
+				periods[k] = period
 			dc_list.append(self.get_curve(period=period))
 		mean_low_freq_dc = get_mean_deaggregation_curve(dc_list)
+		mean_low_freq_dc.period = periods.mean()
 		return mean_low_freq_dc
 
 	def get_mean_high_freq_curve(self):
@@ -1518,15 +1520,17 @@ class SpectralDeaggregationCurve(DeaggBase):
 		"""
 		dc_list = []
 		periods = np.array([0.1, 0.2])
-		for period in periods:
+		for k, period in enumerate(periods):
 			if not period in self.periods:
 				period_index = np.argmin(np.abs(self.periods - period))
 				msg = "Warning: Period %s s not found, using %s s instead"
 				msg %= (period, self.periods[period_index])
 				print(msg)
 				period = self.periods[period_index]
+				periods[k] = period
 			dc_list.append(self.get_curve(period=period))
 		mean_high_freq_dc = get_mean_deaggregation_curve(dc_list)
+		mean_high_freq_dc.period = periods.mean()
 		return mean_high_freq_dc
 
 	def analyze_controlling_earthquakes(self, remote_distance=100):
