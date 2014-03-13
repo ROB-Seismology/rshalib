@@ -1156,15 +1156,13 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		a_val = np.log10(N0)
 		return TruncatedGRMFD(min_mag, max_mag, bin_width, a_val, b_val)
 
-	def get_MFD_Youngs_Coppersmith(self, min_mag=None, char_mag=None, bin_width=None, b_val=None):
+	def get_MFD_Youngs_Coppersmith(self, min_mag=None, bin_width=None, b_val=None):
 		"""
 		Compute MFD according to Youngs & Coppersmith (1985), based on
 		frequency of Mmax
 
 		:param min_mag:
 			Float, Minimum magnitude (default: None, take min_mag from current MFD).
-		:param char_mag:
-			Characteristic magnitude (default: None, take max_mag from current MFD).
 		:param bin_width:
 			Float, Magnitude interval for evenly discretized magnitude frequency
 			distribution (default: None, take bin_width from current MFD).
@@ -1181,8 +1179,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			bin_width = self.mfd.bin_width
 		if min_mag is None:
 			min_mag = self.mfd.get_min_mag_center()
-		if char_mag is None:
-			char_mag = self.max_mag
+		char_mag = self.max_mag
 		char_rate = 1. / self.get_Mmax_return_period()
 		MFD = YoungsCoppersmith1985MFD.from_characteristic_rate(min_mag, b_val, char_mag, char_rate, bin_width)
 		return MFD
