@@ -2522,7 +2522,7 @@ class PSHAModelTree(PSHAModelBase):
 		fmt = "rlz-%%0%dd" % len(str(num_lt_samples))
 		for i, (psha_model, weight) in enumerate(self.sample_logic_trees()):
 			curve_name = fmt % (i+1)
-			#print curve_name
+			print curve_name
 			sdc = self.read_oq_disagg_matrix_multi(curve_name, site, calc_id=calc_id)
 			## Apply weight
 			sdc_matrix = sdc.deagg_matrix.to_fractional_contribution_matrix()
