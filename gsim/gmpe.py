@@ -397,22 +397,22 @@ class GMPE(object):
 		## Determine PGA truncation level corresponding to SA truncation level
 		if imt == "SA":
 			## Correlation coefficients between PGA and SA (Table 3-1)
-			if cav_min > 0:
-				b1_freqs = np.array([0.5, 1, 2.5, 5, 10, 20, 25, 35])
-				b1_WUS = np.array([0.59, 0.59, 0.6, 0.633, 0.787, 0.931, 0.956, 0.976])
-				b1_EUS = np.array([0.5, 0.55, 0.6, 0.75, 0.88, 0.9, 0.91, 0.93])
-				if eps_correlation_model == "WUS":
-					b1 = interpolate(b1_freqs, b1_WUS, [1./T])[0]
-				elif eps_correlation_model == "EUS":
-					b1 = interpolate(b1_freqs, b1_EUS, [1./T])[0]
+			#if cav_min > 0:
+			b1_freqs = np.array([0.5, 1, 2.5, 5, 10, 20, 25, 35])
+			b1_WUS = np.array([0.59, 0.59, 0.6, 0.633, 0.787, 0.931, 0.956, 0.976])
+			b1_EUS = np.array([0.5, 0.55, 0.6, 0.75, 0.88, 0.9, 0.91, 0.93])
+			if eps_correlation_model == "WUS":
+				b1 = interpolate(b1_freqs, b1_WUS, [1./T])[0]
+			elif eps_correlation_model == "EUS":
+				b1 = interpolate(b1_freqs, b1_EUS, [1./T])[0]
 
 				#print "PGA truncation level: ", truncation_level / b1
-			else:
+			#else:
 				## This makes:
 				## eps_sa = 0
 				## sigma_ln_sa_given_pga = sigma_ln_sa
 				## ln_sa_given_pga = ln_sa_med
-				b1 = 0
+			#	b1 = 0
 
 			sa_truncation_level = truncation_level * b1
 			#div, mod = divmod(sa_truncation_level, depsilon)
@@ -427,10 +427,10 @@ class GMPE(object):
 		## Normally distributed epsilon values and corresponding probabilities
 		neps = int(truncation_level / depsilon) * 2 + 1
 		eps_pga_list = np.linspace(-truncation_level, truncation_level, neps)
-		eps_dist = scipy.stats.truncnorm(-pga_truncation_level, pga_truncation_level)
+		eps_dist = scipy.stats.truncnorm(-truncation_level, truncation_level)
+		#prob_eps_list = np.concatenate([[0], np.diff(eps_dist.cdf(eps_pga_list))])
 		prob_eps_list = eps_dist.pdf(eps_pga_list) * depsilon
 		prob_eps_list /= np.add.reduce(prob_eps_list)
-		#prob_eps_list = 1 - eps_dist.cdf(eps_pga_list)
 
 		## Pre-calculate CAV exceedance probabilities for epsilon PGA
 		pga_eps_pga_list = np.zeros_like(eps_pga_list)
@@ -453,8 +453,9 @@ class GMPE(object):
 
 			## Integrate explicitly over epsilon
 			for e in range(len(eps_pga_list)):
+				## Sum epsilon probabilities only for PGA values larger than iml,
+				## in order to obtain the exceedance probability
 				joint_exceedance_prob[pga_eps_pga_list[e] > iml] += (prob_eps_list[e] * cav_exceedance_prob[e])
-				#joint_exceedance_prob[pga_eps_pga_list[e] <= iml] = (prob_eps_list[e] * cav_exceedance_prob[e])
 
 		else:
 			sa_exceedance_prob = self.get_exceedance_probability(iml, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, truncation_level=truncation_level)
@@ -466,6 +467,11 @@ class GMPE(object):
 			sigma_ln_sa = np.log(10) * sigma_log_sa
 
 			ln_iml = np.log(iml)
+			eps_iml = self.get_epsilon(iml, M, d, h=h, imt="SA", T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+			print iml[-7:]
+			print eps_iml[-7:]
+			#pga_med = self.__call__(M, d, h=h, imt="PA", T=0, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+			#iml_pga = pga_med + eps_iml / b1
 
 			## Eq. 3-3
 			sigma_ln_sa_given_pga = np.sqrt(1 - b1**2) * sigma_ln_sa
@@ -482,14 +488,15 @@ class GMPE(object):
 				## Determine probability of exceedance of SA given PGA
 				## Eq. 4-3
 				#idxs = np.where(ln_sa_given_pga > ln_iml)
+				#idxs = np.where(eps_pga > eps_iml/b1)
 				eps_sa_dot = (ln_iml - ln_sa_given_pga) / sigma_ln_sa_given_pga
 				#eps_sa_dot = eps_sa_dot[idxs]
 				print eps_sa_dot[-5:]
 				## Eq. 4-2
-				prob_sa_given_pga = 1.0 - eps_dist.cdf(eps_sa_dot)
-				print prob_sa_given_pga[-5:]
+				poe_sa_given_pga = 1.0 - eps_dist.cdf(eps_sa_dot)
+				print poe_sa_given_pga[-5:]
 
-				joint_exceedance_prob += (prob_eps_list[e] * cav_exceedance_prob[e] * prob_sa_given_pga)
+				joint_exceedance_prob += (prob_eps_list[e] * cav_exceedance_prob[e] * poe_sa_given_pga)
 				#joint_exceedance_prob[idxs] += (cav_exceedance_prob[e] * prob_sa_given_pga)
 
 			## iml values close to truncation boundaries should have lower exceedance rates
@@ -3454,14 +3461,14 @@ class RietbrockEtAl2013(NhlibGMPE):
 		dmin, dmax = 1., 300.
 		Mtype = "MW"
 		dampings = [5.]
-		
+
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
-	
+
 	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
-	
+
 	def plot_Figure4(self, T=0):
 		"""
 		Plot Figure 4 on p. 69.
@@ -3474,6 +3481,25 @@ class RietbrockEtAl2013(NhlibGMPE):
 		else:
 			imt = "SA"
 		self.plot_distance(mags=[4., 6.], imt=imt, imt_unit="cms2", T=T, soil_type="hard rock", dmin=1, dmax=300, amin=0.01, amax=2000)
+
+
+class PezeshkEtAl2011(NhlibGMPE):
+	def __init__(self):
+		name, short_name = "PezeshkEtAl2011", "Pz_2011"
+		distance_metric = "Rupture"
+		# TODO !!
+		Mmin, Mmax = 2.0, 4.7
+		dmin, dmax = 1., 300.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+		"""
+		"""
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
+
 
 def adjust_hard_rock_to_rock(imt, periods, gm, gm_logsigma=None):
 	"""
