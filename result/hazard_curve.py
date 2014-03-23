@@ -138,6 +138,10 @@ class ExceedanceRateArray(HazardCurveArray):
 
 
 class ProbabilityArray(HazardCurveArray):
+	def __add__(self, other):
+		assert isinstance(other, ProbabilityArray)
+		return ProbabilityArray(1 - ((1 - self.array) * (1 - other.array)))
+
 	def to_exceedance_rates(self, timespan):
 		return 1. / Poisson(life_time=timespan, prob=self.array)
 
@@ -154,7 +158,7 @@ class ProbabilityArray(HazardCurveArray):
 		return Poisson(prob=self.array, life_time=timespan)
 
 	def mean(self, axis, weights=None):
-		## esceedance probabilities are not additive, but non-exceedance
+		## exceedance probabilities are not additive, but non-exceedance
 		## probabilities are multiplicative, so the logs of non-exceedance
 		## probabilities are additive. So, we can take the mean of these logs,
 		## take the exponent to obtain the mean non-exceedance probability,
@@ -185,6 +189,15 @@ class HazardResult:
 		self.IMT = IMT
 		self.intensities = as_array(intensities)
 		self.intensity_unit = intensity_unit
+
+	def __add__(self, other_result):
+		assert isinstance(other_result, self.__class__)
+		assert self.timespan == other_result.timespan
+		assert self.IMT == other_result.IMT
+		assert self.intensities == other_result.intensities
+		assert self.intensity_unit == other_result.intensity_unit
+		hazard_values = self._hazard_values + other_result._hazard_values
+		return self.__class__(hazard_values, self.timespan, self.IMT, self.intensities, self.intensity_unit)
 
 	@property
 	def num_intensities(self):
