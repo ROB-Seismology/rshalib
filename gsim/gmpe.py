@@ -3454,6 +3454,9 @@ class ZhaoEtAl2006Asc(NhlibGMPE):
 
 
 class RietbrockEtAl2013(NhlibGMPE):
+	"""
+	VS30 ~2300 m/s
+	"""
 	def __init__(self):
 		name, short_name = "RietbrockEtAl2013", "R_2013"
 		distance_metric = "Joyner-Boore"
@@ -3467,6 +3470,9 @@ class RietbrockEtAl2013(NhlibGMPE):
 	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
+		if vs30 is None:
+			if not soil_type in ("generic rock", "hard rock"):
+				raise SoilTypeNotSupportedError(soil_type)
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
 
 	def plot_Figure4(self, T=0):
@@ -3484,6 +3490,9 @@ class RietbrockEtAl2013(NhlibGMPE):
 
 
 class PezeshkEtAl2011(NhlibGMPE):
+	"""
+	VS30 >= 2000 m/s
+	"""
 	def __init__(self):
 		name, short_name = "PezeshkEtAl2011", "Pz_2011"
 		distance_metric = "Rupture"
@@ -3498,6 +3507,9 @@ class PezeshkEtAl2011(NhlibGMPE):
 	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
+		if vs30 is None:
+			if not soil_type in ("generic rock", "hard rock"):
+				raise SoilTypeNotSupportedError(soil_type)
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
 
 
