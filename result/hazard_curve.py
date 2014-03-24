@@ -3004,6 +3004,17 @@ class UHS(HazardResult, HazardSpectrum):
 		else:
 			return intensity
 
+	def __add__(self, other_uhs):
+		assert self.site == other_uhs.site
+		assert self.IMT == other_uhs.IMT
+		assert self.periods == other_uhs.periods
+		assert self.intensity_unit == other_uhs.intensity_unit
+		assert self.timespan == other_uhs.timespan
+		assert self.poe == other_uhs.poe
+		assert self.return_period == other_uhs.return_period
+		intensities = self.intensities + other_uhs.intensities
+		return UHS(self.model_name, self.filespec, self.site, self.periods, self.IMT, intensities, intensity_unit=self.intensity_unit, timespan=self.timespan, poe=self.poe, return_period=self.return_period)
+
 	@property
 	def poe(self):
 		return self.poes[0]
