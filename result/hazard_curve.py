@@ -190,15 +190,6 @@ class HazardResult:
 		self.intensities = as_array(intensities)
 		self.intensity_unit = intensity_unit
 
-	def __add__(self, other_result):
-		assert isinstance(other_result, self.__class__)
-		assert self.timespan == other_result.timespan
-		assert self.IMT == other_result.IMT
-		assert self.intensities == other_result.intensities
-		assert self.intensity_unit == other_result.intensity_unit
-		hazard_values = self._hazard_values + other_result._hazard_values
-		return self.__class__(hazard_values, self.timespan, self.IMT, self.intensities, self.intensity_unit)
-
 	@property
 	def num_intensities(self):
 		return self.intensities.shape[-1]
@@ -2401,6 +2392,17 @@ class HazardCurve(HazardResult):
 		"""
 		return self.num_intensities
 
+	def __add__(self, other_hc):
+		assert isinstance(other_hc, HazardCurve)
+		assert self.site == other_hc.site
+		assert self.IMT == other_hc.IMT
+		assert self.period == other_hc.period
+		assert (self.intensities == other_hc.intensities).all()
+		assert self.intensity_unit == other_hc.intensity_unit
+		assert self.timespan == other_hc.timespan
+		hazard_values = self._hazard_values + other_hc._hazard_values
+		return self.__class__(self.model_name, hazard_values, self.filespec, self.site, self.period, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+
 	@property
 	def site_name(self):
 		return self.site.name
@@ -3005,9 +3007,10 @@ class UHS(HazardResult, HazardSpectrum):
 			return intensity
 
 	def __add__(self, other_uhs):
+		assert isinstance(other_uhs, UHS)
 		assert self.site == other_uhs.site
 		assert self.IMT == other_uhs.IMT
-		assert self.periods == other_uhs.periods
+		assert (self.periods == other_uhs.periods).all()
 		assert self.intensity_unit == other_uhs.intensity_unit
 		assert self.timespan == other_uhs.timespan
 		assert self.poe == other_uhs.poe
