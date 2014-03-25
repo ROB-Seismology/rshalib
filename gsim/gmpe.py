@@ -3442,12 +3442,12 @@ class ZhaoEtAl2006Asc(NhlibGMPE):
 		self.plot_distance(mags=[5., 6., 7., 8.], mechanism="strike-slip", soil_type="SC II", dmin=1, dmax=400, amin=5E-4, amax=3.0, plot_style="loglog")
 
 
-class RietbrockEtAl2013(NhlibGMPE):
+class RietbrockEtAl2013SS(NhlibGMPE):
 	"""
 	VS30 ~2300 m/s
 	"""
 	def __init__(self):
-		name, short_name = "RietbrockEtAl2013", "R_2013"
+		name, short_name = "RietbrockEtAl2013SS", "R_2013SS"
 		distance_metric = "Joyner-Boore"
 		Mmin, Mmax = 2.0, 4.7
 		dmin, dmax = 1., 300.
@@ -3476,6 +3476,21 @@ class RietbrockEtAl2013(NhlibGMPE):
 		else:
 			imt = "SA"
 		self.plot_distance(mags=[4., 6.], imt=imt, imt_unit="cms2", T=T, soil_type="hard rock", dmin=1, dmax=300, amin=0.01, amax=2000)
+
+
+class RietbrockEtAl2013MD(RietbrockEtAl2013SS):
+	"""
+	VS30 ~2300 m/s
+	"""
+	def __init__(self):
+		name, short_name = "RietbrockEtAl2013MD", "R_2013MD"
+		distance_metric = "Joyner-Boore"
+		Mmin, Mmax = 2.0, 4.7
+		dmin, dmax = 1., 300.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
 
 class PezeshkEtAl2011(NhlibGMPE):
