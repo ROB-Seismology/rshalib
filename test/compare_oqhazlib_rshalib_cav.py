@@ -16,8 +16,8 @@ h = 0
 vs30 = np.array([800])
 kappa = None
 mechanism = "normal"
-im = "SA"
-T = 0.5
+T = 0.
+im = {True: "PGA", False: "SA"}[T == 0]
 damping = 5
 imls = np.arange(0.1, 1.0, 0.1)
 truncation_level = 3
@@ -27,10 +27,20 @@ eps_correlation_model = "EUS"
 
 sctx, rctx, dctx, imt = gmpe._get_contexts_and_imt(M, d, h, vs30, kappa, mechanism, im, T, damping)
 
+rshalib_poes_cav = rshalib.cav.calc_CAV_exceedance_prob(imls, M, vs30[0], CAVmin=cav_min)
+oqhazlib_poes_cav = oqhazlib.gsim.cav.calc_CAV_exceedance_prob(np.log(imls), rctx.mag, list(sctx.vs30) * len(imls), cav_min=cav_min)
+print rshalib_poes_cav
+print oqhazlib_poes_cav
+print np.allclose(rshalib_poes_cav, oqhazlib_poes_cav)
+
+print
+
 rshalib_poes = gmpe.get_exceedance_probability(imls, M, d, imt=im, T=T, vs30=vs30, kappa=kappa, mechanism=mechanism, truncation_level=truncation_level)
 oqhazlib_poes = oqgmpe.get_poes(sctx, rctx, dctx, imt, imls, truncation_level)
-#print rshalib_poes
-#print oqhazlib_poes
+oqhazlib_poes2 = oqgmpe.get_poes_cav(sctx, rctx, dctx, imt, imls, truncation_level, cav_min=0.)
+print rshalib_poes
+print oqhazlib_poes2
+print np.allclose(rshalib_poes, oqhazlib_poes2)
 
 print
 
@@ -38,3 +48,4 @@ rshalib_poes_cav = gmpe.get_exceedance_probability_cav(imls, M, d, imt=im, T=T, 
 oqhazlib_poes_cav = oqgmpe.get_poes_cav(sctx, rctx, dctx, imt, imls, truncation_level, cav_min=cav_min, depsilon=depsilon, eps_correlation_model=eps_correlation_model)
 print rshalib_poes_cav
 print oqhazlib_poes_cav
+print np.allclose(rshalib_poes_cav, oqhazlib_poes_cav)
