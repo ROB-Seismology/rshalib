@@ -7,6 +7,7 @@ Blueprint for classes representing hazard results of both OpenQuake and CRISIS
 
 ### imports
 import os, sys
+from decimal import Decimal
 import numpy as np
 
 from scipy.stats import scoreatpercentile
@@ -141,6 +142,10 @@ class ProbabilityArray(HazardCurveArray):
 	def __add__(self, other):
 		assert isinstance(other, ProbabilityArray)
 		return ProbabilityArray(1 - ((1 - self.array) * (1 - other.array)))
+
+	def __mul__(self, number):
+		assert isinstance(number, (int, float))
+		return ProbabilityArray(1 - np.exp(np.log(1 - self.array) * number))
 
 	def to_exceedance_rates(self, timespan):
 		return 1. / Poisson(life_time=timespan, prob=self.array)
@@ -1897,16 +1902,14 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 			(default: None)
 		site_name: site name (default: "")
 	"""
-	def __init__(self, model_name, hazard_values, filespec, site, periods, IMT, intensities, intensity_unit="g", timespan=50, poes=None, exceedance_rates=None, variances=None, site_name=""):
+	# TODO: update docstring
+	def __init__(self, model_name, hazard_values, filespec, site, periods, IMT, intensities, intensity_unit="g", timespan=50, variances=None):
 		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
 		HazardSpectrum.__init__(self, periods)
 		self.model_name = model_name
 		self.filespec = filespec
 		self.site = site
 		self.variances = as_array(variances)
-		if not site_name:
-			site_name = str(site)
-		self.site_name = site_name
 		self.period_axis = 0
 
 	def __iter__(self):
@@ -1927,6 +1930,39 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 
 	def __getitem__(self, period_spec):
 		return self.getHazardCurve(period_spec)
+
+	def __add__(self, other_shc):
+		"""
+		:param other_shc:
+			instance of :class:`SpectralHazardCurve`
+
+		:return:
+			instance of :class:`SpectralHazardCurve`
+		"""
+		assert isinstance(other_shc, SpectralHazardCurve)
+		assert self.site == other_shc.site
+		assert self.IMT == other_shc.IMT
+		assert (self.periods == other_shc.periods).all()
+		assert (self.intensities == other_shc.intensities).all()
+		assert self.intensity_unit == other_shc.intensity_unit
+		assert self.timespan == other_shc.timespan
+		hazard_values = self._hazard_values + other_shc._hazard_values
+		return self.HazardCurveField(self.model_name, hazard_values, self.filespec, self.site, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+
+	def __mul__(self, number):
+		"""
+		:param number:
+			int, float or Decimal
+
+		:return:
+			instance of :class:`SpectralHazardCurve`
+		"""
+		assert isinstance(number, (int, float, Decimal))
+		hazard_values = self._hazard_values * number
+		return self.HazardCurveField(self.model_name, hazard_values, self.filespec, self.site, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+
+	def __rmul__(self, number):
+		return self.__mul__(number)
 
 	def min(self):
 		pass
@@ -2393,6 +2429,13 @@ class HazardCurve(HazardResult):
 		return self.num_intensities
 
 	def __add__(self, other_hc):
+		"""
+		:param other_hc:
+			instance of :class:`HazardCurve`
+
+		:return:
+			instance of :class:`HazardCurve`
+		"""
 		assert isinstance(other_hc, HazardCurve)
 		assert self.site == other_hc.site
 		assert self.IMT == other_hc.IMT
@@ -2401,7 +2444,22 @@ class HazardCurve(HazardResult):
 		assert self.intensity_unit == other_hc.intensity_unit
 		assert self.timespan == other_hc.timespan
 		hazard_values = self._hazard_values + other_hc._hazard_values
-		return self.__class__(self.model_name, hazard_values, self.filespec, self.site, self.period, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+		return HazardCurve(self.model_name, hazard_values, self.filespec, self.site, self.period, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+
+	def __mul__(self, number):
+		"""
+		:param number:
+			int, float or Decimal
+
+		:return:
+			instance of :class:`HazardCurve`
+		"""
+		assert isinstance(number, (int, float, Decimal))
+		hazard_values = self._hazard_values * number
+		return HazardCurve(self.model_name, hazard_values, self.filespec, self.site, self.period, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+
+	def __rmul__(self, number):
+		return self.__mul__(number)
 
 	@property
 	def site_name(self):
@@ -3007,16 +3065,7 @@ class UHS(HazardResult, HazardSpectrum):
 			return intensity
 
 	def __add__(self, other_uhs):
-		assert isinstance(other_uhs, UHS)
-		assert self.site == other_uhs.site
-		assert self.IMT == other_uhs.IMT
-		assert (self.periods == other_uhs.periods).all()
-		assert self.intensity_unit == other_uhs.intensity_unit
-		assert self.timespan == other_uhs.timespan
-		assert self.poe == other_uhs.poe
-		assert self.return_period == other_uhs.return_period
-		intensities = self.intensities + other_uhs.intensities
-		return UHS(self.model_name, self.filespec, self.site, self.periods, self.IMT, intensities, intensity_unit=self.intensity_unit, timespan=self.timespan, poe=self.poe, return_period=self.return_period)
+		raise Exception("UHSs cannot gennerally be summed!")
 
 	@property
 	def poe(self):
