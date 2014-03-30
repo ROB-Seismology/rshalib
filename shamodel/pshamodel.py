@@ -1681,7 +1681,7 @@ class PSHAModelTree(PSHAModelBase):
 		num_gmpelt_paths = self.gmpe_logic_tree.get_num_paths()
 		return num_smlt_paths * num_gmpelt_paths
 
-	def sample_logic_trees(self, num_samples=None, enumerate_gmpe_lt=False, verbose=False):
+	def sample_logic_trees(self, num_samples=None, enumerate_gmpe_lt=False, skip_samples=0, verbose=False):
 		"""
 		Sample both source-model and GMPE logic trees, in a way that is
 		similar to :meth:`_initialize_realizations_montecarlo` of
@@ -1694,6 +1694,8 @@ class PSHAModelTree(PSHAModelBase):
 		:param enumerate_gmpe_lt:
 			bool, whether or not to enumerate the GMPE logic tree
 			(default: False)
+		:param skip_samples:
+			int, number of samples to skip (default: 0)
 		:param verbose:
 			bool, whether or not to print some information (default: False)
 
@@ -1713,7 +1715,7 @@ class PSHAModelTree(PSHAModelBase):
 			gmpe_models_weights = self.enumerate_gmpe_lt(verbose=verbose)
 			gmpelt_paths = self.gmpe_lt.root_branchset.enumerate_paths()
 
-		for i in xrange(num_samples):
+		for i in xrange(num_samples + skip_samples):
 			## Generate 2nd-order random seeds
 			smlt_random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
 			gmpelt_random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
@@ -1722,18 +1724,19 @@ class PSHAModelTree(PSHAModelBase):
 			sm_name, smlt_path = self.ltp.sample_source_model_logictree(smlt_random_seed)
 			gmpelt_path = self.ltp.sample_gmpe_logictree(gmpelt_random_seed)
 
-			## Convert to objects
-			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
-			if not enumerate_gmpe_lt:
-				gmpe_models_weights = [(self._gmpe_sample_to_gmpe_model(gmpelt_path), 1.)]
-				gmpelt_paths = [gmpelt_path]
+			if i > skip_samples:
+				## Convert to objects
+				source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
+				if not enumerate_gmpe_lt:
+					gmpe_models_weights = [(self._gmpe_sample_to_gmpe_model(gmpelt_path), 1.)]
+					gmpelt_paths = [gmpelt_path]
 
-			for (gmpe_model, gmpelt_weight), gmpelt_path in zip(gmpe_models_weights, gmpelt_paths):
-				## Convert to PSHA model
-				name = "%s, LT sample %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i+1, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
-				psha_model = self._get_psha_model(source_model, gmpe_model, name)
-				psha_models_weights.append((psha_model, gmpelt_weight/num_samples))
-				#yield (psha_model, gmpelt_weight)
+				for (gmpe_model, gmpelt_weight), gmpelt_path in zip(gmpe_models_weights, gmpelt_paths):
+					## Convert to PSHA model
+					name = "%s, LT sample %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i+1, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
+					psha_model = self._get_psha_model(source_model, gmpe_model, name)
+					psha_models_weights.append((psha_model, gmpelt_weight/num_samples))
+					#yield (psha_model, gmpelt_weight)
 
 			## Update the seed for the next realization
 			seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
