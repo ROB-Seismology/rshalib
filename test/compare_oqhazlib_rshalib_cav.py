@@ -2,6 +2,7 @@
 Test CAV implementation in openquake.hazardlib
 """
 
+import datetime
 import numpy as np
 import openquake.hazardlib as oqhazlib
 import hazard.rshalib as rshalib
@@ -44,8 +45,14 @@ print np.allclose(rshalib_poes, oqhazlib_poes2)
 
 print
 
+start = datetime.datetime.now()
 rshalib_poes_cav = gmpe.get_exceedance_probability_cav(imls, M, d, imt=im, T=T, vs30=vs30, kappa=kappa, mechanism=mechanism, truncation_level=truncation_level, cav_min=cav_min, depsilon=depsilon, eps_correlation_model=eps_correlation_model)
+end = datetime.datetime.now()
+print end - start
+start = datetime.datetime.now()
 oqhazlib_poes_cav = oqgmpe.get_poes_cav(sctx, rctx, dctx, imt, imls, truncation_level, cav_min=cav_min, depsilon=depsilon, eps_correlation_model=eps_correlation_model)
+end = datetime.datetime.now()
+print end - start
 print rshalib_poes_cav
 print oqhazlib_poes_cav
 print np.allclose(rshalib_poes_cav, oqhazlib_poes_cav)

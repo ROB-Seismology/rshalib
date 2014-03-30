@@ -2,6 +2,7 @@
 Test CAV filtering in openquake.hazardlib
 """
 
+import datetime
 import openquake.hazardlib as oqhazlib
 import hazard.rshalib as rshalib
 
@@ -37,8 +38,10 @@ grid_spacing = '10km'
 soil_site_model = None
 
 ## Intensity measure type, spectral periods, and intensity levels
-imt_periods = {'PGA': [0]}
+#imt_periods = {'PGA': [0]}
 #imt_periods = {'SA': [0.1]}
+imt_periods = {'PGA': [0], 'SA': [0.05, 0.067, 0.1, 0.13, 0.2, 0.25, 0.33, 0.4, 0.5, 0.67, 1., 2.]}
+
 Imin = 1E-3
 Imax = 1.0
 num_intensities = 25
@@ -104,7 +107,11 @@ psha_model = rshalib.shamodel.PSHAModel(psha_model_name, source_model, ground_mo
 ### Run
 imt = imt_periods.keys()[0]
 shcf = psha_model.calc_shcf(cav_min=0.)[imt]
+start = datetime.datetime.now()
 shcf_cav = psha_model.calc_shcf(cav_min=0.16)[imt]
+end = datetime.datetime.now()
+print
+print end - start
 
 hc = shcf.getHazardCurve()
 hc_cav = shcf_cav.getHazardCurve()
@@ -113,3 +120,10 @@ hcc = rshalib.result.HazardCurveCollection([hc, hc_cav], labels=["No CAV", "CAV-
 title = "%s (T = %s s)" % (imt, imt_periods[imt][0])
 hcc.plot(title=title)
 
+for rp in return_periods:
+	uhs = shcf.getSpectralHazardCurve(site_spec=0).interpolate_return_period(rp)
+	uhs_cav = shcf_cav.getSpectralHazardCurve(site_spec=0).interpolate_return_period(rp)
+
+	uhsc = rshalib.result.UHSCollection([uhs, uhs_cav], labels=["No CAV", "CAV-filtered"])
+	title = "UHS TR=%s yr" % rp
+	uhsc.plot(title=title)
