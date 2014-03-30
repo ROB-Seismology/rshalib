@@ -144,8 +144,8 @@ class ProbabilityArray(HazardCurveArray):
 		return ProbabilityArray(1 - ((1 - self.array) * (1 - other.array)))
 
 	def __mul__(self, number):
-		assert isinstance(number, (int, float))
-		return ProbabilityArray(1 - np.exp(np.log(1 - self.array) * number))
+		assert isinstance(number, (int, float, Decimal))
+		return ProbabilityArray(1 - np.exp(np.log(1 - self.array) * float(number)))
 
 	def to_exceedance_rates(self, timespan):
 		return 1. / Poisson(life_time=timespan, prob=self.array)
@@ -1947,7 +1947,7 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 		assert self.intensity_unit == other_shc.intensity_unit
 		assert self.timespan == other_shc.timespan
 		hazard_values = self._hazard_values + other_shc._hazard_values
-		return self.HazardCurveField(self.model_name, hazard_values, self.filespec, self.site, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+		return self.__class__(self.model_name, hazard_values, self.filespec, self.site, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
 
 	def __mul__(self, number):
 		"""
@@ -1959,7 +1959,7 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 		"""
 		assert isinstance(number, (int, float, Decimal))
 		hazard_values = self._hazard_values * number
-		return self.HazardCurveField(self.model_name, hazard_values, self.filespec, self.site, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+		return self.__class__(self.model_name, hazard_values, self.filespec, self.site, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
 
 	def __rmul__(self, number):
 		return self.__mul__(number)
@@ -2444,7 +2444,7 @@ class HazardCurve(HazardResult):
 		assert self.intensity_unit == other_hc.intensity_unit
 		assert self.timespan == other_hc.timespan
 		hazard_values = self._hazard_values + other_hc._hazard_values
-		return HazardCurve(self.model_name, hazard_values, self.filespec, self.site, self.period, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+		return self.__class__(self.model_name, hazard_values, self.filespec, self.site, self.period, self.IMT, self.intensities, self.intensity_unit, self.timespan)
 
 	def __mul__(self, number):
 		"""
@@ -2456,7 +2456,7 @@ class HazardCurve(HazardResult):
 		"""
 		assert isinstance(number, (int, float, Decimal))
 		hazard_values = self._hazard_values * number
-		return HazardCurve(self.model_name, hazard_values, self.filespec, self.site, self.period, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+		return self.__class__(self.model_name, hazard_values, self.filespec, self.site, self.period, self.IMT, self.intensities, self.intensity_unit, self.timespan)
 
 	def __rmul__(self, number):
 		return self.__mul__(number)
