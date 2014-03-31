@@ -513,6 +513,7 @@ class PSHAModelBase(SHAModelBase):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
+		# TODO: we should add im parameter
 		from ..openquake import parse_hazard_curves, parse_spectral_hazard_curve_field
 
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
@@ -1403,11 +1404,21 @@ class PSHAModel(PSHAModelBase):
 				lon, lat = site.location.longitude, site.location.latitude
 			site_imtls[(lon, lat)] = OrderedDict()
 
+		## Read hazard_curve_multi if it exists
+		try:
+			shcf = self.read_oq_shcf(curve_name, calc_id=calc_id)
+		except:
+			shcf = None
+
 		for im in sorted(imt_periods.keys()):
 			for T in sorted(imt_periods[im]):
 				imt = self._construct_imt(im, T)
 
-				hcf = self.read_oq_hcf(curve_name, im, T, calc_id=calc_id)
+				if shcf:
+					hcf = shcf.getHazardCurveField(period_spec=T)
+				else:
+					## Read individual hazard curves if there is no shcf
+					hcf = self.read_oq_hcf(curve_name, im, T, calc_id=calc_id)
 				for i, site in enumerate(sites):
 					try:
 						site_name = site.name
