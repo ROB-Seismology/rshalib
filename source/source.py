@@ -1378,6 +1378,7 @@ class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 		Angle describing fault rake in decimal degrees.
 
 	"""
+	# TODO: add bg_zone parameter as for SimpleFaultSource
 	def __init__(self, source_id, name, tectonic_region_type, mfd, rupture_mesh_spacing, magnitude_scaling_relationship, rupture_aspect_ratio, edges, rake):
 		super(ComplexFaultSource, self).__init__(source_id=source_id,
 				name=name,

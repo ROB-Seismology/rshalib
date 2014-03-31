@@ -294,6 +294,26 @@ class SourceModel():
 				num_decomposed_sources.append(1)
 		return num_decomposed_sources
 
+	def is_background_source(self, src_id):
+		"""
+		Determine if a particular source represents a background source
+
+		:param src_id:
+			str, source ID
+
+		:return:
+			bool
+		"""
+		src = self.__getitem__(src_id)
+		if not isinstance(src, AreaSource):
+			return False
+		else:
+			for flt in self.get_simple_fault_sources():
+				if flt.bg_zone == src_id:
+					return True
+			else:
+				return False
+
 
 
 if __name__ == '__main__':
