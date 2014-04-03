@@ -281,6 +281,51 @@ class SourceModel():
 				sources.append(src)
 		return SourceModel(self.name, sources, self.description)
 
+	def get_tectonic_region_types(self):
+		"""
+		Return list of unique tectonic region types in the source model
+
+		:return:
+			list of strings
+		"""
+		trts = set([src.tectonic_region_type for src in self.sources])
+		return list(trts)
+
+	def split_by_trt(self):
+		"""
+		Split source model by tectonic region type
+
+		:return:
+			dict mapping tectonic region types (strings) to instances of
+			:class:`SourceModel`
+		"""
+		trts = self.get_tectonic_region_types()
+		source_model_dict = {}
+		for trt in trts:
+			source_model_dict[trt] = []
+		for src in self.sources:
+			source_model_dict[src.tectonic_region_type].append(src)
+		for trt in trts:
+			trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
+			name = "%s -- %s" % (self.name, trt_short_name)
+			sources = source_model_dict[trt]
+			source_model_dict[trt] = SourceModel(name, sources, self.description)
+		return source_model_dict
+
+	def split_by_source(self):
+		"""
+		Split source model into source models containing one source each
+
+		:return:
+			list with instances of :class:`SourceModel`
+		"""
+		source_model_list = []
+		for src in self.sources:
+			name = "%s -- %s" % (self.name, src.source_id)
+			source_model = SourceModel(name, [src], self.description)
+			source_model_list.append(source_model)
+		return source_model_list
+
 	def get_num_decomposed_sources(self):
 		"""
 		Return list with number of decomposed sources for each source.
