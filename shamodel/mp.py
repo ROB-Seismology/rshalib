@@ -47,9 +47,29 @@ def run_parallel(func, job_arg_list, num_processes, shared_arr=None, verbose=Tru
 		pool = multiprocessing.Pool(processes=num_processes)
 	else:
 		pool = multiprocessing.Pool(processes=num_processes, initializer=init_shared_arr, initargs=(shared_arr,))
-	result = pool.map(func, job_arg_list, chunksize=1)
+	print len(job_arg_list)
+	print job_arg_list[0]
+	job_arg_list = [(func, job_args) for job_args in job_arg_list]
+	print len(job_arg_list)
+	print job_arg_list[0]
+	result = pool.map(mp_func_wrapper, job_arg_list, chunksize=1)
 	pool.close()
 	return result
+
+
+def mp_func_wrapper((func, args)):
+	"""
+	Wrapper function to be used with multiprocessing pool.map
+
+	:param func:
+		function object
+	:param args:
+		tuple or list with arguments for :param:`func`
+
+	:return:
+		return value of :param:`func`
+	"""
+	return func(*args)
 
 
 def init_shared_arr(shared_arr_):
@@ -60,15 +80,13 @@ def init_shared_arr(shared_arr_):
 	shared_arr = shared_arr_ # must be inhereted, not passed as an argument
 
 
-def calc_shcf_by_source((psha_model, source, cav_min, verbose)):
+def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 	"""
 	Stand-alone function that will compute hazard curves for a single
 	source.
 	Note:
 		- all necessary parameters have to provided, so as not to depend
 		  on variables defined elsewhere
-		- all parameters are combined in a single tuple to facilitate
-		  passing of arguments to pool.map()
 
 	:param psha_model:
 		instance of :class:`PSHAModel`
@@ -118,15 +136,13 @@ def calc_shcf_by_source((psha_model, source, cav_min, verbose)):
 	return curves
 
 
-def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, verbose)):
+def calc_shcf_psha_model(psha_model, sample_idx, cav_min, combine_pga_and_sa, verbose):
 	"""
 	Stand-alone function that will compute hazard curves for a single
 	logic-tree sample.
 	Note:
 		- all necessary parameters have to provided, so as not to depend
 		  on variables defined elsewhere
-		- all parameters are combined in a single tuple to facilitate
-		  passing of arguments to pool.map()
 
 	:param psha_model:
 		instace of :class:`PSHAModel`
@@ -168,11 +184,14 @@ def calc_shcf_psha_model((psha_model, sample_idx, cav_min, combine_pga_and_sa, v
 		return 0
 
 
-def deaggregate_by_source((psha_model, source, src_idx, deagg_matrix_shape, site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose)):
+def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape, site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose):
 	"""
 	Stand-alone function that will deaggregate for a single source.
 	The computed non-exceedance probabilities will be multiplied with
 	the full 9-D deaggregation matrix in shared memory.
+	Note:
+		- all necessary parameters have to provided, so as not to depend
+		  on variables defined elsewhere
 
 	:param psha_model:
 		instance of :class:`PSHAModel`
@@ -311,7 +330,7 @@ def deaggregate_by_source((psha_model, source, src_idx, deagg_matrix_shape, site
 		return 0
 
 
-def deaggregate_psha_model((psha_model, sample_idx, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, verbose)):
+def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, verbose):
 	"""
 	Stand-alone function that will deaggregate a single logic-tree sample.
 	Intensity measure levels corresponding to psha_model.return_periods
@@ -320,8 +339,6 @@ def deaggregate_psha_model((psha_model, sample_idx, deagg_sites, deagg_imt_perio
 	Note:
 		- all necessary parameters have to provided, so as not to depend
 		  on variables defined elsewhere
-		- all parameters are combined in a single tuple to facilitate
-		  passing of arguments to pool.map()
 
 	:param psha_model:
 		instace of :class:`PSHAModel`
