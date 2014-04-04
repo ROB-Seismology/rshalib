@@ -249,6 +249,35 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 			branch.parent_branchset = branchset
 		return branchset
 
+	def to_pmf_dict(self, source_model):
+		"""
+		Convert branch set back to a PMF
+
+		:param source_model:
+			instance of :class:`rshalib.source.SourceModel`
+		:return:
+			dict mapping source IDs to lists with instances of :class:`rshalib.pmf.PMF`
+		"""
+		pmf_dict = {}
+		values = [b.value for b in self.branches]
+		weights = [b.weight for b in self.branches]
+		for src in source_model:
+			if self.filter_source(src):
+				if isinstance(values[0], dict):
+					src_values = [val[src.source_id] for val in values]
+				else:
+					src_values = values
+				if self.uncertainty_type == "sourceModel":
+					pmf = SourceModelPMF(src_values, weights)
+				elif self.uncertainty_type == "gmpeModel":
+					pmf = GMPEPMF(src_values, weights)
+				elif self.uncertainty_type in ("maxMagGRAbsolute", "maxMagGRRelative"):
+					pmf = MmaxPMF(src_values, weights)
+				elif self.uncertainty_type in ("bGRRelative", "abGRAbsolute", "incrementalMFDRates"):
+					pmf = MFDPMF(src_values, weights)
+				pmf_dict[src.source_id] = pmf
+		return pmf_dict
+
 	def validate_weights(self):
 		"""
 		Check if weights of child branches sums up to 1.0

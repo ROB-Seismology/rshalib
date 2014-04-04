@@ -166,6 +166,68 @@ class SeismicSourceSystem(LogicTree):
 
 		return bl_branch_ids
 
+	def get_bl_branchsets(self):
+		"""
+		Construct lists of branch sets in each branching level for each
+		root branch.
+		Requires branches to be connected (see :meth:`connect_branches`)
+		Present implementation also assumes that uncertainties are independent,
+		i.e. there is only one branch set in each branching level that is linked
+		to a given root branch.
+
+		:return:
+			dict, mapping root branch ID to a list of branch sets in each
+			branching level
+		"""
+		bl_branch_sets = {}
+		for root_branch in self.root_branchset:
+			sm_name = os.path.splitext(root_branch.value)[0]
+			bl_branch_sets[sm_name] = []
+
+		for prev_bl_index, branching_level in enumerate(self.branching_levels[1:]):
+			bl_index = prev_bl_index + 1
+			for branchset in branching_level.branch_sets:
+				parent_branches = self.get_parent_branches(branchset)
+				for sm_name in bl_branch_sets.keys():
+					if prev_bl_index == 0:
+						for parent_branch in parent_branches:
+							if os.path.splitext(parent_branch.value)[0] == sm_name:
+								bl_branch_sets[sm_name].append(branchset)
+					else:
+						if len(bl_branch_sets[sm_name]) == prev_bl_index:
+							for parent_branch in parent_branches:
+								if parent_branch.branch_id in [b.branch_id for b in bl_branch_sets[sm_name][prev_bl_index-1].branches]:
+									if len(bl_branch_sets[sm_name]) == prev_bl_index:
+										bl_branch_sets[sm_name].append(branchset)
+
+		return bl_branch_sets
+
+	def enumerate_by_source(self, source_model, src):
+		"""
+		"""
+		import copy
+
+		branch_sets = self.get_bl_branchsets()[source_model.name]
+
+		src_branch_sets = []
+		for bs in branch_sets:
+			if bs.filter_source(src):
+				src_branch_sets.append(bs)
+
+		bs0 = src_branch_sets[0]
+		for branch in bs0.branches:
+			## Note: copy MFD explicitly, as not all source attributes are
+			## instantiated properly when deepcopy is used!
+			modified_src = copy.copy(src)
+			modified_src.mfd = src.mfd.get_copy()
+			bs0.apply_uncertainty(branch.value, modified_src)
+
+			for bl_index in range(1, len(src_branch_sets)):
+				bs = src_branch_sets[bl_index]
+				for branch in bs.branches:
+					bs.apply_uncertainty(branch.value, modified_src)
+					yield(modified_src, branch.weight)
+
 	def set_root_uncertainty_level(self, source_model_pmf, overwrite=False):
 		"""
 		Set root uncertainty level (corresponding to source-model uncertainties)
