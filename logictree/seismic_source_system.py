@@ -244,20 +244,21 @@ class SeismicSourceSystem(LogicTree):
 			branch_path is a list with instances of :class:`LogicTreeBranch`
 		"""
 		src_branch_sets = self.get_source_branch_sets(source_model_name, src)
-		bs0 = src_branch_sets[0]
-		branch_path = [""] * len(src_branch_sets)
-		for branch in bs0.branches:
-			branch_path[0] = branch
-			weight = branch.weight
+		if len(src_branch_sets):
+			bs0 = src_branch_sets[0]
+			branch_path = [""] * len(src_branch_sets)
+			for branch in bs0.branches:
+				branch_path[0] = branch
+				weight = branch.weight
 
-			for bl_index in range(1, len(src_branch_sets)):
-				bs = src_branch_sets[bl_index]
-				for b in bs.branches:
-					branch_path[bl_index] = b
-					weight *= b.weight
-			yield (branch_path, weight)
+				for bl_index in range(1, len(src_branch_sets)):
+					bs = src_branch_sets[bl_index]
+					for b in bs.branches:
+						branch_path[bl_index] = b
+						weight *= b.weight
+				yield (branch_path, weight)
 
-	def enumerate_by_source(self, source_model_name, src):
+	def enumerate_source_realizations(self, source_model_name, src):
 		"""
 		Loop over all possible branch paths for a particular source,
 		simultaneously applying logic-tree choices to the source
@@ -285,7 +286,7 @@ class SeismicSourceSystem(LogicTree):
 					## instantiated properly when deepcopy is used!
 					modified_src = copy.copy(src)
 					modified_src.mfd = src.mfd.get_copy()
-				bs = branch.parent_branch
+				bs = branch.parent_branchset
 				bs.apply_uncertainty(branch.value, modified_src)
 			branch_path = [b.branch_id for b in branch_path]
 			yield (modified_src, branch_path, weight)
