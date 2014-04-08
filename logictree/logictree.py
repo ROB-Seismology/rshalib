@@ -102,8 +102,8 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 			the keyword "ALL", which means that the branch set is linked to all
 			branches in the previous branching level (default: "")
 		applyToSources: optional attribute, specifying to which source in a
-			source model the uncertainty applies to. Specified as a string of
-			space-separated source ids (default: "")
+			source model the uncertainty applies to. Specified as a list of
+			strings corresponding to source ids (default: [])
 		applyToSourceType: optional attribute, specifying to which source type
 			the uncertainty applies to. Only one source typology can be defined:
 			area, point, simpleFault or complexFault (default: "")
@@ -140,6 +140,19 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 
 	def __len__(self):
 		return len(self.branches)
+
+	def get_filtered_source_ids(self, source_model):
+		"""
+		Determine which sources in a source model are affected by this
+		branh set
+
+		:param source_model:
+			instance of :class:`rshalib.source.SourceModel`
+
+		:return:
+			list of source IDs (strings)
+		"""
+		return [src.source_id for src in source_model.sources if self.filter_source(src)]
 
 	@classmethod
 	def from_PMF_dict(cls, id, pmf_dict, applyToBranches=[], applyToSourceType="", applyToTectonicRegionType=""):

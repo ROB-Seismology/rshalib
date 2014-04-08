@@ -35,7 +35,10 @@ class SeismicSourceSystem(LogicTree):
 				source_model = source_model_pmf
 				source_model_pmf = SourceModelPMF([source_model], [1])
 			self.set_root_uncertainty_level(source_model_pmf)
-			self.source_models = source_model_pmf.source_models
+
+	@property
+	def source_models(self):
+		return self.source_model_pmf.source_models
 
 	def get_max_mag(self):
 		"""
@@ -202,31 +205,109 @@ class SeismicSourceSystem(LogicTree):
 
 		return bl_branch_sets
 
-	def enumerate_by_source(self, source_model, src):
+	def get_source_branch_sets(self, source_model_name, src):
 		"""
-		"""
-		import copy
+		Get list of logic-tree branch sets applying to a particular source
 
-		branch_sets = self.get_bl_branchsets()[source_model.name]
+		:param source_model_name:
+			str, name of source model
+		:param src:
+			instance of :class:`rshalib.source.PointSource`,
+			`rshalib.source.AreaSource`, `rshalib.source.SimpleFaultSource`
+			or `rshalib.source.ComplexFaultSource`
+
+		:return:
+			list with instances of :class:`LogicTreeBranchSet`
+		"""
+		branch_sets = self.get_bl_branchsets()[source_model_name]
 
 		src_branch_sets = []
 		for bs in branch_sets:
 			if bs.filter_source(src):
 				src_branch_sets.append(bs)
 
+		return src_branch_sets
+
+	def enumerate_branch_paths_by_source(self, source_model_name, src):
+		"""
+		Enumerate branch paths for a particular source
+
+		:param source_model_name:
+			str, name of source model
+		:param src:
+			instance of :class:`rshalib.source.PointSource`,
+			`rshalib.source.AreaSource`, `rshalib.source.SimpleFaultSource`
+			or `rshalib.source.ComplexFaultSource`
+
+		:return:
+			generator object yielding (branch_path, weight) tuple
+			branch_path is a list with instances of :class:`LogicTreeBranch`
+		"""
+		src_branch_sets = self.get_source_branch_sets(source_model_name, src)
 		bs0 = src_branch_sets[0]
+		branch_path = [""] * len(src_branch_sets)
+		for branch in bs0.branches:
+			branch_path[0] = branch
+			weight = branch.weight
+
+			for bl_index in range(1, len(src_branch_sets)):
+				bs = src_branch_sets[bl_index]
+				for b in bs.branches:
+					branch_path[bl_index] = b
+					weight *= b.weight
+			yield (branch_path, weight)
+
+	def enumerate_by_source(self, source_model_name, src):
+		"""
+		Loop over all possible branch paths for a particular source,
+		simultaneously applying logic-tree choices to the source
+
+		:param source_model_name:
+			str, name of source model
+		:param src:
+			instance of :class:`rshalib.source.PointSource`,
+			`rshalib.source.AreaSource`, `rshalib.source.SimpleFaultSource`
+			or `rshalib.source.ComplexFaultSource`
+
+		:return:
+			generator object yielding (modified_src, branch_path, weight)
+			tuple:
+			- modified_src: source object with logic-tree path applied
+			- branch_path: list with branch IDs of logic_tree path
+			- weight: decimal, corresponding weight
+		"""
+		import copy
+
+		for (branch_path, weight) in self.enumerate_branch_paths_by_source(source_model_name, src):
+			for i, branch in enumerate(branch_path):
+				if i == 0:
+					## Note: copy MFD explicitly, as not all source attributes are
+					## instantiated properly when deepcopy is used!
+					modified_src = copy.copy(src)
+					modified_src.mfd = src.mfd.get_copy()
+				bs = branch.parent_branch
+				bs.apply_uncertainty(branch.value, modified_src)
+			branch_path = [b.branch_id for b in branch_path]
+			yield (modified_src, branch_path, weight)
+
+		"""
+		src_branch_sets = self.get_source_branch_sets(source_model, src)
+		bs0 = src_branch_sets[0]
+		branch_path = [""] * len(src_branch_sets)
 		for branch in bs0.branches:
 			## Note: copy MFD explicitly, as not all source attributes are
 			## instantiated properly when deepcopy is used!
 			modified_src = copy.copy(src)
 			modified_src.mfd = src.mfd.get_copy()
 			bs0.apply_uncertainty(branch.value, modified_src)
+			branch_path[0] = branch.branch_id
 
 			for bl_index in range(1, len(src_branch_sets)):
 				bs = src_branch_sets[bl_index]
 				for branch in bs.branches:
 					bs.apply_uncertainty(branch.value, modified_src)
-					yield(modified_src, branch.weight)
+					branch_path[bl_index] = branch.branch_id
+		"""
 
 	def set_root_uncertainty_level(self, source_model_pmf, overwrite=False):
 		"""
@@ -252,7 +333,7 @@ class SeismicSourceSystem(LogicTree):
 		branching_level = LogicTreeBranchingLevel(branching_level_id, [branch_set])
 		self.branching_levels.append(branching_level)
 		self.connect_branches()
-		self.source_models = source_model_pmf.source_models
+		self.source_model_pmf = source_model_pmf
 
 	def append_independent_uncertainty_level(self, unc_pmf_dict, correlated=False):
 		"""
@@ -310,7 +391,7 @@ class SeismicSourceSystem(LogicTree):
 					## Same branching level for different source models
 					applyToBranches = []
 					applyToSources = []
-					branch_set_id = "None_None_%s" % (unc_type)
+					branch_set_id = "None--None--%s" % (unc_type)
 					branching_level_nr = len(bl_branch_ids[bl_branch_ids.keys()[0]])
 					branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc_pmf_dict[None], applyToBranches=applyToBranches, applyToSources=applyToSources)
 					self._append_branchset(branch_set, branching_level_nr)
@@ -320,7 +401,7 @@ class SeismicSourceSystem(LogicTree):
 					## Branching level different for different source models
 					for prev_level_sm_name in bl_branch_ids.keys():
 						applyToBranches = bl_branch_ids[prev_level_sm_name][-1]
-						branch_set_id = "%s_None_%s" % (prev_level_sm_name, unc_type)
+						branch_set_id = "%s--None--%s" % (prev_level_sm_name, unc_type)
 						#branch_set_id = "%s_bs%02d" % (branching_level_id, branch_set_nr)
 						branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc_pmf_dict[None], applyToBranches=applyToBranches, applyToSources=applyToSources)
 						branching_level_nr = len(bl_branch_ids[prev_level_sm_name])
@@ -343,7 +424,7 @@ class SeismicSourceSystem(LogicTree):
 					applyToBranches = bl_branch_ids[sm_name][-1]
 					applyToSources = []
 					branching_level_nr = last_branching_level_nr
-					branch_set_id = "%s_CORR_%s" % (sm_name, unc_type)
+					branch_set_id = "%s--CORR--%s" % (sm_name, unc_type)
 					branch_set = LogicTreeBranchSet.from_PMF_dict(branch_set_id, src_unc_pmf_dict, applyToBranches=applyToBranches)
 					self._append_branchset(branch_set, branching_level_nr)
 					bl_branch_ids[sm_name].append(set([branch.branch_id for branch in branch_set]))
@@ -359,7 +440,7 @@ class SeismicSourceSystem(LogicTree):
 							applyToSources = [src_id]
 						branching_level_nr = last_branching_level_nr + i
 						#branch_set_id = "%s_bs%02d" % (branching_level_id, branch_set_nr)
-						branch_set_id = "%s_%s_%s" % (sm_name, src_id, unc_type)
+						branch_set_id = "%s--%s--%s" % (sm_name, src_id, unc_type)
 						branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc_pmf_dict[src_id], applyToBranches=applyToBranches, applyToSources=applyToSources)
 						self._append_branchset(branch_set, branching_level_nr)
 						bl_branch_ids[sm_name].append(set([branch.branch_id for branch in branch_set]))
