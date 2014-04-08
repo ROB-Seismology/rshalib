@@ -24,14 +24,14 @@ class DSHAModel(SHAModelBase):
 	Class representing a single DSHA model.
 	"""
 
-	def __init__(self, name, ruptures, gsim, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, truncation_level=0., realizations=1., correlation_model=None, integration_distance=200.):
+	def __init__(self, name, ruptures, gsim_name, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, truncation_level=0., realizations=1., correlation_model=None, integration_distance=200.):
 		"""
 		:param name:
 			see :class:`..shamodel.SHAModelBase`
 		:param ruptures:
 			list of instances of :class:`..source.Rupture`
-		:param gsim:
-			instance of subclass of :class:`openquake.hazardlib.gsim.GroundShakingIntensityModel`
+		:param gsim_name:
+			str, name of supported GMPE
 		:param sites:
 			see :class:`..shamodel.SHAModelBase` (default: None)
 		:param grid_outline:
@@ -56,7 +56,7 @@ class DSHAModel(SHAModelBase):
 		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, truncation_level, integration_distance)
 
 		self.ruptures = ruptures
-		self.gsim = gsim
+		self.gsim_name = gsim_name
 		self.realizations = realizations
 		self.correlation_model = correlation_model
 
@@ -90,7 +90,7 @@ class DSHAModel(SHAModelBase):
 			instance of :class:`..results.HazardMapSet`
 		"""
 		soil_site_model = self.get_soil_site_model()
-		gsim = get_available_gsims()[self.gsim]()
+		gsim = get_available_gsims()[self.gsim_name]()
 		imts = self._get_hazardlib_imts()
 		rsdf = self._get_hazardlib_rsdf()
 		intensities = {imt: np.zeros((len(soil_site_model), len(self.ruptures), self.realizations)) for imt in imts}
@@ -111,7 +111,7 @@ class DSHAModel(SHAModelBase):
 				period = 0
 				IMT = {PGV(): "PGV", PGD(): "PGD", PGA(): "PGA"}[imt]
 				key = IMT
-			hazard_map_sets[key] = HazardMapSet("", [""]*self.realizations, self.sha_site_model, period, IMT, np.amax(intensities[imt], axis=1).T, intensity_unit="g", timespan=1, poes=[1], return_periods=[1.]*self.realizations, site_names=None, vs30s=None)
+			hazard_map_sets[key] = HazardMapSet("", [""]*self.realizations, self.sha_site_model, period, IMT, np.amax(intensities[imt], axis=1).T, intensity_unit="g", timespan=1, poes=None, return_periods=np.ones(self.realizations), vs30s=None)
 		return hazard_map_sets
 
 
