@@ -1692,6 +1692,41 @@ class PSHAModelTree(PSHAModelBase):
 		num_gmpelt_paths = self.gmpe_logic_tree.get_num_paths()
 		return num_smlt_paths * num_gmpelt_paths
 
+	def sample_logic_tree_paths(self, num_samples, enumerate_gmpe_lt=False, skip_samples=0):
+		if num_samples is None:
+			num_samples = self.num_lt_samples
+
+		if num_samples == 0:
+			return self.enumerate_logic_tree_paths()
+
+		lt_paths_weights = []
+
+		if enumerate_gmpe_lt:
+			gmpelt_paths_weights = self.enumerate_gmpe_lt_paths()
+
+		for i in xrange(num_samples + skip_samples):
+			## Generate 2nd-order random seeds
+			smlt_random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
+			gmpelt_random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
+
+			## Call OQ logictree processor
+			sm_name, smlt_path = self.ltp.sample_source_model_logictree(smlt_random_seed)
+			gmpelt_path = self.ltp.sample_gmpe_logictree(gmpelt_random_seed)
+
+			if i >= skip_samples:
+				if not enumerate_gmpe_lt:
+					gmpelt_paths_weights = [(gmpelt_path, 1.)]
+
+				for gmpelt_path, gmpelt_weight in gmpelt_paths_weights:
+					weight = gmpelt_weight / num_samples
+					lt_paths_weights.append((sm_name, smlt_path, gmpelt_path, weight))
+
+			## Update the seed for the next realization
+			seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
+			self.rnd.seed(seed)
+
+		return lt_paths_weights
+
 	def sample_logic_trees(self, num_samples=None, enumerate_gmpe_lt=False, skip_samples=0, verbose=False):
 		"""
 		Sample both source-model and GMPE logic trees, in a way that is
@@ -1712,6 +1747,21 @@ class PSHAModelTree(PSHAModelBase):
 
 		:return:
 			list with (instance of :class:`PSHAModel`, weight) tuples
+		"""
+		psha_models_weights = []
+
+		for i, (sm_name, smlt_path, gmpelt_path, weight) in enumerate(self.sample_logic_tree_paths(num_samples, enumerate_gmpe_lt=enumerate_gmpe_lt, skip_samples=skip_samples)):
+			## Convert to objects
+			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
+			gmpe_model = self._gmpe_sample_to_gmpe_model(gmpelt_path)
+			## Convert to PSHA model
+			sample_num = i + skip_samples + 1
+			name = "%s, LT sample %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, sample_num, "--".join(smlt_path), "--".join(gmpelt_path))
+			psha_model = self._get_psha_model(source_model, gmpe_model, name)
+			psha_models_weights.append((psha_model, weight))
+
+		return psha_models_weights
+
 		"""
 		#from itertools import izip
 		if num_samples is None:
@@ -1735,7 +1785,7 @@ class PSHAModelTree(PSHAModelBase):
 			sm_name, smlt_path = self.ltp.sample_source_model_logictree(smlt_random_seed)
 			gmpelt_path = self.ltp.sample_gmpe_logictree(gmpelt_random_seed)
 
-			if i > skip_samples:
+			if i >= skip_samples:
 				## Convert to objects
 				source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
 				if not enumerate_gmpe_lt:
@@ -1744,7 +1794,7 @@ class PSHAModelTree(PSHAModelBase):
 
 				for (gmpe_model, gmpelt_weight), gmpelt_path in zip(gmpe_models_weights, gmpelt_paths):
 					## Convert to PSHA model
-					name = "%s, LT sample %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i+1, " -- ".join(smlt_path), " -- ".join(gmpelt_path))
+					name = "%s, LT sample %04d (SM_LTP: %s; GMPE_LTP: %s)" % (self.name, i+1, "--".join(smlt_path), "--".join(gmpelt_path))
 					psha_model = self._get_psha_model(source_model, gmpe_model, name)
 					psha_models_weights.append((psha_model, gmpelt_weight/num_samples))
 					#yield (psha_model, gmpelt_weight)
@@ -1755,6 +1805,7 @@ class PSHAModelTree(PSHAModelBase):
 
 		# TODO: use yield instead?
 		return psha_models_weights
+		"""
 
 	def enumerate_logic_trees(self, verbose=False):
 		"""
@@ -1778,6 +1829,13 @@ class PSHAModelTree(PSHAModelBase):
 			psha_models_weights.append((psha_model, weight))
 			#yield (psha_model, weight)
 		return psha_models_weights
+
+	def enumerate_logic_tree_paths(self):
+		lt_paths_weights = []
+		for i, path_info in enumerate(self.ltp.enumerate_paths()):
+			sm_name, weight, smlt_path, gmpelt_path = path_info
+			lt_paths_weights.append((sm_name, smlt_path, gmpelt_path, weight))
+		return lt_paths_weights
 
 	def _get_psha_model(self, source_model, gmpe_model, name):
 		"""
@@ -1811,6 +1869,18 @@ class PSHAModelTree(PSHAModelBase):
 			integration_distance=self.integration_distance)
 		return psha_model
 
+	def sample_source_model_lt_paths(self, num_samples=1):
+		"""
+		Note: no enumeration if num_samples is zero!
+		"""
+		for i in xrange(num_samples):
+			## Generate 2nd-order random seed
+			random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
+			## Call OQ logictree processor
+			sm_name, path = self.ltp.sample_source_model_logictree(random_seed)
+			weight = 1./num_samples
+			yield (sm_name, path, weight)
+
 	def sample_source_model_lt(self, num_samples=1, verbose=False, show_plot=False):
 		"""
 		Sample source-model logic tree
@@ -1832,21 +1902,22 @@ class PSHAModelTree(PSHAModelBase):
 			return self.enumerate_source_model_lt(verbose=verbose, show_plot=show_plot)
 
 		modified_source_models_weights = []
-		for i in xrange(num_samples):
-			## Generate 2nd-order random seed
-			random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
-			## Call OQ logictree processor
-			sm_name, path = self.ltp.sample_source_model_logictree(random_seed)
+		for (sm_name, path, weight) in self.sample_source_model_lt(num_samples):
 			if verbose:
 				print sm_name, path
 			if show_plot:
 				self.source_model_lt.plot_diagram(highlight_path=path)
 			## Apply uncertainties
 			source_model = self._smlt_sample_to_source_model(sm_name, path, verbose=verbose)
-			weight = 1./num_samples
 			modified_source_models_weights.append((source_model, weight))
 			#yield (source_model, weight)
 		return modified_source_models_weights
+
+	def enumerate_source_model_lt_paths(self):
+		for weight, smlt_branches in self.source_model_lt.root_branchset.enumerate_paths():
+			smlt_path = [branch.branch_id for branch in smlt_branches]
+			sm_name = os.path.splitext(smlt_branches[0].value)[0]
+			yield (sm_name, smlt_path, weight)
 
 	def enumerate_source_model_lt(self, verbose=False, show_plot=False):
 		"""
@@ -1862,17 +1933,15 @@ class PSHAModelTree(PSHAModelBase):
 			list with (instance of :class:`SourceModel`, weight) tuples
 		"""
 		modified_source_models_weights = []
-		for smlt_path_weight, smlt_branches in self.source_model_lt.root_branchset.enumerate_paths():
-			smlt_path = [branch.branch_id for branch in smlt_branches]
-			sm_name = os.path.splitext(smlt_branches[0].value)[0]
+		for (sm_name, smlt_path, weight) in self.enumerate_source_model_lt_paths():
 			if verbose:
 				print smlt_path_weight, sm_name, smlt_path
 			if show_plot:
 				self.source_model_lt.plot_diagram(highlight_path=smlt_path)
 			## Apply uncertainties
 			source_model = self._smlt_sample_to_source_model(sm_name, smlt_path, verbose=verbose)
-			modified_source_models_weights.append((source_model, smlt_path_weight))
-			#yield (source_model, smlt_path_weight)
+			modified_source_models_weights.append((source_model, weight))
+			#yield (source_model, weight)
 		return modified_source_models_weights
 
 	def _smlt_sample_to_source_model(self, sm_name, path, verbose=False):
@@ -1909,8 +1978,20 @@ class PSHAModelTree(PSHAModelBase):
 							print "    %s  -->  %s" % (src.mfd.occurrence_rates, modified_src.mfd.occurrence_rates)
 					modified_sources.append(modified_src)
 				break
-		description = " -- ".join(path)
+		description = "--".join(path)
 		return SourceModel(sm.name, modified_sources, description)
+
+	def sample_gmpe_lt_paths(self, num_samples=1):
+		"""
+		Note: no enumeration if num_samples is zero!
+		"""
+		for i in xrange(num_samples):
+			## Generate 2nd-order random seed
+			random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
+			## Call OQ logictree processor
+			gmpe_lt_path = self.ltp.sample_gmpe_logictree(random_seed)
+			weight = 1./num_samples
+			yield (gmpe_lt_path, weight)
 
 	def sample_gmpe_lt(self, num_samples=1, verbose=False, show_plot=False):
 		"""
@@ -1933,23 +2014,23 @@ class PSHAModelTree(PSHAModelBase):
 			return self.enumerate_gmpe_lt(verbose=verbose, show_plot=show_plot)
 
 		gmpe_models_weights = []
-		for i in xrange(num_samples):
-			## Generate 2nd-order random seed
-			random_seed = self.rnd.randint(MIN_SINT_32, MAX_SINT_32)
-			## Call OQ logictree processor
-			path = self.ltp.sample_gmpe_logictree(random_seed)
+		for gmpe_lt_path, weight in self.sample_gmpe_lt_paths(num_samples):
 			if verbose:
-				print path
+				print gmpe_lt_path
 			if show_plot:
-				self.gmpe_lt.plot_diagram(highlight_path=path)
+				self.gmpe_lt.plot_diagram(highlight_path=gmpe_lt_path)
 			## Convert to GMPE model
-			gmpe_model = self._gmpe_sample_to_gmpe_model(path)
-			weight = 1./num_samples
+			gmpe_model = self._gmpe_sample_to_gmpe_model(gmpe_lt_path)
 			gmpe_models_weights.append((gmpe_model, weight))
 			if verbose:
 				print gmpe_model
 			#yield (gmpe_model, weight)
 		return gmpe_models_weights
+
+	def enumerate_gmpe_lt_paths(self):
+		for weight, gmpelt_branches in self.gmpe_lt.root_branchset.enumerate_paths():
+			gmpelt_path = [branch.branch_id for branch in gmpelt_branches]
+			yield (gmpelt_path, weight)
 
 	def enumerate_gmpe_lt(self, verbose=False, show_plot=False):
 		"""
@@ -1965,8 +2046,7 @@ class PSHAModelTree(PSHAModelBase):
 			list with (instance of :class:`GroundMotionModel`, weight) tuples
 		"""
 		gmpe_models_weights = []
-		for gmpelt_path_weight, gmpelt_branches in self.gmpe_lt.root_branchset.enumerate_paths():
-			gmpelt_path = [branch.branch_id for branch in gmpelt_branches]
+		for (gmpelt_path, gmpelt_path_weight) in self.enumerate_gmpe_lt_paths(num_samples):
 			if verbose:
 				print gmpelt_path_weight, gmpelt_path
 			if show_plot:
@@ -1994,7 +2074,7 @@ class PSHAModelTree(PSHAModelBase):
 			branch = self.gmpe_lt.get_branch_by_id(branch_id)
 			trt = trts[l]
 			trt_gmpe_dict[trt] = branch.value
-		name = " -- ".join(path)
+		name = "--".join(path)
 		return GroundMotionModel(name, trt_gmpe_dict)
 
 	def _get_implicit_openquake_params(self):
@@ -2680,6 +2760,318 @@ class PSHAModelTree(PSHAModelBase):
 		Return enumerated logic tree sample.
 		"""
 		return self.enumerated_lts_samples.next()
+
+	def to_decomposed_psha_model_tree(self):
+		return DecomposedPSHAModelTree(self.name, self.source_model_lt, self.gmpe_lt, self.root_folder, self.sites, self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance, self.num_lt_samples, self.random_seed)
+
+
+class DecomposedPSHAModelTree(PSHAModelTree):
+	"""
+	Special version of PSHAModelTree that is computed in a different way.
+	Instead of computing hazard curves for a complete source model
+	corresponding to sampled or enumerated branches, all realizations
+	for each source are computed separately, in order to save computation
+	time.
+
+	Parameters are identical to :class:`PSHAModelTree`
+	"""
+	def __init__(self, name, source_model_lt, gmpe_lt, root_folder, sites=[], grid_outline=[], grid_spacing=0.5, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, intensities=None, min_intensities=0.001, max_intensities=1., num_intensities=100, return_periods=[], time_span=50., truncation_level=3., integration_distance=200., num_lt_samples=1, random_seed=42):
+		"""
+		"""
+		PSHAModelTree.__init__(self, name, source_model_lt, gmpe_lt, root_folder, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance, num_lt_samples, random_seed)
+
+	def calc_shcf_mp(self, num_cores=None, combine_pga_and_sa=True, verbose=True):
+		"""
+		Compute spectral hazard curve fields using multiprocessing.
+		The results are written to XML files in a folder structure:
+		source_model_name / trt_short_name / source_id / gmpe_name
+
+		:param num_cores:
+			int, number of CPUs to be used. Actual number of cores used
+			may be lower depending on available cores and memory
+			(default: None, will determine automatically)
+		:param combine_pga_and_sa:
+			bool, whether or not to combine PGA and SA, if present
+			(default: True)
+		:param verbose:
+			bool, whether or not to print some progress information
+			(default: True)
+		"""
+		gmpe_system_def = self.gmpe_lt.gmpe_system_def
+		for source_model in self.source_models:
+			for src in source_model.sources:
+				for (modified_src, branch_path, branch_weight) in self.source_model_lt.enumerate_by_source(source_model.name, src):
+					branch_path = [b.split('--')[-1] for b in branch_path]
+					somo_name = "%s--%s" % (source_model.name, src.source_id)
+					curve_name = '--'.join(branch_path)
+					partial_source_model = SourceModel(somo_name+'--'+curve_name, [modified_src], "")
+					trt = src.tectonic_region_type
+					for gmpe_name in gmpe_system_def[trt].gmpe_names:
+						gmpe_model = GroundMotionModel("", {trt: gmpe_name})
+						model_name = somo_name + " -- " + gmpe_name
+						psha_model = self._get_psha_model(partial_source_model, gmpe_model, model_name)
+						if verbose:
+							print somo_name, gmpe_name, curve_name
+						shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
+						for im in shcf_dict.keys():
+							shcf = shcf_dict[im]
+							psha_model.write_oq_shcf(shcf, source_model.name, trt, src.source_id, gmpe_name, curve_name)
+
+	def get_oq_hc_folder_decomposed(self, source_model_name, trt, source_id, gmpe_name, calc_id=None):
+		"""
+		Return path to hazard_curve folder for a decomposed computation
+
+		:param source_model_name:
+			str, name of source model
+		:param trt:
+			str, tectonic region type
+		:param source_id:
+			str, source ID
+		:param gmpe_name:
+			str, name of GMPE
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		return:
+			str, full path to hazard-curve folder
+		"""
+		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
+		trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
+		hc_folder = os.path.join(hc_folder, source_model_name, trt_short_name, source_id, gmpe_name)
+		return hc_folder
+
+	def write_oq_shcf(self, shcf, source_model_name, trt, source_id, gmpe_name, curve_name):
+		"""
+		Write spectral hazard curve field
+
+		:param shcf:
+			instance of :class:`rshalib.result.SpectralHazardCurveField`
+		:param source_model_name:
+			str, name of source model
+		:param trt:
+			str, tectonic region type
+		:param source_id:
+			str, source ID
+		:param gmpe_name:
+			str, name of GMPE
+		:param curve_name:
+			str, identifying hazard curve (e.g., "Mmax01--MFD03")
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+		"""
+		hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, source_id, gmpe_name)
+		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
+		#print xml_filename
+		xml_filespec = os.path.join(hc_folder, xml_filename)
+		shcf.write_nrml(xml_filespec)
+
+	def read_oq_realization_by_source(self, source_model_name, src, smlt_path, gmpelt_path, calc_id=None):
+		"""
+		Read results of a particular logictree sample for 1 source
+
+		:param source_model_name:
+			str, name of source model
+		:param src:
+			instance of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param smlt_path:
+			list of branch ids (strings), source-model logic tree path
+		:param gmpelt_path:
+			list of branch ids (strings), ground-motion logic tree path
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			(shcf, weight) tuple:
+			- shcf: instance of :class:`rshalib.result.SpectralHazardCurveField`
+			- weight: decimal
+		"""
+		from ..openquake import parse_spectral_hazard_curve_field
+
+		for branch_id in gmpelt_path:
+			gmpe_branch = self.gmpe_lt.get_branch_by_id(branch_id)
+			trt = gmpe_branch.parent_branchset.applyToTectonicRegionType
+			gmpe_name = gmpe_branch.value
+			weight = gmpe_branch.weight
+			if src.tectonic_region_type == trt:
+				branch_path = []
+				for branch_id in smlt_path[1:]:
+					smlt_branch = self.source_model_lt.get_branch_by_id(branch_id)
+					if smlt_branch.parent_branchset.filter_source(src):
+						branch_path.append(branch_id)
+						weight *= smlt_branch.weight
+				branch_path = [bp.split('--')[-1] for bp in branch_path]
+				curve_name = '--'.join(branch_path)
+				hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name)
+				xml_filename = "hazard_curve_multi-%s.xml" % curve_name
+				#print xml_filename
+				xml_filespec = os.path.join(hc_folder, xml_filename)
+				shcf = parse_spectral_hazard_curve_field(xml_filespec)
+				shcf.set_site_names(self.get_sha_sites())
+				return shcf, weight
+
+	def read_oq_realization(self, source_model_name, smlt_path, gmpelt_path, calc_id=None):
+		"""
+		Read results of a particular logic-tree sample (by summing hazard
+		curves of individual sources)
+
+		:param source_model_name:
+			str, name of source model
+		:param smlt_path:
+			list of branch ids (strings), source-model logic tree path
+		:param gmpelt_path:
+			list of branch ids (strings), ground-motion logic tree path
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			instance of :class:`rshalib.result.SpectralHazardCurveField`
+		"""
+		source_model = [somo for somo in self.source_models if somo.name == source_model_name][0]
+		summed_shcf = None
+		for src in source_model.sources:
+			shcf, weight = self.read_oq_realization_by_source(source_model_name, src, smlt_path, gmpelt_path, calc_id=calc_id)
+			if shcf:
+				if summed_shcf is None:
+					summed_shcf = shcf
+				else:
+					summed_shcf += shcf
+		return summed_shcf
+
+	def read_oq_samples(self, num_samples, skip_samples=0, calc_id=None):
+		"""
+		Read results corresponding to a number of logic-tree samples
+
+		:param num_samples:
+			int, number of samples. If zero, logic tree will be enumerated
+		:param skip_samples:
+			int, number of samples to skip (default: 0)
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			instance of :class:`rshalib.result.SpectralHazardCurveFieldTree`
+		"""
+		shcf_list, weights, branch_names = [], [], []
+		for (sm_name, smlt_path, gmpelt_path, weight) in self.sample_logic_tree_paths(num_samples, skip_samples=skip_samples):
+			sm_name = os.path.splitext(sm_name)[0]
+			shcf = self.read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
+			shcf_list.append(shcf)
+			weights.append(weight)
+			# TODO: construct branch name
+		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, self.name, branch_names=branch_names, weights=weights)
+		return shcft
+
+	def read_source_realizations(self, source_model_name, src, calc_id=None):
+		"""
+		Read results for all realizations of a particular source
+
+		:param source_model_name:
+			str, name of source model
+		:param src:
+			instance of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			(shc_list, weights) tuple:
+			- shc_list: list of instances of :class:`SpectralHazardCurveField`
+			- weights: list with corresponding weights (decimals)
+		"""
+		from ..openquake import parse_spectral_hazard_curve_field
+
+		shcf_list, weights = [], []
+		trt = src.tectonic_region_type
+		for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+			for (branch_path, smlt_weight) in self.source_model_lt.enumerate_branch_paths_by_source(source_model_name, src):
+				branch_path = [b.branch_id.split('--')[-1] for b in branch_path]
+				curve_name = '--'.join(branch_path)
+				hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name, calc_id=calc_id)
+				xml_filename = "hazard_curve_multi-%s.xml" % curve_name
+				#print xml_filename
+				xml_filespec = os.path.join(hc_folder, xml_filename)
+				shcf = parse_spectral_hazard_curve_field(xml_filespec)
+				shcf.set_site_names(self.get_sha_sites())
+				shcf_list.append(shcf)
+				weights.append(gmpe_weight * smlt_weight)
+		return shcf_list, weights
+
+	def calc_mean_shcf_by_source(self, source_model_name, src, calc_id=None):
+		"""
+		Compute mean spectral hazard curve field for a particular source
+
+		:param source_model_name:
+			str, name of source model
+		:param src:
+			instance of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			instance of :class:`SpectralHazardCurveField`
+		"""
+		shcf_list, weights = self.read_source_realizations(source_model_name, src, calc_id=calc_id)
+		mean_shcf = None
+		for i in range(len(shcf_list)):
+			shcf = shcf_list[i]
+			weight = weights[i]
+			if i == 0:
+				mean_shcf = shcf * weight
+			else:
+				mean_shcf += (shcf * weight)
+		return mean_shcf
+
+	def calc_mean_shcf_by_source_model(self, source_model_name, calc_id=None):
+		"""
+		Compute mean spectral hazard curve field for a particular source model
+		by summing mean shcf's of individual sources
+
+		:param source_model_name:
+			str, name of source model
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			instance of :class:`SpectralHazardCurveField`
+		"""
+		summed_shcf = None
+		for src in source_model.sources:
+			shcf = self.calc_mean_shcf_by_source(source_model_name, src, calc_id=calc_id)
+			if shcf:
+				if summed_shcf is None:
+					summed_shcf = shcf
+				else:
+					summed_shcf += shcf
+
+	def calc_mean_shcf(self, calc_id=None):
+		"""
+		Compute mean spectral hazard curve field of entire logic tree
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			instance of :class:`SpectralHazardCurveField`
+		"""
+		mean_shcf = None
+		for source_model, somo_weight in self.source_model_lt.source_model_pmf:
+			source_model_shcf = self.calc_mean_shcf_by_source_model(source_model.name)
+			if mean_shcf is None:
+				mean_shcf = source_model_shcf * somo_weight
+			else:
+				mean_shcf += (source_model_shcf * somo_weight)
+		return mean_shcf
+
+	def calc_shcf_stats(self, num_samples):
+		pass
 
 
 
