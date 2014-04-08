@@ -62,7 +62,7 @@ class PMF(nhlib.pmf.PMF):
 		return len(self.data)
 
 	def __iter__(self):
-		for value, weight in self.data:
+		for weight, value in self.data:
 			yield (value, weight)
 
 
