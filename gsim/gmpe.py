@@ -3508,9 +3508,8 @@ class PezeshkEtAl2011(NhlibGMPE):
 	def __init__(self):
 		name, short_name = "PezeshkEtAl2011", "Pz_2011"
 		distance_metric = "Rupture"
-		# TODO !!
-		Mmin, Mmax = 2.0, 4.7
-		dmin, dmax = 1., 300.
+		Mmin, Mmax = 5.0, 8.0
+		dmin, dmax = 1., 1000.
 		Mtype = "MW"
 		dampings = [5.]
 
