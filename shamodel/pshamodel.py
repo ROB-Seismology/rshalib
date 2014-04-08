@@ -2800,7 +2800,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		gmpe_system_def = self.gmpe_lt.gmpe_system_def
 		for source_model in self.source_models:
 			for src in source_model.sources:
-				for (modified_src, branch_path, branch_weight) in self.source_model_lt.enumerate_by_source(source_model.name, src):
+				for (modified_src, branch_path, branch_weight) in self.source_model_lt.enumerate_source_realizations(source_model.name, src):
 					branch_path = [b.split('--')[-1] for b in branch_path]
 					somo_name = "%s--%s" % (source_model.name, src.source_id)
 					curve_name = '--'.join(branch_path)
