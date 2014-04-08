@@ -3663,7 +3663,7 @@ class HazardMap(HazardResult, HazardField):
 		:param dpi:
 			Int, image resolution in dots per inch (default: 300)
 		"""
-		import mapping.Basemap.LayeredBasemap as lbm
+		import mapping.Basemap as lbm
 
 		## Construct default styles:
 		if site_style == "default":
