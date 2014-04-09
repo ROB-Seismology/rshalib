@@ -10,4 +10,4 @@ from dshamodel import DSHAModel
 import pshamodel
 reload(pshamodel)
 
-from pshamodel import PSHAModel, PSHAModelTree
+from pshamodel import PSHAModel, PSHAModelTree, DecomposedPSHAModelTree
