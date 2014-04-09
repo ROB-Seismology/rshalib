@@ -2862,6 +2862,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				be determined automatically)
 		"""
 		hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, source_id, gmpe_name)
+		self.create_folder_structure(hc_folder)
 		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
 		#print xml_filename
 		xml_filespec = os.path.join(hc_folder, xml_filename)
