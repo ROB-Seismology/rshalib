@@ -1526,6 +1526,39 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		self.period_axis = 1
 		self.validate()
 
+	def __add__(self, other_shcf):
+		"""
+		:param other_shc:
+			instance of :class:`SpectralHazardCurve`
+
+		:return:
+			instance of :class:`SpectralHazardCurve`
+		"""
+		assert isinstance(other_shcf, SpectralHazardCurveField)
+		assert self.sites == other_shcf.sites
+		assert self.IMT == other_shcf.IMT
+		assert (self.periods == other_shcf.periods).all()
+		assert (self.intensities == other_shcf.intensities).all()
+		assert self.intensity_unit == other_shcf.intensity_unit
+		assert self.timespan == other_shcf.timespan
+		hazard_values = self._hazard_values + other_shcf._hazard_values
+		return self.__class__(self.model_name, hazard_values, self.filespecs, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+
+	def __mul__(self, number):
+		"""
+		:param number:
+			int, float or Decimal
+
+		:return:
+			instance of :class:`SpectralHazardCurve`
+		"""
+		assert isinstance(number, (int, float, Decimal))
+		hazard_values = self._hazard_values * number
+		return self.__class__(self.model_name, hazard_values, self.filespecs, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+
+	def __rmul__(self, number):
+		return self.__mul__(number)
+
 	@classmethod
 	def from_hazard_curve_fields(self, hcf_list, model_name):
 		"""
@@ -3693,6 +3726,8 @@ class HazardMap(HazardResult, HazardField):
 			except IndexError:
 				index = 0
 			contour_interval = candidates[index]
+		else:
+			contour_interval = float(contour_interval)
 
 		amin = np.floor(self.min(intensity_unit) / contour_interval) * contour_interval
 		amax = np.ceil(self.max(intensity_unit) / contour_interval) * contour_interval
