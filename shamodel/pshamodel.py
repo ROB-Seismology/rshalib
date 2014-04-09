@@ -3026,15 +3026,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				mean_shcf = shcf * weight
 			else:
 				mean_shcf += (shcf * weight)
+		mean_shcf.model_name = "%s weighted mean" % src.source_id
 		return mean_shcf
 
-	def calc_mean_shcf_by_source_model(self, source_model_name, calc_id=None):
+	def calc_mean_shcf_by_source_model(self, source_model, calc_id=None):
 		"""
 		Compute mean spectral hazard curve field for a particular source model
 		by summing mean shcf's of individual sources
 
-		:param source_model_name:
-			str, name of source model
+		:param source_model:
+			instance of :class:`rshalib.source.SourceModel`
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3044,12 +3045,14 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		summed_shcf = None
 		for src in source_model.sources:
-			shcf = self.calc_mean_shcf_by_source(source_model_name, src, calc_id=calc_id)
+			shcf = self.calc_mean_shcf_by_source(source_model.name, src, calc_id=calc_id)
 			if shcf:
 				if summed_shcf is None:
 					summed_shcf = shcf
 				else:
 					summed_shcf += shcf
+		summed_shcf.model_name = "%s weighted mean" % source_model.name
+		return summed_shcf
 
 	def calc_mean_shcf(self, calc_id=None):
 		"""
@@ -3064,11 +3067,12 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		mean_shcf = None
 		for source_model, somo_weight in self.source_model_lt.source_model_pmf:
-			source_model_shcf = self.calc_mean_shcf_by_source_model(source_model.name)
+			source_model_shcf = self.calc_mean_shcf_by_source_model(source_model)
 			if mean_shcf is None:
 				mean_shcf = source_model_shcf * somo_weight
 			else:
 				mean_shcf += (source_model_shcf * somo_weight)
+		mean_shcf.model_name = "Logic-tree weighted mean"
 		return mean_shcf
 
 	def calc_shcf_stats(self, num_samples):
