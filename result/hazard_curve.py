@@ -250,6 +250,8 @@ class HazardResult:
 				conv_factor = {"m": 1., "cm": 1E+2}
 			elif self.intensity_unit == "cm":
 				conv_factor = {"m": 1E-2, "cm": 1.0}
+		elif self.IMT == "MMI":
+			conv_factor = 1.
 
 		if conv_factor is None:
 			raise Exception("Unable to convert intensity units!")
