@@ -1364,7 +1364,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 
 		:param period:
 			Float, spectral period (default: None)
-		:param iml_index:
+		:param period_index:
 			Int, period index (default: None)
 
 		:return:
