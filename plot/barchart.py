@@ -77,7 +77,7 @@ def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, titl
 		try:
 			x0 = xvalues[-1] + 1
 		except:
-			x0 = 1
+			x0 = 0
 		x0values.append(x0)
 		subcat_len = len(subcat_value_dict)
 		xvalues = np.concatenate([xvalues, np.add.accumulate(np.ones(subcat_len)) + x0])
@@ -110,7 +110,7 @@ def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, titl
 	ymin = diffs.min() + 0.2 * diffs.min()
 	ymax = diffs.max() + 0.2 * diffs.max()
 	pylab.hlines(0, xmin, xmax, lw=2, color='k')
-	pylab.vlines(x0values[1:] + 0.5, ymin, ymax, lw=2, linestyle='--', color='k')
+	pylab.vlines(x0values[1:], ymin, ymax, lw=2, linestyle='--', color='k')
 	pylab.text(xmax, 0, "%s" % mean_value, ha='left', va='center')
 	pylab.ylabel("$\Delta$ " + ylabel)
 	pylab.title(title)
