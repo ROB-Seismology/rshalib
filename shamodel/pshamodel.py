@@ -2815,7 +2815,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
 						for im in shcf_dict.keys():
 							shcf = shcf_dict[im]
-							psha_model.write_oq_shcf(shcf, source_model.name, trt, src.source_id, gmpe_name, curve_name)
+							self.write_oq_shcf(shcf, source_model.name, trt, src.source_id, gmpe_name, curve_name)
 
 	def get_oq_hc_folder_decomposed(self, source_model_name, trt, source_id, gmpe_name, calc_id=None):
 		"""
