@@ -8,7 +8,7 @@ import numpy as np
 from openquake.hazardlib.calc import ground_motion_fields
 from openquake.hazardlib.calc.filters import rupture_site_distance_filter, rupture_site_noop_filter
 from openquake.hazardlib.gsim import get_available_gsims
-from openquake.hazardlib.imt import PGD, PGV, PGA, SA
+from openquake.hazardlib.imt import *
 
 from ..result import HazardMap, HazardMapSet
 from base import SHAModelBase
@@ -109,7 +109,8 @@ class DSHAModel(SHAModelBase):
 				key = period
 			else:
 				period = 0
-				IMT = {PGV(): "PGV", PGD(): "PGD", PGA(): "PGA"}[imt]
+				# TODO: need a more elegant solution
+				IMT = {PGV(): "PGV", PGD(): "PGD", PGA(): "PGA", MMI(): "MMI"}[imt]
 				key = IMT
 			hazard_map_sets[key] = HazardMapSet("", [""]*self.realizations, self.sha_site_model, period, IMT, np.amax(intensities[imt], axis=1).T, intensity_unit="g", timespan=1, poes=None, return_periods=np.ones(self.realizations), vs30s=None)
 		return hazard_map_sets
