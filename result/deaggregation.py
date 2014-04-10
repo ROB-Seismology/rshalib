@@ -1369,7 +1369,8 @@ class SpectralDeaggregationCurve(DeaggBase):
 
 	def __add__(self, other_sdc):
 		assert isinstance(other_sdc, self.__class__)
-		assert (self.bin_edges == other_sdc.bin_edges).all()
+		assert [(self.bin_edges[i] == other_sdc.bin_edges[i]).all() for i in range(5)]
+		assert self.bin_edges[-1] == other_sdc.bin_edges[-1]
 		assert self.site == other_sdc.site
 		assert self.imt == other_sdc.imt
 		assert (self.periods == other_sdc.periods).all()
