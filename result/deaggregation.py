@@ -186,6 +186,14 @@ class ProbabilityMatrix(DeaggMatrix):
 	#	obj.timespan = timespan
 	#	return obj
 
+	def __add__(self, other):
+		assert isinstance(other, ProbabilityMatrix)
+		return ProbabilityMatrix(1 - ((1 - self.matrix) * (1 - other.matrix)))
+
+	def __mul__(self, number):
+		assert isinstance(number, (int, float, Decimal))
+		return ProbabilityMatrix(1 - np.exp(np.log(1 - self.matrix) * float(number)))
+
 	def get_total_exceedance_rate(self, timespan):
 		"""
 		Return total exceedance rate
