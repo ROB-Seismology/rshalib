@@ -3002,6 +3002,48 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				weights.append(gmpe_weight * smlt_weight)
 		return shcf_list, weights
 
+	def read_correlated_source_realizations(self, source_model_name, src_list, calc_id=None):
+		"""
+		Read results for all realizations of a list of correlated sources
+
+		:param source_model_name:
+			str, name of source model
+		:param src_list:
+			list with instances of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			(shc_list, weights) tuple:
+			- shc_list: list of instances of :class:`SpectralHazardCurveField`
+			- weights: list with corresponding weights (decimals)
+		"""
+		from ..openquake import parse_spectral_hazard_curve_field
+
+		shcf_list, weights = [], []
+		src0 = src_list[0]
+		trt = src0.tectonic_region_type
+		for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+			for (branch_path, smlt_weight) in self.source_model_lt.enumerate_branch_paths_by_source(source_model_name, src0):
+				branch_path = [b.branch_id.split('--')[-1] for b in branch_path]
+				curve_name = '--'.join(branch_path)
+				## Sum identical samples for each of the correlated sources
+				for i, src in enumerate(src_list):
+					hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name, calc_id=calc_id)
+					xml_filename = "hazard_curve_multi-%s.xml" % curve_name
+					#print xml_filename
+					xml_filespec = os.path.join(hc_folder, xml_filename)
+					shcf = parse_spectral_hazard_curve_field(xml_filespec)
+					if i == 0:
+						summed_shcf = shcf
+					else:
+						summed_shcf += shcf
+				summed_shcf.set_site_names(self.get_sha_sites())
+				shcf_list.append(summed_shcf)
+				weights.append(gmpe_weight * smlt_weight)
+		return shcf_list, weights
+
 	def calc_mean_shcf_by_source(self, source_model_name, src, calc_id=None):
 		"""
 		Compute mean spectral hazard curve field for a particular source
@@ -3043,7 +3085,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
+		# TODO: correlated sources !
 		summed_shcf = None
+		correlated_sources = self.source_model_lt.get_correlated_sources(source_model)
 		for src in source_model.sources:
 			shcf = self.calc_mean_shcf_by_source(source_model.name, src, calc_id=calc_id)
 			if shcf:
