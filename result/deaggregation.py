@@ -1374,16 +1374,15 @@ class SpectralDeaggregationCurve(DeaggBase):
 		assert self.imt == other_sdc.imt
 		assert (self.periods == other_sdc.periods).all()
 		assert (self.intensities == other_sdc.intensities).all()
-		assert self.intensity_unit == other_sdc.intensity_unit
 		assert self.return_periods == other_sdc.return_periods
 		assert self.timespan == other_sdc.timespan
 		deagg_matrix = self.deagg_matrix + other_sdc.deagg_matrix
-		return self.__class__(self.bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.periods, self.intensity_unit, self.return_periods, self.timespan)
+		return self.__class__(self.bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.periods, self.return_periods, self.timespan)
 
 	def __mul__(self, number):
 		assert isinstance(number, (int, float, Decimal))
 		deagg_matrix = self.deagg_matrix * number
-		return self.__class__(self.bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.periods, self.intensity_unit, self.return_periods, self.timespan)
+		return self.__class__(self.bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.periods, self.return_periods, self.timespan)
 
 	def __rmul__(self, number):
 		return self.__mul__(number)
