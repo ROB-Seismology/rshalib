@@ -1358,6 +1358,27 @@ class SpectralDeaggregationCurve(DeaggBase):
 	def __getitem__(self, period_index):
 		return self.get_curve(period_index=period_index)
 
+	def __add__(self, other_sdc):
+		assert isinstance(other_sdc, self.__class__)
+		assert self.bin_edges = other_sdc.bin_edges
+		assert self.site == other_sdc.site
+		assert self.imt == other_sdc.imt
+		assert (self.periods == other_sdc.periods).all()
+		assert (self.intensities == other_sdc.intensities).all()
+		assert self.intensity_unit == other_sdc.intensity_unit
+		assert self.return_periods == other_sdc.return_periods
+		assert self.timespan == other_sdc.timespan
+		deagg_matrix = self.deagg_matrix + other_sdc.deagg_matrix
+		return self.__class__(self.bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.periods, self.intensity_unit, self.return_periods, self.timespan)
+
+	def __mul__(self, number):
+		assert isinstance(number, (int, float, Decimal))
+		deagg_matrix = self.deagg_matrix * number
+		return self.__class__(self.bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.periods, self.intensity_unit, self.return_periods, self.timespan)
+
+	def __rmul__(self, number):
+		return self.__mul__(number)
+
 	def get_curve(self, period=None, period_index=None):
 		"""
 		Get deaggregation curve for a particular spectral period.
