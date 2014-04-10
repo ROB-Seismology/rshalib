@@ -1,3 +1,4 @@
+from decimal import Decimal
 import numpy as np
 
 import openquake.hazardlib.calc.disagg as disagg
