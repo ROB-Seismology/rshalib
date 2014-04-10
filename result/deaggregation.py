@@ -1375,7 +1375,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		assert self.imt == other_sdc.imt
 		assert (self.periods == other_sdc.periods).all()
 		assert (self.intensities == other_sdc.intensities).all()
-		assert self.return_periods == other_sdc.return_periods
+		assert (self.return_periods == other_sdc.return_periods).all()
 		assert self.timespan == other_sdc.timespan
 		deagg_matrix = self.deagg_matrix + other_sdc.deagg_matrix
 		return self.__class__(self.bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.periods, self.return_periods, self.timespan)
