@@ -432,15 +432,34 @@ class HazardField:
 			Str, interpolation method supported by griddata (either
 			"linear", "nearest" or "cubic") (default: "cubic")
 		"""
-		from scipy.interpolate import griddata
-		x, y = self.longitudes, self.latitudes
+#		from scipy.interpolate import griddata
+#		x, y = self.longitudes, self.latitudes
 		lonmin, lonmax, latmin, latmax = extent
 		if isinstance(num_cells, int):
 			num_cells = (num_cells, num_cells)
 		xi, yi = self.meshgrid(extent, num_cells)
-		z = self.get_intensities(intensity_unit=intensity_unit)
+#		z = self.get_intensities(intensity_unit=intensity_unit)
 		#zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method='cubic')
-		zi = griddata((x, y), z, (xi, yi), method=method)
+#		zi = griddata((x, y), z, (xi, yi), method=method)
+		zi = self.get_site_intensities(xi, yi, method, intensity_unit)
+		return zi
+
+	def get_site_intensities(self, lons, lats, method="cubic", intensity_unit="g"):
+		"""
+		Interpolate intensities for given sites.
+		
+		:param lons:
+			array, lons of sites
+		:param lats:
+			array, lats of sites
+		:param method:
+			Str, interpolation method supported by griddata (either
+			"linear", "nearest" or "cubic") (default: "cubic")
+		"""
+		from scipy.interpolate import griddata
+		x, y = self.longitudes, self.latitudes
+		z = self.get_intensities(intensity_unit=intensity_unit)
+		zi = griddata((x, y), z, (lons, lats), method=method)
 		return zi
 
 	def get_grid_properties(self):
