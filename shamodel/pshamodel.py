@@ -3122,6 +3122,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 	def calc_shcf_stats(self, num_samples):
 		pass
 
+	# TODO: methods to compute minimum / maximum scenarios
 
 
 if __name__ == '__main__':
