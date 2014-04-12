@@ -107,10 +107,16 @@ class NumericPMF(PMF):
 		percentiles = np.array(percentiles, 'f')
 		if percentiles.max() > 1:
 			percentiles /= 100.
-		values = self.values
-		weights = self.weights.astype('d')
+		ordered_indexes = self.values.argsort()
+		values = self.values[ordered_indexes]
+		weights = self.weights[ordered_indexes].astype('d')
 		cdf = np.add.accumulate(weights)
 		percentile_intercepts = interpolate(cdf, values, percentiles)
+		## Alternatively, if percentile should correspond to a value in the list
+		#percentile_intercepts = []
+		#for perc in percentiles:
+		#	idx = np.abs(cdf-perc).argmin()
+		#	percentile_intercepts.append(values[idx])
 		return percentile_intercepts
 
 	def rebin_equal_weight(self, num_bins=5, precision=4):
