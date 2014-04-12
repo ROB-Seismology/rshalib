@@ -98,8 +98,9 @@ class SourceModel():
 			index = index_or_name
 		elif isinstance(index_or_name, (str, unicode)):
 			name = index_or_name
-			if name in self.source_ids:
-				index = self.source_ids.index(name)
+			source_ids = self.source_ids
+			if name in source_ids:
+				index = source_ids.index(name)
 			else:
 				raise KeyError(name)
 		else:
@@ -113,6 +114,10 @@ class SourceModel():
 	def __iter__(self):
 		for source in self.sources:
 			yield source
+
+	@property
+	def source_ids(self):
+		return [src.source_id for src in self.sources]
 
 	def to_json(self):
 		return jsonpickle.encode(self)
@@ -148,10 +153,10 @@ class SourceModel():
 		"""
 		Make sure there are no duplicate source ID's
 		"""
-		self.source_ids = []
+		source_ids = []
 		for source in self.sources:
-			if not source.source_id in self.source_ids:
-				self.source_ids.append(source.source_id)
+			if not source.source_id in source_ids:
+				source_ids.append(source.source_id)
 			else:
 				raise NRMLError("Duplicate source id found: %s" % source.source_id)
 
