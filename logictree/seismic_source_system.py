@@ -205,24 +205,25 @@ class SeismicSourceSystem(LogicTree):
 
 		return bl_branch_sets
 
-	def get_correlated_sources(self, source_model):
+	def list_correlated_sources(self, source_model):
 		"""
-		Obtain lists of correlated sources.
+		Obtain lists of correlated source ids. Note that uncorrelated
+		sources are listed as 1-element lists.
 
 		:param:
 			instance of :class:`SourceModel`
+
 		:return:
-			list containing lists of correlated sources
+			list containing lists of correlated source ids
 		"""
 		branch_sets = self.get_bl_branchsets()[source_model.name]
 
-		correlated_sources = []
+		correlated_source_ids = []
 		for bs in branch_sets:
 			src_ids = bs.get_filtered_source_ids(source_model)
-			print src_ids
-			sources = [source_model[src_id] for src_id in src_ids]
-			correlated_sources.append(sources)
-		return correlated_sources
+			if not src_ids in correlated_source_ids:
+				correlated_source_ids.append(src_ids)
+		return correlated_source_ids
 
 	def get_source_branch_sets(self, source_model_name, src):
 		"""
