@@ -3113,20 +3113,6 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		mean_shcf.model_name = "%s weighted mean" % '+'.join([src.source_id for src in src_list])
 		return mean_shcf
 
-	def enumerate_correlated_sources(self, source_model):
-		"""
-		Enumerate correlated sources for a particular source model
-
-		:param source_model:
-			instance of :class:`rshalib.source.SourceModel`
-
-		:return:
-			generator object yielding lists of sources
-		"""
-		for src_ids in self.source_model_lt.list_correlated_sources(source_model):
-			sources = [source_model[src_id] for src_id in src_ids]
-			yield sources
-
 	def calc_mean_shcf_by_source_model(self, source_model, calc_id=None):
 		"""
 		Compute mean spectral hazard curve field for a particular source model
