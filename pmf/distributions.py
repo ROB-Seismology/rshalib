@@ -90,15 +90,16 @@ class NumericPMF(PMF):
 		"""
 		return np.average(self.values, weights=self.weights)
 
-	def get_percentiles(self, percentiles, resolution=100):
+	def get_percentiles(self, percentiles, interpol=False):
 		"""
 		Compute weighted percentiles of PMF
 
 		:param percentiles:
 			list or array of percentiles in the range 0-1 or 0-100
 			(determined automatically from max. value)
-		:param resolution:
-			int, resolution
+		:param interpol:
+			bool, whether or not percentile intercept should be
+			interpolated (default: False)
 
 		:return:
 			array containing interpolated values corresponding to
@@ -111,12 +112,12 @@ class NumericPMF(PMF):
 		values = self.values[ordered_indexes]
 		weights = self.weights[ordered_indexes].astype('d')
 		cdf = np.add.accumulate(weights)
-		percentile_intercepts = interpolate(cdf, values, percentiles)
-		## Alternatively, if percentile should correspond to a value in the list
-		#percentile_intercepts = []
-		#for perc in percentiles:
-		#	idx = np.abs(cdf-perc).argmin()
-		#	percentile_intercepts.append(values[idx])
+		if interpol:
+			percentile_intercepts = interpolate(cdf, values, percentiles)
+		else:
+			## Alternatively, if percentile should correspond to a value in the list
+			idxs = np.searchsorted(cdf, percentiles)
+			percentile_intercepts = values[idxs]
 		return percentile_intercepts
 
 	def rebin_equal_weight(self, num_bins=5, precision=4):
