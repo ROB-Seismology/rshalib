@@ -447,7 +447,7 @@ class HazardField:
 	def get_site_intensities(self, lons, lats, method="cubic", intensity_unit="g"):
 		"""
 		Interpolate intensities for given sites.
-		
+
 		:param lons:
 			array, lons of sites
 		:param lats:
@@ -1030,15 +1030,15 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		num_sites, num_periods, num_intensities = self.num_sites, self.num_periods, self.num_intensities
 		num_percentiles = len(percentile_levels)
 		percentiles = np.zeros((num_sites, num_periods, num_intensities, num_percentiles))
-		for i in range(num_sites):
-			for k in range(num_periods):
-				for l in range(num_intensities):
-					if weighted and self.weights != None and len(np.unique(self.weights)) > 1:
-						pmf = NumericPMF.from_values_and_weights(self.exceedance_rates[i,:,k,l], self.weights)
-						percentiles[i,k,l,:] = pmf.get_percentiles(percentile_levels, resolution=self.num_branches)
-					else:
-						for p, per in enumerate(percentile_levels):
-							percentiles[i,k,l,p] = scoreatpercentile(self.exceedance_rates[i,:,k,l], per)
+		if weighted and self.weights != None and len(set(self.weights)) > 1:
+			for i in range(num_sites):
+				for k in range(num_periods):
+					for l in range(num_intensities):
+							pmf = NumericPMF.from_values_and_weights(self.exceedance_rates[i,:,k,l], self.weights)
+							percentiles[i,k,l,:] = pmf.get_percentiles(percentile_levels)
+		else:
+			for p, per in enumerate(percentile_levels):
+				percentiles[:,:,:,p] = scoreatpercentile(self.exceedance_rates, per, axis=1)
 		percentiles = ExceedanceRateArray(percentiles)
 		if isinstance(self._hazard_values, ProbabilityArray):
 			percentiles = percentiles.to_probability_array(self.timespan)
@@ -1099,7 +1099,18 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		else:
 			mean = self.mean
 		variances = self.calc_variance_of_mean()
-		return SpectralHazardCurveField("mean", mean, [""]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, variances=variances)
+		model_name = "Mean(%s)" % self.model_name
+		return SpectralHazardCurveField(model_name, mean, [""]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, variances=variances)
+
+	def getPercentileSpectralHazardCurveField(self, perc, recalc=True, weighted=True):
+		if recalc or self.percentiles is None or not perc in self.percentiles:
+			hazard_values = self.calc_percentiles(perc, weighted=weighted)
+		else:
+			perc_index = self.percentile_levels.index(perc)
+			hazard_values = self.percentiles[:,:,:,perc_index]
+
+		model_name = "Perc%02d(%s)" % (perc, self.model_name)
+		return SpectralHazardCurveField(model_name, hazard_values, [""]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, variances=variances)
 
 	def import_stats_from_AGR(self, agr_filespec, percentile_levels=None):
 		"""
@@ -2641,7 +2652,7 @@ class HazardCurveCollection:
 
 
 class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
-	def __init__(self, model_name, branch_names, filespecs, weights, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, poe=None, return_period=None, mean=None, percentile_levels=None, percentiles=None):
+	def __init__(self, model_name, branch_names, filespecs, weights, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, poe=None, return_period=None, mean=None, percentile_levels=None, percentiles=None, vs30s=None):
 		if return_period:
 			hazard_values = ExceedanceRateArray([1./return_period])
 		elif poe:
@@ -2652,6 +2663,7 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		self.model_name = model_name
 		self.filespecs = filespecs
 		self.period_axis = 2
+		self.vs30s = vs30s
 
 	def __iter__(self):
 		self._current_index = 0
@@ -2785,7 +2797,7 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 			filespec = self.filespecs[branch_index]
 
 			intensities = self.intensities[:,branch_index,:]
-			return UHSField(branch_name, filespec, self.sites, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=self.return_period)
+			return UHSField(branch_name, filespec, self.sites, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=self.return_period, vs30s=self.vs30s)
 
 	@property
 	def poe(self):
@@ -2816,13 +2828,32 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		else:
 			return np.mean(self.intensities, axis=1)
 
-	def getMeanUHSField(self, weighted=True):
+	def getMeanUHSField(self, recalc=False, weighted=True):
 		"""
 		"""
-		intensities = self.calc_mean(weighted=weighted)
-		return UHSField(self.model_name, "", self.sites, self.periods,
+		if recalc or self.mean is None:
+			intensities = self.calc_mean(weighted=weighted)
+		else:
+			intensities = self.mean
+
+		model_name = "Mean(%s)" % self.model_name
+
+		return UHSField(model_name, "", self.sites, self.periods,
 			self.IMT, intensities, self.intensity_unit, self.timespan,
-			self.poe, self.return_period)
+			self.poe, self.return_period, self.vs30s)
+
+	def getPercentileUHSField(self, perc, recalc=False, weighted=True):
+		if recalc or self.mean is None or not perc in self.percentiles:
+			intensities = self.calc_percentiles([perc], weighted=weighted)[:,:,0]
+		else:
+			perc_index = self.percentiles.index(perc)
+			intensities = self.percentiles[:,:,perc_index]
+
+		model_name = "Perc%02d(%s)" % (perc, self.model_name)
+
+		return UHSField(model_name, "", self.sites, self.periods,
+			self.IMT, intensities, self.intensity_unit, self.timespan,
+			self.poe, self.return_period, self.vs30s)
 
 	def calc_variance_of_mean(self, weighted=True):
 		if weighted and not self.weights in ([], None):
@@ -3015,7 +3046,7 @@ class UHSField(HazardResult, HazardField, HazardSpectrum):
 	or
 	return_period: return period
 	"""
-	def __init__(self, model_name, filespec, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, poe=None, return_period=None):
+	def __init__(self, model_name, filespec, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, poe=None, return_period=None, vs30s=None):
 		if return_period:
 			hazard_values = ExceedanceRateArray([1./return_period])
 		elif poe:
@@ -3026,6 +3057,7 @@ class UHSField(HazardResult, HazardField, HazardSpectrum):
 		self.model_name = model_name
 		self.filespec = filespec
 		self.period_axis = 1
+		self.vs30s = vs30s
 
 	def __iter__(self):
 		self._current_index = 0
@@ -3052,6 +3084,15 @@ class UHSField(HazardResult, HazardField, HazardSpectrum):
 		else:
 			site_name = self.site_names[site_index]
 			return UHS(self.model_name + " - " + site_name, self.filespec, site, self.periods, self.IMT, self.intensities[site_index], self.intensity_unit, self.timespan, return_period=self.return_period)
+
+	def getHazardMap(self, period_spec=0):
+		period_index = self.period_index(period_spec)
+		try:
+			period = self.periods[period_index]
+		except:
+			raise IndexError("Period index %s out of range" % period_index)
+		intensities = self.intensities[:, period_index]
+		return HazardMap(self.model_name, self.filespec, self.sites, period, self.IMT, intensities, intensity_unit=self.intensity_unit, timespan=self.timespan, poe=self.poe, return_period=self.return_period, vs30s=self.vs30s)
 
 	@property
 	def poe(self):
