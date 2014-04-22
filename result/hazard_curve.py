@@ -4088,6 +4088,38 @@ class HazardMapSet(HazardResult, HazardField):
 	def __len__(self):
 		return len(self.return_periods)
 
+	@classmethod
+	def from_hazard_maps(self, hazard_maps, model_name=""):
+		"""
+		Construct from a list of hazard maps
+
+		:param hazard_maps:
+			list with instances of :class:`HazardMap`
+
+		:return:
+			instance of :class:`HazardMapSet`
+		"""
+		filespecs = [map.filespec for map in hazard_maps]
+		hm0 = hazard_maps[0]
+		sites = hm0.sites
+		period = hm0.period
+		IMT = hm0.IMT
+		intensities = np.zeros((len(sites), len(hazard_maps)))
+		intensity_unit = hm0.intensity_unit
+		timespan = hm0.timespan
+		poes = []
+		return_periods = []
+		vs30s = hm0.vs30s
+		for i, hm in enumerate(hazard_maps):
+			assert hm.sites == hm0.sites
+			assert hm.intensity_unit == hm0.intensity_unit
+			#assert (hm.vs30s == hm0.vs30s).all()
+			intensities[i] = hm.intensities
+			poes.append(hm.poe)
+			return_periods.append(hm.return_period)
+
+		return HazardMapSet(model_name, filespecs, sites, period, IMT, intensities, intensity_unit=intensity_unit, timespan=timespan, poes=poes, return_periods=return_periods, vs30s=vs30s)
+
 	def getHazardMap(self, index=None, poe=None, return_period=None):
 		"""
 		Return a particular hazard map
@@ -4196,7 +4228,7 @@ class HazardMapSet(HazardResult, HazardField):
 		:return:
 			instance of :class:`HazardMap`
 		"""
-		intensities = scoreatpercentile(self.intensities, axis=0)
+		intensities = scoreatpercentile(self.intensities, perc, axis=0)
 		if len(set(self.return_periods)) == 1:
 			return_period = self.return_periods[0]
 		else:
