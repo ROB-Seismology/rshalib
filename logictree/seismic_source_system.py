@@ -265,17 +265,13 @@ class SeismicSourceSystem(LogicTree):
 		"""
 		src_branch_sets = self.get_source_branch_sets(source_model_name, src)
 		if len(src_branch_sets):
-			bs0 = src_branch_sets[0]
-			branch_path = [""] * len(src_branch_sets)
-			for branch in bs0.branches:
-				branch_path[0] = branch
-				weight = branch.weight
-
-				for bl_index in range(1, len(src_branch_sets)):
-					bs = src_branch_sets[bl_index]
-					for b in bs.branches:
-						branch_path[bl_index] = b
-						weight *= b.weight
+			for branch_indices in np.ndindex(*[len(bs) for bs in src_branch_sets]):
+				branch_path = []
+				weight = 1
+				for bs_index, br_index in enumerate(branch_indices):
+					branch = src_branch_sets[bs_index].branches[br_index]
+					branch_path.append(branch)
+					weight *= branch.weight
 				yield (branch_path, weight)
 
 	def enumerate_source_realizations(self, source_model_name, src):
