@@ -1104,13 +1104,14 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 
 	def getPercentileSpectralHazardCurveField(self, perc, recalc=True, weighted=True):
 		if recalc or self.percentiles is None or not perc in self.percentiles:
-			hazard_values = self.calc_percentiles(perc, weighted=weighted)
+			hazard_values = self.calc_percentiles([perc], weighted=weighted)
 		else:
+			print "No recalculaton!"
 			perc_index = self.percentile_levels.index(perc)
 			hazard_values = self.percentiles[:,:,:,perc_index]
 
 		model_name = "Perc%02d(%s)" % (perc, self.model_name)
-		return SpectralHazardCurveField(model_name, hazard_values, [""]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, variances=variances)
+		return SpectralHazardCurveField(model_name, hazard_values, [""]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, variances=None)
 
 	def import_stats_from_AGR(self, agr_filespec, percentile_levels=None):
 		"""
