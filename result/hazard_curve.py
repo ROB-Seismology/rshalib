@@ -1034,11 +1034,14 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			for i in range(num_sites):
 				for k in range(num_periods):
 					for l in range(num_intensities):
-							pmf = NumericPMF.from_values_and_weights(self.exceedance_rates[i,:,k,l], self.weights)
-							percentiles[i,k,l,:] = pmf.get_percentiles(percentile_levels)
+						pmf = NumericPMF.from_values_and_weights(self.exceedance_rates[i,:,k,l], self.weights)
+						percentiles[i,k,l,:] = pmf.get_percentiles(percentile_levels)
 		else:
-			for p, per in enumerate(percentile_levels):
-				percentiles[:,:,:,p] = scoreatpercentile(self.exceedance_rates, per, axis=1)
+			for i in range(num_sites):
+				for k in range(num_periods):
+					for l in range(num_intensities):
+						for p, per in enumerate(percentile_levels):
+							percentiles[i,k,l,p] = scoreatpercentile(self.exceedance_rates[i,:,k,l], per)
 		percentiles = ExceedanceRateArray(percentiles)
 		if isinstance(self._hazard_values, ProbabilityArray):
 			percentiles = percentiles.to_probability_array(self.timespan)
