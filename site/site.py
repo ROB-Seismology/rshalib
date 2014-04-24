@@ -306,7 +306,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			if self.depths != None:
 				depth = self.depths[i]
 			else:
-				depth = None
+				depth = 0
 			if self.names != None:
 				name = self.names[i]
 			else:
