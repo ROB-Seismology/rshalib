@@ -3840,7 +3840,9 @@ class HazardMap(HazardResult, HazardField):
 			intensity_unit_label = "$m/s^2$"
 		elif intensity_unit == "cms2":
 			intensity_unit_label = "$cm/s^2$"
-		cbar_label = '%s (%s)' % (imt_label, intensity_unit_label)
+		cbar_label = imt_label
+		if intensity_unit:
+			cbar_label += ' (%s)' % intensity_unit_label
 
 		map_layers = []
 		colorbar_style = lbm.ColorbarStyle(location="bottom", format="%.2f", ticks=contour_levels, title=cbar_label)
