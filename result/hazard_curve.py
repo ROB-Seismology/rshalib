@@ -483,8 +483,12 @@ class HazardField:
 			site_index = site_spec
 		elif isinstance(site_spec, (str, unicode)):
 			site_index = self.site_names.index(site_spec)
-		elif isinstance(site_spec, (list, tuple, SHASite)) and len(site_spec) >= 2:
+		elif isinstance(site_spec, SHASite):
 			site_index = self.sites.index(site_spec)
+		elif isinstance(site_spec, (list, tuple)) and len(site_spec) >= 2:
+			lon, lat = site_spec[:2]
+			site = SHASite(lon, lat)
+			site_index = self.sites.index(site)
 		else:
 			raise Exception("Invalid site specification: %s" % site_spec)
 		return site_index
