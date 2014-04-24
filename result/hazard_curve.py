@@ -1653,7 +1653,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			raise Exception("intensities array has wrong dimension")
 		if self.intensities.shape[0] != num_periods:
 			raise Exception("intensities array has wrong shape")
-		if len(self.self._hazard_values.shape) != 3:
+		if len(self._hazard_values.shape) != 3:
 			raise Exception("exceedance_rates or poes array has wrong dimension")
 		if self.self._hazard_values.shape != (num_sites, num_periods, num_intensities):
 			raise Exception("exceedance_rates or poes array has wrong shape")
