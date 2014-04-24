@@ -162,7 +162,8 @@ def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, titl
 		else:
 			ymax = mean_value
 	ax1.hlines(0, xmin, xmax, lw=2, color='k')
-	ax1.vlines(x0values[1:-1]+bar_width/2., ymin, ymax, lw=2, linestyle='--', color='k')
+	if num_categories > 1:
+		ax1.vlines(x0values[1:-1]+bar_width/2., ymin, ymax, lw=2, linestyle='--', color='k')
 	ax1.axis((xmin, xmax, ymin, ymax))
 
 	## Label bars
