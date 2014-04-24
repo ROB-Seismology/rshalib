@@ -5,7 +5,7 @@ import numpy as np
 import pylab
 
 
-def plot_variation_barchart(mean_value, category_value_dict, ylabel, title):
+def plot_variation_barchart(mean_value, category_value_dict, ylabel, title, color='r', fig_filespec=None, fig_width=0, dpi=300):
 	"""
 	Plot simple barchart showing variations between different categories
 
@@ -25,7 +25,7 @@ def plot_variation_barchart(mean_value, category_value_dict, ylabel, title):
 	xvalues = np.arange(1, num_categories + 1)
 	bar_width = 0.35
 
-	rects = pylab.bar(xvalues, category_diffs, bar_width, color='r')
+	rects = pylab.bar(xvalues, category_diffs, bar_width, color=color)
 
 	def autolabel(rects, labels, values):
 		# attach some text labels
@@ -52,10 +52,20 @@ def plot_variation_barchart(mean_value, category_value_dict, ylabel, title):
 	pylab.axis((xmin, xmax, ymin, ymax))
 	pylab.grid(True)
 
-	pylab.show()
+	if fig_filespec:
+		default_figsize = pylab.rcParams['figure.figsize']
+		default_dpi = pylab.rcParams['figure.dpi']
+		if fig_width:
+			fig_width /= 2.54
+			dpi = dpi * (fig_width / default_figsize[0])
+
+		pylab.savefig(fig_filespec, dpi=dpi)
+		pylab.clf()
+	else:
+		pylab.show()
 
 
-def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, title, bar_width=0.5, color='r'):
+def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, title, bar_width=0.5, color='r', fig_filespec=None, fig_width=0, dpi=300):
 	"""
 	Plot barchart showing variations between different nested categories
 
@@ -154,8 +164,17 @@ def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, titl
 	#ax1.xticks([])
 	ax1.grid(True)
 
-	pylab.show()
+	if fig_filespec:
+		default_figsize = pylab.rcParams['figure.figsize']
+		default_dpi = pylab.rcParams['figure.dpi']
+		if fig_width:
+			fig_width /= 2.54
+			dpi = dpi * (fig_width / default_figsize[0])
 
+		pylab.savefig(fig_filespec, dpi=dpi)
+		pylab.clf()
+	else:
+		pylab.show()
 
 
 
