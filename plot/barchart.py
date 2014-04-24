@@ -5,7 +5,7 @@ import numpy as np
 import pylab
 
 
-def plot_variation_barchart(mean_value, category_value_dict, ylabel, title, color='r', fig_filespec=None, fig_width=0, dpi=300):
+def plot_variation_barchart(mean_value, category_value_dict, ylabel, title, ymin=None, ymax=None, bar_width=0.35, color='r', fig_filespec=None, fig_width=0, dpi=300):
 	"""
 	Plot simple barchart showing variations between different categories
 
@@ -23,7 +23,6 @@ def plot_variation_barchart(mean_value, category_value_dict, ylabel, title, colo
 	category_diffs = np.asarray(category_values) - mean_value
 	num_categories = len(category_names)
 	xvalues = np.arange(1, num_categories + 1)
-	bar_width = 0.35
 
 	rects = pylab.bar(xvalues, category_diffs, bar_width, color=color)
 
@@ -42,8 +41,17 @@ def plot_variation_barchart(mean_value, category_value_dict, ylabel, title, colo
 
 	autolabel(rects, category_names, category_diffs)
 	xmin, xmax = 0.5, num_categories + 1
-	ymin = category_diffs.min() + 0.2 * category_diffs.min()
-	ymax = category_diffs.max() + 0.2 * category_diffs.max()
+	min_diff, max_diff = category_diffs.min(), category_diffs.max()
+	if ymin is None:
+		if min_diff < 0:
+			ymin = min_diff + 0.2 * min_diff
+		else:
+			ymin = mean_value
+	if ymax is None:
+		if max_diff > 0:
+			ymax = max_diff + 0.4 * max_diff
+		else:
+			ymax = mean_value
 	pylab.hlines(0, xmin, xmax, lw=2, color='k')
 	pylab.text(xmax, 0, "%s" % mean_value, ha='left', va='center')
 	pylab.ylabel("$\Delta$ " + ylabel)
@@ -65,7 +73,7 @@ def plot_variation_barchart(mean_value, category_value_dict, ylabel, title, colo
 		pylab.show()
 
 
-def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, title, bar_width=0.5, color='r', fig_filespec=None, fig_width=0, dpi=300):
+def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, title, ymin=None, ymax=None, bar_width=0.5, color='r', fig_filespec=None, fig_width=0, dpi=300):
 	"""
 	Plot barchart showing variations between different nested categories
 
@@ -142,8 +150,17 @@ def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, titl
 
 	## Draw horizontal line at mean value and vertical lines to separate categories
 	xmin, xmax = 0, xvalues[-1] + 1 + bar_width
-	ymin = diffs.min() + 0.2 * diffs.min()
-	ymax = diffs.max() + 0.4 * diffs.max()
+	min_diff, max_diff = diffs.min(), diffs.max()
+	if ymin is None:
+		if min_diff < 0:
+			ymin = min_diff + 0.2 * min_diff
+		else:
+			ymin = mean_value
+	if ymax is None:
+		if max_diff > 0:
+			ymax = max_diff + 0.4 * max_diff
+		else:
+			ymax = mean_value
 	ax1.hlines(0, xmin, xmax, lw=2, color='k')
 	ax1.vlines(x0values[1:-1]+bar_width/2., ymin, ymax, lw=2, linestyle='--', color='k')
 	ax1.axis((xmin, xmax, ymin, ymax))
@@ -161,7 +178,7 @@ def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, titl
 	ax1.set_ylabel("$\Delta$ " + ylabel)
 	ax2.set_ylabel(ylabel)
 	ax1.set_title(title)
-	#ax1.xticks([])
+	ax1.set_xticks([])
 	ax1.grid(True)
 
 	if fig_filespec:
