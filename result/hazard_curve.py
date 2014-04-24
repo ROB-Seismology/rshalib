@@ -137,6 +137,13 @@ class ExceedanceRateArray(HazardCurveArray):
 		else:
 			return self.__class__(np.average(self.array, axis=axis, weights=weights))
 
+	def percentile(self, axis, percentile_levels, weights=None):
+		#from openquake.engine.calculators.post_processing import quantile_curve, weighted_quantile_curve
+		if weights is None:
+			from scipy.stats import mstats
+			quantiles = np.array(percentile_levels) / 100.
+			return self.__class__(mstats.mquantiles(self.array, prob=quantiles, axis=axis))
+
 
 class ProbabilityArray(HazardCurveArray):
 	def __add__(self, other):
