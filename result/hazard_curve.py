@@ -1107,7 +1107,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 
 	def getPercentileSpectralHazardCurveField(self, perc, recalc=True, weighted=True):
 		if recalc or self.percentiles is None or not perc in self.percentiles:
-			hazard_values = self.calc_percentiles([perc], weighted=weighted)
+			hazard_values = self.calc_percentiles([perc], weighted=weighted)[:,:,:,0]
 		else:
 			print "No recalculaton!"
 			perc_index = self.percentile_levels.index(perc)
@@ -1653,9 +1653,9 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			raise Exception("intensities array has wrong dimension")
 		if self.intensities.shape[0] != num_periods:
 			raise Exception("intensities array has wrong shape")
-		if len(self.exceedance_rates.shape) != 3:
+		if len(self.self._hazard_values.shape) != 3:
 			raise Exception("exceedance_rates or poes array has wrong dimension")
-		if self.exceedance_rates.shape != (num_sites, num_periods, num_intensities):
+		if self.self._hazard_values.shape != (num_sites, num_periods, num_intensities):
 			raise Exception("exceedance_rates or poes array has wrong shape")
 		if self.variances != None:
 			if len(self.variances.shape) != 3:
