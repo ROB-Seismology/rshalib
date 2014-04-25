@@ -4115,9 +4115,9 @@ class HazardMapSet(HazardResult, HazardField):
 	"""
 	def __init__(self, model_name, filespecs, sites, period, IMT, intensities, intensity_unit="g", timespan=50, poes=None, return_periods=None, vs30s=None):
 		if not return_periods in (None, []):
-			hazard_values = ExceedanceRateArray(1./return_periods)
+			hazard_values = ExceedanceRateArray(1./as_array(return_periods))
 		elif poes:
-			hazard_values = ProbabilityArray(poes)
+			hazard_values = ProbabilityArray(as_array(poes))
 		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
 		HazardField.__init__(self, sites)
 		self.model_name = model_name
