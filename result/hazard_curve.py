@@ -4162,7 +4162,7 @@ class HazardMapSet(HazardResult, HazardField):
 		sites = hm0.sites
 		period = hm0.period
 		IMT = hm0.IMT
-		intensities = np.zeros(len(hazard_maps), (len(sites)))
+		intensities = np.zeros((len(hazard_maps), len(sites)))
 		intensity_unit = hm0.intensity_unit
 		timespan = hm0.timespan
 		poes = []
