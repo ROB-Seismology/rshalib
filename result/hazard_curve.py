@@ -4286,7 +4286,7 @@ class HazardMapSet(HazardResult, HazardField):
 		:return:
 			instance of :class:`HazardMap`
 		"""
-		intensities = scoreatpercentile(self.intensities, perc, axis=0)
+		intensities = np.percentile(self.intensities, perc, axis=0)
 		if len(set(self.return_periods)) == 1:
 			return_period = self.return_periods[0]
 		else:
