@@ -2819,11 +2819,40 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 							shcf = shcf_dict[im]
 							self.write_oq_shcf(shcf, source_model.name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
 
-	def deaggregate_mp(self, num_cores=None, verbose=True):
+	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, dtype='d', verbose=False):
 		"""
 		"""
+		## Convert sites to SHASite objects if necessary, because SoilSites
+		## cause problems when used in conjunction with multiprocessing
+		## (notably the name attribute cannot be accessed, probably due to
+		## the use of __slots__ in parent class)
+		## Note that this is similar to the deepcopy problem with MFD objects.
+		deagg_sites = []
+		site_model = self.get_soil_site_model()
+		for site in sites:
+			if isinstance(site, SoilSite):
+				site = site.to_sha_site()
+			if site in site_model:
+				deagg_sites.append(site)
+
+		gmpe_system_def = self.gmpe_lt.gmpe_system_def
+		for source_model in self.source_models:
+			for src in source_model.sources:
+				for (modified_src, branch_path, branch_weight) in self.source_model_lt.enumerate_source_realizations(source_model.name, src):
+					branch_path = [b.split('--')[-1] for b in branch_path]
+					somo_name = "%s--%s" % (source_model.name, src.source_id)
+					curve_name = '--'.join(branch_path)
+					partial_source_model = SourceModel(somo_name+'--'+curve_name, [modified_src], "")
+					trt = src.tectonic_region_type
+					for gmpe_name in gmpe_system_def[trt].gmpe_names:
+						gmpe_model = GroundMotionModel("", {trt: gmpe_name})
+						model_name = somo_name + " -- " + gmpe_name
+						psha_model = self._get_psha_model(partial_source_model, gmpe_model, model_name)
+						if verbose:
+							print somo_name, gmpe_name, curve_name
+
 		# TODO
-		pass
+
 
 	def get_oq_hc_folder_decomposed(self, source_model_name, trt, source_id, gmpe_name, calc_id=None):
 		"""
@@ -2998,7 +3027,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, self.name, branch_names=branch_names, weights=weights)
 		return shcft
 
-	def read_oq_source_realizations(self, source_model_name, src, calc_id=None):
+	def read_oq_source_realizations(self, source_model_name, src, calc_id=None, verbose=False):
 		"""
 		Read results for all realizations of a particular source
 
@@ -3009,6 +3038,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
+		:param verbose:
+			bool, whether or not to print some progress information
+			(default: False)
 
 		:return:
 			(shc_list, weights) tuple:
@@ -3025,7 +3057,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				curve_name = '--'.join(branch_path)
 				hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name, calc_id=calc_id)
 				xml_filename = "hazard_curve_multi-%s.xml" % curve_name
-				#print xml_filename
+				if verbose:
+					print xml_filename
 				xml_filespec = os.path.join(hc_folder, xml_filename)
 				shcf = parse_spectral_hazard_curve_field(xml_filespec)
 				shcf.set_site_names(self.get_sha_sites())
