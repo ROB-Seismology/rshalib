@@ -844,7 +844,7 @@ class PSHAModel(PSHAModelBase):
 			- dict mapping source IDs to instances of
 			:class:`SpectralHazardCurveField` (if group_sources is False)
 		"""
-		import mp
+		from ..calc import mp
 
 		if not num_cores:
 			num_cores = mp.multiprocessing.cpu_count()
@@ -1278,7 +1278,7 @@ class PSHAModel(PSHAModelBase):
 			dict, mapping site (lon, lat) tuples to instances of
 			:class:`SpectralDeaggregationCurve`
 		"""
-		import mp
+		from ..calc import mp
 
 		if not n_epsilons:
 			n_epsilons = 2 * int(np.ceil(self.truncation_level))
@@ -2247,7 +2247,7 @@ class PSHAModelTree(PSHAModelBase):
 			list of exit codes for each sample (0 for succesful execution,
 			1 for error)
 		"""
-		import mp
+		from ..calc import mp
 
 		## Generate all PSHA models
 		psha_models_weights = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
@@ -2310,7 +2310,7 @@ class PSHAModelTree(PSHAModelBase):
 		"""
 		import platform
 		import psutil
-		import mp
+		from ..calc import mp
 
 		## Generate all PSHA models
 		psha_models_weights = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
@@ -2817,6 +2817,12 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 							shcf = shcf_dict[im]
 							self.write_oq_shcf(shcf, source_model.name, trt, src.source_id, gmpe_name, curve_name)
 
+	def deaggregate_mp(self, num_cores=None, verbose=True):
+		"""
+		"""
+		# TODO
+		pass
+
 	def get_oq_hc_folder_decomposed(self, source_model_name, trt, source_id, gmpe_name, calc_id=None):
 		"""
 		Return path to hazard_curve folder for a decomposed computation
@@ -2839,6 +2845,30 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
 		trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
 		hc_folder = os.path.join(hc_folder, source_model_name, trt_short_name, source_id, gmpe_name)
+		return hc_folder
+
+	def get_oq_deagg_folder_decomposed(self, source_model_name, trt, source_id, gmpe_name, calc_id=None):
+		"""
+		Return path to disaggregation folder for a decomposed computation
+
+		:param source_model_name:
+			str, name of source model
+		:param trt:
+			str, tectonic region type
+		:param source_id:
+			str, source ID
+		:param gmpe_name:
+			str, name of GMPE
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		return:
+			str, full path to disaggregation folder
+		"""
+		deagg_folder = self.get_oq_deagg_folder(calc_id=calc_id, multi=True)
+		trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
+		deagg_folder = os.path.join(deagg_folder, source_model_name, trt_short_name, source_id, gmpe_name)
 		return hc_folder
 
 	def write_oq_shcf(self, shcf, source_model_name, trt, source_id, gmpe_name, curve_name):
@@ -2967,7 +2997,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, self.name, branch_names=branch_names, weights=weights)
 		return shcft
 
-	def read_source_realizations(self, source_model_name, src, calc_id=None):
+	def read_oq_source_realizations(self, source_model_name, src, calc_id=None):
 		"""
 		Read results for all realizations of a particular source
 

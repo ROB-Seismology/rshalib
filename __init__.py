@@ -41,6 +41,10 @@ reload(utils)
 import cav
 reload(cav)
 
+## No internal dependencies
+import calc
+reload(calc)
+
 ## Depends on nrml
 import geo
 reload(geo)
@@ -85,6 +89,6 @@ reload(openquake)
 import logictree
 reload(logictree)
 
-## Depends on crisis, geo, gsim, logictree, openquake, pmf, result, site, source
+## Depends on calc, crisis, geo, gsim, logictree, openquake, pmf, result, site, source
 import shamodel
 reload(shamodel)
