@@ -2780,7 +2780,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		PSHAModelTree.__init__(self, name, source_model_lt, gmpe_lt, root_folder, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance, num_lt_samples, random_seed)
 
-	def calc_shcf_mp(self, num_cores=None, combine_pga_and_sa=True, verbose=True):
+	def calc_shcf_mp(self, num_cores=None, combine_pga_and_sa=True, calc_id="oqhazlib", verbose=True):
 		"""
 		Compute spectral hazard curve fields using multiprocessing.
 		The results are written to XML files in a folder structure:
@@ -2793,6 +2793,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param combine_pga_and_sa:
 			bool, whether or not to combine PGA and SA, if present
 			(default: True)
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
 		:param verbose:
 			bool, whether or not to print some progress information
 			(default: True)
@@ -2815,7 +2817,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
 						for im in shcf_dict.keys():
 							shcf = shcf_dict[im]
-							self.write_oq_shcf(shcf, source_model.name, trt, src.source_id, gmpe_name, curve_name)
+							self.write_oq_shcf(shcf, source_model.name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
 
 	def deaggregate_mp(self, num_cores=None, verbose=True):
 		"""
@@ -2871,7 +2873,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		deagg_folder = os.path.join(deagg_folder, source_model_name, trt_short_name, source_id, gmpe_name)
 		return hc_folder
 
-	def write_oq_shcf(self, shcf, source_model_name, trt, source_id, gmpe_name, curve_name):
+	def write_oq_shcf(self, shcf, source_model_name, trt, source_id, gmpe_name, curve_name, calc_id="oqhazlib"):
 		"""
 		Write spectral hazard curve field
 
@@ -2888,8 +2890,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param curve_name:
 			str, identifying hazard curve (e.g., "Mmax01--MFD03")
 		:param calc_id:
-			int or str, OpenQuake calculation ID (default: None, will
-				be determined automatically)
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
 		"""
 		hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, source_id, gmpe_name)
 		self.create_folder_structure(hc_folder)
