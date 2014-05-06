@@ -2894,9 +2894,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 															imt_periods, calc_id=calc_id)
 
 			sdc_dict = psha_model.deaggregate_mp(site_imtls, decompose_area_sources=True,
-											mag_bin_width, dist_bin_width, n_epsilons,
-											coord_bin_width, dtype=dtype, num_cores=num_cores,
-											verbose=verbose)
+											mag_bin_width=mag_bin_width, dist_bin_width=dist_bin_width,
+											n_epsilons=n_epsilons, coord_bin_width=coord_bin_width,
+											dtype=dtype, num_cores=num_cores, verbose=verbose)
 
 			## Write XML file(s), creating directory if necessary
 			for (lon, lat) in sdc_dict.keys():
