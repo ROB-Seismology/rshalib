@@ -1309,7 +1309,6 @@ class PSHAModel(PSHAModelBase):
 		deagg_matrix = deagg_matrix.reshape(deagg_matrix_shape)
 		deagg_matrix += 1
 
-
 		## Create soil site model for deaggregation sites, making sure
 		## order is same as sorted keys of site_imtls
 		site_model = self.get_soil_site_model()
@@ -2780,6 +2779,28 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		PSHAModelTree.__init__(self, name, source_model_lt, gmpe_lt, root_folder, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance, num_lt_samples, random_seed)
 
+	def iter_psha_models(self):
+		"""
+		Loop over decomposed PSHA models
+
+		:return:
+			generator object yielding instances of :class:`PSHAModel`
+		"""
+		gmpe_system_def = self.gmpe_lt.gmpe_system_def
+		for source_model in self.source_models:
+			for src in source_model.sources:
+				for (modified_src, branch_path, branch_weight) in self.source_model_lt.enumerate_source_realizations(source_model.name, src):
+					branch_path = [b.split('--')[-1] for b in branch_path]
+					somo_name = "%s--%s" % (source_model.name, src.source_id)
+					curve_name = '--'.join(branch_path)
+					partial_source_model = SourceModel(somo_name+'--'+curve_name, [modified_src], "")
+					trt = src.tectonic_region_type
+					for gmpe_name in gmpe_system_def[trt].gmpe_names:
+						gmpe_model = GroundMotionModel("", {trt: gmpe_name})
+						model_name = somo_name + " -- " + gmpe_name
+						psha_model = self._get_psha_model(partial_source_model, gmpe_model, model_name)
+						yield psha_model
+
 	def calc_shcf_mp(self, num_cores=None, combine_pga_and_sa=True, calc_id="oqhazlib", verbose=True):
 		"""
 		Compute spectral hazard curve fields using multiprocessing.
@@ -2799,28 +2820,52 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			bool, whether or not to print some progress information
 			(default: True)
 		"""
-		gmpe_system_def = self.gmpe_lt.gmpe_system_def
-		for source_model in self.source_models:
-			for src in source_model.sources:
-				for (modified_src, branch_path, branch_weight) in self.source_model_lt.enumerate_source_realizations(source_model.name, src):
-					branch_path = [b.split('--')[-1] for b in branch_path]
-					somo_name = "%s--%s" % (source_model.name, src.source_id)
-					curve_name = '--'.join(branch_path)
-					partial_source_model = SourceModel(somo_name+'--'+curve_name, [modified_src], "")
-					trt = src.tectonic_region_type
-					for gmpe_name in gmpe_system_def[trt].gmpe_names:
-						gmpe_model = GroundMotionModel("", {trt: gmpe_name})
-						model_name = somo_name + " -- " + gmpe_name
-						psha_model = self._get_psha_model(partial_source_model, gmpe_model, model_name)
-						if verbose:
-							print somo_name, gmpe_name, curve_name
-						shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
-						for im in shcf_dict.keys():
-							shcf = shcf_dict[im]
-							self.write_oq_shcf(shcf, source_model.name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
+		for psha_model in self.iter_psha_models():
+			if verbose:
+				print psha_model.model_name
+			shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
+			source_model_name, curve_name = psha_model.source_model.name.split('--')
+			src = psha_model.source_model.sources[0]
+			trt = src.tectonic_region_type
+			gmpe_name = psha_model.gmpe_model[trt]
+			for im in shcf_dict.keys():
+				shcf = shcf_dict[im]
+				self.write_oq_shcf(shcf, source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
 
-	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, dtype='d', verbose=False):
+	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', num_cores=None, calc_id="oqhazlib", verbose=False):
 		"""
+		Compute spectral deaggregation curves using multiprocessing.
+		The results are written to XML files in a folder structure:
+		source_model_name / trt_short_name / source_id / gmpe_name
+
+		:param sites:
+			list with instances of :class:`SHASite` for which deaggregation
+			will be performed. Note that instances of class:`SoilSite` will
+			not work with multiprocessing
+		:param imt_periods:
+			dictionary mapping intensity measure strings to lists of spectral
+			periods.
+		:param mag_bin_width:
+			Float, magnitude bin width (default: None, will take MFD bin width
+			of first source)
+		:param dist_bin_width:
+			Float, distance bin width in km (default: 10.)
+		:param n_epsilons:
+			Int, number of epsilon bins (default: None, will result in bins
+			corresponding to integer epsilon values)
+		:param coord_bin_width:
+			Float, lon/lat bin width in decimal degrees (default: 1.)
+		:param dtype:
+			str, precision of deaggregation matrix (default: 'd')
+		:param num_cores:
+			int, number of CPUs to be used. Actual number of cores used
+			may be lower depending on available cores and memory
+			(default: None, will determine automatically)
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+		:param verbose:
+			bool, whether or not to print some progress information
+			(default: True)
 		"""
 		## Convert sites to SHASite objects if necessary, because SoilSites
 		## cause problems when used in conjunction with multiprocessing
@@ -2835,24 +2880,28 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			if site in site_model:
 				deagg_sites.append(site)
 
-		gmpe_system_def = self.gmpe_lt.gmpe_system_def
-		for source_model in self.source_models:
-			for src in source_model.sources:
-				for (modified_src, branch_path, branch_weight) in self.source_model_lt.enumerate_source_realizations(source_model.name, src):
-					branch_path = [b.split('--')[-1] for b in branch_path]
-					somo_name = "%s--%s" % (source_model.name, src.source_id)
-					curve_name = '--'.join(branch_path)
-					partial_source_model = SourceModel(somo_name+'--'+curve_name, [modified_src], "")
-					trt = src.tectonic_region_type
-					for gmpe_name in gmpe_system_def[trt].gmpe_names:
-						gmpe_model = GroundMotionModel("", {trt: gmpe_name})
-						model_name = somo_name + " -- " + gmpe_name
-						psha_model = self._get_psha_model(partial_source_model, gmpe_model, model_name)
-						if verbose:
-							print somo_name, gmpe_name, curve_name
+		for psha_model in self.iter_psha_models():
+			if verbose:
+				print psha_model.model_name
 
-		# TODO
+			source_model_name, curve_name = psha_model.source_model.name.split('--')
+			src = psha_model.source_model.sources[0]
+			trt = src.tectonic_region_type
+			gmpe_name = psha_model.gmpe_model[trt]
 
+			## Determine intensity levels from saved hazard curves
+			site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
+															imt_periods, calc_id=calc_id)
+
+			sdc_dict = psha_model.deaggregate_mp(site_imtls, decompose_area_sources=True,
+											mag_bin_width, dist_bin_width, n_epsilons,
+											coord_bin_width, dtype=dtype, num_cores=num_cores,
+											verbose=verbose)
+
+			## Write XML file(s), creating directory if necessary
+			for (lon, lat) in sdc_dict.keys():
+				sdc = sdc_dict[(lon, lat)]
+				self.write_oq_disagg_matrix_multi(sdc, source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
 
 	def get_oq_hc_folder_decomposed(self, source_model_name, trt, source_id, gmpe_name, calc_id=None):
 		"""
@@ -2900,7 +2949,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		deagg_folder = self.get_oq_deagg_folder(calc_id=calc_id, multi=True)
 		trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
 		deagg_folder = os.path.join(deagg_folder, source_model_name, trt_short_name, source_id, gmpe_name)
-		return hc_folder
+		return deagg_folder
 
 	def write_oq_shcf(self, shcf, source_model_name, trt, source_id, gmpe_name, curve_name, calc_id="oqhazlib"):
 		"""
@@ -2927,6 +2976,33 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		#print xml_filename
 		xml_filespec = os.path.join(hc_folder, xml_filename)
 		shcf.write_nrml(xml_filespec)
+
+	def write_oq_disagg_matrix_multi(self, sdc, source_model_name, trt, source_id, gmpe_name, curve_name, calc_id="oqhazlib"):
+		"""
+		Write OpenQuake multi-deaggregation matrix. Folder structure
+		will be created, if necessary.
+
+		:param sdc:
+			instance of :class:`SpectralDeaggregationCurve`
+		:param source_model_name:
+			str, name of source model
+		:param trt:
+			str, tectonic region type
+		:param source_id:
+			str, source ID
+		:param gmpe_name:
+			str, name of GMPE
+		:param curve_name:
+			str, identifying hazard curve (e.g., "Mmax01--MFD03")
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+		"""
+		disagg_folder = self.get_oq_deagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name)
+		self.create_folder_structure(disagg_folder)
+		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
+		xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
+		xml_filespec = os.path.join(disagg_folder, xml_filename)
+		sdc.write_nrml(xml_filespec, self.smlt_path, self.gmpelt_path)
 
 	def read_oq_realization_by_source(self, source_model_name, src, smlt_path, gmpelt_path, calc_id=None):
 		"""
