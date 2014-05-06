@@ -627,6 +627,8 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		likelihood = np.ones_like(magnitudes, dtype='d')
 		if Mmax_obs is None:
 			Mmax_obs = self.get_max_mag_observed()
+		## Note: this is more robust than magnitudes[magnitudes >= Mmax_obs]
+		Mmax_obs_index = (np.abs(magnitudes - Mmax_obs)).argmin()
 		if n is None:
 			if not Mmin_n:
 				Mmin_n = self.get_min_mag_edge()
@@ -651,7 +653,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 				print("Maximum observed magnitude: %.1f" % Mmax_obs)
 				print("n(M > Mmin): %d" % n)
 			likelihood = np.zeros_like(magnitudes)
-			likelihood[magnitudes >= Mmax_obs] = (1 - np.exp(-beta * (magnitudes[magnitudes >= Mmax_obs] - Mmin_n))) ** -n
+			likelihood[Mmax_obs_index:] = (1 - np.exp(-beta * (magnitudes[Mmax_obs_index:] - Mmin_n))) ** -n
 		## If b value is NaN, likelihood = ones, and posterior = prior
 
 		## Posterior
