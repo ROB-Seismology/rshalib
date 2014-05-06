@@ -184,8 +184,8 @@ class NumericPMF(PMF):
 		cumul_weights = np.add.accumulate(weights)
 
 		start_index = max(0, np.where(weights > 1E-6)[0][0])
-		end_index = max(len(weights) - 1, np.where(weights > 1E-6)[0][-1])
-		total_num_bins = end_index - start_index
+		end_index = min(len(weights) - 1, np.where(weights > 1E-6)[0][-1])
+		total_num_bins = end_index - start_index + 1
 		int_bin_interval = float(total_num_bins) / num_bins
 		## Make sure int_bin_interval is odd
 		if np.ceil(int_bin_interval) % 2 == 1:
@@ -199,12 +199,16 @@ class NumericPMF(PMF):
 
 		bin_edges = values[bin_edge_indexes]
 		bin_centers = bin_edges[:-1] + (bin_edges[1:] - bin_edges[:-1]) / 2
-		## We use ceil because max_mag in MFD has zero occurrence rate
-		bin_centers_rounded = np.ceil(bin_centers / bin_width) * bin_width
+		bin_centers_rounded = np.floor(bin_centers / bin_width) * bin_width
 
+		bin_weights = np.zeros_like(bin_centers_rounded)
+		for i in range(len(bin_weights)):
+			start_index = bin_edge_indexes[i]
+			end_index = bin_edge_indexes[i+1]
+			if i + 1 == len(bin_weights):
+				end_index += 1
+			bin_weights[i] = np.sum(weights[start_index:end_index])
 		bin_cumul_weights = cumul_weights[bin_edge_indexes]
-		bin_weights = bin_cumul_weights[1:] - bin_cumul_weights[:-1]
-		bin_weights = bin_weights.clip(Decimal('1E-%d' % precision))
 
 		decimal.getcontext().prec = precision
 		bin_weights = np.array([Decimal(val) for val in bin_weights])
