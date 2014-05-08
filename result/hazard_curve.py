@@ -3255,8 +3255,8 @@ class UHS(HazardResult, HazardSpectrum):
 		csv = open(csv_filespec)
 		for i, line in enumerate(csv):
 			if i == 0:
-				col_names = line.split(',')
-				if col_names[0].lower() == "frequency":
+				col_names = [s.strip() for s in line.split(',')]
+				if col_names[0].lower().split()[0] in ("frequency", "freq"):
 					freqs = True
 				else:
 					freqs = False
