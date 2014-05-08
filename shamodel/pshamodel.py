@@ -566,17 +566,17 @@ class PSHAModelBase(SHAModelBase):
 		# TODO
 		pass
 
-	def read_oq_uhs_field(self, curve_name, curve_path="", return_period, calc_id=None):
+	def read_oq_uhs_field(self, curve_name, return_period, curve_path="", calc_id=None):
 		"""
 		Read OpenQuake hazard curve field.
 
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param return period:
+			float, return period
 		:param curve_path:
 			str, path to hazard curve relative to main uhs folder
 			(default: "")
-		:param return period:
-			float, return period
 		:param calc_id:
 			str, calculation ID. (default: None, will determine from folder structure)
 
