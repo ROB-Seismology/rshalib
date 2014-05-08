@@ -2893,7 +2893,7 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 			for k in range(num_periods):
 				if weighted and self.weights != None and len(np.unique(self.weights)) > 1:
 					pmf = NumericPMF.from_values_and_weights(self.intensities[i,:,k], self.weights)
-					percentiles[i,k,:] = pmf.get_percentiles(percentile_levels, resolution=self.num_branches)
+					percentiles[i,k,:] = pmf.get_percentiles(percentile_levels)
 				else:
 					for p, per in enumerate(percentile_levels):
 						percentiles[i,k,p] = scoreatpercentile(self.intensities[i,:,k], per)
