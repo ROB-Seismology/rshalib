@@ -473,6 +473,7 @@ def read_multi_folder(directory, sites=[], add_stats=False, model_name=""):
 				xml_filespec = os.path.join(directory, filename)
 				shcf = parse_spectral_hazard_curve_field(xml_filespec)
 				shcf_list.append(shcf)
+		print("Read %d spectral hazard curves" % len(shcf_list))
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, "")
 
 	if add_stats:
