@@ -507,6 +507,8 @@ class PSHAModelBase(SHAModelBase):
 
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+			If curve_name is a list, the last entry is considerd as curve name,
+			and all other entries as subfolder names
 		:param calc_id:
 			str, calculation ID. (default: None, will determine from folder structure)
 
@@ -517,6 +519,9 @@ class PSHAModelBase(SHAModelBase):
 		from ..openquake import parse_hazard_curves, parse_spectral_hazard_curve_field
 
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
+		if isinstance(curve_name, list):
+			hc_folder = os.path.sep.join([hc_folder] + curve_name[:-1])
+			curve_name = curve_name[-1]
 		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
 		#print xml_filename
 		xml_filespec = os.path.join(hc_folder, xml_filename)
@@ -2827,7 +2832,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			source_model_name, curve_name = psha_model.source_model.name.split('--')
 			src = psha_model.source_model.sources[0]
 			trt = src.tectonic_region_type
-			gmpe_name = psha_model.gmpe_model[trt]
+			gmpe_name = psha_model.ground_motion_model[trt]
 			for im in shcf_dict.keys():
 				shcf = shcf_dict[im]
 				self.write_oq_shcf(shcf, source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
@@ -2882,15 +2887,19 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		for psha_model in self.iter_psha_models():
 			if verbose:
-				print psha_model.model_name
+				print psha_model.name
 
-			source_model_name, curve_name = psha_model.source_model.name.split('--')
+			curve_name_parts = psha_model.source_model.name.split('--')
+			source_model_name = curve_name_parts[0]
+			curve_name = '--'.join(curve_name_parts[2:])
 			src = psha_model.source_model.sources[0]
 			trt = src.tectonic_region_type
-			gmpe_name = psha_model.gmpe_model[trt]
+			trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
+			gmpe_name = psha_model.ground_motion_model[trt]
+			curve_name_and_path = [source_model_name, trt_short_name, src.source_id, gmpe_name, curve_name]
 
 			## Determine intensity levels from saved hazard curves
-			site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
+			site_imtls = psha_model._interpolate_oq_site_imtls(curve_name_and_path, deagg_sites,
 															imt_periods, calc_id=calc_id)
 
 			sdc_dict = psha_model.deaggregate_mp(site_imtls, decompose_area_sources=True,
@@ -2927,7 +2936,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		hc_folder = os.path.join(hc_folder, source_model_name, trt_short_name, source_id, gmpe_name)
 		return hc_folder
 
-	def get_oq_deagg_folder_decomposed(self, source_model_name, trt, source_id, gmpe_name, calc_id=None):
+	def get_oq_disagg_folder_decomposed(self, source_model_name, trt, source_id, gmpe_name, calc_id=None):
 		"""
 		Return path to disaggregation folder for a decomposed computation
 
@@ -2946,7 +2955,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		return:
 			str, full path to disaggregation folder
 		"""
-		deagg_folder = self.get_oq_deagg_folder(calc_id=calc_id, multi=True)
+		deagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=True)
 		trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
 		deagg_folder = os.path.join(deagg_folder, source_model_name, trt_short_name, source_id, gmpe_name)
 		return deagg_folder
@@ -2997,7 +3006,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
 		"""
-		disagg_folder = self.get_oq_deagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name)
+		disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name)
 		self.create_folder_structure(disagg_folder)
 		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
@@ -3078,12 +3087,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					summed_shcf += shcf
 		return summed_shcf
 
-	def read_oq_samples(self, num_samples, skip_samples=0, calc_id=None):
+	def read_oq_shcft(self, skip_samples=0, calc_id=None):
 		"""
 		Read results corresponding to a number of logic-tree samples
 
-		:param num_samples:
-			int, number of samples. If zero, logic tree will be enumerated
 		:param skip_samples:
 			int, number of samples to skip (default: 0)
 		:param calc_id:
@@ -3094,7 +3101,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			instance of :class:`rshalib.result.SpectralHazardCurveFieldTree`
 		"""
 		shcf_list, weights, branch_names = [], [], []
-		for (sm_name, smlt_path, gmpelt_path, weight) in self.sample_logic_tree_paths(num_samples, skip_samples=skip_samples):
+		for (sm_name, smlt_path, gmpelt_path, weight) in self.sample_logic_tree_paths(self.num_lt_samples, skip_samples=skip_samples):
 			sm_name = os.path.splitext(sm_name)[0]
 			shcf = self.read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
 			shcf_list.append(shcf)
@@ -3141,6 +3148,28 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				shcf_list.append(shcf)
 				weights.append(gmpe_weight * smlt_weight)
 		return shcf_list, weights
+
+	def read_oq_source_shcft(self, source_model_name, src, calc_id=None, verbose=False):
+		"""
+		Read results for all realizations of a particular source
+
+		:param source_model_name:
+			str, name of source model
+		:param src:
+			instance of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+		:param verbose:
+			bool, whether or not to print some progress information
+			(default: False)
+
+		:return:
+			instance of :class:`SpectralHazardCurveField`
+		"""
+		shcf_list, weights = self.read_oq_source_realizations(source_model_name, src, calc_id=calc_id, verbose=verbose)
+		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, src.name, weights=weights)
+		return shcft
 
 	def enumerate_correlated_sources(self, source_model):
 		"""
