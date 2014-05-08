@@ -3014,7 +3014,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
 		"""
-		hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, source_id, gmpe_name)
+		hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
 		self.create_folder_structure(hc_folder)
 		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
 		#print xml_filename
@@ -3041,7 +3041,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
 		"""
-		disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name)
+		disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
 		self.create_folder_structure(disagg_folder)
 		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
