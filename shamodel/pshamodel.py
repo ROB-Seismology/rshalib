@@ -453,7 +453,7 @@ class PSHAModelBase(SHAModelBase):
 			imt_subfolder = im
 		return imt_subfolder
 
-	def read_oq_hcf(self, curve_name, im, T, calc_id=None):
+	def read_oq_hcf(self, curve_name, im, T, curve_path="", calc_id=None):
 		"""
 		Read OpenQuake hazard curve field
 
@@ -463,6 +463,9 @@ class PSHAModelBase(SHAModelBase):
 			str, intensity measure
 		:param T:
 			float, spectral period
+		:param curve_path:
+			str, path to hazard curve relative to main hazard-curve folder
+			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: None, will determine from folder structure)
 
@@ -472,6 +475,7 @@ class PSHAModelBase(SHAModelBase):
 		from ..openquake import parse_hazard_curves
 
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=False)
+		hc_folder = os.path.join(hc_folder, curve_path)
 		imt_subfolder = self._get_oq_imt_subfolder(im, T)
 		xml_filename = "hazard_curve-%s.xml" % curve_name
 		#print xml_filename
@@ -481,7 +485,7 @@ class PSHAModelBase(SHAModelBase):
 
 		return hcf
 
-	def write_oq_hcf(self, hcf, curve_name, calc_id="oqhazlib"):
+	def write_oq_hcf(self, hcf, curve_name, curve_path="", calc_id="oqhazlib"):
 		"""
 		Write OpenQuake hazard curve field. Folder structure will be
 		created, if necessary.
@@ -490,10 +494,14 @@ class PSHAModelBase(SHAModelBase):
 			instance of :class:`HazardCurveField`
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param curve_path:
+			str, path to hazard curve relative to main hazard-curve folder
+			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: "oqhazlib")
 		"""
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=False)
+		hc_folder = os.path.join(hc_folder, curve_path)
 		imt_subfolder = self._get_oq_imt_subfolder(hcf.IMT, hcf.period)
 		imt_hc_folder = os.path.join(hc_folder, imt_subfolder)
 		self.create_folder_structure(imt_hc_folder)
@@ -501,14 +509,15 @@ class PSHAModelBase(SHAModelBase):
 		xml_filespec = os.path.join(imt_hc_folder, xml_filename)
 		hcf.write_nrml(xml_filespec)
 
-	def read_oq_shcf(self, curve_name, calc_id=None):
+	def read_oq_shcf(self, curve_name, curve_path="", calc_id=None):
 		"""
 		Read OpenQuake spectral hazard curve field
 
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
-			If curve_name is a list, the last entry is considerd as curve name,
-			and all other entries as subfolder names
+		:param curve_path:
+			str, path to hazard curve relative to main hazard-curve folder
+			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: None, will determine from folder structure)
 
@@ -519,9 +528,7 @@ class PSHAModelBase(SHAModelBase):
 		from ..openquake import parse_hazard_curves, parse_spectral_hazard_curve_field
 
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
-		if isinstance(curve_name, list):
-			hc_folder = os.path.sep.join([hc_folder] + curve_name[:-1])
-			curve_name = curve_name[-1]
+		hc_folder = os.path.join(hc_folder, curve_path)
 		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
 		#print xml_filename
 		xml_filespec = os.path.join(hc_folder, xml_filename)
@@ -533,7 +540,7 @@ class PSHAModelBase(SHAModelBase):
 
 		return shcf
 
-	def write_oq_shcf(self, shcf, curve_name, calc_id="oqhazlib"):
+	def write_oq_shcf(self, shcf, curve_name, curve_path="", calc_id="oqhazlib"):
 		"""
 		Write OpenQuake spectral hazard curve field. Folder structure
 		will be created, if necessary.
@@ -542,10 +549,14 @@ class PSHAModelBase(SHAModelBase):
 			instance of :class:`SpectralHazardCurveField`
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param curve_path:
+			str, path to hazard curve relative to main hazard-curve folder
+			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: "oqhazlib")
 		"""
 		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
+		hc_folder = os.path.join(hc_folder, curve_path)
 		self.create_folder_structure(hc_folder)
 		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
 		xml_filespec = os.path.join(hc_folder, xml_filename)
@@ -555,12 +566,15 @@ class PSHAModelBase(SHAModelBase):
 		# TODO
 		pass
 
-	def read_oq_uhs_field(self, curve_name, return_period, calc_id=None):
+	def read_oq_uhs_field(self, curve_name, curve_path="", return_period, calc_id=None):
 		"""
 		Read OpenQuake hazard curve field.
 
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param curve_path:
+			str, path to hazard curve relative to main uhs folder
+			(default: "")
 		:param return period:
 			float, return period
 		:param calc_id:
@@ -575,6 +589,7 @@ class PSHAModelBase(SHAModelBase):
 		poe = str(round(Poisson(life_time=self.time_span, return_period=return_period), 13))
 
 		uhs_folder = self.get_oq_uhs_folder(calc_id=calc_id)
+		uhs_folder = os.path.join(uhs_folder, curve_path)
 		xml_filename = "uh_spectra-poe_%s-%s.xml" % (poe, curve_name)
 		#print xml_filename
 		xml_filespec = os.path.join(uhs_folder, xml_filename)
@@ -587,7 +602,7 @@ class PSHAModelBase(SHAModelBase):
 		# TODO
 		pass
 
-	def read_oq_disagg_matrix(self, curve_name, im, T, return_period, site, calc_id=None):
+	def read_oq_disagg_matrix(self, curve_name, im, T, return_period, site, curve_path="", calc_id=None):
 		"""
 		Read OpenQuake deaggregation matrix for a particular im, spectral period,
 		return period and site.
@@ -602,6 +617,9 @@ class PSHAModelBase(SHAModelBase):
 			float, return period
 		:param site:
 			instance of :class:`SHASite` or :class:`SoilSite`
+		:param curve_path:
+			str, path to hazard curve relative to main deaggregation folder
+			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: None, will determine from folder structure)
 
@@ -611,6 +629,7 @@ class PSHAModelBase(SHAModelBase):
 		poe = str(round(Poisson(life_time=self.time_span, return_period=return_period), 13))
 
 		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=False)
+		disagg_folder = os.path.join(disagg_folder, curve_path)
 		imt_subfolder = self._get_oq_imt_subfolder(im, T)
 		xml_filename = "disagg_matrix(%s)-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (poe, site.lon, site.lat, curve_name)
@@ -618,7 +637,7 @@ class PSHAModelBase(SHAModelBase):
 		ds = parse_disaggregation(xml_filespec, site.name)
 		return ds
 
-	def write_oq_disagg_matrix(self, ds, curve_name, calc_id="oqhazlib"):
+	def write_oq_disagg_matrix(self, ds, curve_name, curve_path="", calc_id="oqhazlib"):
 		"""
 		Write OpenQuake deaggregation matrix. Folder structure will be
 		created, if necessary.
@@ -627,12 +646,16 @@ class PSHAModelBase(SHAModelBase):
 			instance of :class:`DeaggregationSlice`
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param curve_path:
+			str, path to hazard curve relative to main deaggregation folder
+			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: "oqhazlib")
 		"""
 		poe = str(round(Poisson(life_time=ds.time_span, return_period=ds.return_period), 13))
 
 		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=False)
+		disagg_folder = os.path.join(disagg_folder, curve_path)
 		imt_subfolder = self._get_oq_imt_subfolder(ds.imt, ds.period)
 		imt_disagg_folder = os.path.join(disagg_folder, imt_subfolder)
 		self.create_folder_structure(imt_disagg_folder)
@@ -645,7 +668,7 @@ class PSHAModelBase(SHAModelBase):
 		# TODO
 		pass
 
-	def read_oq_disagg_matrix_multi(self, curve_name, site, calc_id=None):
+	def read_oq_disagg_matrix_multi(self, curve_name, site, curve_path="", calc_id=None):
 		"""
 		Read OpenQuake multi-deaggregation matrix for a particular site.
 
@@ -653,6 +676,9 @@ class PSHAModelBase(SHAModelBase):
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
 		:param site:
 			instance of :class:`SHASite` or :class:`SoilSite`
+		:param curve_path:
+			str, path to hazard curve relative to main deaggregation folder
+			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: None, will determine from folder structure)
 
@@ -662,13 +688,14 @@ class PSHAModelBase(SHAModelBase):
 		from ..openquake import parse_spectral_deaggregation_curve
 
 		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=True)
+		disagg_folder = os.path.join(disagg_folder, curve_path)
 		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (site.lon, site.lat, curve_name)
 		xml_filespec = os.path.join(disagg_folder, xml_filename)
 		sdc = parse_spectral_deaggregation_curve(xml_filespec, site.name)
 		return sdc
 
-	def write_oq_disagg_matrix_multi(self, sdc, curve_name, calc_id="oqhazlib"):
+	def write_oq_disagg_matrix_multi(self, sdc, curve_name, curve_path="", calc_id="oqhazlib"):
 		"""
 		Write OpenQuake multi-deaggregation matrix. Folder structure
 		will be created, if necessary.
@@ -677,10 +704,14 @@ class PSHAModelBase(SHAModelBase):
 			instance of :class:`SpectralDeaggregationCurve`
 		:param curve_name:
 			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param curve_path:
+			str, path to hazard curve relative to main deaggregation folder
+			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: "oqhazlib")
 		"""
 		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=True)
+		disagg_folder = os.path.join(disagg_folder, curve_path)
 		self.create_folder_structure(disagg_folder)
 		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
@@ -1377,7 +1408,7 @@ class PSHAModel(PSHAModelBase):
 
 		return deagg_result
 
-	def _interpolate_oq_site_imtls(self, curve_name, sites, imt_periods, calc_id=None):
+	def _interpolate_oq_site_imtls(self, curve_name, sites, imt_periods, curve_path="", calc_id=None):
 		"""
 		Determine intensity levels corresponding to psha-model return periods
 		from saved hazard curves. Mainly useful as helper function for
@@ -1392,6 +1423,9 @@ class PSHAModel(PSHAModelBase):
 		:param imt_periods:
 			dictionary mapping intensity measure strings to lists of spectral
 			periods.
+		:param curve_path:
+			str, path to hazard curve relative to main hazard-curve folder
+			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: None, will determine from folder structure)
 
@@ -1410,7 +1444,7 @@ class PSHAModel(PSHAModelBase):
 
 		## Read hazard_curve_multi if it exists
 		try:
-			shcf = self.read_oq_shcf(curve_name, calc_id=calc_id)
+			shcf = self.read_oq_shcf(curve_name, curve_path=curve_path, calc_id=calc_id)
 		except:
 			shcf = None
 
@@ -1422,7 +1456,7 @@ class PSHAModel(PSHAModelBase):
 					hcf = shcf.getHazardCurveField(period_spec=T)
 				else:
 					## Read individual hazard curves if there is no shcf
-					hcf = self.read_oq_hcf(curve_name, im, T, calc_id=calc_id)
+					hcf = self.read_oq_hcf(curve_name, im, T, curve_path=curve_path, calc_id=calc_id)
 				for i, site in enumerate(sites):
 					try:
 						site_name = site.name
@@ -2896,11 +2930,12 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			trt = src.tectonic_region_type
 			trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
 			gmpe_name = psha_model.ground_motion_model[trt]
-			curve_name_and_path = [source_model_name, trt_short_name, src.source_id, gmpe_name, curve_name]
+			curve_path = os.path.sep.join([source_model_name, trt_short_name, src.source_id, gmpe_name])
 
 			## Determine intensity levels from saved hazard curves
-			site_imtls = psha_model._interpolate_oq_site_imtls(curve_name_and_path, deagg_sites,
-															imt_periods, calc_id=calc_id)
+			site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
+															imt_periods, curve_path=curve_path,
+															calc_id=calc_id)
 
 			sdc_dict = psha_model.deaggregate_mp(site_imtls, decompose_area_sources=True,
 											mag_bin_width=mag_bin_width, dist_bin_width=dist_bin_width,
@@ -3322,6 +3357,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
+		# TODO: GMPEs should also be correlated for sources of the same TRT...
 		mean_shcf = None
 		for source_model, somo_weight in self.source_model_lt.source_model_pmf:
 			source_model_shcf = self.calc_mean_shcf_by_source_model(source_model)
