@@ -3046,7 +3046,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
 		xml_filespec = os.path.join(disagg_folder, xml_filename)
-		sdc.write_nrml(xml_filespec, self.smlt_path, self.gmpelt_path)
+		smlt_path = "--".join([source_model_name, source_id, curve_name])
+		gmpelt_path = gmpe_name
+		sdc.write_nrml(xml_filespec, smlt_path, gmpelt_path)
 
 	def read_oq_realization_by_source(self, source_model_name, src, smlt_path, gmpelt_path, calc_id=None):
 		"""
