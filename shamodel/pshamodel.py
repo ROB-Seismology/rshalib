@@ -2840,7 +2840,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						psha_model = self._get_psha_model(partial_source_model, gmpe_model, model_name)
 						yield psha_model
 
-	def calc_shcf_mp(self, num_cores=None, combine_pga_and_sa=True, calc_id="oqhazlib", verbose=True):
+	def calc_shcf_mp(self, num_cores=None, combine_pga_and_sa=True, calc_id="oqhazlib", overwrite=True, verbose=True):
 		"""
 		Compute spectral hazard curve fields using multiprocessing.
 		The results are written to XML files in a folder structure:
@@ -2855,6 +2855,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			(default: True)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
+		:param overwrite:
+			bool, whether or not to overwrite existing files. This allows to
+			skip computed results after an interruption (default: True)
 		:param verbose:
 			bool, whether or not to print some progress information
 			(default: True)
@@ -2862,6 +2865,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		for psha_model in self.iter_psha_models():
 			if verbose:
 				print psha_model.model_name
+			# TODO: skip computation if output file already exists !
 			shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
 			source_model_name, curve_name = psha_model.source_model.name.split('--')
 			src = psha_model.source_model.sources[0]
@@ -2871,7 +2875,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				shcf = shcf_dict[im]
 				self.write_oq_shcf(shcf, source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
 
-	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', num_cores=None, calc_id="oqhazlib", verbose=False):
+	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', num_cores=None, calc_id="oqhazlib", overwrite=True, verbose=False):
 		"""
 		Compute spectral deaggregation curves using multiprocessing.
 		The results are written to XML files in a folder structure:
@@ -2902,6 +2906,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			(default: None, will determine automatically)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
+		:param overwrite:
+			bool, whether or not to overwrite existing files. This allows to
+			skip computed results after an interruption (default: True)
 		:param verbose:
 			bool, whether or not to print some progress information
 			(default: True)
@@ -3222,7 +3229,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			sources = [source_model[src_id] for src_id in src_ids]
 			yield sources
 
-	def read_correlated_source_realizations(self, source_model_name, src_list, calc_id=None):
+	def read_oq_correlated_source_realizations(self, source_model_name, src_list, calc_id=None):
 		"""
 		Read results for all realizations of a list of correlated sources
 
@@ -3279,7 +3286,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		shcf_list, weights = self.read_source_realizations(source_model_name, src, calc_id=calc_id)
+		shcf_list, weights = self.read_oq_source_realizations(source_model_name, src, calc_id=calc_id)
 		mean_shcf = None
 		for i in range(len(shcf_list)):
 			shcf = shcf_list[i]
@@ -3307,7 +3314,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		shcf_list, weights = self.read_correlated_source_realizations(source_model_name, src_list, calc_id=calc_id)
+		shcf_list, weights = self.read_oq_correlated_source_realizations(source_model_name, src_list, calc_id=calc_id)
 		mean_shcf = None
 		for i in range(len(shcf_list)):
 			shcf = shcf_list[i]
