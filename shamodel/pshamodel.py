@@ -2818,6 +2818,26 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		PSHAModelTree.__init__(self, name, source_model_lt, gmpe_lt, root_folder, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, intensities, min_intensities, max_intensities, num_intensities, return_periods, time_span, truncation_level, integration_distance, num_lt_samples, random_seed)
 
+	def _get_curve_path(self, source_model_name, trt, source_id, gmpe_name):
+		"""
+		Construct subfolder path for decomposed calculation
+
+		:param source_model_name:
+			str, name of source model
+		:param trt:
+			str, tectonic region type
+		:param source_id:
+			str, source ID
+		:param gmpe_name:
+			str, name of GMPE
+
+		:return:
+			str, subfolder path
+		"""
+		trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
+		curve_path = os.path.sep.join([source_model_name, trt_short_name, source_id, gmpe_name])
+		return curve_path
+
 	def iter_psha_models(self):
 		"""
 		Loop over decomposed PSHA models
@@ -2935,9 +2955,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			curve_name = '--'.join(curve_name_parts[2:])
 			src = psha_model.source_model.sources[0]
 			trt = src.tectonic_region_type
-			trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
 			gmpe_name = psha_model.ground_motion_model[trt]
-			curve_path = os.path.sep.join([source_model_name, trt_short_name, src.source_id, gmpe_name])
+			curve_path = self._get_curve_path(source_model_name, trt_short_name, src.source_id, gmpe_name)
 
 			## Determine intensity levels from saved hazard curves
 			site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
@@ -3078,8 +3097,6 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			- shcf: instance of :class:`rshalib.result.SpectralHazardCurveField`
 			- weight: decimal
 		"""
-		from ..openquake import parse_spectral_hazard_curve_field
-
 		for branch_id in gmpelt_path:
 			gmpe_branch = self.gmpe_lt.get_branch_by_id(branch_id)
 			trt = gmpe_branch.parent_branchset.applyToTectonicRegionType
@@ -3094,12 +3111,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						weight *= smlt_branch.weight
 				branch_path = [bp.split('--')[-1] for bp in branch_path]
 				curve_name = '--'.join(branch_path)
-				hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name)
-				xml_filename = "hazard_curve_multi-%s.xml" % curve_name
-				#print xml_filename
-				xml_filespec = os.path.join(hc_folder, xml_filename)
-				shcf = parse_spectral_hazard_curve_field(xml_filespec)
-				shcf.set_site_names(self.get_sha_sites())
+				curve_path = self._get_curve_path(source_model_name, trt, src.source_id, gmpe_name)
+				shcf = self.read_oq_shcf(curve_name, curve_path, calc_id=calc_id)
 				return shcf, weight
 
 	def read_oq_realization(self, source_model_name, smlt_path, gmpelt_path, calc_id=None):
@@ -3154,7 +3167,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, self.name, branch_names=branch_names, weights=weights)
 		return shcft
 
-	def read_oq_source_realizations(self, source_model_name, src, calc_id=None, verbose=False):
+	def read_oq_source_realizations(self, source_model_name, src, gmpe_name="", calc_id=None, verbose=False):
 		"""
 		Read results for all realizations of a particular source
 
@@ -3162,6 +3175,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			str, name of source model
 		:param src:
 			instance of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param gmpe_name:
+			str, name of GMPE (default: "", will read all GMPEs)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3170,25 +3185,23 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			(default: False)
 
 		:return:
-			(shc_list, weights) tuple:
-			- shc_list: list of instances of :class:`SpectralHazardCurveField`
+			(shcf_list, weights) tuple:
+			- shcf_list: list of instances of :class:`SpectralHazardCurveField`
 			- weights: list with corresponding weights (decimals)
 		"""
-		from ..openquake import parse_spectral_hazard_curve_field
-
 		shcf_list, weights = [], []
 		trt = src.tectonic_region_type
-		for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+		if not gmpe_name:
+			gmpe_weight_iterable = self.gmpe_lt.gmpe_system_def[trt]
+		else:
+			## use dummy weight
+			gmpe_weight_iterable = [(gmpe_name, 1)]
+		for gmpe_name, gmpe_weight in gmpe_weight_iterable:
 			for (branch_path, smlt_weight) in self.source_model_lt.enumerate_branch_paths_by_source(source_model_name, src):
 				branch_path = [b.branch_id.split('--')[-1] for b in branch_path]
 				curve_name = '--'.join(branch_path)
-				hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name, calc_id=calc_id)
-				xml_filename = "hazard_curve_multi-%s.xml" % curve_name
-				if verbose:
-					print xml_filename
-				xml_filespec = os.path.join(hc_folder, xml_filename)
-				shcf = parse_spectral_hazard_curve_field(xml_filespec)
-				shcf.set_site_names(self.get_sha_sites())
+				curve_path = self._get_curve_path(source_model_name, trt, src.source_id, gmpe_name)
+				shcf = self.read_oq_shcf(curve_name, curve_path, calc_id=calc_id)
 				shcf_list.append(shcf)
 				weights.append(gmpe_weight * smlt_weight)
 		return shcf_list, weights
@@ -3215,21 +3228,27 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, src.name, weights=weights)
 		return shcft
 
-	def enumerate_correlated_sources(self, source_model):
+	def enumerate_correlated_sources(self, source_model, trt=None):
 		"""
 		Enumerate correlated sources for a particular source model
 
 		:param source_model:
 			instance of :class:`rshalib.source.SourceModel`
+		:param trt:
+			str, tectonic region type (default: None)
 
 		:return:
 			generator object yielding lists of sources
 		"""
 		for src_ids in self.source_model_lt.list_correlated_sources(source_model):
 			sources = [source_model[src_id] for src_id in src_ids]
+			if trt:
+				sources = [src for src in sources if src.tectonic_region_type == trt]
+				if len(sources) == 0:
+					continue
 			yield sources
 
-	def read_oq_correlated_source_realizations(self, source_model_name, src_list, calc_id=None):
+	def read_oq_correlated_source_realizations(self, source_model_name, src_list, gmpe_name="", calc_id=None):
 		"""
 		Read results for all realizations of a list of correlated sources
 
@@ -3237,6 +3256,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			str, name of source model
 		:param src_list:
 			list with instances of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param gmpe_name:
+			str, name of GMPE (default: "", will read all GMPEs)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3251,7 +3272,12 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		shcf_list, weights = [], []
 		src0 = src_list[0]
 		trt = src0.tectonic_region_type
-		for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+		if not gmpe_name:
+			gmpe_weight_iterable = self.gmpe_lt.gmpe_system_def[trt]
+		else:
+			## use dummy weight
+			gmpe_weight_iterable = [(gmpe_name, 1)]
+		for gmpe_name, gmpe_weight in gmpe_weight_iterable:
 			for (branch_path, smlt_weight) in self.source_model_lt.enumerate_branch_paths_by_source(source_model_name, src0):
 				branch_path = [b.branch_id.split('--')[-1] for b in branch_path]
 				curve_name = '--'.join(branch_path)
@@ -3271,7 +3297,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				weights.append(gmpe_weight * smlt_weight)
 		return shcf_list, weights
 
-	def calc_mean_shcf_by_source(self, source_model_name, src, calc_id=None):
+	def calc_mean_shcf_by_source(self, source_model_name, src, gmpe_name="", calc_id=None):
 		"""
 		Compute mean spectral hazard curve field for a particular source
 
@@ -3279,6 +3305,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			str, name of source model
 		:param src:
 			instance of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param gmpe_name:
+			str, name of GMPE (default: "", will read all GMPEs)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3286,7 +3314,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		shcf_list, weights = self.read_oq_source_realizations(source_model_name, src, calc_id=calc_id)
+		shcf_list, weights = self.read_oq_source_realizations(source_model_name, src, gmpe_name=gmpe_name, calc_id=calc_id)
 		mean_shcf = None
 		for i in range(len(shcf_list)):
 			shcf = shcf_list[i]
@@ -3298,7 +3326,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		mean_shcf.model_name = "%s weighted mean" % src.source_id
 		return mean_shcf
 
-	def calc_mean_shcf_by_correlated_sources(self, source_model_name, src_list, calc_id=None):
+	def calc_mean_shcf_by_correlated_sources(self, source_model_name, src_list, gmpe_name="", calc_id=None):
 		"""
 		Compute mean spectral hazard curve field for a list of correlated
 		sources
@@ -3307,6 +3335,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			str, name of source model
 		:param src_list:
 			list with instances of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param gmpe_name:
+			str, name of GMPE (default: "", will read all GMPEs)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3314,7 +3344,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		shcf_list, weights = self.read_oq_correlated_source_realizations(source_model_name, src_list, calc_id=calc_id)
+		shcf_list, weights = self.read_oq_correlated_source_realizations(source_model_name, src_list, gmpe_name=gmpe_name, calc_id=calc_id)
 		mean_shcf = None
 		for i in range(len(shcf_list)):
 			shcf = shcf_list[i]
@@ -3340,18 +3370,35 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
+		## Although it is perhaps not necessary, we compute separately for each
+		## trt, in order to respect the correlation between sources in each trt
+		## in the ground-motion logic tree
 		summed_shcf = None
-		for src_list in self.enumerate_correlated_sources(source_model):
-			if len(src_list) == 1:
-				[src] = src_list
-				shcf = self.calc_mean_shcf_by_source(source_model.name, src, calc_id=calc_id)
-			else:
-				shcf = self.calc_mean_shcf_by_correlated_sources(source_model.name, src_list, calc_id=calc_id)
-			if shcf:
-				if summed_shcf is None:
-					summed_shcf = shcf
+		somo_trts = [src.tectonic_region_type for src in source_model]
+		for trt in somo_trts:
+			trt_shcf = None
+			for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+				gmpe_shcf = None
+				for src_list in self.enumerate_correlated_sources(source_model, trt):
+					if len(src_list) == 1:
+						[src] = src_list
+						shcf = self.calc_mean_shcf_by_source(source_model.name, src, gmpe_name=gmpe_name, calc_id=calc_id)
+					else:
+						shcf = self.calc_mean_shcf_by_correlated_sources(source_model.name, src_list, gmpe_name=gmpe_name, calc_id=calc_id)
+					if shcf:
+						if gmpe_shcf is None:
+							gmpe_shcf = shcf
+						else:
+							gmpe_shcf += shcf
+				gmpe_shcf *= gmpe_weight
+				if trt_shcf is None:
+					trt_shcf = gmpe_shcf
 				else:
-					summed_shcf += shcf
+					trt_shcf += gmpe_shcf
+		if summed_shcf is None:
+			summed_shcf = trt_shcf
+		else:
+			summed_shcf += trt_shcf
 		summed_shcf.model_name = "%s weighted mean" % source_model.name
 		return summed_shcf
 
@@ -3381,6 +3428,154 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		pass
 
 	# TODO: methods to compute minimum / maximum scenarios
+
+	def read_oq_deagg_realization_by_source(self, source_model_name, src, smlt_path, gmpelt_path, site, calc_id=None):
+		"""
+		Read deaggregation results of a particular logictree sample for 1 source
+
+		:param source_model_name:
+			str, name of source model
+		:param src:
+			instance of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param smlt_path:
+			list of branch ids (strings), source-model logic tree path
+		:param gmpelt_path:
+			list of branch ids (strings), ground-motion logic tree path
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			(sdc, weight) tuple:
+			- sdc: instance of :class:`rshalib.result.SpectralDeaggregationCurve`
+			- weight: decimal
+		"""
+		from ..openquake import parse_spectral_hazard_curve_field
+
+		for branch_id in gmpelt_path:
+			gmpe_branch = self.gmpe_lt.get_branch_by_id(branch_id)
+			trt = gmpe_branch.parent_branchset.applyToTectonicRegionType
+			gmpe_name = gmpe_branch.value
+			weight = gmpe_branch.weight
+			if src.tectonic_region_type == trt:
+				branch_path = []
+				for branch_id in smlt_path[1:]:
+					smlt_branch = self.source_model_lt.get_branch_by_id(branch_id)
+					if smlt_branch.parent_branchset.filter_source(src):
+						branch_path.append(branch_id)
+						weight *= smlt_branch.weight
+				branch_path = [bp.split('--')[-1] for bp in branch_path]
+				curve_name = '--'.join(branch_path)
+				curve_path = self._get_curve_path(source_model_name, trt_short_name, src.source_id, gmpe_name)
+				sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path, calc_id=calc_id)
+				return sdc, weight
+
+	def read_oq_deagg_realization(self, source_model_name, smlt_path, gmpelt_path, site, calc_id=None):
+		"""
+		Read deaggregation results of a particular logic-tree sample
+		(by summing deaggregation curves of individual sources)
+
+		:param source_model_name:
+			str, name of source model
+		:param smlt_path:
+			list of branch ids (strings), source-model logic tree path
+		:param gmpelt_path:
+			list of branch ids (strings), ground-motion logic tree path
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			instance of :class:`rshalib.result.SpectralDeaggregationCurve`
+		"""
+		source_model = [somo for somo in self.source_models if somo.name == source_model_name][0]
+		summed_sdc = None
+		for src in source_model.sources:
+			sdc, weight = self.read_oq_deagg_realization_by_source(source_model_name, src, smlt_path, gmpelt_path, site, calc_id=calc_id)
+			if sdc:
+				if summed_sdc is None:
+					summed_sdc = sdc
+				else:
+					summed_sdc += sdc
+		return summed_sdc
+
+	def read_oq_source_deagg_realizations(self, source_model_name, src, site, gmpe_name="", calc_id=None, verbose=False):
+		"""
+		Read deaggregation results for all realizations of a particular source
+
+		:param source_model_name:
+			str, name of source model
+		:param src:
+			instance of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+		:param gmpe_name:
+			str, name of GMPE (default: "", will read all GMPEs)
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+		:param verbose:
+			bool, whether or not to print some progress information
+			(default: False)
+
+		:return:
+			(sdc_list, weights) tuple:
+			- sdc_list: list of instances of :class:`SpectralDeaggregationCurve`
+			- weights: list with corresponding weights (decimals)
+		"""
+		sdc_list, weights = [], []
+		trt = src.tectonic_region_type
+		if not gmpe_name:
+			gmpe_weight_iterable = self.gmpe_lt.gmpe_system_def[trt]
+		else:
+			## use dummy weight
+			gmpe_weight_iterable = [(gmpe_name, 1)]
+		for gmpe_name, gmpe_weight in gmpe_weight_iterable:
+			for (branch_path, smlt_weight) in self.source_model_lt.enumerate_branch_paths_by_source(source_model_name, src):
+				branch_path = [b.branch_id.split('--')[-1] for b in branch_path]
+				curve_name = '--'.join(branch_path)
+				curve_path = self._get_curve_path(source_model_name, trt, src.source_id, gmpe_name)
+				sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path, calc_id=calc_id)
+				sdc_list.append(sdc)
+				weights.append(gmpe_weight * smlt_weight)
+		return sdc_list, weights
+
+	def calc_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", calc_id=None):
+		"""
+		Compute mean spectral hazard curve field for a particular source
+
+		:param source_model_name:
+			str, name of source model
+		:param src:
+			instance of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+		:param gmpe_name:
+			str, name of GMPE (default: "", will read all GMPEs)
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			instance of :class:`SpectralHazardCurveField`
+		"""
+		sdc_list, weights = self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)
+		mean_sdc = None
+		for i in range(len(sdc_list)):
+			sdc = sdc_list[i]
+			weight = weights[i]
+			if i == 0:
+				mean_sdc = sdc * weight
+			else:
+				mean_sdc += (sdc * weight)
+		mean_sdc.model_name = "%s weighted mean" % src.source_id
+		return mean_sdc
+
+
 
 
 if __name__ == '__main__':
