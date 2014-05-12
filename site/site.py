@@ -417,6 +417,14 @@ class SoilSite(nhlib.site.Site):
 	@property
 	def lat(self):
 		return self.location.latitude
+	
+	@property
+	def longitude(self):
+		return self.location.longitude
+
+	@property
+	def latitude(self):
+		return self.location.latitude
 
 	@property
 	def depth(self):
