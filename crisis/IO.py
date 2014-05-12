@@ -367,6 +367,9 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		of.write("%s\n" % sites_filespec)
 		if not os.path.exists(sites_filespec):
 			write_ASC(sites_filespec, sites)
+		else:
+			if overwrite:
+				write_ASC(sites_filespec, sites)
 	else:
 		raise Exception("Must specify either sites or grid_outline!")
 
