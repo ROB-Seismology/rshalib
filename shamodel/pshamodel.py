@@ -1940,7 +1940,7 @@ class PSHAModelTree(PSHAModelBase):
 			return self.enumerate_source_model_lt(verbose=verbose, show_plot=show_plot)
 
 		modified_source_models_weights = []
-		for (sm_name, path, weight) in self.sample_source_model_lt(num_samples):
+		for (sm_name, path, weight) in self.sample_source_model_lt_paths(num_samples):
 			if verbose:
 				print sm_name, path
 			if show_plot:
