@@ -232,7 +232,7 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					## Repi, RJB
 					min_distance = 1.0
 				# TODO: damping?
-				gsimObj.write_ATN(Mmin, Mmax, Mstep, min_distance,
+				gsimObj.writeCRISIS_ATN(Mmin, Mmax, Mstep, min_distance,
 										integration_distance, num_distances,
 										h=0, imt_periods=imt_periods,
 										imt_unit=imt_unit,
