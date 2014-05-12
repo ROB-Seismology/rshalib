@@ -21,17 +21,24 @@ class GroundMotionSystem(LogicTree):
 	:param gmpe_system_def:
 		dictionary with tectonic region types as keys and instances of
 		:class:`PMF` as values, containing GMPE models and their weights
+	:param use_short_names:
+		bool, whether to label branches using short names or full
+		names of GMPEs (default: True)
 	"""
-	def __init__(self, id, gmpe_system_def):
+	def __init__(self, id, gmpe_system_def, use_short_names=True):
 		LogicTree.__init__(self, id, [])
 		self.gmpe_system_def = gmpe_system_def
-		self._construct_lt()
+		self._construct_lt(use_short_names=use_short_names)
 		self.connect_branches()
 
-	def _construct_lt(self):
+	def _construct_lt(self, use_short_names=True):
 		"""
 		Construct logic tree
 		This method is called during initialization
+
+		:param use_short_names:
+			bool, whether to label branches using short names or full
+			names of GMPEs (default: True)
 		"""
 		from ..gsim import gmpe as gmpe_module
 		for i, tectonicRegionType in enumerate(self.tectonicRegionTypes):
@@ -42,7 +49,8 @@ class GroundMotionSystem(LogicTree):
 			## Rename branch ID's:
 			for branch, gmpe_name in zip(branch_set.branches, self.gmpe_system_def[tectonicRegionType].gmpe_names):
 				gmpe = getattr(gmpe_module, gmpe_name)()
-				branch.branch_id = "%s--%s" % (branchSetID, gmpe.short_name)
+				gmpe_name = {True: gmpe.short_name, False: gmpe.name}[use_short_names]
+				branch.branch_id = "%s--%s" % (branchSetID, gmpe_name)
 			branching_level = LogicTreeBranchingLevel(branchingLevelID, [branch_set])
 			self.branching_levels.append(branching_level)
 

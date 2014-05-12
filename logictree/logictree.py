@@ -658,7 +658,7 @@ class LogicTree(object):
 						pos[branch.branch_id] = (l+1+0.5, ymin + b*(dy/(num_branches-1)))
 		return pos
 
-	def plot_diagram(self, highlight_path=[], branch_label="branch_id", title=None, fig_filespec=None, dpi=300):
+	def plot_diagram(self, highlight_path=[], branch_label="branch_id", branchset_label="", title=None, fig_filespec=None, dpi=300):
 		"""
 		Plot diagram of logic tree using networkx or pygraphviz.
 		Requires branches to be connected.
@@ -667,6 +667,8 @@ class LogicTree(object):
 			list of strings: branch ID's of path to highlight
 		:param branch_label:
 			string, branch property to label (default: "branch_id")
+		:param branchset_label:
+			string, branchset property to label (default: "")
 		:param title:
 			string, plot title (default: None)
 		:param fig_filespec:
@@ -742,6 +744,9 @@ class LogicTree(object):
 		if branch_label:
 			for branch in all_branches:
 				node_labels[branch.branch_id] = getattr(branch, branch_label)
+		if branchset_label:
+			for bs in all_branchsets:
+				node_labels[bs.id] = getattr(bs, branchset_label)
 		## TODO: label offset doesn't work
 		label_offset = 0.05
 		label_pos = {}
