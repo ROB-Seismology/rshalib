@@ -240,9 +240,9 @@ class HazardResult:
 		conv_factor = None
 		if self.IMT in ("PGA", "SA"):
 			if self.intensity_unit == "g":
-				conv_factor = {"g": 1.0, "mg": 1E+3, "ms2": g*1E-3, "gal": g*1E-1, "cms2": g*1E-1}[intensity_unit]
+				conv_factor = {"g": 1.0, "mg": 1E+3, "ms2": g, "gal": g*100, "cms2": g*100}[intensity_unit]
 			elif self.intensity_unit == "mg":
-				conv_factor = {"g": 1E-3, "mg": 1.0, "ms2": g, "gal": g*100, "cms2": g*100}[intensity_unit]
+				conv_factor = {"g": 1E-3, "mg": 1.0, "ms2": g*1E-3, "gal": g*1E-1, "cms2": g*1E-1}[intensity_unit]
 			elif self.intensity_unit in ("gal", "cms2"):
 				conv_factor = {"g": 0.01/g, "mg": 10./g, "ms2": 1E-2, "gal": 1.0, "cms2": 1.0}[intensity_unit]
 			elif self.intensity_unit == "ms2":
