@@ -1583,7 +1583,7 @@ class PSHAModel(PSHAModelBase):
 		params.validate()
 		params.write_config(os.path.join(self.oq_root_folder, 'job.ini'))
 
-	def write_crisis(self, filespec="", atn_folder="", site_filespec="", atn_Mmax=None, overwrite=False):
+	def write_crisis(self, filespec="", atn_folder="", site_filespec="", atn_Mmax=None, mag_scale_rel="", overwrite=False):
 		"""
 		Write full PSHA model input for Crisis.
 
@@ -1600,6 +1600,11 @@ class PSHAModel(PSHAModelBase):
 		:param atn_Mmax:
 			Float, maximum magnitude in attenuation table(s)
 			(default: None, will determine automatically from source model)
+		:param mag_scale_rel:
+			String, name of magnitude-area scaling relationship to be used,
+			one of "WC1994", "Brune1970" or "Singh1980" (default: "").
+			If empty, the scaling relationships associated with the individual
+			source objects will be used.
 		:param overwrite:
 			Boolean, whether or not to overwrite existing input files (default: False)
 
@@ -1638,7 +1643,7 @@ class PSHAModel(PSHAModelBase):
 
 		## Write input file. This will also write the site file and attenuation
 		## tables if necessary.
-		write_DAT_2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.get_sites(), site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], kappa=self.ref_soil_params["kappa"], mag_scale_rel=None, atn_Mmax=atn_Mmax, output={"gra": True, "map": True, "fue": True, "des": True, "smx": True, "eps": True, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
+		write_DAT_2007(filespec, self.source_model, self.ground_motion_model, gsim_atn_map, self.return_periods, self.grid_outline, grid_spacing, self.get_sites(), site_filespec, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, 'g', self.name, self.truncation_level, self.integration_distance, source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"], kappa=self.ref_soil_params["kappa"], mag_scale_rel=mag_scale_rel, atn_Mmax=atn_Mmax, output={"gra": True, "map": True, "fue": True, "des": True, "smx": True, "eps": True, "res_full": False}, map_filespec="", cities_filespec="", overwrite=overwrite)
 
 		## Return name of output file
 		return filespec
