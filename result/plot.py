@@ -157,7 +157,7 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 		pylab.fill([0, 0, amax, amax], [min(exc_range), max(exc_range), max(exc_range), min(exc_range)], shade, edgecolor=shade)
 
 	## Plot decoration
-	xlabel = {"en": "Acceleration", "nl": "Versnelling"}[lang]
+	xlabel = {"en": "Acceleration", "nl": "Versnelling", "fr": u"Accélération"}[lang]
 	xlabel += " (%s)" % intensity_unit
 	pylab.xlabel(xlabel, fontsize='x-large')
 	if want_recurrence:
@@ -167,7 +167,7 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 		pylab.ylabel({"en": "Probability of exceedance", "nl": "Overschrijdingskans"}[lang], fontsize='x-large')
 		pylab.axis((0.0, amax, 1E-05, 1))
 	else:
-		pylab.ylabel({"en": "Exceedance rate (1/yr)", "nl": "Overschrijdingssnelheid (1/jaar)"}[lang], fontsize='x-large')
+		pylab.ylabel({"en": "Exceedance rate (1/yr)", "nl": "Overschrijdingssnelheid (1/jaar)", "fr": u"Taux de dépassement (1/a)"}[lang], fontsize='x-large')
 		pylab.axis((0, amax, 1.0/tr_max, 1))
 	font = FontProperties(size='large')
 	pylab.legend(loc=legend_location, prop=font)
