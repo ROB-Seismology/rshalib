@@ -743,7 +743,8 @@ class LogicTree(object):
 		node_labels = {}
 		if branch_label:
 			for branch in all_branches:
-				node_labels[branch.branch_id] = getattr(branch, branch_label)
+				label = getattr(branch, branch_label).split('--')[-1].strip()
+				node_labels[branch.branch_id] = label
 		if branchset_label:
 			for bs in all_branchsets:
 				node_labels[bs.id] = getattr(bs, branchset_label)
