@@ -2674,12 +2674,6 @@ class PSHAModelTree(PSHAModelBase):
 
 				bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, coord_bin_width, num_epsilon_bins)
 				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trt_bins = bin_edges
-				#print mag_bins
-				#print dist_bins
-				#print lon_bins
-				#print lat_bins
-				#print eps_bins
-				#print trt_bins
 
 				## Create empty matrix
 				num_periods = len(sdc.periods)
@@ -2727,6 +2721,8 @@ class PSHAModelTree(PSHAModelBase):
 
 		return SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 
+	def to_decomposed_psha_model_tree(self):
+		return DecomposedPSHAModelTree(self.name, self.source_model_lt, self.gmpe_lt, self.root_folder, self.sites, self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance, self.num_lt_samples, self.random_seed)
 
 
 	# TODO: the following methods are probably obsolete
@@ -2803,9 +2799,6 @@ class PSHAModelTree(PSHAModelBase):
 		Return enumerated logic tree sample.
 		"""
 		return self.enumerated_lts_samples.next()
-
-	def to_decomposed_psha_model_tree(self):
-		return DecomposedPSHAModelTree(self.name, self.source_model_lt, self.gmpe_lt, self.root_folder, self.sites, self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance, self.num_lt_samples, self.random_seed)
 
 
 class DecomposedPSHAModelTree(PSHAModelTree):
@@ -3473,7 +3466,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						weight *= smlt_branch.weight
 				branch_path = [bp.split('--')[-1] for bp in branch_path]
 				curve_name = '--'.join(branch_path)
-				curve_path = self._get_curve_path(source_model_name, trt_short_name, src.source_id, gmpe_name)
+				curve_path = self._get_curve_path(source_model_name, trt, src.source_id, gmpe_name)
 				sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path, calc_id=calc_id)
 				return sdc, weight
 
@@ -3505,6 +3498,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				if summed_sdc is None:
 					summed_sdc = sdc
 				else:
+					# TODO: doesn't work because bins are different
 					summed_sdc += sdc
 		return summed_sdc
 
@@ -3576,6 +3570,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			if i == 0:
 				mean_sdc = sdc * weight
 			else:
+				# TODO: doesn't work if Mmax is different
 				mean_sdc += (sdc * weight)
 		mean_sdc.model_name = "%s weighted mean" % src.source_id
 		return mean_sdc
