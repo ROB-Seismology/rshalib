@@ -59,6 +59,31 @@ class SeismicSourceSystem(LogicTree):
 					max_mag = max(max_mag, value)
 		return max_mag
 
+	def get_source_max_mag(self, source_model_name, src):
+		"""
+		Determine maximum absolute magnitude for a particular source
+
+		:param source_model_name:
+			str, name of source model
+		:param src:
+			instance of :class:`rshalib.source.PointSource`,
+			`rshalib.source.AreaSource`, `rshalib.source.SimpleFaultSource`
+			or `rshalib.source.ComplexFaultSource`
+
+		:return:
+			float, maximum magnitude
+		"""
+		max_mag = 0
+		for bs in self.get_source_branch_sets(source_model_name, src):
+			if bs.uncertainty_type == "maxMagGRAbsolute":
+				for branch in bs:
+					if isinstance(branch.value, dict):
+						value = max(branch.value.values())
+					else:
+						value = branch.value
+					max_mag = max(max_mag, value)
+		return max_mag
+
 	@classmethod
 	def parse_from_xml(cls, xml_filespec, validate=False):
 		"""
