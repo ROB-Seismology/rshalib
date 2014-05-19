@@ -3522,11 +3522,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			(default: False)
 
 		:return:
-			(sdc_list, weights) tuple:
-			- sdc_list: list of instances of :class:`SpectralDeaggregationCurve`
-			- weights: list with corresponding weights (decimals)
+			generator yielding (sdc, weight) tuples:
+			- sdc: instance of :class:`SpectralDeaggregationCurve`
+			- weight: corresponding weight (decimal)
 		"""
-		sdc_list, weights = [], []
 		trt = src.tectonic_region_type
 		if not gmpe_name:
 			gmpe_weight_iterable = self.gmpe_lt.gmpe_system_def[trt]
@@ -3539,9 +3538,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				curve_name = '--'.join(branch_path)
 				curve_path = self._get_curve_path(source_model_name, trt, src.source_id, gmpe_name)
 				sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path, calc_id=calc_id)
-				sdc_list.append(sdc)
-				weights.append(gmpe_weight * smlt_weight)
-		return sdc_list, weights
+				weight = gmpe_weight * smlt_weight
+				yield (sdc, weight)
 
 	def calc_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", calc_id=None):
 		"""
@@ -3562,16 +3560,34 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		sdc_list, weights = self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)
 		mean_sdc = None
-		for i in range(len(sdc_list)):
-			sdc = sdc_list[i]
-			weight = weights[i]
+		for i, (sdc, weight) in enumerate(self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)):
 			if i == 0:
-				mean_sdc = sdc * weight
-			else:
-				# TODO: doesn't work if Mmax is different
-				mean_sdc += (sdc * weight)
+				## max_mag may be different
+				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = sdc.bin_edges
+				min_mag = mag_bins[0]
+				max_mag = self.source_model_lt.get_source_max_mag(source_model_name, src)
+				mag_bins = sdc.mag_bin_width * np.arange(
+					int(np.floor(min_mag / sdc.mag_bin_width)),
+					int(np.ceil(max_mag / sdc.mag_bin_width) + 1)
+				)
+				bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
+
+				## Create empty deaggregation matrix
+				num_periods = len(sdc.periods)
+				num_intensities = len(sdc.return_periods)
+				nmags = len(mag_bins) - 1
+				ndists = len(dist_bins) - 1
+				nlons = len(lon_bins) - 1
+				nlats = len(lat_bins) - 1
+				neps = len(eps_bins) - 1
+				ntrts = len(trts)
+				shape = (num_periods, num_intensities, nmags, ndists, nlons, nlats, neps, ntrts)
+				mean_deagg_matrix = sdc.deagg_matrix.__class__(np.zeros(shape, sdc.deagg_matrix.dtype))
+
+			mean_deagg_matrix += (sdc.deagg_matrix * weight)
+		intensities = np.zeros(sdc.intensities.shape)
+		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 		mean_sdc.model_name = "%s weighted mean" % src.source_id
 		return mean_sdc
 
