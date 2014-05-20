@@ -2684,21 +2684,9 @@ class PSHAModelTree(PSHAModelBase):
 				coord_bin_width = sdc.lon_bin_width
 				num_epsilon_bins = sdc.neps
 
-				bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, coord_bin_width, num_epsilon_bins)
-				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trt_bins = bin_edges
-
 				## Create empty matrix
-				num_periods = len(sdc.periods)
-				num_intensities = len(sdc.return_periods)
-				nmags = len(mag_bins) - 1
-				ndists = len(dist_bins) - 1
-				nlons = len(lon_bins) - 1
-				nlats = len(lat_bins) - 1
-				neps = num_epsilon_bins
-				ntrts = len(trt_bins)
-
-				shape = (num_periods, num_intensities, nmags, ndists, nlons, nlats, neps, ntrts)
-				mean_deagg_matrix = FractionalContributionMatrix(np.zeros(shape, sdc.deagg_matrix.dtype))
+				bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width, coord_bin_width, num_epsilon_bins)
+				mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, FractionalContributionMatrix, sdc.deagg_matrix.dtype)
 
 			## Sum deaggregation results of logic_tree samples
 			## Assume min_mag, distance bins and eps bins are the same for all models
@@ -2969,6 +2957,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			curve_path = self._get_curve_path(source_model_name, trt_short_name, src.source_id, gmpe_name)
 
 			## Determine intensity levels from saved hazard curves
+			# TODO: we need to interpolate site_imtls from summed hazard curve
+			# or perhaps even from the overall mean hazard curve (should then occur
+			# only once)
 			site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
 															imt_periods, curve_path=curve_path,
 															calc_id=calc_id)
@@ -3502,6 +3493,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`rshalib.result.SpectralDeaggregationCurve`
 		"""
+		# TODO: this is in fact not possible, because we did not compute contribution
+		# to hazard curve corresponding to a logic-tree sample...!
 		source_model = [somo for somo in self.source_models if somo.name == source_model_name][0]
 		summed_sdc = None
 		for src in source_model.sources:
@@ -3553,9 +3546,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				weight = gmpe_weight * smlt_weight
 				yield (sdc, weight)
 
-	def calc_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", calc_id=None):
+	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", calc_id=None):
 		"""
-		Compute mean spectral hazard curve field for a particular source
+		Compute mean spectral deaggregation curve for a particular source
 
 		:param source_model_name:
 			str, name of source model
@@ -3570,10 +3563,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				be determined automatically)
 
 		:return:
-			instance of :class:`SpectralHazardCurveField`
+			instance of :class:`SpectralDeaggregationCurve`
 		"""
 		for i, (sdc, weight) in enumerate(self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)):
 			if i == 0:
+				## Create empty deaggregation matrix
 				## max_mag may be different
 				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = sdc.bin_edges
 				min_mag = mag_bins[0]
@@ -3584,17 +3578,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				)
 				bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
 
-				## Create empty deaggregation matrix
 				num_periods = len(sdc.periods)
 				num_intensities = len(sdc.return_periods)
-				nmags = len(mag_bins) - 1
-				ndists = sdc.ndists
-				nlons = sdc.nlons
-				nlats = sdc.nlats
-				neps = sdc.neps
-				ntrts = sdc.ntrts
-				shape = (num_periods, num_intensities, nmags, ndists, nlons, nlats, neps, ntrts)
-				mean_deagg_matrix = sdc.deagg_matrix.__class__(np.zeros(shape, sdc.deagg_matrix.dtype))
+				mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, sdc.deagg_matrix.dtype)
 
 			mean_deagg_matrix[:,:,:sdc.nmags] += (sdc.deagg_matrix * weight)
 		intensities = np.zeros(sdc.intensities.shape)
@@ -3602,9 +3588,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		mean_sdc.model_name = "%s weighted mean" % src.source_id
 		return mean_sdc
 
-	def calc_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", calc_id=None):
+	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", calc_id=None):
 		"""
-		Compute mean spectral hazard curve field for a particular source
+		Compute mean spectral deaggregation curve for a particular source model
 
 		:param source_model_name:
 			str, name of source model
@@ -3617,27 +3603,20 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				be determined automatically)
 
 		:return:
-			instance of :class:`SpectralHazardCurveField`
+			instance of :class:`SpectralDeaggregationCurve`
 		"""
 		source_model = self.get_source_model_by_name(source_model_name)
 		for i, src in enumerate(source_model.sources):
-			sdc = self.calc_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)
+			sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)
 			if i == 0:
+				## Create empty deaggregation matrix
 				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
 				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = bin_edges
 				trts = sorted([src.source_id for src in source_model.sources])
 				bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
-				## Create empty deaggregation matrix
 				num_periods = len(sdc.periods)
 				num_intensities = len(sdc.return_periods)
-				nmags = len(mag_bins) - 1
-				ndists = len(dist_bins) - 1
-				nlons = len(lon_bins) - 1
-				nlats = len(lat_bins) - 1
-				neps = len(eps_bins) - 1
-				ntrts = len(trts)
-				shape = (num_periods, num_intensities, nmags, ndists, nlons, nlats, neps, ntrts)
-				summed_deagg_matrix = sdc.deagg_matrix.__class__(np.zeros(shape, sdc.deagg_matrix.dtype))
+				summed_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, sdc.deagg_matrix.dtype)
 
 			max_mag_idx = sdc.nmags
 			min_lon_idx = int((sdc.min_lon - lon_bins[0]) / sdc.lon_bin_width)
@@ -3651,6 +3630,49 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		summed_sdc.model_name = "%s weighted mean" % source_model_name
 		return summed_sdc
 
+	def get_oq_mean_sdc(self, site, calc_id=None):
+		"""
+		Compute mean spectral deaggregation curve
+
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			instance of :class:`SpectralDeaggregationCurve`
+		"""
+		# trts now correspond to tectonic region types
+		for i, (source_model, somo_weight) in enumerate(self.source_model_lt.source_model_pmf):
+			sdc = self.get_oq_mean_sdc_by_source_model(source_model_name, site, calc_id=calc_id)
+			if i == 0:
+				## Create empty deaggregation matrix
+				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
+				num_periods = len(sdc.periods)
+				num_intensities = len(sdc.return_periods)
+				mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, sdc.deagg_matrix.dtype)
+
+			mean_shcf += (source_model_shcf * somo_weight)
+
+			trt_bins = bin_edges[-1]
+			if sdc.trt_bins == trt_bins:
+				## trt bins correspond to source IDs
+				mean_deagg_matrix[:,:,:,:,:,:,:,:] += (sdc.deagg_matrix * somo_weight)
+			else:
+				## trt bins correspond to tectonic region types
+				for trt_idx, trt in enumerate(trt_bins):
+					src_idxs = []
+					for src_idx, src_id in enumerate(sdc.trt_bins):
+						src = source_model[src_id]
+						if src.tectonic_region_type == trt:
+							src_idxs.append(src_idx)
+				mean_deagg_matrix[:,:,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[:,:,:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
+
+		intensities = np.zeros(sdc.intensities.shape)
+		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+		mean_sdc.model_name = "Logic-tree weighted mean"
+		return mean_sdc
 
 
 
