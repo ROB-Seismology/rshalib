@@ -1388,6 +1388,38 @@ class SpectralDeaggregationCurve(DeaggBase):
 	def __rmul__(self, number):
 		return self.__mul__(number)
 
+	@classmethod
+	def construct_empty_deagg_matrix(self, num_periods, num_intensities, bin_edges, matrix_class=ProbabilityMatrix, dtype='d'):
+		"""
+		Construct empty deaggregation matrix for a spectral deaggregation curve
+
+		:param num_periods:
+			int, number of spectral periods
+		:param num_intensities:
+			int, number of intensities or return periods
+		:param bin_edges:
+			tuple (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
+		:param matrix_class:
+			matrix class, either :cls:`ProbabilityMatrix`, :cls:`ExceedanceRateMatrix`
+			or :class:`FractionalContributionMatrix`
+			(default:  :cls:`ProbabilityMatrix`)
+		:param dtype:
+			str, precision of deaggregation matrix (default: 'd')
+
+		:return:
+			instance of :class:`DeaggMatrix`
+		"""
+		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = bin_edges
+		nmags = len(mag_bins) - 1
+		ndists = len(dist_bins) - 1
+		nlons = len(lon_bins) - 1
+		nlats = len(lat_bins) - 1
+		neps = len(eps_bins) - 1
+		ntrts = len(trts)
+		shape = (num_periods, num_intensities, nmags, ndists, nlons, nlats, neps, ntrts)
+		deagg_matrix = matrix_class(np.zeros(shape, dtype))
+		return deagg_matrix
+
 	def get_curve(self, period=None, period_index=None):
 		"""
 		Get deaggregation curve for a particular spectral period.
