@@ -40,6 +40,19 @@ class SeismicSourceSystem(LogicTree):
 	def source_models(self):
 		return self.source_model_pmf.source_models
 
+	def get_source_model_by_name(self, source_model_name):
+		"""
+		Get source model by name
+
+		:param source_model_name:
+			str, name of source model
+
+		:return:
+			instance ov :class:`rshalib.source.SourceModel`
+		"""
+		[source_model] = [somo for somo in self.source_models if somo.name == source_model_name]
+		return source_model
+
 	def get_max_mag(self):
 		"""
 		Determine maximum absolute magnitude (maxMagGRAbsolute)
