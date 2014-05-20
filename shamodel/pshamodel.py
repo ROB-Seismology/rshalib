@@ -1713,6 +1713,18 @@ class PSHAModelTree(PSHAModelBase):
 	def source_models(self):
 		return self.source_model_lt.source_models
 
+	def get_source_model_by_name(self, source_model_name):
+		"""
+		Get source model by name
+
+		:param source_model_name:
+			str, name of source model
+
+		:return:
+			instance ov :class:`rshalib.source.SourceModel`
+		"""
+		return self.source_model_lt.get_source_model_by_name(source_model_name)
+
 	def _init_rnd(self):
 		"""
 		Initialize random number generator with random seed
@@ -3560,7 +3572,6 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		mean_sdc = None
 		for i, (sdc, weight) in enumerate(self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)):
 			if i == 0:
 				## max_mag may be different
@@ -3577,19 +3588,68 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				num_periods = len(sdc.periods)
 				num_intensities = len(sdc.return_periods)
 				nmags = len(mag_bins) - 1
+				ndists = sdc.ndists
+				nlons = sdc.nlons
+				nlats = sdc.nlats
+				neps = sdc.neps
+				ntrts = sdc.ntrts
+				shape = (num_periods, num_intensities, nmags, ndists, nlons, nlats, neps, ntrts)
+				mean_deagg_matrix = sdc.deagg_matrix.__class__(np.zeros(shape, sdc.deagg_matrix.dtype))
+
+			mean_deagg_matrix[:,:,:sdc.nmags] += (sdc.deagg_matrix * weight)
+		intensities = np.zeros(sdc.intensities.shape)
+		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+		mean_sdc.model_name = "%s weighted mean" % src.source_id
+		return mean_sdc
+
+	def calc_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", calc_id=None):
+		"""
+		Compute mean spectral hazard curve field for a particular source
+
+		:param source_model_name:
+			str, name of source model
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+		:param gmpe_name:
+			str, name of GMPE (default: "", will read all GMPEs)
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			instance of :class:`SpectralHazardCurveField`
+		"""
+		source_model = self.get_source_model_by_name(source_model_name)
+		for i, src in enumerate(source_model.sources):
+			sdc = self.calc_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)
+			if i == 0:
+				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
+				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = bin_edges
+				trts = sorted([src.source_id for src in source_model.sources])
+				bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
+				## Create empty deaggregation matrix
+				num_periods = len(sdc.periods)
+				num_intensities = len(sdc.return_periods)
+				nmags = len(mag_bins) - 1
 				ndists = len(dist_bins) - 1
 				nlons = len(lon_bins) - 1
 				nlats = len(lat_bins) - 1
 				neps = len(eps_bins) - 1
 				ntrts = len(trts)
 				shape = (num_periods, num_intensities, nmags, ndists, nlons, nlats, neps, ntrts)
-				mean_deagg_matrix = sdc.deagg_matrix.__class__(np.zeros(shape, sdc.deagg_matrix.dtype))
+				summed_deagg_matrix = sdc.deagg_matrix.__class__(np.zeros(shape, sdc.deagg_matrix.dtype))
 
-			mean_deagg_matrix += (sdc.deagg_matrix * weight)
+			max_mag_idx = sdc.nmags
+			min_lon_idx = int((sdc.min_lon - lon_bins[0]) / sdc.lon_bin_width)
+			max_lon_idx = min_lon_idx + sdc.nlons
+			min_lat_idx = int((sdc.min_lat - lat_bins[0]) / sdc.lat_bin_width)
+			max_lat_idx = min_lat_idx + sdc.nlats
+			trt_idx = trts.index(src.source_id)
+			summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:,:,:,:,:,0]
 		intensities = np.zeros(sdc.intensities.shape)
-		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
-		mean_sdc.model_name = "%s weighted mean" % src.source_id
-		return mean_sdc
+		summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+		summed_sdc.model_name = "%s weighted mean" % source_model_name
+		return summed_sdc
 
 
 
