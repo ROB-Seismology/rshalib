@@ -3643,17 +3643,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
 		"""
-		# trts now correspond to tectonic region types
+		import gc
+
 		for i, (source_model, somo_weight) in enumerate(self.source_model_lt.source_model_pmf):
-			sdc = self.get_oq_mean_sdc_by_source_model(source_model_name, site, calc_id=calc_id)
+			sdc = self.get_oq_mean_sdc_by_source_model(source_model.name, site, calc_id=calc_id)
 			if i == 0:
 				## Create empty deaggregation matrix
 				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
 				num_periods = len(sdc.periods)
 				num_intensities = len(sdc.return_periods)
 				mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, sdc.deagg_matrix.dtype)
-
-			mean_shcf += (source_model_shcf * somo_weight)
 
 			trt_bins = bin_edges[-1]
 			if sdc.trt_bins == trt_bins:
@@ -3667,7 +3666,17 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						src = source_model[src_id]
 						if src.tectonic_region_type == trt:
 							src_idxs.append(src_idx)
-				mean_deagg_matrix[:,:,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[:,:,:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
+				src_idxs = np.array(src_idxs)
+				## Loop needed to avoid running out of memory...
+				for t in range(num_periods):
+					for l in range(num_intensities):
+						# Note: something very strange happens here: after slicing, trt
+						# becomes first dimension, so we have to fold axis 0 instead of -1...
+						mean_deagg_matrix[t,l,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[t,l,:,:,:,:,:,src_idxs].fold_axis(0) * somo_weight)
+				#mean_deagg_matrix[:,:,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[:,:,:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
+
+			del sdc.deagg_matrix
+			gc.collect()
 
 		intensities = np.zeros(sdc.intensities.shape)
 		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
