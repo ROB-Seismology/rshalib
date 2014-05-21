@@ -136,7 +136,7 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 	return curves
 
 
-def calc_shcf_psha_model(psha_model, sample_idx, cav_min, combine_pga_and_sa, verbose):
+def calc_shcf_psha_model(psha_model, sample_idx, cav_min, combine_pga_and_sa, calc_id, verbose):
 	"""
 	Stand-alone function that will compute hazard curves for a single
 	logic-tree sample.
@@ -153,6 +153,8 @@ def calc_shcf_psha_model(psha_model, sample_idx, cav_min, combine_pga_and_sa, ve
 		float, CAV threshold in g.s
 	:param combine_pga_and_sa:
 		bool, whether or not to combine PGA and SA, if present
+	:param calc_id:
+		int or str, OpenQuake calculation ID
 	:param verbose:
 		Bool, whether or not to print some progress information
 
@@ -176,10 +178,10 @@ def calc_shcf_psha_model(psha_model, sample_idx, cav_min, combine_pga_and_sa, ve
 		curve_name = "rlz-%s" % (sample_idx)
 		for im, shcf in im_shcf_dict.items():
 			if im == "SA":
-				psha_model.write_oq_shcf(shcf, curve_name, calc_id="oqhazlib")
+				psha_model.write_oq_shcf(shcf, curve_name, calc_id=calc_id)
 			else:
 				hcf = shcf.getHazardCurveField(period_spec=0)
-				psha_model.write_oq_hcf(hcf, curve_name, calc_id="oqhazlib")
+				psha_model.write_oq_hcf(hcf, curve_name, calc_id=calc_id)
 
 		return 0
 
@@ -330,7 +332,7 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape, site_
 		return 0
 
 
-def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, verbose):
+def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, calc_id, verbose):
 	"""
 	Stand-alone function that will deaggregate a single logic-tree sample.
 	Intensity measure levels corresponding to psha_model.return_periods
@@ -364,6 +366,8 @@ def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_period
 		Float, lon/lat bin width in decimal degrees
 	:param dtype:
 		str, precision of deaggregation matrix
+	:param calc_id:
+		int or str, OpenQuake calculation ID
 	:param verbose:
 		Bool, whether or not to print some progress information
 
@@ -373,14 +377,13 @@ def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_period
 	The deaggregation results will be written to XML files in the output
 	folder of the PSHA model.
 	"""
-	# TODO: perhaps we need to add calc_id parameter
 	if verbose:
 		print psha_model.name
 
 	## Determine intensity levels from saved hazard curves
 	curve_name = "rlz-%s" % sample_idx
 	site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
-												deagg_imt_periods, calc_id=None)
+												deagg_imt_periods, calc_id=calc_id)
 
 	## Deaggregation
 	if verbose:
@@ -398,7 +401,7 @@ def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_period
 		## Write XML file(s), creating directory if necessary
 		for (lon, lat) in spectral_deagg_curve_dict.keys():
 			sdc = spectral_deagg_curve_dict[(lon, lat)]
-			psha_model.write_oq_disagg_matrix_multi(sdc, curve_name, calc_id="oqhazlib")
+			psha_model.write_oq_disagg_matrix_multi(sdc, curve_name, calc_id=calc_id)
 
 		## Don't return deaggregation results to preserve memory
 		return 0
