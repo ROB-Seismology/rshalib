@@ -2944,6 +2944,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			if site in site_model:
 				deagg_sites.append(site)
 
+		## Determine intensity levels corresponding to return periods from mean hazard curve
+		site_imtls = self._interpolate_oq_site_imtls(deagg_sites, imt_periods, calc_id=calc_id)
+
 		for psha_model in self.iter_psha_models():
 			if verbose:
 				print psha_model.name
@@ -2960,9 +2963,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			# TODO: we need to interpolate site_imtls from summed hazard curve
 			# or perhaps even from the overall mean hazard curve (should then occur
 			# only once)
-			site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
-															imt_periods, curve_path=curve_path,
-															calc_id=calc_id)
+			#site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
+			#												imt_periods, curve_path=curve_path,
+			#												calc_id=calc_id)
 
 			sdc_dict = psha_model.deaggregate_mp(site_imtls, decompose_area_sources=True,
 											mag_bin_width=mag_bin_width, dist_bin_width=dist_bin_width,
@@ -2973,6 +2976,70 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			for (lon, lat) in sdc_dict.keys():
 				sdc = sdc_dict[(lon, lat)]
 				self.write_oq_disagg_matrix_multi(sdc, source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
+
+	def _interpolate_oq_site_imtls(self, sites, imt_periods, curve_name="", curve_path="", calc_id=None):
+		"""
+		Determine intensity levels corresponding to psha-model return periods
+		from saved hazard curves. Mainly useful as helper function for
+		deaggregation.
+
+		:param sites:
+			list with instances of :class:`SHASite` or instance of
+			:class:`SHASiteModel`. Note that instances
+			of class:`SoilSite` will not work with multiprocessing
+		:param imt_periods:
+			dictionary mapping intensity measure strings to lists of spectral
+			periods.
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+			(default: "", will compute overall mean hazard curve)
+		:param curve_path:
+			str, path to hazard curve relative to main hazard-curve folder
+			(default: "")
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
+
+		:return:
+			nested dictionary mapping (lon, lat) tuples to dictionaries
+			mapping oqhazlib IMT objects to 1-D arrays of intensity measure
+			levels
+		"""
+		site_imtls = OrderedDict()
+		for site in sites:
+			try:
+				lon, lat = site.lon, site.lat
+			except AttributeError:
+				lon, lat = site.location.longitude, site.location.latitude
+			site_imtls[(lon, lat)] = OrderedDict()
+
+		shcf = None
+		if curve_name:
+			## Read hazard_curve_multi if it exists
+			try:
+				shcf = self.read_oq_shcf(curve_name, curve_path=curve_path, calc_id=calc_id)
+			except:
+				pass
+		if shcf is None:
+			## Compute mean hazard curve
+			shcf = self.calc_mean_shcf(calc_id=calc_id)
+
+		for im in sorted(imt_periods.keys()):
+			for T in sorted(imt_periods[im]):
+				imt = self._construct_imt(im, T)
+				hcf = shcf.getHazardCurveField(period_spec=T)
+				for i, site in enumerate(sites):
+					try:
+						site_name = site.name
+					except AttributeError:
+						site_name = sites.site_names[i]
+						lon, lat = site.location.longitude, site.location.latitude
+					else:
+						lon, lat = site.lon, site.lat
+					hc = hcf.getHazardCurve(site_name)
+					imls = hc.interpolate_return_periods(self.return_periods)
+					site_imtls[(lon, lat)][imt] = imls
+
+		return site_imtls
 
 	def get_oq_hc_folder_decomposed(self, source_model_name, trt, source_id, gmpe_name, calc_id=None):
 		"""
@@ -3414,7 +3481,6 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		# TODO: GMPEs should also be correlated for sources of the same TRT...
 		mean_shcf = None
 		for source_model, somo_weight in self.source_model_lt.source_model_pmf:
 			source_model_shcf = self.calc_mean_shcf_by_source_model(source_model)
@@ -3670,9 +3736,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				## Loop needed to avoid running out of memory...
 				for t in range(num_periods):
 					for l in range(num_intensities):
-						# Note: something very strange happens here: after slicing, trt
-						# becomes first dimension, so we have to fold axis 0 instead of -1...
-						mean_deagg_matrix[t,l,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[t,l,:,:,:,:,:,src_idxs].fold_axis(0) * somo_weight)
+						# Note: something very strange happens here: if we slice t, l, and
+						# src_idxs simultaneously, src_idxs becomes first dimension!
+						mean_deagg_matrix[t,l,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[t,l][:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
 				#mean_deagg_matrix[:,:,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[:,:,:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
 
 			del sdc.deagg_matrix
