@@ -1926,7 +1926,16 @@ class PSHAModelTree(PSHAModelBase):
 
 	def sample_source_model_lt_paths(self, num_samples=1):
 		"""
-		Note: no enumeration if num_samples is zero!
+		Sample source-model logic-tree paths
+
+		:param num_samples:
+			int, number of random samples.
+			In contrast to :meth:`sample_source_model_lt`, no enumeration
+			occurs if num_samples is zero!
+			(default: 1)
+
+		:return:
+			generator object yielding (source_model_name, branch_path, weight) tuple
 		"""
 		for i in xrange(num_samples):
 			## Generate 2nd-order random seed
@@ -1969,6 +1978,12 @@ class PSHAModelTree(PSHAModelBase):
 		return modified_source_models_weights
 
 	def enumerate_source_model_lt_paths(self):
+		"""
+		Enumerate source-model logic-tree paths
+
+		:return:
+			generator object yielding (source_model_name, branch_path, weight) tuple
+		"""
 		for weight, smlt_branches in self.source_model_lt.root_branchset.enumerate_paths():
 			smlt_path = [branch.branch_id for branch in smlt_branches]
 			sm_name = os.path.splitext(smlt_branches[0].value)[0]
@@ -2038,7 +2053,16 @@ class PSHAModelTree(PSHAModelBase):
 
 	def sample_gmpe_lt_paths(self, num_samples=1):
 		"""
-		Note: no enumeration if num_samples is zero!
+		Sample GMPE logic-tree paths
+
+		:param num_samples:
+			int, number of random samples.
+			In contrast to :meth:`sample_gmpe_lt`, no enumeration
+			occurs if num_samples is zero!
+			(default: 1)
+
+		:return:
+			generator object yielding (branch_path, weight) tuple
 		"""
 		for i in xrange(num_samples):
 			## Generate 2nd-order random seed
@@ -2083,6 +2107,12 @@ class PSHAModelTree(PSHAModelBase):
 		return gmpe_models_weights
 
 	def enumerate_gmpe_lt_paths(self):
+		"""
+		Enumerate GMPE logic-tree paths
+
+		:return:
+			generator object yielding (branch_path, weight) tuple
+		"""
 		for weight, gmpelt_branches in self.gmpe_lt.root_branchset.enumerate_paths():
 			gmpelt_path = [branch.branch_id for branch in gmpelt_branches]
 			yield (gmpelt_path, weight)
