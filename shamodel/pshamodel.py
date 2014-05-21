@@ -2277,7 +2277,7 @@ class PSHAModelTree(PSHAModelBase):
 			shcft.write_nrml(nrml_filespec)
 		return shcft
 
-	def calc_shcf_mp(self, cav_min=0, combine_pga_and_sa=True, num_cores=None, verbose=True):
+	def calc_shcf_mp(self, cav_min=0, combine_pga_and_sa=True, num_cores=None, calc_id="oqhazlib", verbose=True):
 		"""
 		Compute spectral hazard curve fields using multiprocessing.
 		The results are written to XML files.
@@ -2294,6 +2294,8 @@ class PSHAModelTree(PSHAModelBase):
 			int, number of CPUs to be used. Actual number of cores used
 			may be lower depending on available cores and memory
 			(default: None, will determine automatically)
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
 		:param verbose:
 			bool whether or not to print some progress information
 			(default: True)
@@ -2318,12 +2320,12 @@ class PSHAModelTree(PSHAModelBase):
 		num_lt_samples = self.num_lt_samples or self.get_num_paths()
 		fmt = "%%0%dd" % len(str(num_lt_samples))
 		for sample_idx, (psha_model, weight) in enumerate(psha_models_weights):
-			job_args.append((psha_model, fmt % (sample_idx + 1), cav_min, combine_pga_and_sa, verbose))
+			job_args.append((psha_model, fmt % (sample_idx + 1), cav_min, combine_pga_and_sa, calc_id, verbose))
 
 		## Launch multiprocessing
 		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose=verbose)
 
-	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, dtype='d', verbose=False):
+	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, dtype='d', calc_id="oqhazlib", verbose=False):
 		"""
 		Deaggregate logic tree using multiprocessing.
 		Intensity measure levels corresponding to psha_model.return_periods
@@ -2356,6 +2358,8 @@ class PSHAModelTree(PSHAModelBase):
 			(default: None, will determine automatically)
 		:param dtype:
 			str, precision of deaggregation matrix (default: 'd')
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
 		:param verbose:
 			Bool, whether or not to print some progress information
 
@@ -2412,7 +2416,7 @@ class PSHAModelTree(PSHAModelBase):
 		num_lt_samples = self.num_lt_samples or self.get_num_paths()
 		fmt = "%%0%dd" % len(str(num_lt_samples))
 		for sample_idx, (psha_model, weight) in enumerate(psha_models_weights):
-			job_args.append((psha_model, fmt % (sample_idx + 1), deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, verbose))
+			job_args.append((psha_model, fmt % (sample_idx + 1), deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, calc_id, verbose))
 
 		## Launch multiprocessing
 		return mp.run_parallel(mp.deaggregate_psha_model, job_args, num_processes, verbose=verbose)
