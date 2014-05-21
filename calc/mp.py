@@ -47,11 +47,7 @@ def run_parallel(func, job_arg_list, num_processes, shared_arr=None, verbose=Tru
 		pool = multiprocessing.Pool(processes=num_processes)
 	else:
 		pool = multiprocessing.Pool(processes=num_processes, initializer=init_shared_arr, initargs=(shared_arr,))
-	print len(job_arg_list)
-	print job_arg_list[0]
 	job_arg_list = [(func, job_args) for job_args in job_arg_list]
-	print len(job_arg_list)
-	print job_arg_list[0]
 	result = pool.map(mp_func_wrapper, job_arg_list, chunksize=1)
 	pool.close()
 	return result
