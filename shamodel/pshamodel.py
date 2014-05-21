@@ -1744,7 +1744,7 @@ class PSHAModelTree(PSHAModelBase):
 		Return total number of paths in the two logic trees.
 		"""
 		num_smlt_paths = self.source_model_lt.get_num_paths()
-		num_gmpelt_paths = self.gmpe_logic_tree.get_num_paths()
+		num_gmpelt_paths = self.gmpe_lt.get_num_paths()
 		return num_smlt_paths * num_gmpelt_paths
 
 	def sample_logic_tree_paths(self, num_samples, enumerate_gmpe_lt=False, skip_samples=0):
