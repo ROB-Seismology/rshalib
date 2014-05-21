@@ -2956,6 +2956,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			curve_name = '--'.join(curve_name_parts[2:])
 			src = psha_model.source_model.sources[0]
 			trt = src.tectonic_region_type
+			trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
 			gmpe_name = psha_model.ground_motion_model[trt]
 			curve_path = self._get_curve_path(source_model_name, trt_short_name, src.source_id, gmpe_name)
 
@@ -3021,6 +3022,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				pass
 		if shcf is None:
 			## Compute mean hazard curve
+			print("Computing mean hazard curve...")
 			shcf = self.calc_mean_shcf(calc_id=calc_id)
 
 		for im in sorted(imt_periods.keys()):
