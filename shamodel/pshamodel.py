@@ -3651,8 +3651,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, sdc.deagg_matrix.dtype)
 
 			mean_deagg_matrix[:,:,:sdc.nmags] += (sdc.deagg_matrix * weight)
-		intensities = np.zeros(sdc.intensities.shape)
-		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+		#intensities = np.zeros(sdc.intensities.shape)
+		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 		mean_sdc.model_name = "%s weighted mean" % src.source_id
 		return mean_sdc
 
@@ -3693,8 +3693,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			max_lat_idx = min_lat_idx + sdc.nlats
 			trt_idx = trts.index(src.source_id)
 			summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:,:,:,:,:,0]
-		intensities = np.zeros(sdc.intensities.shape)
-		summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+		#intensities = np.zeros(sdc.intensities.shape)
+		summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 		summed_sdc.model_name = "%s weighted mean" % source_model_name
 		return summed_sdc
 
@@ -3746,8 +3746,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			del sdc.deagg_matrix
 			gc.collect()
 
-		intensities = np.zeros(sdc.intensities.shape)
-		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+		#intensities = np.zeros(sdc.intensities.shape)
+		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 		mean_sdc.model_name = "Logic-tree weighted mean"
 		return mean_sdc
 
