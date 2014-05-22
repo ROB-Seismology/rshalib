@@ -328,7 +328,7 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape, site_
 		return 0
 
 
-def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, calc_id, verbose):
+def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, calc_id, interpolate_rp, verbose):
 	"""
 	Stand-alone function that will deaggregate a single logic-tree sample.
 	Intensity measure levels corresponding to psha_model.return_periods
@@ -364,6 +364,11 @@ def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_period
 		str, precision of deaggregation matrix
 	:param calc_id:
 		int or str, OpenQuake calculation ID
+	:param interpolate_rp:
+		bool, whether or not to interpolate intensity levels corresponding
+		to return periods from the corresponding curve first.
+		If False, deaggregation will be performed for all intensity levels
+		available for a given spectral period.
 	:param verbose:
 		Bool, whether or not to print some progress information
 
@@ -376,10 +381,14 @@ def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_period
 	if verbose:
 		print psha_model.name
 
-	## Determine intensity levels from saved hazard curves
 	curve_name = "rlz-%s" % sample_idx
-	site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
-												deagg_imt_periods, calc_id=calc_id)
+	if interpolate_rp:
+		## Determine intensity levels from saved hazard curves
+		site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
+													deagg_imt_periods, calc_id=calc_id)
+	else:
+		## Deaggregate for all available intensity levels
+		site_imtls = psha_model._get_deagg_site_imtls(deagg_sites, deagg_imt_periods)
 
 	## Deaggregation
 	if verbose:
