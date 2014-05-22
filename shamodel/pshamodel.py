@@ -318,7 +318,7 @@ class PSHAModelBase(SHAModelBase):
 				lon, lat = site.location.longitude, site.location.latitude
 			site_imtls[(lon, lat)] = OrderedDict()
 			for im in deagg_imt_periods.keys():
-				for T in deagg_imt_periods[im].values():
+				for T in deagg_imt_periods[im]:
 					imt = self._construct_imt(im, T)
 					site_imtls[(lon, lat)][imt] = all_imtls[imt]
 		return site_imtls
