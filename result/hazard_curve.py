@@ -1920,7 +1920,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		if smlt_path:
 			shcf_elem.set(ns.SMLT_PATH, smlt_path)
 		if gmpelt_path:
-			shcf_elem.set(ns.GMPELT_path, gmpelt_path)
+			shcf_elem.set(ns.GMPELT_PATH, gmpelt_path)
 		shcf_elem.set(ns.NAME, self.model_name)
 		for k, period in enumerate(self.periods):
 			# TODO: put following in HazardCurveField and HazardCurve !
