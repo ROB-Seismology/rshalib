@@ -389,6 +389,8 @@ def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_period
 	else:
 		## Deaggregate for all available intensity levels
 		site_imtls = psha_model._get_deagg_site_imtls(deagg_sites, deagg_imt_periods)
+		## Override return_periods property with fake return periods
+		psha_model.return_periods = np.zeros(psha_model.num_intensities)
 
 	## Deaggregation
 	if verbose:
