@@ -281,19 +281,13 @@ class PSHAModelBase(SHAModelBase):
 		"""
 		imtls = OrderedDict()
 		for im, periods in sorted(self.imt_periods.items()):
-			if im == "SA":
-				for k, period in enumerate(periods):
-					imt = getattr(nhlib.imt, im)(period, damping=5.)
-					if self.intensities:
-						imtls[imt] = np.array(self.intensities)
-					else:
-						imtls[imt] = np.logspace(np.log10(self.min_intensities[im][k]), np.log10(self.max_intensities[im][k]), self.num_intensities)
-			else:
-				imt = getattr(nhlib.imt, im)()
+			for k, period in enumerate(periods):
+				imt = self._construct_imt(im, period)
 				if self.intensities:
 					imtls[imt] = np.array(self.intensities)
 				else:
-					imtls[imt] = np.logspace(np.log10(self.min_intensities[im][0]), np.log10(self.max_intensities[im][0]), self.num_intensities)
+					imtls[imt] = np.logspace(np.log10(self.min_intensities[im][k]), np.log10(self.max_intensities[im][k]), self.num_intensities)
+
 		return imtls
 
 	def _get_imts(self):
@@ -2927,7 +2921,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				shcf = shcf_dict[im]
 				self.write_oq_shcf(shcf, source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
 
-	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', num_cores=None, calc_id="oqhazlib", overwrite=True, verbose=False):
+	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', num_cores=None, calc_id="oqhazlib", interpolate_rp=True, overwrite=True, verbose=False):
 		"""
 		Compute spectral deaggregation curves using multiprocessing.
 		The results are written to XML files in a folder structure:
@@ -2958,6 +2952,12 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			(default: None, will determine automatically)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
+		:param interpolate_rp:
+			bool, whether or not to interpolate intensity levels corresponding
+			to return periods from the overall mean hazard curve first.
+			If False, deaggregation will be performed for all intensity levels
+			available for a given spectral period.
+			(default: True).
 		:param overwrite:
 			bool, whether or not to overwrite existing files. This allows to
 			skip computed results after an interruption (default: True)
@@ -2978,9 +2978,26 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			if site in site_model:
 				deagg_sites.append(site)
 
-		## Determine intensity levels corresponding to return periods from mean hazard curve
-		site_imtls = self._interpolate_oq_site_imtls(deagg_sites, imt_periods, calc_id=calc_id)
+		## Determine intensity levels for which to perform deaggregation
+		if interpolate_rp:
+			## Determine intensity levels corresponding to return periods from mean hazard curve
+			site_imtls = self._interpolate_oq_site_imtls(deagg_sites, imt_periods, calc_id=calc_id)
+		else:
+			## Deaggregate for all available intensity levels
+			all_imtls = self._get_imtls()
+			site_imtls = OrderedDict()
+			for site in sites:
+				try:
+					lon, lat = site.lon, site.lat
+				except AttributeError:
+					lon, lat = site.location.longitude, site.location.latitude
+				site_imtls[(lon, lat)] = OrderedDict()
+				for im in imt_periods.keys():
+					for T in imt_periods[imt].values():
+						imt = self._construct_imt(im, T)
+						site_imtls[(lon, lat)][imt] = all_imtls[imt]
 
+		# Deaggregate
 		for psha_model in self.iter_psha_models():
 			if verbose:
 				print psha_model.name
@@ -2993,14 +3010,6 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
 			gmpe_name = psha_model.ground_motion_model[trt]
 			curve_path = self._get_curve_path(source_model_name, trt_short_name, src.source_id, gmpe_name)
-
-			## Determine intensity levels from saved hazard curves
-			# TODO: we need to interpolate site_imtls from summed hazard curve
-			# or perhaps even from the overall mean hazard curve (should then occur
-			# only once)
-			#site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
-			#												imt_periods, curve_path=curve_path,
-			#												calc_id=calc_id)
 
 			sdc_dict = psha_model.deaggregate_mp(site_imtls, decompose_area_sources=True,
 											mag_bin_width=mag_bin_width, dist_bin_width=dist_bin_width,
@@ -3248,12 +3257,15 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					summed_shcf += shcf
 		return summed_shcf
 
-	def read_oq_shcft(self, skip_samples=0, calc_id=None):
+	def read_oq_shcft(self, skip_samples=0, write_shcf=False, calc_id=None):
 		"""
 		Read results corresponding to a number of logic-tree samples
 
 		:param skip_samples:
 			int, number of samples to skip (default: 0)
+		:param write_shcf:
+			bool, whether or not to write spectral hazard curve fields
+			corresponding to different logic-tree realizations (default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3262,11 +3274,15 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			instance of :class:`rshalib.result.SpectralHazardCurveFieldTree`
 		"""
 		shcf_list, weights, branch_names = [], [], []
-		for (sm_name, smlt_path, gmpelt_path, weight) in self.sample_logic_tree_paths(self.num_lt_samples, skip_samples=skip_samples):
+		for sample_idx, (sm_name, smlt_path, gmpelt_path, weight) in enumerate(self.sample_logic_tree_paths(self.num_lt_samples, skip_samples=skip_samples)):
 			sm_name = os.path.splitext(sm_name)[0]
 			shcf = self.read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
 			shcf_list.append(shcf)
 			weights.append(weight)
+			if write_shcf:
+				fmt = "%%0%dd" % len(str(num_lt_samples))
+				curve_name = fmt % (sample_idx + 1 + skip_samples)
+				self.write_oq_shcf(shcf, curve_name, calc_id=calc_id)
 			# TODO: construct branch name
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, self.name, branch_names=branch_names, weights=weights)
 		return shcft
@@ -3519,7 +3535,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		mean_shcf = None
 		for source_model, somo_weight in self.source_model_lt.source_model_pmf:
-			source_model_shcf = self.calc_mean_shcf_by_source_model(source_model)
+			source_model_shcf = self.calc_mean_shcf_by_source_model(source_model, calc_id=calc_id)
 			if mean_shcf is None:
 				mean_shcf = source_model_shcf * somo_weight
 			else:
