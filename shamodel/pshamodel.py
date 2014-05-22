@@ -2949,7 +2949,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		for psha_model in self.iter_psha_models():
 			if verbose:
-				print psha_model.model_name
+				print psha_model.name
 			# TODO: skip computation if output file already exists !
 			shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
 			source_model_name, curve_name = psha_model.source_model.name.split('--')
@@ -3309,7 +3309,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			weights.append(weight)
 			if write_shcf:
 				fmt = "%%0%dd" % len(str(num_lt_samples))
-				curve_name = fmt % (sample_idx + 1 + skip_samples)
+				curve_name = "rlz-" + fmt % (sample_idx + 1 + skip_samples)
 				self.write_oq_shcf(shcf, curve_name, calc_id=calc_id)
 			# TODO: construct branch name
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, self.name, branch_names=branch_names, weights=weights)
