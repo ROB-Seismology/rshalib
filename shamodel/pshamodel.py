@@ -290,6 +290,39 @@ class PSHAModelBase(SHAModelBase):
 
 		return imtls
 
+	def _get_deagg_site_imtls(self, deagg_sites, deagg_imt_periods):
+		"""
+		Construct imtls dictionary containing all available intensities
+		for the spectral periods for which deaggregation will be performed.
+		This dictionary can be passed as an argument to deaggregate methods.
+
+		:param deagg_sites:
+			list with instances of :class:`SHASite` for which deaggregation
+			will be performed. Note that instances of class:`SoilSite` will
+			not work with multiprocessing
+		:param deagg_imt_periods:
+			dictionary mapping intensity measure strings to lists of spectral
+			periods for which deaggregation will be performed.
+
+		:return:
+			dictionary mapping site (lon, lat) tuples to dictionaries
+			mapping nhlib intensity measure type objects to 1-D arrays
+			of intensity measure levels
+		"""
+		all_imtls = self._get_imtls()
+		site_imtls = OrderedDict()
+		for site in deagg_sites:
+			try:
+				lon, lat = site.lon, site.lat
+			except AttributeError:
+				lon, lat = site.location.longitude, site.location.latitude
+			site_imtls[(lon, lat)] = OrderedDict()
+			for im in deagg_imt_periods.keys():
+				for T in deagg_imt_periods[imt].values():
+					imt = self._construct_imt(im, T)
+					site_imtls[(lon, lat)][imt] = all_imtls[imt]
+		return site_imtls
+
 	def _get_imts(self):
 		"""
 		Construct ordered list of IMT objects
@@ -2349,7 +2382,7 @@ class PSHAModelTree(PSHAModelBase):
 		## Launch multiprocessing
 		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose=verbose)
 
-	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, dtype='d', calc_id="oqhazlib", verbose=False):
+	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, num_cores=None, dtype='d', calc_id="oqhazlib", interpolate_rp=True, verbose=False):
 		"""
 		Deaggregate logic tree using multiprocessing.
 		Intensity measure levels corresponding to psha_model.return_periods
@@ -2384,6 +2417,12 @@ class PSHAModelTree(PSHAModelBase):
 			str, precision of deaggregation matrix (default: 'd')
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
+		:param interpolate_rp:
+			bool, whether or not to interpolate intensity levels corresponding
+			to return periods from the hazard curve of the corresponding
+			realization first. If False, deaggregation will be performed for all
+			intensity levels available for a given spectral period.
+			(default: True).
 		:param verbose:
 			Bool, whether or not to print some progress information
 
@@ -2440,7 +2479,7 @@ class PSHAModelTree(PSHAModelBase):
 		num_lt_samples = self.num_lt_samples or self.get_num_paths()
 		fmt = "%%0%dd" % len(str(num_lt_samples))
 		for sample_idx, (psha_model, weight) in enumerate(psha_models_weights):
-			job_args.append((psha_model, fmt % (sample_idx + 1), deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, calc_id, verbose))
+			job_args.append((psha_model, fmt % (sample_idx + 1), deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, calc_id, interpolate_rp, verbose))
 
 		## Launch multiprocessing
 		return mp.run_parallel(mp.deaggregate_psha_model, job_args, num_processes, verbose=verbose)
