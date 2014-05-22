@@ -3023,18 +3023,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			site_imtls = self._interpolate_oq_site_imtls(deagg_sites, imt_periods, calc_id=calc_id)
 		else:
 			## Deaggregate for all available intensity levels
-			all_imtls = self._get_imtls()
-			site_imtls = OrderedDict()
-			for site in sites:
-				try:
-					lon, lat = site.lon, site.lat
-				except AttributeError:
-					lon, lat = site.location.longitude, site.location.latitude
-				site_imtls[(lon, lat)] = OrderedDict()
-				for im in imt_periods.keys():
-					for T in imt_periods[imt].values():
-						imt = self._construct_imt(im, T)
-						site_imtls[(lon, lat)][imt] = all_imtls[imt]
+			site_imtls = self._get_deagg_site_imtls(deagg_sites, imt_periods)
 
 		# Deaggregate
 		for psha_model in self.iter_psha_models():
