@@ -2917,7 +2917,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					branch_path = [b.split('--')[-1] for b in branch_path]
 					somo_name = "%s--%s" % (source_model.name, src.source_id)
 					curve_name = '--'.join(branch_path)
-					partial_source_model = SourceModel(somo_name+'--'+curve_name, [modified_src], "")
+					partial_source_model = SourceModel(somo_name+' -- '+curve_name, [modified_src], "")
 					trt = src.tectonic_region_type
 					for gmpe_name in gmpe_system_def[trt].gmpe_names:
 						gmpe_model = GroundMotionModel("", {trt: gmpe_name})
@@ -2952,7 +2952,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				print psha_model.name
 			# TODO: skip computation if output file already exists !
 			shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
-			source_model_name, curve_name = psha_model.source_model.name.split('--')[:2]
+			source_model_name, curve_name = psha_model.source_model.name.split(' -- ')
 			src = psha_model.source_model.sources[0]
 			trt = src.tectonic_region_type
 			gmpe_name = psha_model.ground_motion_model[trt]
