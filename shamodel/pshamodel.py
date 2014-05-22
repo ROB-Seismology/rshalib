@@ -3023,9 +3023,12 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		if interpolate_rp:
 			## Determine intensity levels corresponding to return periods from mean hazard curve
 			site_imtls = self._interpolate_oq_site_imtls(deagg_sites, imt_periods, calc_id=calc_id)
+			return_periods = self.return_periods
 		else:
 			## Deaggregate for all available intensity levels
 			site_imtls = self._get_deagg_site_imtls(deagg_sites, imt_periods)
+			## Fake return periods
+			return_periods = np.zeros(self.num_intensities)
 
 		# Deaggregate
 		for psha_model in self.iter_psha_models():
@@ -3040,6 +3043,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
 			gmpe_name = psha_model.ground_motion_model[trt]
 			curve_path = self._get_curve_path(source_model_name, trt_short_name, src.source_id, gmpe_name)
+			## Override return_periods property
+			psha_model.return_periods = return_periods
 
 			sdc_dict = psha_model.deaggregate_mp(site_imtls, decompose_area_sources=True,
 											mag_bin_width=mag_bin_width, dist_bin_width=dist_bin_width,
