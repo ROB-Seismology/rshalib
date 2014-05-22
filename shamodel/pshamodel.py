@@ -2952,7 +2952,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				print psha_model.name
 			# TODO: skip computation if output file already exists !
 			shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
-			source_model_name, curve_name = psha_model.source_model.name.split('--')
+			source_model_name, curve_name = psha_model.source_model.name.split('--')[:2]
 			src = psha_model.source_model.sources[0]
 			trt = src.tectonic_region_type
 			gmpe_name = psha_model.ground_motion_model[trt]
