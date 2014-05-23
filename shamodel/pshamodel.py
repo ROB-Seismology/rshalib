@@ -3200,7 +3200,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
 		"""
-		hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+		if source_model_name and trt and source_id and gmpe_name:
+			hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+		else:
+			hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
 		self.create_folder_structure(hc_folder)
 		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
 		#print xml_filename
@@ -3227,7 +3230,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
 		"""
-		disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+		if source_model_name and trt and source_id and gmpe_name:
+			disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+		else:
+			disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=True)
 		self.create_folder_structure(disagg_folder)
 		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
 		xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
@@ -3320,9 +3326,6 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`rshalib.result.SpectralHazardCurveFieldTree`
 		"""
-		if write_shcf:
-			## Create dummy PSHA model
-			psha_model = PSHAModel("", None, None, self.root_folder, soil_site_model=self.get_sites())
 		shcf_list, weights, branch_names = [], [], []
 		for sample_idx, (sm_name, smlt_path, gmpelt_path, weight) in enumerate(self.sample_logic_tree_paths(self.num_lt_samples, skip_samples=skip_samples)):
 			sm_name = os.path.splitext(sm_name)[0]
@@ -3333,7 +3336,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				num_lt_samples = self.num_lt_samples or self.get_num_paths()
 				fmt = "%%0%dd" % len(str(num_lt_samples))
 				curve_name = "rlz-" + fmt % (sample_idx + 1 + skip_samples)
-				psha_model.write_oq_shcf(shcf, curve_name, calc_id=calc_id)
+				self.write_oq_shcf(shcf, "", "", "", "", curve_name, calc_id=calc_id)
 			# TODO: construct branch name
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, self.name, branch_names=branch_names, weights=weights)
 		return shcft
@@ -3573,10 +3576,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		summed_shcf.model_name = "%s weighted mean" % source_model.name
 		return summed_shcf
 
-	def calc_mean_shcf(self, calc_id=None):
+	def read_oq_mean_shcf(self, write_shcf=False, calc_id=None):
 		"""
-		Compute mean spectral hazard curve field of entire logic tree
+		Read mean spectral hazard curve field of entire logic tree.
+		If mean shcf does not exist, it will be computed from the decomposed
+		shcf's
 
+		:param write_shcf:
+			bool, whether or not to write mean spectral hazard curve field.
+			Ignored if mean shcf already exists
+			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3584,14 +3593,20 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		mean_shcf = None
-		for source_model, somo_weight in self.source_model_lt.source_model_pmf:
-			source_model_shcf = self.calc_mean_shcf_by_source_model(source_model, calc_id=calc_id)
-			if mean_shcf is None:
-				mean_shcf = source_model_shcf * somo_weight
-			else:
-				mean_shcf += (source_model_shcf * somo_weight)
-		mean_shcf.model_name = "Logic-tree weighted mean"
+		curve_name = "mean"
+		try:
+			mean_shcf = self.read_oq_shcf(curve_name=curve_name, calc_id=calc_id)
+		except:
+			mean_shcf = None
+			for source_model, somo_weight in self.source_model_lt.source_model_pmf:
+				source_model_shcf = self.calc_mean_shcf_by_source_model(source_model, calc_id=calc_id)
+				if mean_shcf is None:
+					mean_shcf = source_model_shcf * somo_weight
+				else:
+					mean_shcf += (source_model_shcf * somo_weight)
+			mean_shcf.model_name = "Logic-tree weighted mean"
+			if write_shcf:
+				self.write_oq_shcf(mean_shcf, "", "", "", "", curve_name, calc_id=calc_id)
 		return mean_shcf
 
 	def calc_shcf_stats(self, num_samples):
