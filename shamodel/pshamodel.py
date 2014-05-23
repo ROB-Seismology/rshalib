@@ -809,11 +809,17 @@ class PSHAModel(PSHAModelBase):
 
 	@property
 	def smlt_path(self):
-		return self.source_model.description
+		try:
+			return self.source_model.description
+		except:
+			return ""
 
 	@property
 	def gmpelt_path(self):
-		return self.ground_motion_model.name
+		try:
+			return self.ground_motion_model.name
+		except:
+			return ""
 
 	def calc_shcf(self, cav_min=0., combine_pga_and_sa=True):
 		"""
@@ -2789,6 +2795,12 @@ class PSHAModelTree(PSHAModelBase):
 		return SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, site, sdc.imt, intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 
 	def to_decomposed_psha_model_tree(self):
+		"""
+		Convert to decomposed PSHA model tree
+
+		:return:
+			instance of :class:`DecomposedPSHAModelTree`
+		"""
 		return DecomposedPSHAModelTree(self.name, self.source_model_lt, self.gmpe_lt, self.root_folder, self.sites, self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance, self.num_lt_samples, self.random_seed)
 
 
@@ -3308,6 +3320,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`rshalib.result.SpectralHazardCurveFieldTree`
 		"""
+		if write_shcf:
+			## Create dummy PSHA model
+			psha_model = PSHAModel("", None, None, self.root_folder, soil_site_model=self.get_sites())
 		shcf_list, weights, branch_names = [], [], []
 		for sample_idx, (sm_name, smlt_path, gmpelt_path, weight) in enumerate(self.sample_logic_tree_paths(self.num_lt_samples, skip_samples=skip_samples)):
 			sm_name = os.path.splitext(sm_name)[0]
@@ -3315,9 +3330,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			shcf_list.append(shcf)
 			weights.append(weight)
 			if write_shcf:
+				num_lt_samples = self.num_lt_samples or self.get_num_paths()
 				fmt = "%%0%dd" % len(str(num_lt_samples))
 				curve_name = "rlz-" + fmt % (sample_idx + 1 + skip_samples)
-				self.write_oq_shcf(shcf, curve_name, calc_id=calc_id)
+				psha_model.write_oq_shcf(shcf, curve_name, calc_id=calc_id)
 			# TODO: construct branch name
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, self.name, branch_names=branch_names, weights=weights)
 		return shcft
@@ -3835,6 +3851,15 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 		mean_sdc.model_name = "Logic-tree weighted mean"
 		return mean_sdc
+
+	def to_psha_model_tree(self):
+		"""
+		Convert back to standard PSHA model tree
+
+		:return:
+			instance of :class:`PSHAModelTree`
+		"""
+		return PSHAModelTree(self.name, self.source_model_lt, self.gmpe_lt, self.root_folder, self.sites, self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance, self.num_lt_samples, self.random_seed)
 
 
 
