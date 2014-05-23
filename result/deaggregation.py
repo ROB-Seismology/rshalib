@@ -725,9 +725,9 @@ class DeaggregationSlice(DeaggBase):
 		"""
 		return self.deagg_matrix.get_total_exceedance_rate(self.timespan)
 
-	def get_return_period(self):
+	def calc_return_period(self):
 		"""
-		Return return period corresponding to total probability
+		Compute return period corresponding to total probability
 		"""
 		return 1./self.get_total_exceedance_rate()
 
@@ -1347,6 +1347,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		self.site = site
 		self.imt = imt
 		self.periods = np.array(periods)
+		# TODO: return periods 2D array like intensities?
 		self.return_periods = np.array(return_periods)
 
 		## Make sure intensities are ordered from small to large
