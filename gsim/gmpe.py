@@ -3524,6 +3524,60 @@ class PezeshkEtAl2011(NhlibGMPE):
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
 
 
+class AbrahamsonSilva2008(NhlibGMPE):
+	"""
+	"""
+	def __init__(self):
+		name, short_name = "AbrahamsonSilva2008", "AS_2008"
+		# TODO: parameters below need to be looked up
+		distance_metric = "Rupture"
+		Mmin, Mmax = 5.0, 8.0
+		dmin, dmax = 1., 1000.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+		raise Exception("Not supported for this GMPE")
+
+
+class CampbellBozorgnia2008(NhlibGMPE):
+	"""
+	"""
+	def __init__(self):
+		name, short_name = "CampbellBozorgnia2008", "CB_2008"
+		# TODO: parameters below need to be looked up
+		distance_metric = "Rupture"
+		Mmin, Mmax = 5.0, 8.0
+		dmin, dmax = 1., 1000.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+		raise Exception("Not supported for this GMPE")
+
+
+class ChiouYoungs2008(NhlibGMPE):
+	"""
+	"""
+	def __init__(self):
+		name, short_name = "ChiouYoungs2008", "CY_2008"
+		# TODO: parameters below need to be looked up
+		distance_metric = "Rupture"
+		Mmin, Mmax = 5.0, 8.0
+		dmin, dmax = 1., 1000.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+		raise Exception("Not supported for this GMPE")
+
+
 def adjust_hard_rock_to_rock(imt, periods, gm, gm_logsigma=None):
 	"""
 	Adjust hard rock (vs30=2800 m/s) to rock (vs30=760 m/s, kappa=0.03)
