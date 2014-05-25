@@ -3080,7 +3080,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
 					xml_filename %= (lon, lat, curve_name)
 					xml_filespec = os.path.join(disagg_folder, xml_filename)
-					files.exist.append(os.path.exists(xml_filespec))
+					files_exist.append(os.path.exists(xml_filespec))
 				if np.all(files_exist):
 					continue
 
