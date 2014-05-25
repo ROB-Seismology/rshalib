@@ -3078,7 +3078,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				for (lon, lat) in site_imtls.keys():
 					disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name, calc_id=calc_id)
 					xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
-					xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
+					xml_filename %= (lon, lat, curve_name)
 					xml_filespec = os.path.join(disagg_folder, xml_filename)
 					files.exist.append(os.path.exists(xml_filespec))
 				if np.all(files_exist):
