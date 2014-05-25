@@ -3075,7 +3075,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			if overwrite is False:
 				## Skip if files already exist and overwrite is False
 				files_exist = []
-				for (lon, lat) in sdc_dict.keys():
+				for (lon, lat) in site_imtls.keys():
 					disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
 					xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
 					xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
