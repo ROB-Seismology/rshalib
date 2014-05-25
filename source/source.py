@@ -480,6 +480,19 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		"""
 		return (self.location.longitude, self.location.latitude)
 
+	def get_bounding_box(self):
+		"""
+		Determine rectangular bounding box
+
+		:return:
+			(west, east, south, north) tuple
+		"""
+		w = self.location.longitude
+		e = self.location.longitude
+		s = self.location.latitude
+		n = self.location.latitude
+		return (w, e, s, n)
+
 
 class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 	"""
@@ -906,6 +919,20 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		Return list of latitudes in the source's SimpleFaultGeometry object
 		"""
 		return self.fault_trace.lats
+
+	def get_bounding_box(self):
+		"""
+		Determine rectangular bounding box
+
+		:return:
+			(west, east, south, north) tuple
+		"""
+		polygon = self.get_polygon()
+		w = polygon.longitudes.min()
+		e = polygon.longitudes.max()
+		s = polygon.latitudes.min()
+		n = polygon.latitudes.max()
+		return (w, e, s, n)
 
 	def get_depth_range(self):
 		"""

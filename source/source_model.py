@@ -263,8 +263,8 @@ class SourceModel():
 		:return:
 			(west, east, south, north) tuple
 		"""
-		# TODO: implement for other source types as well
-		regions = [src.get_bounding_box() for src in self.get_area_sources()]
+		# TODO: implement for complex fault sources as well
+		regions = [src.get_bounding_box() for src in self.sources]
 		regions = numpy.array(regions)
 		w, _, s, _ = regions.min(axis=0)
 		_, e, _, n = regions.max(axis=0)
