@@ -928,10 +928,10 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			(west, east, south, north) tuple
 		"""
 		polygon = self.get_polygon()
-		w = polygon.longitudes.min()
-		e = polygon.longitudes.max()
-		s = polygon.latitudes.min()
-		n = polygon.latitudes.max()
+		w = polygon.lons.min()
+		e = polygon.lons.max()
+		s = polygon.lats.min()
+		n = polygon.lats.max()
 		return (w, e, s, n)
 
 	def get_depth_range(self):
