@@ -2963,13 +2963,27 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			if verbose:
 				print psha_model.name
 			# TODO: skip computation if output file already exists !
-			shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
 			curve_name_parts = psha_model.source_model.name.split('--')
 			source_model_name = curve_name_parts[0]
 			curve_name = '--'.join(curve_name_parts[2:])
 			src = psha_model.source_model.sources[0]
 			trt = src.tectonic_region_type
 			gmpe_name = psha_model.ground_motion_model[trt]
+
+			if overwrite is False:
+				## Skip if files already exist and overwrite is False
+				im_imls = self._get_im_imls(combine_pga_and_sa=combine_pga_and_sa)
+				files_exist = []
+				for im in im_imls.keys():
+					hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+					xml_filename = "hazard_curve_multi-%s.xml" % curve_name
+					xml_filespec = os.path.join(hc_folder, xml_filename)
+					files_exist.append(os.path.exists(xml_filespec))
+				if np.all(files_exist):
+					continue
+
+			shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
+
 			for im in shcf_dict.keys():
 				shcf = shcf_dict[im]
 				self.write_oq_shcf(shcf, source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
@@ -3057,6 +3071,18 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			curve_path = self._get_curve_path(source_model_name, trt_short_name, src.source_id, gmpe_name)
 			## Override return_periods property
 			psha_model.return_periods = return_periods
+
+			if overwrite is False:
+				## Skip if files already exist and overwrite is False
+				files_exist = []
+				for (lon, lat) in sdc_dict.keys():
+					disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+					xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
+					xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
+					xml_filespec = os.path.join(disagg_folder, xml_filename)
+					files.exist.append(os.path.exists(xml_filespec))
+				if np.all(files_exist):
+					continue
 
 			sdc_dict = psha_model.deaggregate_mp(site_imtls, decompose_area_sources=True,
 											mag_bin_width=mag_bin_width, dist_bin_width=dist_bin_width,
