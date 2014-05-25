@@ -2975,7 +2975,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				im_imls = self._get_im_imls(combine_pga_and_sa=combine_pga_and_sa)
 				files_exist = []
 				for im in im_imls.keys():
-					hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+					hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name, calc_id=calc_id)
 					xml_filename = "hazard_curve_multi-%s.xml" % curve_name
 					xml_filespec = os.path.join(hc_folder, xml_filename)
 					files_exist.append(os.path.exists(xml_filespec))
@@ -3076,7 +3076,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				## Skip if files already exist and overwrite is False
 				files_exist = []
 				for (lon, lat) in site_imtls.keys():
-					disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+					disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name, calc_id=calc_id)
 					xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
 					xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
 					xml_filespec = os.path.join(disagg_folder, xml_filename)
