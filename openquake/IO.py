@@ -153,7 +153,8 @@ def parse_spectral_hazard_curve_field(xml_filespec, site_names={}, timespan=50):
 	for hcf_elem in shcf_elem.findall(ns.HAZARD_CURVE_FIELD):
 		period_poes = []
 		# Note: 'saPeriod'
-		period = float(hcf_elem.get("saPeriod", 0.))
+		period = float(hcf_elem.get(ns.PERIOD, 0.))
+		print period
 		periods.append(period)
 		# Note: 'IMLs'
 		period_imls = map(float, hcf_elem.findtext(ns.IMLS).split())
