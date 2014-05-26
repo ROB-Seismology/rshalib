@@ -26,7 +26,7 @@ CHARACTERISTIC_FAULT_SOURCE = "%scharacteristicFaultSource" % NRML
 
 ## Source identifiers
 ID = "%sid" % NRML
-NAME = "%sname" % NRML
+NAME = "name"
 TECTONIC_REGION_TYPE = "%stectonicRegion" % NRML
 
 ## MFD's
@@ -114,11 +114,11 @@ SPECTRAL_HAZARD_CURVE_FIELD_TREE = "%sspectralHazardCurveFieldTree" % NRML
 SPECTRAL_HAZARD_CURVE_FIELD = "%sspectralHazardCurveField" % NRML
 HAZARD_CURVE_FIELD = "%shazardCurveField" % NRML
 HAZARD_CURVE = "%shazardCurve" % NRML
-IMT = "%sIMT" % NRML
-PERIOD = "%ssaPeriod" % NRML
-DAMPING = "%ssaDamping" % NRML
+IMT = "IMT"
+PERIOD = "saPeriod"
+DAMPING = "saDamping"
 IMLS = "%sIMLs" % NRML
 POES = "%spoEs" % NRML
-INVESTIGATION_TIME = "%sinvestigationTime" % NRML
-SMLT_PATH = "%ssourceModelTreePath" % NRML
-GMPELT_PATH = "%sgsimTreePath" % NRML
+INVESTIGATION_TIME = "investigationTime"
+SMLT_PATH = "sourceModelTreePath"
+GMPELT_PATH = "gsimTreePath"
