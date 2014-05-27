@@ -2159,7 +2159,7 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 		"""
 		if title is None:
 			title = "Spectral Hazard Curve"
-			title += "\nSite: %s" % self.site_name
+			title += "\nSite: %s" % self.site.name
 		datasets = [(self.intensities[k], self.exceedance_rates[k]) for k in range(self.num_periods)]
 		labels = ["T = %s s" % period for period in self.periods]
 		fixed_life_time = {True: self.timespan, False: None}[want_poe]
