@@ -85,7 +85,11 @@ class PSHAModelBase(SHAModelBase):
 		if self.intensities:
 			self.min_intensities = None
 			self.max_intensities = None
-			self.num_intensities = len(self.intensities)
+			if isinstance(self.intensities, dict):
+				key = self.intensities.keys()[0]
+				self.num_intensities = len(self.intensities[key])
+			else:
+				self.num_intensities = len(self.intensities)
 		else:
 			self.min_intensities = self._get_intensities_limits(min_intensities)
 			self.max_intensities = self._get_intensities_limits(max_intensities)
@@ -255,7 +259,7 @@ class PSHAModelBase(SHAModelBase):
 				imls = np.zeros((len(periods), self.num_intensities))
 				for k, period in enumerate(periods):
 					if self.intensities:
-						if isinstance(intensities, dict):
+						if isinstance(self.intensities, dict):
 							imls[k,:] = np.array(self.intensities[(imt, period)])
 						else:
 							imls[k,:] = np.array(self.intensities)
@@ -264,8 +268,8 @@ class PSHAModelBase(SHAModelBase):
 				imtls[imt] = imls
 			else:
 				if self.intensities:
-					if isinstance(intensities, dict):
-						imtls[imt] = np.array(self.intensities[(imt, period)]).reshape(1, self.num_intensities)
+					if isinstance(self.intensities, dict):
+						imtls[imt] = np.array(self.intensities[(imt, periods[0])]).reshape(1, self.num_intensities)
 					else:
 						imtls[imt] = np.array(self.intensities).reshape(1, self.num_intensities)
 				else:
@@ -373,12 +377,18 @@ class PSHAModelBase(SHAModelBase):
 			if imt == "SA":
 				for k, period in enumerate(periods):
 					if self.intensities:
-						imtls[imt + "(%s)" % period] = list(self.intensities)
+						if isinstance(self.intensities, dict):
+							imtls[imt + "(%s)" % period] = list(self.intensities[(imt, period)])
+						else:
+							imtls[imt + "(%s)" % period] = list(self.intensities)
 					else:
 						imtls[imt + "(%s)" % period] = list(np.logspace(np.log10(self.min_intensities[imt][k]), np.log10(self.max_intensities[imt][k]), self.num_intensities))
 			else:
 				if self.intensities:
-					imtls[imt] = list(self.intensities)
+					if isinstance(self.intensities, dict):
+						imtls[imt] = list(self.intensities[(imt, periods[0])])
+					else:
+						imtls[imt] = list(self.intensities)
 				else:
 					imtls[imt] = list(np.logspace(np.log10(self.min_intensities[imt][0]), np.log10(self.max_intensities[imt][0]), self.num_intensities))
 		return imtls
