@@ -264,7 +264,10 @@ class PSHAModelBase(SHAModelBase):
 				imtls[imt] = imls
 			else:
 				if self.intensities:
-					imtls[imt] = np.array(self.intensities).reshape(1, self.num_intensities)
+					if isinstance(intensities, dict):
+						imtls[imt] = np.array(self.intensities[(imt, period)]).reshape(1, self.num_intensities)
+					else:
+						imtls[imt] = np.array(self.intensities).reshape(1, self.num_intensities)
 				else:
 					imtls[imt] = np.logspace(np.log10(self.min_intensities[imt][0]), np.log10(self.max_intensities[imt][0]), self.num_intensities).reshape(1, self.num_intensities)
 		if combine_pga_and_sa and "PGA" in self.imt_periods.keys() and "SA" in self.imt_periods.keys():
