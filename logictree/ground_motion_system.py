@@ -28,10 +28,11 @@ class GroundMotionSystem(LogicTree):
 	def __init__(self, id, gmpe_system_def, use_short_names=True):
 		LogicTree.__init__(self, id, [])
 		self.gmpe_system_def = gmpe_system_def
-		self._construct_lt(use_short_names=use_short_names)
+		self.use_short_names = use_short_names
+		self._construct_lt()
 		self.connect_branches()
 
-	def _construct_lt(self, use_short_names=True):
+	def _construct_lt(self):
 		"""
 		Construct logic tree
 		This method is called during initialization
@@ -50,7 +51,7 @@ class GroundMotionSystem(LogicTree):
 			for branch, gmpe_name in zip(branch_set.branches, self.gmpe_system_def[tectonicRegionType].gmpe_names):
 				# TODO: consider avoiding dependency on rshalib gmpe module
 				gmpe = getattr(gmpe_module, gmpe_name)()
-				gmpe_name = {True: gmpe.short_name, False: gmpe.name}[use_short_names]
+				gmpe_name = {True: gmpe.short_name, False: gmpe.name}[self.use_short_names]
 				branch.branch_id = "%s--%s" % (branchSetID, gmpe_name)
 			branching_level = LogicTreeBranchingLevel(branchingLevelID, [branch_set])
 			self.branching_levels.append(branching_level)
@@ -119,5 +120,5 @@ class GroundMotionSystem(LogicTree):
 				used_trts.add(src.tectonic_region_type)
 		for trt in used_trts:
 			optimized_gmpe_system_def[trt] = self.gmpe_system_def[trt]
-		return GroundMotionSystem(self.id, optimized_gmpe_system_def)
+		return GroundMotionSystem(self.id, optimized_gmpe_system_def, use_short_names=self.use_short_names)
 
