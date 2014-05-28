@@ -255,7 +255,10 @@ class PSHAModelBase(SHAModelBase):
 				imls = np.zeros((len(periods), self.num_intensities))
 				for k, period in enumerate(periods):
 					if self.intensities:
-						imls[k,:] = np.array(self.intensities)
+						if isinstance(intensities, dict):
+							imls[k,:] = np.array(self.intensities[(imt, period)])
+						else:
+							imls[k,:] = np.array(self.intensities)
 					else:
 						imls[k,:] = np.logspace(np.log10(self.min_intensities[imt][k]), np.log10(self.max_intensities[imt][k]), self.num_intensities)
 				imtls[imt] = imls
@@ -1310,7 +1313,7 @@ class PSHAModel(PSHAModelBase):
 	def deaggregate_mp(self, site_imtls, decompose_area_sources=False, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', num_cores=None, verbose=False):
 		"""
 		Hybrid rshalib/oqhazlib deaggregation for multiple sites, multiple
-		imt's per site, and multiple iml's per iml, using multiprocessing.
+		imt's per site, and multiple iml's per imt, using multiprocessing.
 		Note that deaggregation by tectonic region type is replaced with
 		deaggregation by source.
 
@@ -2232,7 +2235,7 @@ class PSHAModelTree(PSHAModelBase):
 
 		return params
 
-	def write_openquake(self, calculation_mode='classical', user_params=None):
+	def write_openquake(self, calculation_mode='classical', user_params=None, calc_id=None):
 		"""
 		Write PSHA model tree input for OpenQuake.
 
@@ -2244,6 +2247,11 @@ class PSHAModelTree(PSHAModelBase):
 		"""
 		if not os.path.exists(self.oq_root_folder):
 			os.mkdir(self.oq_root_folder)
+
+		if calc_id:
+			oq_folder = os.path.join(self.oq_root_folder, "calc_%s" % calc_id)
+		else:
+			oq_folder = self.oq_root_folder
 
 		## set OQ_params object and override with params from user_params
 		params = OQ_Params(calculation_mode=calculation_mode, description=self.name)
@@ -2267,7 +2275,7 @@ class PSHAModelTree(PSHAModelBase):
 			## This is no longer necessary
 			#for source in source_model.sources:
 			#	source.source_id = source_model.name + '--' + source.source_id
-			source_model.write_xml(os.path.join(self.oq_root_folder, source_model.name + '.xml'))
+			source_model.write_xml(os.path.join(oq_folder, source_model.name + '.xml'))
 
 		## write nrml file for soil site model if present and set file param, or set ref soil params
 		self._handle_oq_soil_params(params)
@@ -2275,12 +2283,12 @@ class PSHAModelTree(PSHAModelBase):
 		## validate source model logic tree and write nrml file
 		self.source_model_lt.validate()
 		source_model_lt_file_name = 'source_model_lt.xml'
-		self.source_model_lt.write_xml(os.path.join(self.oq_root_folder, source_model_lt_file_name))
+		self.source_model_lt.write_xml(os.path.join(oq_folder, source_model_lt_file_name))
 		params.source_model_logic_tree_file = source_model_lt_file_name
 
 		## create ground motion model logic tree and write nrml file
 		ground_motion_model_lt_file_name = 'ground_motion_model_lt.xml'
-		self.gmpe_lt.write_xml(os.path.join(self.oq_root_folder, ground_motion_model_lt_file_name))
+		self.gmpe_lt.write_xml(os.path.join(oq_folder, ground_motion_model_lt_file_name))
 		params.gsim_logic_tree_file = ground_motion_model_lt_file_name
 
 		## convert return periods and time_span to poes
@@ -2301,7 +2309,7 @@ class PSHAModelTree(PSHAModelBase):
 		## disaggregation params
 
 		## write oq params to ini file
-		params.write_config(os.path.join(self.oq_root_folder, 'job.ini'))
+		params.write_config(os.path.join(oq_folder, 'job.ini'))
 
 	def run_nhlib(self, nrml_base_filespec=""):
 		"""
@@ -2962,7 +2970,6 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		for psha_model in self.iter_psha_models():
 			if verbose:
 				print psha_model.name
-			# TODO: skip computation if output file already exists !
 			curve_name_parts = psha_model.source_model.name.split('--')
 			source_model_name = curve_name_parts[0]
 			curve_name = '--'.join(curve_name_parts[2:])
