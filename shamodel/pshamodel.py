@@ -444,7 +444,7 @@ class PSHAModelBase(SHAModelBase):
 
 		return grid_spacing
 
-	def _handle_oq_soil_params(self, params):
+	def _handle_oq_soil_params(self, params, calc_id=None):
 		"""
 		Write nrml file for soil site model if present and set file param,
 		or set reference soil params
@@ -452,10 +452,17 @@ class PSHAModelBase(SHAModelBase):
 		:param params:
 			instance of :class:`OQ_Params` where soil parameters will
 			be added.
+		:param calc_id:
+			str, calculation ID correspoding to subfolder where xml files will
+			be written. (default: None)
 		"""
 		if self.soil_site_model:
+			if calc_id:
+				oq_folder = os.path.join(self.oq_root_folder, "calc_%s" % calc_id)
+			else:
+				oq_folder = self.oq_root_folder
 			file_name = (self.soil_site_model.name or "soil_site_model") + ".xml"
-			self.soil_site_model.write_xml(os.path.join(self.oq_root_folder, file_name))
+			self.soil_site_model.write_xml(os.path.join(oq_folder, file_name))
 			params.set_soil_site_model_or_reference_params(soil_site_model_file=file_name)
 		else:
 			params.set_soil_site_model_or_reference_params(
@@ -2244,6 +2251,9 @@ class PSHAModelTree(PSHAModelBase):
 				"disaggregation") (default: "classical")
 		:param user_params:
 			{str, val} dict, defining respectively parameters and value for OpenQuake (default: None).
+		:param calc_id:
+			str, calculation ID correspoding to subfolder where xml files will
+			be written. (default: None)
 		"""
 		if not os.path.exists(self.oq_root_folder):
 			os.mkdir(self.oq_root_folder)
@@ -2281,7 +2291,7 @@ class PSHAModelTree(PSHAModelBase):
 			source_model.write_xml(os.path.join(oq_folder, source_model.name + '.xml'))
 
 		## write nrml file for soil site model if present and set file param, or set ref soil params
-		self._handle_oq_soil_params(params)
+		self._handle_oq_soil_params(params, calc_id=calc_id)
 
 		## validate source model logic tree and write nrml file
 		self.source_model_lt.validate()
