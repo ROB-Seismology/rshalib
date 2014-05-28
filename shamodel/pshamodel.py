@@ -378,19 +378,19 @@ class PSHAModelBase(SHAModelBase):
 				for k, period in enumerate(periods):
 					if self.intensities:
 						if isinstance(self.intensities, dict):
-							imtls[imt + "(%s)" % period] = map(str, self.intensities[(imt, period)])
+							imtls[imt + "(%s)" % period] = map(float, self.intensities[(imt, period)])
 						else:
-							imtls[imt + "(%s)" % period] = map(str, self.intensities)
+							imtls[imt + "(%s)" % period] = map(float, self.intensities)
 					else:
-						imtls[imt + "(%s)" % period] = map(str, np.logspace(np.log10(self.min_intensities[imt][k]), np.log10(self.max_intensities[imt][k]), self.num_intensities))
+						imtls[imt + "(%s)" % period] = map(float, np.logspace(np.log10(self.min_intensities[imt][k]), np.log10(self.max_intensities[imt][k]), self.num_intensities))
 			else:
 				if self.intensities:
 					if isinstance(self.intensities, dict):
-						imtls[imt] = map(str, self.intensities[(imt, periods[0])])
+						imtls[imt] = map(float, self.intensities[(imt, periods[0])])
 					else:
-						imtls[imt] = map(str, self.intensities)
+						imtls[imt] = map(float, self.intensities)
 				else:
-					imtls[imt] = map(str, np.logspace(np.log10(self.min_intensities[imt][0]), np.log10(self.max_intensities[imt][0]), self.num_intensities))
+					imtls[imt] = map(float, np.logspace(np.log10(self.min_intensities[imt][0]), np.log10(self.max_intensities[imt][0]), self.num_intensities))
 		return imtls
 
 	def _degree_to_km(self, degree, lat=0.):
