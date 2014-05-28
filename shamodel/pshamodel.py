@@ -2253,6 +2253,9 @@ class PSHAModelTree(PSHAModelBase):
 		else:
 			oq_folder = self.oq_root_folder
 
+		if not os.path.exists(oq_folder):
+			os.mkdir(oq_folder)
+
 		## set OQ_params object and override with params from user_params
 		params = OQ_Params(calculation_mode=calculation_mode, description=self.name)
 		implicit_params = self._get_implicit_openquake_params()
