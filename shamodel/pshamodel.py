@@ -294,7 +294,10 @@ class PSHAModelBase(SHAModelBase):
 			for k, period in enumerate(periods):
 				imt = self._construct_imt(im, period)
 				if self.intensities:
-					imtls[imt] = np.array(self.intensities)
+					if isinstance(self.intensities, dict):
+						imtls[imt] = np.array(self.intensities[(im, period)])
+					else:
+						imtls[imt] = np.array(self.intensities)
 				else:
 					imtls[imt] = np.logspace(np.log10(self.min_intensities[im][k]), np.log10(self.max_intensities[im][k]), self.num_intensities)
 
