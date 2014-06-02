@@ -1552,6 +1552,36 @@ class SpectralDeaggregationCurve(DeaggBase):
 		nrml_file.write(etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8"))
 		nrml_file.close()
 
+	def slice_return_periods(self, return_periods, shc):
+		"""
+		Reduce the spectral deaggregation curve to one where slices correspond to
+		return periods. First, intensities are interpolated from the given
+		spectral hazard curve, and a new spectral deaggregation curve is constructed
+		from slices that are nearest to these interpolated intensities.
+
+		:param return_periods:
+			list of floats, return periods
+		:param shc:
+			instance of :class:`rshalib.result.SpectralHazardCurve`
+
+		:return:
+			instance of :class:`SpectralDeaggregationCurve`
+		"""
+		curves = []
+		for T in shc.periods:
+			dc = self.get_curve(period=T)
+			hc = shc.getHazardCurve(period_spec=float(T))
+			imls = hc.interpolate_return_periods(return_periods)
+			slices = []
+			for iml in imls:
+				ds = dc.get_slice(iml=iml)
+				slices.append(ds)
+			rp_dc = DeaggregationCurve.from_deaggregation_slices(slices)
+			curves.append(rp_dc)
+		rp_sdc = SpectralDeaggregationCurve.from_deaggregation_curves(curves)
+		rp_sdc.return_periods = np.array(return_periods)
+		return rp_sdc
+
 	def get_mean_low_freq_curve(self):
 		"""
 		Determine mean low-frequency deaggregation curve.
