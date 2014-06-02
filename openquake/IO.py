@@ -22,10 +22,10 @@ intensity_unit = {'PGD': 'cm', 'PGV': 'cms', 'PGA': 'g', 'SA': 'g'}
 def _get_model_name(e):
 	"""
 	"""
-	model_name = e.get("statistics", None)
-	model_name = model_name or e.get("sourceModelTreePath") + "_" + e.get("gsimTreePath")
+	model_name = e.get(ns.STATISTICS, None)
+	model_name = model_name or e.get(ns.SMLT_PATH) + "_" + e.get(ns.GMPELT_PATH)
 	if model_name == "quantile":
-		model_name += "_%s" % float(e.get("quantileValue"))
+		model_name += "_%s" % float(e.get(ns.QUANTILE_VALUE))
 	return model_name
 
 def _parse_hazard_curve(hazard_curve, site_names={}):
@@ -46,9 +46,9 @@ def _parse_hazard_curves(hazard_curves, site_names={}):
 	Parse OpenQuake nrml element of type "hazardCurves"
 	"""
 	model_name = _get_model_name(hazard_curves)
-	imt = hazard_curves.get("IMT")
-	period = float(hazard_curves.get("saPeriod", 0))
-	timespan = float(hazard_curves.get("investigationTime"))
+	imt = hazard_curves.get(ns.IMT)
+	period = float(hazard_curves.get(ns.Period, 0))
+	timespan = float(hazard_curves.get(ns.INVESTIGATION_TIME))
 	intensities = map(float, hazard_curves.findtext("{%s}IMLs" % NRML).split())
 	sites = []
 	poess = []
@@ -139,11 +139,11 @@ def parse_spectral_hazard_curve_field(xml_filespec, site_names={}, timespan=50):
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
 	shcf_elem = nrml.find(ns.SPECTRAL_HAZARD_CURVE_FIELD)
-	imt = shcf_elem.get("IMT")
-	timespan = float(shcf_elem.get("investigationTime", timespan))
-	model_name = shcf_elem.get("name")
-	smlt_path = shcf_elem.get("sourceModelTreePath", '')
-	gmpelt_path = shcf_elem.get("gsimTreePath", '')
+	imt = shcf_elem.get(ns.IMT)
+	timespan = float(shcf_elem.get(ns.INVESTIGATION_TIME, timespan))
+	model_name = shcf_elem.get(ns.NAME)
+	smlt_path = shcf_elem.get(ns.SMLT_PATH, '')
+	gmpelt_path = shcf_elem.get(ns.GMPELT_PATH, '')
 
 	periods = []
 	imls = []
@@ -194,18 +194,18 @@ def parse_hazard_map(xml_filespec):
 	for e in nrml.iter():
 		if e.tag == '{%s}hazardMap' % NRML:
 			model_name = _get_model_name(e)
-			IMT = e.get('IMT')
-			if e.attrib.has_key('saPeriod'):
-				period = e.get('saPeriod')
+			IMT = e.get(ns.IMT)
+			if e.attrib.has_key(ns.PERIOD):
+				period = e.get(ns.PERIOD)
 			else:
 				period = 0
-			timespan = float(e.get('investigationTime'))
-			poe = float(e.get('poE'))
+			timespan = float(e.get(ns.INVESTIGATION_TIME))
+			poe = float(e.get(ns.POE))
 		if e.tag == '{%s}node' % NRML:
 			lon = float(e.get('lon'))
 			lat = float(e.get('lat'))
 			sites.append(SHASite(lon, lat))
-			iml = float(e.get('iml'))
+			iml = float(e.get(ns.IML))
 			intensities.append(iml)
 	hm = HazardMap(model_name, xml_filespec, sites, period, IMT,
 		np.array(intensities), intensity_unit=intensity_unit[IMT],
@@ -231,8 +231,8 @@ def parse_uh_spectra(xml_filespec, sites=[]):
 	periods = uh_spectra.find('{%s}periods' % NRML)
 	periods = map(float, str(periods.text).split())
 	IMT = 'SA'
-	timespan = float(uh_spectra.get('investigationTime'))
-	poe = float(uh_spectra.get('poE'))
+	timespan = float(uh_spectra.get(ns.INVESTIGATION_TIME))
+	poe = float(uh_spectra.get(ns.POE))
 	uh_sites, intensities = [], []
 	for uh_spectrum in uh_spectra.findall('{%s}uhs' % NRML):
 		pos = uh_spectrum.find('{%s}Point' % GML).find('{%s}pos' % GML)
@@ -270,35 +270,35 @@ def parse_disaggregation(xml_filespec, site_name=None):
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
 	disagg_matrices = nrml.find('{%s}disaggMatrices' % NRML)
-	mag_bin_edges = np.array(disagg_matrices.get('magBinEdges').split(', '),
+	mag_bin_edges = np.array(disagg_matrices.get(ns.MAG_BIN_EDGES).split(', '),
 		dtype=float)
-	dist_bin_edges = np.array(disagg_matrices.get('distBinEdges').split(', '),
+	dist_bin_edges = np.array(disagg_matrices.get(ns.DIST_BIN_EDGES).split(', '),
 		dtype=float)
-	lon_bin_edges = np.array(disagg_matrices.get('lonBinEdges').split(', '),
+	lon_bin_edges = np.array(disagg_matrices.get(ns.LON_BIN_EDGES).split(', '),
 		dtype=float)
-	lat_bin_edges = np.array(disagg_matrices.get('latBinEdges').split(', '),
+	lat_bin_edges = np.array(disagg_matrices.get(ns.LAT_BIN_EDGES).split(', '),
 		dtype=float)
-	eps_bin_edges = np.array(disagg_matrices.get('epsBinEdges').split(', '),
+	eps_bin_edges = np.array(disagg_matrices.get(ns.EPS_BIN_EDGES).split(', '),
 		dtype=float)
 	tectonic_region_types = disagg_matrices.get(
-		'tectonicRegionTypes').split(', ')
+		ns.TECTONIC_REGION_TYPES).split(', ')
 	lon = float(disagg_matrices.get('lon'))
 	lat = float(disagg_matrices.get('lat'))
 	site = SHASite(lon, lat, name=site_name)
-	imt = disagg_matrices.get('IMT')
-	if disagg_matrices.attrib.has_key('saPeriod'):
-		period = float(disagg_matrices.get('saPeriod'))
+	imt = disagg_matrices.get(ns.IMT)
+	if disagg_matrices.attrib.has_key(ns.PERIOD):
+		period = float(disagg_matrices.get(ns.PERIOD))
 	else:
 		period = 0.
-	timespan = float(disagg_matrices.get('investigationTime'))
+	timespan = float(disagg_matrices.get(ns.INVESTIGATION_TIME))
 	deaggregation_slices = {}
 	for disagg_matrix in disagg_matrices.findall('{%s}disaggMatrix' % NRML):
-		dims = np.array(disagg_matrix.get('dims').split(','), dtype=float)
+		dims = np.array(disagg_matrix.get(ns.DIMS).split(','), dtype=float)
 		probs = []
 		for prob in disagg_matrix.findall('{%s}prob' % NRML):
-			probs.append(float(prob.get('value')))
+			probs.append(float(prob.get(ns.VALUE)))
 		probs = np.reshape(probs, dims)
-		type = disagg_matrix.get('type')
+		type = disagg_matrix.get(ns.TYPE)
 		if type == 'Mag':
 			probs = probs[:, np.newaxis, np.newaxis, np.newaxis, np.newaxis, np.newaxis]
 			bin_edges = (mag_bin_edges, [], [], [], [], [])
@@ -324,8 +324,8 @@ def parse_disaggregation(xml_filespec, site_name=None):
 			probs = probs[np.newaxis, np.newaxis, :, :, np.newaxis, :]
 			bin_edges = ([], [], lon_bin_edges, lat_bin_edges, [], tectonic_region_types)
 		deagg_matrix = ProbabilityMatrix(probs)
-		iml = disagg_matrix.get('iml')
-		poe = float(disagg_matrix.get('poE'))
+		iml = disagg_matrix.get(ns.IML)
+		poe = float(disagg_matrix.get(ns.POE))
 		return_period = Poisson(life_time=timespan, prob=poe)
 		deaggregation_slices[type] = DeaggregationSlice(bin_edges, deagg_matrix, site, imt, iml, period, return_period, timespan)
 	return deaggregation_slices
@@ -345,33 +345,33 @@ def parse_disaggregation_full(xml_filespec, site_name=None):
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
 	disagg_matrix = nrml.find('{%s}disaggMatrix' % NRML)
-	shape = tuple(map(int, disagg_matrix.get('dims').split(',')))
-	mag_bin_edges = np.array(disagg_matrix.get('magBinEdges').split(', '),
+	shape = tuple(map(int, disagg_matrix.get(ns.DIMS).split(',')))
+	mag_bin_edges = np.array(disagg_matrix.get(ns.MAG_BIN_EDGES).split(', '),
 		dtype=float)
-	dist_bin_edges = np.array(disagg_matrix.get('distBinEdges').split(', '),
+	dist_bin_edges = np.array(disagg_matrix.get(ns.DIST_BIN_EDGES).split(', '),
 		dtype=float)
-	lon_bin_edges = np.array(disagg_matrix.get('lonBinEdges').split(', '),
+	lon_bin_edges = np.array(disagg_matrix.get(ns.LON_BIN_EDGES).split(', '),
 		dtype=float)
-	lat_bin_edges = np.array(disagg_matrix.get('latBinEdges').split(', '),
+	lat_bin_edges = np.array(disagg_matrix.get(ns.LAT_BIN_EDGES).split(', '),
 		dtype=float)
-	eps_bin_edges = np.array(disagg_matrix.get('epsBinEdges').split(', '),
+	eps_bin_edges = np.array(disagg_matrix.get(ns.EPS_BIN_EDGES).split(', '),
 		dtype=float)
 	tectonic_region_types = disagg_matrix.get(
-		'tectonicRegionTypes').split(', ')
+		ns.TECTONIC_REGION_TYPES).split(', ')
 	bin_edges = (mag_bin_edges, dist_bin_edges, lon_bin_edges, lat_bin_edges, eps_bin_edges, tectonic_region_types)
 	lon = float(disagg_matrix.get('lon'))
 	lat = float(disagg_matrix.get('lat'))
 	site = SHASite(lon, lat, name=site_name)
-	imt = disagg_matrix.get('IMT')
-	period = float(disagg_matrix.get('saPeriod', 0.))
-	timespan = float(disagg_matrix.get('investigationTime'))
-	iml = float(disagg_matrix.get('iml'))
-	poe = float(disagg_matrix.get('poE'))
+	imt = disagg_matrix.get(ns.IMT)
+	period = float(disagg_matrix.get(ns.PERIOD, 0.))
+	timespan = float(disagg_matrix.get(ns.INVESTIGATION_TIME))
+	iml = float(disagg_matrix.get(ns.IML))
+	poe = float(disagg_matrix.get(ns.POE))
 	return_period = Poisson(life_time=timespan, prob=poe)
 	prob_matrix = ProbabilityMatrix(np.zeros(shape))
 	for prob in disagg_matrix.findall('{%s}prob' % NRML):
-		index = prob.get("index")
-		value = prob.get("value")
+		index = prob.get(ns.INDEX)
+		value = prob.get(ns.VALUE)
 		prob_matrix[tuple(map(int, index.split(",")))] = value
 	deaggregation_slice = DeaggregationSlice(bin_edges, prob_matrix, site, imt, iml, period, return_period, timespan)
 	return deaggregation_slice
@@ -382,37 +382,37 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None):
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
 	sdc_elem = nrml.find('{%s}spectralDeaggregationCurve' % NRML)
-	shape = tuple(map(int, sdc_elem .get('dims').split(',')))
-	mag_bin_edges = np.array(sdc_elem.get('magBinEdges').split(', '),
+	shape = tuple(map(int, sdc_elem .get(ns.DIMS).split(',')))
+	mag_bin_edges = np.array(sdc_elem.get(ns.MAG_BIN_EDGES).split(', '),
 		dtype=float)
-	dist_bin_edges = np.array(sdc_elem.get('distBinEdges').split(', '),
+	dist_bin_edges = np.array(sdc_elem.get(ns.DIST_BIN_EDGES).split(', '),
 		dtype=float)
-	lon_bin_edges = np.array(sdc_elem.get('lonBinEdges').split(', '),
+	lon_bin_edges = np.array(sdc_elem.get(ns.LON_BIN_EDGES).split(', '),
 		dtype=float)
-	lat_bin_edges = np.array(sdc_elem.get('latBinEdges').split(', '),
+	lat_bin_edges = np.array(sdc_elem.get(ns.LAT_BIN_EDGES).split(', '),
 		dtype=float)
-	eps_bin_edges = np.array(sdc_elem.get('epsBinEdges').split(', '),
+	eps_bin_edges = np.array(sdc_elem.get(ns.EPS_BIN_EDGES).split(', '),
 		dtype=float)
 	tectonic_region_types = sdc_elem.get(
-		'tectonicRegionTypes').split(', ')
+		ns.TECTONIC_REGION_TYPES).split(', ')
 	bin_edges = (mag_bin_edges, dist_bin_edges, lon_bin_edges, lat_bin_edges, eps_bin_edges, tectonic_region_types)
 	lon = float(sdc_elem.get('lon'))
 	lat = float(sdc_elem.get('lat'))
 	site = SHASite(lon, lat, name=site_name)
-	timespan = float(sdc_elem.get('investigationTime'))
+	timespan = float(sdc_elem.get(ns.INVESTIGATION_TIME))
 	dcs = []
 	for dc_elem in sdc_elem.findall('{%s}deaggregationCurve' % NRML):
-		imt = dc_elem.get('imt')
-		period = float(dc_elem.get('saPeriod', 0.))
+		imt = dc_elem.get(ns.IMT)
+		period = float(dc_elem.get(ns.PERIOD, 0.))
 		dss = []
 		for iml_idx, ds_elem in enumerate(dc_elem.findall('{%s}deaggregationSlice' % NRML)):
-			iml = float(ds_elem.get('iml'))
-			poe = float(ds_elem.get('poE'))
+			iml = float(ds_elem.get(ns.IML))
+			poe = float(ds_elem.get(ns.POE))
 			return_period = Poisson(life_time=timespan, prob=poe)
 			prob_matrix = ProbabilityMatrix(np.zeros(shape, dtype='f'))
 			for prob in ds_elem.findall('{%s}prob' % NRML):
-				index = prob.get('index')
-				value = prob.get('value')
+				index = prob.get(ns.INDEX)
+				value = prob.get(ns.VALUE)
 				prob_matrix[tuple(map(int, index.split(',')))] = value
 			ds = DeaggregationSlice(bin_edges, prob_matrix, site, imt, iml, period, return_period, timespan)
 			dss.append(ds)
@@ -654,32 +654,32 @@ def write_disaggregation_slice(site, imt, period, iml, poe, timespan, bin_edges,
 		root = etree.Element("nrml", nsmap=ns.NSMAP)
 		diss = etree.SubElement(root, "disaggMatrix")
 		if sourceModelTreePath:
-			diss.set("sourceModelTreePath", sourceModelTreePath)
+			diss.set(ns.SMLT_PATH, sourceModelTreePath)
 		if gsimTreePath:
-			diss.set("gsimTreePath", gsimTreePath)
+			diss.set(ns.GMPELT_PATH, gsimTreePath)
 		lon, lat = site[0], site[1]
 		diss.set("lon", str(lon))
 		diss.set("lat", str(lat))
-		diss.set("imt", str(iml))
-		diss.set("saPeriod", str(period))
-		diss.set("iml", str(iml))
-		diss.set("poE", str(poe))
-		diss.set("investigationTime", str(timespan))
+		diss.set(ns.IMT, str(iml))
+		diss.set(ns.PERIOD, str(period))
+		diss.set(ns.IML, str(iml))
+		diss.set(ns.POE, str(poe))
+		diss.set(ns.INVESTIGATION_TIME, str(timespan))
 		mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = bin_edges
-		diss.set("magBinEdges", ", ".join(map(str, mag_bins)))
-		diss.set("distBinEdges", ", ".join(map(str, dist_bins)))
-		diss.set("lonBinEdges", ", ".join(map(str, lon_bins)))
-		diss.set("latBinEdges", ", ".join(map(str, lat_bins)))
-		diss.set("epsBinEdges", ", ".join(map(str, eps_bins)))
-		diss.set("tectonicRegionTypes", ", ".join(trts))
+		diss.set(ns.MAG_BIN_EDGES, ", ".join(map(str, mag_bins)))
+		diss.set(ns.DIST_BIN_EDGES, ", ".join(map(str, dist_bins)))
+		diss.set(ns.LON_BIN_EDGES, ", ".join(map(str, lon_bins)))
+		diss.set(ns.LAT_BIN_EDGES, ", ".join(map(str, lat_bins)))
+		diss.set(ns.EPS_BIN_EDGES, ", ".join(map(str, eps_bins)))
+		diss.set(ns.TECTONIC_REGION_TYPES, ", ".join(trts))
 		dims = ",".join(map(str, matrix.shape))
-		diss.set("dims", dims)
+		diss.set(ns.DIMS, dims)
 		for index, value in np.ndenumerate(matrix):
 			if not np.allclose(value, 0.):
 				index = ",".join(map(str, index))
 				value = str(value)
 				prob = etree.SubElement(diss, "prob")
-				prob.set("index", index)
-				prob.set("value", value)
+				prob.set(ns.INDEX, index)
+				prob.set(ns.VALUE, value)
 		nrml_file.write(etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8"))
 

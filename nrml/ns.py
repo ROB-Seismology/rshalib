@@ -26,8 +26,9 @@ CHARACTERISTIC_FAULT_SOURCE = "%scharacteristicFaultSource" % NRML
 
 ## Source identifiers
 ID = "%sid" % NRML
-NAME = "name"
 TECTONIC_REGION_TYPE = "%stectonicRegion" % NRML
+
+NAME = "name"
 
 ## MFD's
 TRUNCATED_GUTENBERG_RICHTER_MFD = "%struncGutenbergRichterMFD" % NRML
@@ -114,11 +115,28 @@ SPECTRAL_HAZARD_CURVE_FIELD_TREE = "%sspectralHazardCurveFieldTree" % NRML
 SPECTRAL_HAZARD_CURVE_FIELD = "%sspectralHazardCurveField" % NRML
 HAZARD_CURVE_FIELD = "%shazardCurveField" % NRML
 HAZARD_CURVE = "%shazardCurve" % NRML
+IMLS = "%sIMLs" % NRML
+POES = "%spoEs" % NRML
+
+POE = "poE"
+IML = "IML"
 IMT = "IMT"
 PERIOD = "saPeriod"
 DAMPING = "saDamping"
-IMLS = "%sIMLs" % NRML
-POES = "%spoEs" % NRML
 INVESTIGATION_TIME = "investigationTime"
 SMLT_PATH = "sourceModelTreePath"
 GMPELT_PATH = "gsimTreePath"
+STATISTICS = "statistics"
+QUANTILE_VALUE = "quantileValue"
+
+MAG_BIN_EDGES = "magBinEdges"
+DIST_BIN_EDGES = "distBinEdges"
+LON_BIN_EDGES = "lonBinEdges"
+LAT_BIN_EDGES = "latBinEdges"
+EPS_BIN_EDGES = "epsBinEdges"
+TECTONIC_REGION_TYPES = "tectonicRegionTypes"
+DIMS = "dims"
+TYPE = "type"
+INDEX = "index"
+VALUE = "value"
+
