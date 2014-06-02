@@ -2735,10 +2735,10 @@ class PSHAModelTree(PSHAModelBase):
 			for src in self.source_models[0]:
 				trt_bins.add(src.source_id)
 
-		min_mag = np.floor(min_mag / mag_bin_width) * mag_bin_width
-		max_mag = np.ceil(max_mag / mag_bin_width) * mag_bin_width
+		#min_mag = np.floor(min_mag / mag_bin_width) * mag_bin_width
+		max_mag = min_mag + np.ceil((max_mag - min_mag) / mag_bin_width) * mag_bin_width
+
 		min_dist = 0
-		#max_dist = self.integration_distance
 		max_dist = np.ceil(self.integration_distance / dist_bin_width) * dist_bin_width
 
 		## Note that ruptures may extend beyond source limits
@@ -2747,12 +2747,12 @@ class PSHAModelTree(PSHAModelBase):
 		max_lon = np.ceil(max_lon / coord_bin_width) * coord_bin_width
 		max_lat = np.ceil(max_lat / coord_bin_width) * coord_bin_width
 
-		nmags = int((max_mag - min_mag) / mag_bin_width)
-		ndists = int(max_dist / dist_bin_width)
+		nmags = int(round((max_mag - min_mag) / mag_bin_width))
+		ndists = int(round(max_dist / dist_bin_width))
 		nlons = int((max_lon - min_lon) / coord_bin_width)
 		nlats = int((max_lat - min_lat) / coord_bin_width)
 
-		mag_bins = np.linspace(min_mag, max_mag, nmags + 1)
+		mag_bins = min_mag + np.linspace(0, max_mag - min_mag, nmags + 1)
 		dist_bins = np.linspace(min_dist, max_dist, ndists + 1)
 		lon_bins = np.linspace(min_lon, max_lon, nlons + 1)
 		lat_bins = np.linspace(min_lat, max_lat, nlats + 1)
@@ -3794,7 +3794,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				weight = gmpe_weight * smlt_weight
 				yield (sdc, weight)
 
-	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", calc_id=None):
+	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", mean_shc=None, calc_id=None):
 		"""
 		Compute mean spectral deaggregation curve for a particular source
 
@@ -3806,6 +3806,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			instance of :class:`SHASite` or :class:`SoilSite`
 		:param gmpe_name:
 			str, name of GMPE (default: "", will read all GMPEs)
+		:param mean_shc:
+			instance of :class:`rshalib.result.SpectralHazardCurve`
+			If specified, sdc will be reduced to intensities corresponding
+			to return periods of PSHA model tree
+			(default: None).
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3833,14 +3838,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, sdc.deagg_matrix.dtype)
 
 			mean_deagg_matrix[:,:,:sdc.nmags] += (sdc.deagg_matrix * weight)
-			sdc.deagg_matrix = 0
+			del sdc.deagg_matrix
 			gc.collect()
-		#intensities = np.zeros(sdc.intensities.shape)
+
 		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 		mean_sdc.model_name = "%s weighted mean" % src.source_id
+		if mean_shc:
+			mean_sdc = mean_sdc.slice_return_periods(self.return_periods, mean_shc)
 		return mean_sdc
 
-	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", calc_id=None):
+	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", mean_shc=None, calc_id=None):
 		"""
 		Compute mean spectral deaggregation curve for a particular source model
 
@@ -3850,6 +3857,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			instance of :class:`SHASite` or :class:`SoilSite`
 		:param gmpe_name:
 			str, name of GMPE (default: "", will read all GMPEs)
+		:param mean_shc:
+			instance of :class:`rshalib.result.SpectralHazardCurve`
+			If specified, sdc will be reduced to intensities corresponding
+			to return periods of PSHA model tree
+			(default: None).
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3861,7 +3873,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		source_model = self.get_source_model_by_name(source_model_name)
 		for i, src in enumerate(source_model.sources):
-			sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)
+			sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, calc_id=calc_id)
 			if i == 0:
 				## Create empty deaggregation matrix
 				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
@@ -3879,19 +3891,24 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			max_lat_idx = min_lat_idx + sdc.nlats
 			trt_idx = trts.index(src.source_id)
 			summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:,:,:,:,:,0]
-			sdc.deagg_matrix = 0
+			del sdc.deagg_matrix
 			gc.collect()
 		#intensities = np.zeros(sdc.intensities.shape)
 		summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 		summed_sdc.model_name = "%s weighted mean" % source_model_name
 		return summed_sdc
 
-	def get_oq_mean_sdc(self, site, calc_id=None):
+	def get_oq_mean_sdc(self, site, mean_shc=None, calc_id=None):
 		"""
 		Compute mean spectral deaggregation curve
 
 		:param site:
 			instance of :class:`SHASite` or :class:`SoilSite`
+		:param mean_shc:
+			instance of :class:`rshalib.result.SpectralHazardCurve`
+			If specified, sdc will be reduced to intensities corresponding
+			to return periods of PSHA model tree
+			(default: None).
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3902,7 +3919,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		import gc
 
 		for i, (source_model, somo_weight) in enumerate(self.source_model_lt.source_model_pmf):
-			sdc = self.get_oq_mean_sdc_by_source_model(source_model.name, site, calc_id=calc_id)
+			sdc = self.get_oq_mean_sdc_by_source_model(source_model.name, site, mean_shc=mean_shc, calc_id=calc_id)
 			if i == 0:
 				## Create empty deaggregation matrix
 				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
