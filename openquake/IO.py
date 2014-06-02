@@ -32,10 +32,10 @@ def _parse_hazard_curve(hazard_curve, site_names={}):
 	"""
 	Parse OpenQuake nrml element of type "hazardCurve"
 	"""
-	lon, lat = map(float, hazard_curve.findtext(".//{%s}pos" % GML).split())
+	lon, lat = map(float, hazard_curve.findtext(".//" + ns.POSITION).split())
 	site = SHASite(lon, lat, name=site_names.get((lon, lat), None))
 	try:
-		poes = np.array(hazard_curve.findtext(".//{%s}poEs" % NRML).split(), float)
+		poes = np.array(hazard_curve.findtext(".//" + ns.POES).split(), float)
 	except:
 		poes = np.array(hazard_curve.findtext(".//{%s}poes" % NRML).split(), float)
 	return site, poes.clip(1E-15)
@@ -49,10 +49,10 @@ def _parse_hazard_curves(hazard_curves, site_names={}):
 	imt = hazard_curves.get(ns.IMT)
 	period = float(hazard_curves.get(ns.PERIOD, 0))
 	timespan = float(hazard_curves.get(ns.INVESTIGATION_TIME))
-	intensities = map(float, hazard_curves.findtext("{%s}IMLs" % NRML).split())
+	intensities = map(float, hazard_curves.findtext(ns.IMLS).split())
 	sites = []
 	poess = []
-	for hazard_curve in hazard_curves.findall("{%s}hazardCurve" % NRML):
+	for hazard_curve in hazard_curves.findall(ns.HAZARD_CURVE):
 		site, poes = _parse_hazard_curve(hazard_curve, site_names)
 		sites.append(site)
 		poess.append(poes)
@@ -70,7 +70,7 @@ def parse_hazard_curves(xml_filespec, site_names={}):
 		instance of :class:`..result.HazardCurveField`
 	"""
 	nrml = etree.parse(xml_filespec)
-	model_name, sites, period, imt, intensities, timespan, poess = _parse_hazard_curves(nrml.find("{%s}hazardCurves" % NRML), site_names)
+	model_name, sites, period, imt, intensities, timespan, poess = _parse_hazard_curves(nrml.find(ns.HAZARD_CURVES), site_names)
 	hcf = HazardCurveField(model_name, poess, xml_filespec, sites, period, imt, intensities, intensity_unit=intensity_unit[imt], timespan=timespan)
 	return hcf
 
@@ -90,7 +90,7 @@ def parse_hazard_curves_multi(xml_filespec, site_names={}):
 	periods = []
 	intensities = []
 	poes = []
-	for hazard_curves in nrml.findall("{%s}hazardCurves" % NRML):
+	for hazard_curves in nrml.findall(ns.HAZARD_CURVES):
 		model_name, sites, period, imt, intensities_, timespan, poes_ = _parse_hazard_curves(hazard_curves, site_names)
 		assert imt in ("PGA", "SA")
 		if period not in periods:
@@ -192,7 +192,7 @@ def parse_hazard_map(xml_filespec):
 	nrml = etree.parse(xml_filespec)
 	sites, intensities = [], []
 	for e in nrml.iter():
-		if e.tag == '{%s}hazardMap' % NRML:
+		if e.tag == ns.HAZARD_MAP:
 			model_name = _get_model_name(e)
 			IMT = e.get(ns.IMT)
 			if e.attrib.has_key(ns.PERIOD):
@@ -201,7 +201,7 @@ def parse_hazard_map(xml_filespec):
 				period = 0
 			timespan = float(e.get(ns.INVESTIGATION_TIME))
 			poe = float(e.get(ns.POE))
-		if e.tag == '{%s}node' % NRML:
+		if e.tag == ns.NODE:
 			lon = float(e.get('lon'))
 			lat = float(e.get('lat'))
 			sites.append(SHASite(lon, lat))
@@ -226,19 +226,19 @@ def parse_uh_spectra(xml_filespec, sites=[]):
 		instance of :class:`..result.UHSField`
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
-	uh_spectra = nrml.find('{%s}uniformHazardSpectra' % NRML)
+	uh_spectra = nrml.find(ns.UNIFORM_HAZARD_SPECTRA)
 	model_name = _get_model_name(uh_spectra)
-	periods = uh_spectra.find('{%s}periods' % NRML)
+	periods = uh_spectra.find(ns.PERIODS)
 	periods = map(float, str(periods.text).split())
 	IMT = 'SA'
 	timespan = float(uh_spectra.get(ns.INVESTIGATION_TIME))
 	poe = float(uh_spectra.get(ns.POE))
 	uh_sites, intensities = [], []
-	for uh_spectrum in uh_spectra.findall('{%s}uhs' % NRML):
-		pos = uh_spectrum.find('{%s}Point' % GML).find('{%s}pos' % GML)
+	for uh_spectrum in uh_spectra.findall(ns.UHS):
+		pos = uh_spectrum.find(ns.POINT).find(ns.POSITION)
 		lon, lat = map(float, pos.text.split())
 		uh_sites.append(SHASite(lon, lat))
-		imls = uh_spectrum.find('{%s}IMLs' % NRML)
+		imls = uh_spectrum.find(ns.IMLS)
 		intensities.append(map(float, imls.text.split()))
 	uhs_field = UHSField(model_name, xml_filespec, uh_sites, periods, IMT,
 		intensities=np.array(intensities), intensity_unit=intensity_unit[IMT],
@@ -269,7 +269,7 @@ def parse_disaggregation(xml_filespec, site_name=None):
 			- 'Lon,Lat,TRT'
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
-	disagg_matrices = nrml.find('{%s}disaggMatrices' % NRML)
+	disagg_matrices = nrml.find(ns.DISAGG_MATRICES)
 	mag_bin_edges = np.array(disagg_matrices.get(ns.MAG_BIN_EDGES).split(', '),
 		dtype=float)
 	dist_bin_edges = np.array(disagg_matrices.get(ns.DIST_BIN_EDGES).split(', '),
@@ -292,10 +292,10 @@ def parse_disaggregation(xml_filespec, site_name=None):
 		period = 0.
 	timespan = float(disagg_matrices.get(ns.INVESTIGATION_TIME))
 	deaggregation_slices = {}
-	for disagg_matrix in disagg_matrices.findall('{%s}disaggMatrix' % NRML):
+	for disagg_matrix in disagg_matrices.findall(ns.DISAGG_MATRIX):
 		dims = np.array(disagg_matrix.get(ns.DIMS).split(','), dtype=float)
 		probs = []
-		for prob in disagg_matrix.findall('{%s}prob' % NRML):
+		for prob in disagg_matrix.findall(ns.PROB):
 			probs.append(float(prob.get(ns.VALUE)))
 		probs = np.reshape(probs, dims)
 		type = disagg_matrix.get(ns.TYPE)
@@ -369,7 +369,7 @@ def parse_disaggregation_full(xml_filespec, site_name=None):
 	poe = float(disagg_matrix.get(ns.POE))
 	return_period = Poisson(life_time=timespan, prob=poe)
 	prob_matrix = ProbabilityMatrix(np.zeros(shape))
-	for prob in disagg_matrix.findall('{%s}prob' % NRML):
+	for prob in disagg_matrix.findall(ns.PROB):
 		index = prob.get(ns.INDEX)
 		value = prob.get(ns.VALUE)
 		prob_matrix[tuple(map(int, index.split(",")))] = value
@@ -381,7 +381,7 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None):
 	"""
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
-	sdc_elem = nrml.find('{%s}spectralDeaggregationCurve' % NRML)
+	sdc_elem = nrml.find(ns.SPECTRAL_DEAGGREGATION_CURVE)
 	shape = tuple(map(int, sdc_elem .get(ns.DIMS).split(',')))
 	mag_bin_edges = np.array(sdc_elem.get(ns.MAG_BIN_EDGES).split(', '),
 		dtype=float)
@@ -401,16 +401,16 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None):
 	site = SHASite(lon, lat, name=site_name)
 	timespan = float(sdc_elem.get(ns.INVESTIGATION_TIME))
 	dcs = []
-	for dc_elem in sdc_elem.findall('{%s}deaggregationCurve' % NRML):
+	for dc_elem in sdc_elem.findall(ns.DEAGGREGATION_CURVE):
 		imt = dc_elem.get(ns.IMT)
 		period = float(dc_elem.get(ns.PERIOD, 0.))
 		dss = []
-		for iml_idx, ds_elem in enumerate(dc_elem.findall('{%s}deaggregationSlice' % NRML)):
+		for iml_idx, ds_elem in enumerate(dc_elem.findall(ns.DEAGGREGATION_SLICE)):
 			iml = float(ds_elem.get(ns.IML))
 			poe = float(ds_elem.get(ns.POE))
 			return_period = Poisson(life_time=timespan, prob=poe)
 			prob_matrix = ProbabilityMatrix(np.zeros(shape, dtype='f'))
-			for prob in ds_elem.findall('{%s}prob' % NRML):
+			for prob in ds_elem.findall(ns.PROB):
 				index = prob.get(ns.INDEX)
 				value = prob.get(ns.VALUE)
 				prob_matrix[tuple(map(int, index.split(',')))] = value
@@ -435,11 +435,11 @@ def parse_any_output(xml_filespec):
 		return parse_hazard_curves(xml_filespec)
 	if len(hazard_curves) >= 2:
 		return parse_hazard_curves_multi(xml_filespec)
-	if nrml.findall("{%s}hazardMap" % NRML):
+	if nrml.findall(ns.HAZARD_MAP):
 		return parse_hazard_map(xml_filespec)
-	if nrml.findall("{%s}uniformHazardSpectra" % NRML):
+	if nrml.findall(ns.UNIFORM_HAZARD_SPECTRA):
 		return parse_uh_spectra(xml_filespec)
-	if nrml.findall("{%s}disaggMatrices" % NRML):
+	if nrml.findall(ns.DISAGG_MATRICES):
 		return parse_disaggregation(xml_filespec)
 	raise "File is not an output of OpenQuake"
 
