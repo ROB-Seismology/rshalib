@@ -3831,7 +3831,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, sdc.deagg_matrix.dtype)
 
 			mean_deagg_matrix[:,:,:sdc.nmags] += (sdc.deagg_matrix * weight)
-			del sdc.deagg_matrix()
+			del sdc.deagg_matrix
 			gc.collect()
 		#intensities = np.zeros(sdc.intensities.shape)
 		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
