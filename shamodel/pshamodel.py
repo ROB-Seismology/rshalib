@@ -3811,6 +3811,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
 		"""
+		import gc
+
 		for i, (sdc, weight) in enumerate(self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)):
 			if i == 0:
 				## Create empty deaggregation matrix
@@ -3832,6 +3834,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		#intensities = np.zeros(sdc.intensities.shape)
 		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 		mean_sdc.model_name = "%s weighted mean" % src.source_id
+		gc.collect()
 		return mean_sdc
 
 	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", calc_id=None):
@@ -3851,6 +3854,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
 		"""
+		import gc
+
 		source_model = self.get_source_model_by_name(source_model_name)
 		for i, src in enumerate(source_model.sources):
 			sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)
@@ -3874,6 +3879,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		#intensities = np.zeros(sdc.intensities.shape)
 		summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 		summed_sdc.model_name = "%s weighted mean" % source_model_name
+		gc.collect()
 		return summed_sdc
 
 	def get_oq_mean_sdc(self, site, calc_id=None):
