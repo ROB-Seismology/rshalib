@@ -2738,7 +2738,9 @@ class PSHAModelTree(PSHAModelBase):
 		min_mag = np.floor(min_mag / mag_bin_width) * mag_bin_width
 		max_mag = np.ceil(max_mag / mag_bin_width) * mag_bin_width
 		min_dist = 0
-		max_dist = self.integration_distance
+		#max_dist = self.integration_distance
+		max_dist = np.ceil(self.integration_distance / dist_bin_width) * dist_bin_width
+
 		## Note that ruptures may extend beyond source limits
 		min_lon = np.floor(min_lon / coord_bin_width) * coord_bin_width
 		min_lat = np.floor(min_lat / coord_bin_width) * coord_bin_width
@@ -2746,7 +2748,7 @@ class PSHAModelTree(PSHAModelBase):
 		max_lat = np.ceil(max_lat / coord_bin_width) * coord_bin_width
 
 		nmags = int((max_mag - min_mag) / mag_bin_width)
-		ndists = int(self.integration_distance / dist_bin_width)
+		ndists = int(max_dist / dist_bin_width)
 		nlons = int((max_lon - min_lon) / coord_bin_width)
 		nlats = int((max_lat - min_lat) / coord_bin_width)
 
@@ -3831,7 +3833,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, sdc.deagg_matrix.dtype)
 
 			mean_deagg_matrix[:,:,:sdc.nmags] += (sdc.deagg_matrix * weight)
-			del sdc.deagg_matrix
+			sdc.deagg_matrix = 0
 			gc.collect()
 		#intensities = np.zeros(sdc.intensities.shape)
 		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
@@ -3877,7 +3879,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			max_lat_idx = min_lat_idx + sdc.nlats
 			trt_idx = trts.index(src.source_id)
 			summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:,:,:,:,:,0]
-			del sdc.deagg_matrix
+			sdc.deagg_matrix = 0
 			gc.collect()
 		#intensities = np.zeros(sdc.intensities.shape)
 		summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
