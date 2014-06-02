@@ -47,7 +47,7 @@ def _parse_hazard_curves(hazard_curves, site_names={}):
 	"""
 	model_name = _get_model_name(hazard_curves)
 	imt = hazard_curves.get(ns.IMT)
-	period = float(hazard_curves.get(ns.Period, 0))
+	period = float(hazard_curves.get(ns.PERIOD, 0))
 	timespan = float(hazard_curves.get(ns.INVESTIGATION_TIME))
 	intensities = map(float, hazard_curves.findtext("{%s}IMLs" % NRML).split())
 	sites = []
