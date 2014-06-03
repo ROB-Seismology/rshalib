@@ -1141,8 +1141,8 @@ class PSHAModel(PSHAModelBase):
 		min_mag, max_mag = self.source_model.min_mag, self.source_model.max_mag
 		dmag = np.ceil((max_mag - min_mag) / mag_bin_width) * mag_bin_width
 		max_mag = min_mag + dmag
-		nmags = int(round(dmag) / mag_bin_width)
-		mag_bins = min_mag + np.linspace(0, dmag, nmags)
+		nmags = int(round(dmag / mag_bin_width))
+		mag_bins = min_mag + mag_bin_width * np.arange(nmags + 1)
 		## (copied from oqhazlib)
 		#mag_bins = mag_bin_width * np.arange(
 		#	int(np.floor(min_mag / mag_bin_width)),
@@ -3796,7 +3796,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f', write_xml=False, verbose=False):
 		"""
-		Compute mean spectral deaggregation curve for a particular source
+		Read or compute mean spectral deaggregation curve for a particular source
 
 		:param source_model_name:
 			str, name of source model
@@ -3827,46 +3827,52 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		import gc
 
-		for i, (sdc, weight) in enumerate(self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)):
-			if verbose:
-				print i
-			if i == 0:
-				## Create empty deaggregation matrix
-				## max_mag may be different
-				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = sdc.bin_edges
-				min_mag = mag_bins[0]
-				max_mag = self.source_model_lt.get_source_max_mag(source_model_name, src)
-				dmag = np.ceil((max_mag - min_mag) / sdc.mag_bin_width) * sdc.mag_bin_width
-				nmags = int(round(dmag / sdc.mag_bin_width))
-				mag_bins = min_mag + sdc.mag_bin_width * np.arange(nmags + 1)
-				#mag_bins = sdc.mag_bin_width * np.arange(
-				#	int(np.floor(min_mag / sdc.mag_bin_width)),
-				#	int(np.ceil(max_mag / sdc.mag_bin_width) + 1)
-				#)
-				bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
+		try:
+			trt = src.tectonic_region_type
+			trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
+			curve_path = os.path.join(source_model_name, trt_short_name, src.source_id)
+			mean_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id)
+		except:
+			for i, (sdc, weight) in enumerate(self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)):
+				if verbose:
+					print i
+				if i == 0:
+					## Create empty deaggregation matrix
+					## max_mag may be different
+					mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = sdc.bin_edges
+					min_mag = mag_bins[0]
+					max_mag = self.source_model_lt.get_source_max_mag(source_model_name, src)
+					dmag = np.ceil((max_mag - min_mag) / sdc.mag_bin_width) * sdc.mag_bin_width
+					nmags = int(round(dmag / sdc.mag_bin_width))
+					mag_bins = min_mag + sdc.mag_bin_width * np.arange(nmags + 1)
+					#mag_bins = sdc.mag_bin_width * np.arange(
+					#	int(np.floor(min_mag / sdc.mag_bin_width)),
+					#	int(np.ceil(max_mag / sdc.mag_bin_width) + 1)
+					#)
+					bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
 
-				num_periods = len(sdc.periods)
-				num_intensities = len(sdc.return_periods)
-				mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
+					num_periods = len(sdc.periods)
+					num_intensities = len(sdc.return_periods)
+					mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
 
-			mean_deagg_matrix[:,:,:sdc.nmags] += (sdc.deagg_matrix * weight)
-			del sdc.deagg_matrix
-			gc.collect()
+				mean_deagg_matrix[:,:,:sdc.nmags] += (sdc.deagg_matrix * weight)
+				del sdc.deagg_matrix
+				gc.collect()
 
-		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
-		mean_sdc.model_name = "%s weighted mean" % src.source_id
-		if mean_shc:
-			mean_sdc = mean_sdc.slice_return_periods(self.return_periods, mean_shc)
+			mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+			mean_sdc.model_name = "%s weighted mean" % src.source_id
+			if mean_shc:
+				mean_sdc = mean_sdc.slice_return_periods(self.return_periods, mean_shc)
 
-		if write_xml:
-			curve_name = "mean"
-			self.write_oq_disagg_matrix_multi(mean_sdc, source_model_name, src.tectonic_region_type, src.source_id, "", curve_name, calc_id=calc_id)
+			if write_xml:
+				curve_name = "mean"
+				self.write_oq_disagg_matrix_multi(mean_sdc, source_model_name, src.tectonic_region_type, src.source_id, "", curve_name, calc_id=calc_id)
 
 		return mean_sdc
 
 	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f', write_xml=False, verbose=False):
 		"""
-		Compute mean spectral deaggregation curve for a particular source model
+		Read or compute mean spectral deaggregation curve for a particular source model
 
 		:param source_model_name:
 			str, name of source model
