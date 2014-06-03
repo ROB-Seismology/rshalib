@@ -2740,7 +2740,8 @@ class PSHAModelTree(PSHAModelBase):
 				trt_bins.add(src.source_id)
 
 		#min_mag = np.floor(min_mag / mag_bin_width) * mag_bin_width
-		max_mag = min_mag + np.ceil((max_mag - min_mag) / mag_bin_width) * mag_bin_width
+		dmag = np.ceil((max_mag - min_mag) / mag_bin_width) * mag_bin_width
+		max_mag = min_mag + dmag
 
 		min_dist = 0
 		max_dist = np.ceil(self.integration_distance / dist_bin_width) * dist_bin_width
@@ -2751,12 +2752,12 @@ class PSHAModelTree(PSHAModelBase):
 		max_lon = np.ceil(max_lon / coord_bin_width) * coord_bin_width
 		max_lat = np.ceil(max_lat / coord_bin_width) * coord_bin_width
 
-		nmags = int(round((max_mag - min_mag) / mag_bin_width))
+		nmags = int(round(dmag / mag_bin_width))
 		ndists = int(round(max_dist / dist_bin_width))
 		nlons = int((max_lon - min_lon) / coord_bin_width)
 		nlats = int((max_lat - min_lat) / coord_bin_width)
 
-		mag_bins = min_mag + np.linspace(0, max_mag - min_mag, nmags + 1)
+		mag_bins = min_mag + mag_bin_width * np.arange(nmags + 1)
 		dist_bins = np.linspace(min_dist, max_dist, ndists + 1)
 		lon_bins = np.linspace(min_lon, max_lon, nlons + 1)
 		lat_bins = np.linspace(min_lat, max_lat, nlats + 1)
@@ -3837,7 +3838,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				max_mag = self.source_model_lt.get_source_max_mag(source_model_name, src)
 				dmag = np.ceil((max_mag - min_mag) / sdc.mag_bin_width) * sdc.mag_bin_width
 				nmags = int(round(dmag / sdc.mag_bin_width))
-				mag_bins = min_mag + sdc.mag_bin_width * np.linspace(0, dmag, nmags)
+				mag_bins = min_mag + sdc.mag_bin_width * np.arange(nmags)
 				#mag_bins = sdc.mag_bin_width * np.arange(
 				#	int(np.floor(min_mag / sdc.mag_bin_width)),
 				#	int(np.ceil(max_mag / sdc.mag_bin_width) + 1)
