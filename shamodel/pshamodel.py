@@ -1138,12 +1138,16 @@ class PSHAModel(PSHAModelBase):
 		from openquake.hazardlib.geo.geodetic import npoints_between
 		from openquake.hazardlib.geo.utils import get_longitudinal_extent
 
-		## (copied from oqhazlib)
 		min_mag, max_mag = self.source_model.min_mag, self.source_model.max_mag
-		mag_bins = mag_bin_width * np.arange(
-			int(np.floor(min_mag / mag_bin_width)),
-			int(np.ceil(max_mag / mag_bin_width) + 1)
-		)
+		dmag = np.ceil((max_mag - min_mag) / mag_bin_width) * mag_bin_width
+		max_mag = min_mag + dmag
+		nmags = int(round(dmag) / mag_bin_width)
+		mag_bins = min_mag + np.linspace(0, dmag, nmags)
+		## (copied from oqhazlib)
+		#mag_bins = mag_bin_width * np.arange(
+		#	int(np.floor(min_mag / mag_bin_width)),
+		#	int(np.ceil(max_mag / mag_bin_width) + 1)
+		#)
 
 		min_dist, max_dist = 0, self.integration_distance
 		dist_bins = dist_bin_width * np.arange(
@@ -3789,7 +3793,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				weight = gmpe_weight * smlt_weight
 				yield (sdc, weight)
 
-	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f', write_xml=False):
+	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f', write_xml=False, verbose=False):
 		"""
 		Compute mean spectral deaggregation curve for a particular source
 
@@ -3814,6 +3818,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param write_xml:
 			bool, whether or not to write mean spectral deaggregation curve
 			to xml (default: False)
+		:param verbose:
+			bool, wheter or not to print some progress info (default: False)
 
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
@@ -3821,6 +3827,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		import gc
 
 		for i, (sdc, weight) in enumerate(self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)):
+			if verbose:
+				print i
 			if i == 0:
 				## Create empty deaggregation matrix
 				## max_mag may be different
@@ -3887,7 +3895,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		for i, src in enumerate(source_model.sources):
 			if verbose:
 				print src.source_id
-			sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype, write_xml=write_xml)
+			sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype, write_xml=write_xml, verbose=verbose)
 			if i == 0:
 				## Create empty deaggregation matrix
 				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
