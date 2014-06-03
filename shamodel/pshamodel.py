@@ -3855,7 +3855,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					num_intensities = len(sdc.return_periods)
 					mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
 
-				mean_deagg_matrix[:,:,:sdc.nmags] += (sdc.deagg_matrix * weight)
+				mean_deagg_matrix[:,:,:min(nmags, sdc.nmags)] += (sdc.deagg_matrix[:min(nmags, sdc.nmags)] * weight)
 				del sdc.deagg_matrix
 				gc.collect()
 
@@ -3922,13 +3922,13 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					num_intensities = len(sdc.return_periods)
 					summed_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
 
-				max_mag_idx = sdc.nmags
+				max_mag_idx = min(sdc.nmags, len(mag_bins) - 1)
 				min_lon_idx = int((sdc.min_lon - lon_bins[0]) / sdc.lon_bin_width)
 				max_lon_idx = min_lon_idx + sdc.nlons
 				min_lat_idx = int((sdc.min_lat - lat_bins[0]) / sdc.lat_bin_width)
 				max_lat_idx = min_lat_idx + sdc.nlats
 				trt_idx = trts.index(src.source_id)
-				summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:,:,:,:,:,0]
+				summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:max_mag_idx,:,:,:,:,:,:,0]
 				del sdc.deagg_matrix
 				gc.collect()
 			#intensities = np.zeros(sdc.intensities.shape)
