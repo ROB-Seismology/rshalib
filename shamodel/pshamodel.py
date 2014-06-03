@@ -3891,37 +3891,42 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		import gc
 
-		source_model = self.get_source_model_by_name(source_model_name)
-		for i, src in enumerate(source_model.sources):
-			if verbose:
-				print src.source_id
-			sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype, write_xml=write_xml, verbose=verbose)
-			if i == 0:
-				## Create empty deaggregation matrix
-				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
-				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = bin_edges
-				trts = sorted([src.source_id for src in source_model.sources])
-				bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
-				num_periods = len(sdc.periods)
-				num_intensities = len(sdc.return_periods)
-				summed_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
+		curve_name = "mean"
 
-			max_mag_idx = sdc.nmags
-			min_lon_idx = int((sdc.min_lon - lon_bins[0]) / sdc.lon_bin_width)
-			max_lon_idx = min_lon_idx + sdc.nlons
-			min_lat_idx = int((sdc.min_lat - lat_bins[0]) / sdc.lat_bin_width)
-			max_lat_idx = min_lat_idx + sdc.nlats
-			trt_idx = trts.index(src.source_id)
-			summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:,:,:,:,:,0]
-			del sdc.deagg_matrix
-			gc.collect()
-		#intensities = np.zeros(sdc.intensities.shape)
-		summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
-		summed_sdc.model_name = "%s weighted mean" % source_model_name
+		try:
+			curve_path = source_model_name
+			summed_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id)
+		except:
+			source_model = self.get_source_model_by_name(source_model_name)
+			for i, src in enumerate(source_model.sources):
+				if verbose:
+					print src.source_id
+				sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype, write_xml=write_xml, verbose=verbose)
+				if i == 0:
+					## Create empty deaggregation matrix
+					bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
+					mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = bin_edges
+					trts = sorted([src.source_id for src in source_model.sources])
+					bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
+					num_periods = len(sdc.periods)
+					num_intensities = len(sdc.return_periods)
+					summed_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
 
-		if write_xml:
-			curve_name = "mean"
-			self.write_oq_disagg_matrix_multi(summed_sdc, source_model.name, "", "", "", curve_name, calc_id=calc_id)
+				max_mag_idx = sdc.nmags
+				min_lon_idx = int((sdc.min_lon - lon_bins[0]) / sdc.lon_bin_width)
+				max_lon_idx = min_lon_idx + sdc.nlons
+				min_lat_idx = int((sdc.min_lat - lat_bins[0]) / sdc.lat_bin_width)
+				max_lat_idx = min_lat_idx + sdc.nlats
+				trt_idx = trts.index(src.source_id)
+				summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:,:,:,:,:,0]
+				del sdc.deagg_matrix
+				gc.collect()
+			#intensities = np.zeros(sdc.intensities.shape)
+			summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+			summed_sdc.model_name = "%s weighted mean" % source_model_name
+
+			if write_xml:
+				self.write_oq_disagg_matrix_multi(summed_sdc, source_model.name, "", "", "", curve_name, calc_id=calc_id)
 
 		return summed_sdc
 
