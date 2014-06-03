@@ -202,8 +202,8 @@ def parse_hazard_map(xml_filespec):
 			timespan = float(e.get(ns.INVESTIGATION_TIME))
 			poe = float(e.get(ns.POE))
 		if e.tag == ns.NODE:
-			lon = float(e.get('lon'))
-			lat = float(e.get('lat'))
+			lon = float(e.get(ns.LON))
+			lat = float(e.get(ns.LAT))
 			sites.append(SHASite(lon, lat))
 			iml = float(e.get(ns.IML))
 			intensities.append(iml)
@@ -282,8 +282,8 @@ def parse_disaggregation(xml_filespec, site_name=None):
 		dtype=float)
 	tectonic_region_types = disagg_matrices.get(
 		ns.TECTONIC_REGION_TYPES).split(', ')
-	lon = float(disagg_matrices.get('lon'))
-	lat = float(disagg_matrices.get('lat'))
+	lon = float(disagg_matrices.get(ns.LON))
+	lat = float(disagg_matrices.get(ns.LAT))
 	site = SHASite(lon, lat, name=site_name)
 	imt = disagg_matrices.get(ns.IMT)
 	if disagg_matrices.attrib.has_key(ns.PERIOD):
@@ -344,7 +344,7 @@ def parse_disaggregation_full(xml_filespec, site_name=None):
 		instance of :class:`..result.DeaggregationSlice`
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
-	disagg_matrix = nrml.find('{%s}disaggMatrix' % NRML)
+	disagg_matrix = nrml.find(ns.DISAGG_MATRIX)
 	shape = tuple(map(int, disagg_matrix.get(ns.DIMS).split(',')))
 	mag_bin_edges = np.array(disagg_matrix.get(ns.MAG_BIN_EDGES).split(', '),
 		dtype=float)
@@ -359,8 +359,8 @@ def parse_disaggregation_full(xml_filespec, site_name=None):
 	tectonic_region_types = disagg_matrix.get(
 		ns.TECTONIC_REGION_TYPES).split(', ')
 	bin_edges = (mag_bin_edges, dist_bin_edges, lon_bin_edges, lat_bin_edges, eps_bin_edges, tectonic_region_types)
-	lon = float(disagg_matrix.get('lon'))
-	lat = float(disagg_matrix.get('lat'))
+	lon = float(disagg_matrix.get(ns.LON))
+	lat = float(disagg_matrix.get(ns.LAT))
 	site = SHASite(lon, lat, name=site_name)
 	imt = disagg_matrix.get(ns.IMT)
 	period = float(disagg_matrix.get(ns.PERIOD, 0.))
@@ -396,8 +396,8 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None):
 	tectonic_region_types = sdc_elem.get(
 		ns.TECTONIC_REGION_TYPES).split(', ')
 	bin_edges = (mag_bin_edges, dist_bin_edges, lon_bin_edges, lat_bin_edges, eps_bin_edges, tectonic_region_types)
-	lon = float(sdc_elem.get('lon'))
-	lat = float(sdc_elem.get('lat'))
+	lon = float(sdc_elem.get(ns.LON))
+	lat = float(sdc_elem.get(ns.LAT))
 	site = SHASite(lon, lat, name=site_name)
 	timespan = float(sdc_elem.get(ns.INVESTIGATION_TIME))
 	dcs = []
@@ -430,7 +430,7 @@ def parse_any_output(xml_filespec):
 		String, filespec of file to parse
 	"""
 	nrml = etree.parse(xml_filespec)
-	hazard_curves = nrml.findall("{%s}hazardCurves" % NRML)
+	hazard_curves = nrml.findall(ns.HAZARD_CURVES)
 	if len(hazard_curves) == 1:
 		return parse_hazard_curves(xml_filespec)
 	if len(hazard_curves) >= 2:
@@ -658,8 +658,8 @@ def write_disaggregation_slice(site, imt, period, iml, poe, timespan, bin_edges,
 		if gsimTreePath:
 			diss.set(ns.GMPELT_PATH, gsimTreePath)
 		lon, lat = site[0], site[1]
-		diss.set("lon", str(lon))
-		diss.set("lat", str(lat))
+		diss.set(ns.LON, str(lon))
+		diss.set(ns.LAT, str(lat))
 		diss.set(ns.IMT, str(iml))
 		diss.set(ns.PERIOD, str(period))
 		diss.set(ns.IML, str(iml))

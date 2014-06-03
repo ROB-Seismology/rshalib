@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
 """
-nrml namespace
+nrml (and gml) namespace
 """
 
 
 ## Namespace declaration
-NRML_NS = 'http://openquake.org/xmlns/nrml/0.4'
-GML_NS = 'http://www.opengis.net/gml'
+NRML_NS = "http://openquake.org/xmlns/nrml/0.4"
+GML_NS = "http://www.opengis.net/gml"
 
 NRML = "{%s}" % NRML_NS
 GML = "{%s}" % GML_NS
@@ -16,7 +16,8 @@ NSMAP = {None: NRML_NS, "gml": GML_NS}
 
 ROOT = "%snrml" % NRML
 
-## Main elements
+
+## Main source elements
 SOURCE_MODEL = "%ssourceModel" % NRML
 AREA_SOURCE = "%sareaSource" % NRML
 POINT_SOURCE = "%spointSource" % NRML
@@ -84,19 +85,15 @@ RUPTURE_ASPECT_RATIO = "%sruptAspectRatio" % NRML
 
 
 ## Site model
-# TODO: see which names belong to GML namespace
-
 SITE_MODEL = "%ssiteModel" % NRML
-
 SITE = "%ssite" % NRML
-
-LON = "%slon" % NRML
-LAT = "%slat" % NRML
-VS30 = "%svs30" % NRML
-VS30TYPE = "%svs30Type" % NRML
-Z1PT0 = "%sz1pt0" % NRML
-Z2PT5 = "%sz2pt5" % NRML
-KAPPA = "%skappa" % NRML
+LON = "lon"
+LAT = "lat"
+VS30 = "vs30"
+VS30TYPE = "vs30Type"
+Z1PT0 = "z1pt0"
+Z2PT5 = "z2pt5"
+KAPPA = "kappa"
 
 
 ## Logic-Tree elements
@@ -111,44 +108,45 @@ UNCERTAINTY_MODEL = "%suncertaintyModel" % NRML
 
 
 ## Hazard result
-SPECTRAL_HAZARD_CURVE_FIELD_TREE = "%sspectralHazardCurveFieldTree" % NRML
-SPECTRAL_HAZARD_CURVE_FIELD = "%sspectralHazardCurveField" % NRML
-HAZARD_CURVE_FIELD = "%shazardCurveField" % NRML
-HAZARD_CURVE = "%shazardCurve" % NRML
 HAZARD_CURVES = "%shazardCurves" % NRML
-HAZARD_MAP = "%shazardMap" % NRML
+HAZARD_CURVE = "%shazardCurve" % NRML
 UNIFORM_HAZARD_SPECTRA = "%suniformHazardSpectra" % NRML
 UHS = "%suhs" % NRML
+HAZARD_MAP = "%shazardMap" % NRML
 DISAGG_MATRICES = "%sdisaggMatrices" % NRML
 DISAGG_MATRIX = "%sdisaggMatrix" % NRML
-SPECTRAL_DEAGGREGATION_CURVE = "%sspectralDeaggregationCurve" % NRML
-DEAGGREGATION_CURVE = "%sdeaggregationCurve" % NRML
-DEAGGREGATION_SLICE = "%sdeaggregationSlice" % NRML
-PERIODS = "%speriods" % NRML
 NODE = "%snode" % NRML
+PROB = "%sprob" % NRML
 IMLS = "%sIMLs" % NRML
 POES = "%spoEs" % NRML
-PROB = "%sprob" % NRML
-
-POE = "poE"
-IML = "IML"
+PERIODS = "%speriods" % NRML
 IMT = "IMT"
-PERIOD = "saPeriod"
-DAMPING = "saDamping"
 INVESTIGATION_TIME = "investigationTime"
-SMLT_PATH = "sourceModelTreePath"
-GMPELT_PATH = "gsimTreePath"
 STATISTICS = "statistics"
 QUANTILE_VALUE = "quantileValue"
-
+SMLT_PATH = "sourceModelTreePath"
+GMPELT_PATH = "gsimTreePath"
+PERIOD = "saPeriod"
+DAMPING = "saDamping"
+POE = "poE"
+IML = "iml"
+TYPE = "type"
+DIMS = "dims"
+INDEX = "index"
+VALUE = "value"
 MAG_BIN_EDGES = "magBinEdges"
 DIST_BIN_EDGES = "distBinEdges"
 LON_BIN_EDGES = "lonBinEdges"
 LAT_BIN_EDGES = "latBinEdges"
 EPS_BIN_EDGES = "epsBinEdges"
 TECTONIC_REGION_TYPES = "tectonicRegionTypes"
-DIMS = "dims"
-TYPE = "type"
-INDEX = "index"
-VALUE = "value"
+
+
+## additions for rshalib
+SPECTRAL_HAZARD_CURVE_FIELD_TREE = "%sspectralHazardCurveFieldTree" % NRML
+SPECTRAL_HAZARD_CURVE_FIELD = "%sspectralHazardCurveField" % NRML
+HAZARD_CURVE_FIELD = "%shazardCurveField" % NRML
+SPECTRAL_DEAGGREGATION_CURVE = "%sspectralDeaggregationCurve" % NRML
+DEAGGREGATION_CURVE = "%sdeaggregationCurve" % NRML
+DEAGGREGATION_SLICE = "%sdeaggregationSlice" % NRML
 
