@@ -3858,7 +3858,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return mean_sdc
 
-	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f', write_xml=False):
+	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f', write_xml=False, verbose=False):
 		"""
 		Compute mean spectral deaggregation curve for a particular source model
 
@@ -3881,6 +3881,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param write_xml:
 			bool, whether or not to write mean spectral deaggregation curve
 			to xml (default: False)
+		:param verbose:
+			bool, whether or not to print some progress info (default: False)
 
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
@@ -3889,6 +3891,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		source_model = self.get_source_model_by_name(source_model_name)
 		for i, src in enumerate(source_model.sources):
+			if verbose:
+				print src.source_id
 			sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype, write_xml=write_xml)
 			if i == 0:
 				## Create empty deaggregation matrix
@@ -3919,7 +3923,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return summed_sdc
 
-	def get_oq_mean_sdc(self, site, mean_shc=None, calc_id=None, dtype='f', write_xml=False):
+	def get_oq_mean_sdc(self, site, mean_shc=None, calc_id=None, dtype='f', write_xml=False, verbose=False):
 		"""
 		Read mean spectral deaggregation curve of the entire logic tree.
 		If mean sdc does not exist, it will be computed from the decomposed
@@ -3940,6 +3944,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param write_xml:
 			bool, whether or not to write mean spectral deaggregation curve
 			to xml (default: False)
+		:param verbose:
+			bool, whether or not to print some progress info (default: False)
 
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
@@ -3952,7 +3958,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			mean_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, calc_id=calc_id)
 		except:
 			for i, (source_model, somo_weight) in enumerate(self.source_model_lt.source_model_pmf):
-				sdc = self.get_oq_mean_sdc_by_source_model(source_model.name, site, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype, write_xml=write_xml)
+				if verbose:
+					print source_model.name
+				sdc = self.get_oq_mean_sdc_by_source_model(source_model.name, site, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype, write_xml=write_xml, verbose=verbose)
 				if i == 0:
 					## Create empty deaggregation matrix
 					bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
