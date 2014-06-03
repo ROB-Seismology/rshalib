@@ -1418,6 +1418,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		neps = len(eps_bins) - 1
 		ntrts = len(trts)
 		shape = (num_periods, num_intensities, nmags, ndists, nlons, nlats, neps, ntrts)
+		print shape
 		deagg_matrix = matrix_class(np.zeros(shape, dtype))
 		return deagg_matrix
 
