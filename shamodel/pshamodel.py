@@ -3374,15 +3374,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					summed_shcf += shcf
 		return summed_shcf
 
-	def read_oq_shcft(self, skip_samples=0, write_shcf=False, calc_id=None):
+	def read_oq_shcft(self, skip_samples=0, write_xml=False, calc_id=None):
 		"""
 		Read results corresponding to a number of logic-tree samples
 
 		:param skip_samples:
 			int, number of samples to skip (default: 0)
-		:param write_shcf:
+		:param write_xml:
 			bool, whether or not to write spectral hazard curve fields
-			corresponding to different logic-tree realizations (default: False)
+			corresponding to different logic-tree realizations to xml
+			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3396,7 +3397,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			shcf = self.read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
 			shcf_list.append(shcf)
 			weights.append(weight)
-			if write_shcf:
+			if write_xml:
 				num_lt_samples = self.num_lt_samples or self.get_num_paths()
 				fmt = "%%0%dd" % len(str(num_lt_samples))
 				curve_name = "rlz-" + fmt % (sample_idx + 1 + skip_samples)
@@ -3640,14 +3641,14 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		summed_shcf.model_name = "%s weighted mean" % source_model.name
 		return summed_shcf
 
-	def read_oq_mean_shcf(self, write_shcf=False, calc_id=None):
+	def read_oq_mean_shcf(self, write_xml=False, calc_id=None):
 		"""
 		Read mean spectral hazard curve field of entire logic tree.
 		If mean shcf does not exist, it will be computed from the decomposed
 		shcf's
 
-		:param write_shcf:
-			bool, whether or not to write mean spectral hazard curve field.
+		:param write_xml:
+			bool, whether or not to write mean spectral hazard curve field to xml.
 			Ignored if mean shcf already exists
 			(default: False)
 		:param calc_id:
@@ -3669,7 +3670,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				else:
 					mean_shcf += (source_model_shcf * somo_weight)
 			mean_shcf.model_name = "Logic-tree weighted mean"
-			if write_shcf:
+			if write_xml:
 				self.write_oq_shcf(mean_shcf, "", "", "", "", curve_name, calc_id=calc_id)
 		return mean_shcf
 
@@ -3794,7 +3795,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				weight = gmpe_weight * smlt_weight
 				yield (sdc, weight)
 
-	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f'):
+	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f', write_xml=False):
 		"""
 		Compute mean spectral deaggregation curve for a particular source
 
@@ -3816,6 +3817,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				be determined automatically)
 		:param dtype:
 			str, precision of deaggregation matrix (default: 'f')
+		:param write_xml:
+			bool, whether or not to write mean spectral deaggregation curve
+			to xml (default: False)
 
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
@@ -3847,9 +3851,14 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		mean_sdc.model_name = "%s weighted mean" % src.source_id
 		if mean_shc:
 			mean_sdc = mean_sdc.slice_return_periods(self.return_periods, mean_shc)
+
+		if write_xml:
+			curve_name = "mean"
+			self.write_oq_disagg_matrix_multi(summed_sdc, source_model.name, src.tectonic_region_type, src.source_id, "", curve_name, calc_id=calc_id)
+
 		return mean_sdc
 
-	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f'):
+	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f', write_xml=False):
 		"""
 		Compute mean spectral deaggregation curve for a particular source model
 
@@ -3869,6 +3878,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				be determined automatically)
 		:param dtype:
 			str, precision of deaggregation matrix (default: 'f')
+		:param write_xml:
+			bool, whether or not to write mean spectral deaggregation curve
+			to xml (default: False)
 
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
@@ -3877,7 +3889,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		source_model = self.get_source_model_by_name(source_model_name)
 		for i, src in enumerate(source_model.sources):
-			sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype)
+			sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype, write_xml=write_xml)
 			if i == 0:
 				## Create empty deaggregation matrix
 				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
@@ -3900,11 +3912,18 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		#intensities = np.zeros(sdc.intensities.shape)
 		summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 		summed_sdc.model_name = "%s weighted mean" % source_model_name
+
+		if write_xml:
+			curve_name = "mean"
+			self.write_oq_disagg_matrix_multi(summed_sdc, source_model.name, "", "", "", curve_name, calc_id=calc_id)
+
 		return summed_sdc
 
-	def get_oq_mean_sdc(self, site, mean_shc=None, calc_id=None, dtype='f'):
+	def get_oq_mean_sdc(self, site, mean_shc=None, calc_id=None, dtype='f', write_xml=False):
 		"""
-		Compute mean spectral deaggregation curve
+		Read mean spectral deaggregation curve of the entire logic tree.
+		If mean sdc does not exist, it will be computed from the decomposed
+		deaggregation curves.
 
 		:param site:
 			instance of :class:`SHASite` or :class:`SoilSite`
@@ -3918,48 +3937,60 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				be determined automatically)
 		:param dtype:
 			str, precision of deaggregation matrix (default: 'f')
+		:param write_xml:
+			bool, whether or not to write mean spectral deaggregation curve
+			to xml (default: False)
 
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
 		"""
 		import gc
 
-		for i, (source_model, somo_weight) in enumerate(self.source_model_lt.source_model_pmf):
-			sdc = self.get_oq_mean_sdc_by_source_model(source_model.name, site, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype)
-			if i == 0:
-				## Create empty deaggregation matrix
-				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
-				num_periods = len(sdc.periods)
-				num_intensities = len(sdc.return_periods)
-				mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
+		curve_name = "mean"
 
-			trt_bins = bin_edges[-1]
-			if sdc.trt_bins == trt_bins:
-				## trt bins correspond to source IDs
-				mean_deagg_matrix[:,:,:,:,:,:,:,:] += (sdc.deagg_matrix * somo_weight)
-			else:
-				## trt bins correspond to tectonic region types
-				for trt_idx, trt in enumerate(trt_bins):
-					src_idxs = []
-					for src_idx, src_id in enumerate(sdc.trt_bins):
-						src = source_model[src_id]
-						if src.tectonic_region_type == trt:
-							src_idxs.append(src_idx)
-				src_idxs = np.array(src_idxs)
-				## Loop needed to avoid running out of memory...
-				for t in range(num_periods):
-					for l in range(num_intensities):
-						# Note: something very strange happens here: if we slice t, l, and
-						# src_idxs simultaneously, src_idxs becomes first dimension!
-						mean_deagg_matrix[t,l,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[t,l][:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
-				#mean_deagg_matrix[:,:,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[:,:,:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
+		try:
+			mean_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, calc_id=calc_id)
+		except:
+			for i, (source_model, somo_weight) in enumerate(self.source_model_lt.source_model_pmf):
+				sdc = self.get_oq_mean_sdc_by_source_model(source_model.name, site, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype, write_xml=write_xml)
+				if i == 0:
+					## Create empty deaggregation matrix
+					bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
+					num_periods = len(sdc.periods)
+					num_intensities = len(sdc.return_periods)
+					mean_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
 
-			del sdc.deagg_matrix
-			gc.collect()
+				trt_bins = bin_edges[-1]
+				if sdc.trt_bins == trt_bins:
+					## trt bins correspond to source IDs
+					mean_deagg_matrix[:,:,:,:,:,:,:,:] += (sdc.deagg_matrix * somo_weight)
+				else:
+					## trt bins correspond to tectonic region types
+					for trt_idx, trt in enumerate(trt_bins):
+						src_idxs = []
+						for src_idx, src_id in enumerate(sdc.trt_bins):
+							src = source_model[src_id]
+							if src.tectonic_region_type == trt:
+								src_idxs.append(src_idx)
+					src_idxs = np.array(src_idxs)
+					## Loop needed to avoid running out of memory...
+					for t in range(num_periods):
+						for l in range(num_intensities):
+							# Note: something very strange happens here: if we slice t, l, and
+							# src_idxs simultaneously, src_idxs becomes first dimension!
+							mean_deagg_matrix[t,l,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[t,l][:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
+					#mean_deagg_matrix[:,:,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[:,:,:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
 
-		#intensities = np.zeros(sdc.intensities.shape)
-		mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
-		mean_sdc.model_name = "Logic-tree weighted mean"
+				del sdc.deagg_matrix
+				gc.collect()
+
+			#intensities = np.zeros(sdc.intensities.shape)
+			mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+			mean_sdc.model_name = "Logic-tree weighted mean"
+
+			if write_xml:
+				self.write_oq_disagg_matrix_multi(mean_sdc, "", "", "", "", curve_name, calc_id=calc_id)
+
 		return mean_sdc
 
 	def to_psha_model_tree(self):
