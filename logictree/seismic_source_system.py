@@ -86,7 +86,7 @@ class SeismicSourceSystem(LogicTree):
 		:return:
 			float, maximum magnitude
 		"""
-		max_mag = 0
+		max_mag = src.mfd.min_mag
 		for bs in self.get_source_branch_sets(source_model_name, src):
 			if bs.uncertainty_type == "maxMagGRAbsolute":
 				for branch in bs:
