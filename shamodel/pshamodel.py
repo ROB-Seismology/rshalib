@@ -3835,10 +3835,13 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = sdc.bin_edges
 				min_mag = mag_bins[0]
 				max_mag = self.source_model_lt.get_source_max_mag(source_model_name, src)
-				mag_bins = sdc.mag_bin_width * np.arange(
-					int(np.floor(min_mag / sdc.mag_bin_width)),
-					int(np.ceil(max_mag / sdc.mag_bin_width) + 1)
-				)
+				dmag = np.ceil((max_mag - min_mag) / sdc.mag_bin_width) * sdc.mag_bin_width
+				nmags = int(round(dmag / sdc.mag_bin_width))
+				mag_bins = min_mag + sdc.mag_bin_width * np.linspace(0, dmag, nmags)
+				#mag_bins = sdc.mag_bin_width * np.arange(
+				#	int(np.floor(min_mag / sdc.mag_bin_width)),
+				#	int(np.ceil(max_mag / sdc.mag_bin_width) + 1)
+				#)
 				bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
 
 				num_periods = len(sdc.periods)
