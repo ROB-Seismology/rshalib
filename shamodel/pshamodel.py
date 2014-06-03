@@ -3854,7 +3854,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		if write_xml:
 			curve_name = "mean"
-			self.write_oq_disagg_matrix_multi(summed_sdc, source_model.name, src.tectonic_region_type, src.source_id, "", curve_name, calc_id=calc_id)
+			self.write_oq_disagg_matrix_multi(mean_sdc, source_model.name, src.tectonic_region_type, src.source_id, "", curve_name, calc_id=calc_id)
 
 		return mean_sdc
 
