@@ -1568,7 +1568,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 			instance of :class:`SpectralDeaggregationCurve`
 		"""
 		curves = []
-		for T in shc.periods:
+		for T in self.periods:
 			dc = self.get_curve(period=T)
 			hc = shc.getHazardCurve(period_spec=float(T))
 			imls = hc.interpolate_return_periods(return_periods)
