@@ -562,6 +562,28 @@ class PSHAModelBase(SHAModelBase):
 		xml_filespec = os.path.join(imt_hc_folder, xml_filename)
 		hcf.write_nrml(xml_filespec)
 
+	def get_oq_shcf_filespec(self, curve_name, curve_path="", calc_id=None):
+		"""
+		Get full path to OpenQuake spectral hazard curve xml file
+
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param curve_path:
+			str, path to hazard curve relative to main hazard-curve folder
+			(default: "")
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
+
+		:return:
+			str, full path to spectral hazard curve file
+		"""
+		# TODO: we should add im parameter
+		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
+		hc_folder = os.path.join(hc_folder, curve_path)
+		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
+		xml_filespec = os.path.join(hc_folder, xml_filename)
+		return xml_filespec
+
 	def read_oq_shcf(self, curve_name, curve_path="", calc_id=None):
 		"""
 		Read OpenQuake spectral hazard curve field
@@ -577,14 +599,9 @@ class PSHAModelBase(SHAModelBase):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		# TODO: we should add im parameter
 		from ..openquake import parse_hazard_curves, parse_spectral_hazard_curve_field
 
-		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
-		hc_folder = os.path.join(hc_folder, curve_path)
-		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
-		#print xml_filename
-		xml_filespec = os.path.join(hc_folder, xml_filename)
+		xml_filespec = self.get_oq_shcf_filespec(curve_name, curve_path=curve_path, calc_id=calc_id)
 		try:
 			shcf = parse_hazard_curves(xml_filespec)
 		except:
@@ -608,11 +625,9 @@ class PSHAModelBase(SHAModelBase):
 		:param calc_id:
 			str, calculation ID. (default: "oqhazlib")
 		"""
-		hc_folder = self.get_oq_hc_folder(calc_id=calc_id, multi=True)
-		hc_folder = os.path.join(hc_folder, curve_path)
+		xml_filespec = self.get_oq_shcf_filespec(curve_name, curve_path=curve_path, calc_id=calc_id)
+		hc_folder = os.path.split(xml_filespec)[0]
 		self.create_folder_structure(hc_folder)
-		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
-		xml_filespec = os.path.join(hc_folder, xml_filename)
 		shcf.write_nrml(xml_filespec, smlt_path=self.smlt_path, gmpelt_path=self.gmpelt_path)
 
 	def read_oq_uhs_multi(self):
@@ -721,6 +736,30 @@ class PSHAModelBase(SHAModelBase):
 		# TODO
 		pass
 
+	def get_oq_sdc_filespec(self,  curve_name, site, curve_path="", calc_id=None):
+		"""
+		Get full path to OpenQuake spectral deaggregation curve xml file
+
+		:param curve_name:
+			str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+		:param curve_path:
+			str, path to hazard curve relative to main deaggregation folder
+			(default: "")
+		:param calc_id:
+			str, calculation ID. (default: None, will determine from folder structure)
+
+		:return:
+			str, full path to spectral deaggregation curve file
+		"""
+		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=True)
+		disagg_folder = os.path.join(disagg_folder, curve_path)
+		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
+		xml_filename %= (site.lon, site.lat, curve_name)
+		xml_filespec = os.path.join(disagg_folder, xml_filename)
+		return xml_filespec
+
 	def read_oq_disagg_matrix_multi(self, curve_name, site, curve_path="", calc_id=None):
 		"""
 		Read OpenQuake multi-deaggregation matrix for a particular site.
@@ -740,11 +779,7 @@ class PSHAModelBase(SHAModelBase):
 		"""
 		from ..openquake import parse_spectral_deaggregation_curve
 
-		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=True)
-		disagg_folder = os.path.join(disagg_folder, curve_path)
-		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
-		xml_filename %= (site.lon, site.lat, curve_name)
-		xml_filespec = os.path.join(disagg_folder, xml_filename)
+		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
 		sdc = parse_spectral_deaggregation_curve(xml_filespec, site.name)
 		return sdc
 
@@ -763,12 +798,9 @@ class PSHAModelBase(SHAModelBase):
 		:param calc_id:
 			str, calculation ID. (default: "oqhazlib")
 		"""
-		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=True)
-		disagg_folder = os.path.join(disagg_folder, curve_path)
+		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
+		disagg_folder = os.path.split(xml_filespec)[0]
 		self.create_folder_structure(disagg_folder)
-		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
-		xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
-		xml_filespec = os.path.join(disagg_folder, xml_filename)
 		sdc.write_nrml(xml_filespec, self.smlt_path, self.gmpelt_path)
 
 	def read_crisis_batch(self, batch_filename = "lt_batch.dat"):
@@ -3018,9 +3050,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				im_imls = self._get_im_imls(combine_pga_and_sa=combine_pga_and_sa)
 				files_exist = []
 				for im in im_imls.keys():
-					hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name, calc_id=calc_id)
-					xml_filename = "hazard_curve_multi-%s.xml" % curve_name
-					xml_filespec = os.path.join(hc_folder, xml_filename)
+					# TODO: different filespecs for different ims?
+					xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
 					files_exist.append(os.path.exists(xml_filespec))
 				if np.all(files_exist):
 					continue
@@ -3119,10 +3150,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				## Skip if files already exist and overwrite is False
 				files_exist = []
 				for (lon, lat) in site_imtls.keys():
-					disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name, calc_id=calc_id)
-					xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
-					xml_filename %= (lon, lat, curve_name)
-					xml_filespec = os.path.join(disagg_folder, xml_filename)
+					site = SHASite(lon, lat)
+					xml_filespec = self.get_oq_sdc_filespec_decomposed(source_model_name, trt, source_id, gmpe_name, curve_name, calc_id=calc_id)
 					files_exist.append(os.path.exists(xml_filespec))
 				if np.all(files_exist):
 					continue
@@ -3250,6 +3279,31 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		deagg_folder = os.path.join(deagg_folder, source_model_name, trt_short_name, source_id, gmpe_name)
 		return deagg_folder
 
+	def get_oq_shcf_filespec_decomposed(self, source_model_name, trt, source_id, gmpe_name, curve_name, calc_id="oqhazlib"):
+		"""
+		Get full path to decomposed spectral hazard curve field xml file
+
+		:param source_model_name:
+			str, name of source model
+		:param trt:
+			str, tectonic region type
+		:param source_id:
+			str, source ID
+		:param gmpe_name:
+			str, name of GMPE
+		:param curve_name:
+			str, identifying hazard curve (e.g., "Mmax01--MFD03")
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+
+		:return:
+			str, full path to spectral hazard curve field file
+		"""
+		hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
+		xml_filespec = os.path.join(hc_folder, xml_filename)
+		return xml_filespec
+
 	def write_oq_shcf(self, shcf, source_model_name, trt, source_id, gmpe_name, curve_name, calc_id="oqhazlib"):
 		"""
 		Write spectral hazard curve field
@@ -3269,12 +3323,35 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
 		"""
-		hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+		xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model_name, trt, source_id, gmpe_name, curve_name, calc_id=calc_id)
+		hc_folder = os.path.split(xml_filespec)[0]
 		self.create_folder_structure(hc_folder)
-		xml_filename = "hazard_curve_multi-%s.xml" % curve_name
-		#print xml_filename
-		xml_filespec = os.path.join(hc_folder, xml_filename)
 		shcf.write_nrml(xml_filespec)
+
+	def get_oq_sdc_filespec_decomposed(self, source_model_name, trt, source_id, gmpe_name, curve_name, site, calc_id="oqhazlib"):
+		"""
+		Get full path to decomposed spectral deaggregation curve xml file
+
+		:param source_model_name:
+			str, name of source model
+		:param trt:
+			str, tectonic region type
+		:param source_id:
+			str, source ID
+		:param gmpe_name:
+			str, name of GMPE
+		:param curve_name:
+			str, identifying hazard curve (e.g., "Mmax01--MFD03")
+		:param site:
+			instace of :class:`rshalib.site.SHASite`
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+		"""
+		disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
+		xml_filename %= (site.lon, site.lat, curve_name)
+		xml_filespec = os.path.join(disagg_folder, xml_filename)
+		return xml_filespec
 
 	def write_oq_disagg_matrix_multi(self, sdc, source_model_name, trt, source_id, gmpe_name, curve_name, calc_id="oqhazlib"):
 		"""
@@ -3296,11 +3373,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
 		"""
-		disagg_folder = self.get_oq_disagg_folder_decomposed(source_model_name, trt, source_id, gmpe_name, calc_id=calc_id)
+		xml_filespec = self.get_oq_sdc_filespec_decomposed(source_model_name, trt, source_id, gmpe_name, curve_name, sdc.site, calc_id=calc_id)
+		disagg_folder = os.path.split(xml_filespec)[0]
 		self.create_folder_structure(disagg_folder)
-		xml_filename = "disagg_matrix_multi-lon_%s-lat_%s-%s.xml"
-		xml_filename %= (sdc.site.lon, sdc.site.lat, curve_name)
-		xml_filespec = os.path.join(disagg_folder, xml_filename)
 		smlt_path = "--".join([source_model_name, source_id, curve_name])
 		gmpelt_path = gmpe_name
 		sdc.write_nrml(xml_filespec, smlt_path, gmpelt_path)
@@ -4017,6 +4092,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				self.write_oq_disagg_matrix_multi(mean_sdc, "", "", "", "", curve_name, calc_id=calc_id)
 
 		return mean_sdc
+
+	def delete_oq_stats(self):
+		# TODO
+		pass
 
 	def to_psha_model_tree(self):
 		"""
