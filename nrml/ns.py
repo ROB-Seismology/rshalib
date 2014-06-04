@@ -26,34 +26,33 @@ SIMPLE_FAULT_SOURCE = "%ssimpleFaultSource" % NRML
 CHARACTERISTIC_FAULT_SOURCE = "%scharacteristicFaultSource" % NRML
 
 ## Source identifiers
-ID = "%sid" % NRML
-TECTONIC_REGION_TYPE = "%stectonicRegion" % NRML
-
 NAME = "name"
+ID = "id"
+TECTONIC_REGION_TYPE = "tectonicRegion"
 
 ## MFD's
 TRUNCATED_GUTENBERG_RICHTER_MFD = "%struncGutenbergRichterMFD" % NRML
-A_VALUE = "%saValue" % NRML
-B_VALUE = "%sbValue" % NRML
-MINIMUM_MAGNITUDE = "%sminMag" % NRML
-MAXIMUM_MAGNITUDE = "%smaxMag" % NRML
+A_VALUE = "aValue"
+B_VALUE = "bValue"
+MINIMUM_MAGNITUDE = "minMag"
+MAXIMUM_MAGNITUDE = "maxMag"
 
 EVENLY_DISCRETIZED_INCREMENTAL_MFD = "%sincrementalMFD" % NRML
 BIN_WIDTH = "%sbinWidth" % NRML
 OCCURRENCE_RATES = "%soccurRates" %NRML
 
 ## Probability distributions
-PROBABILITY = "%sprobability" % NRML
+PROBABILITY = "probability"
 
 NODAL_PLANE_DISTRIBUTION = "%snodalPlaneDist" % NRML
 NODAL_PLANE = "%snodalPlane" % NRML
-STRIKE = "%sstrike" % NRML
-DIP = "%sdip" % NRML
-RAKE = "%srake" % NRML
+STRIKE = "strike"
+DIP = "dip"
+RAKE = "rake"
 
 HYPOCENTRAL_DEPTH_DISTRIBUTION = "%shypoDepthDist" % NRML
 HYPOCENTRAL_DEPTH = "%shypoDepth" % NRML
-DEPTH = "%sdepth" % NRML
+DEPTH = "depth"
 
 ## Source geometry
 POINT_GEOMETRY = "%spointGeometry" % NRML
