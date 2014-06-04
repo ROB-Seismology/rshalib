@@ -668,6 +668,28 @@ class SeismicSourceSystem(LogicTree):
 		else:
 			pylab.show()
 
+	def get_source_logic_tree(self, source_model_name, src_id):
+		"""
+		Construct reduced logic tree for a particular source
+
+		:param source_model_name:
+			str, name of source model
+		:param src_id:
+			str, source ID
+
+		:return:
+			instance of :class:`SeismicSourceSystem`
+		"""
+		source_model = self.get_source_model_by_name(source_model_name)
+		src = source_model[src_id]
+		sss = SeismicSourceSystem("%s--%s" % (source_model.name, src.source_id), source_model)
+		branch_sets = self.get_source_branch_sets(source_model.name, src)
+		for bl_index, bs in enumerate(branch_sets):
+			pmf_dict = {source_model.name: bs.to_pmf_dict(source_model)}
+			sss.append_independent_uncertainty_level(pmf_dict)
+		sss.connect_branches()
+		return sss
+
 
 class SeismicSourceSystem_v1(LogicTree):
 	def __init__(self, ID, source_system_dict={}, sourceModelObjs=[]):
