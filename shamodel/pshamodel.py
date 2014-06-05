@@ -584,7 +584,7 @@ class PSHAModelBase(SHAModelBase):
 		xml_filespec = os.path.join(hc_folder, xml_filename)
 		return xml_filespec
 
-	def read_oq_shcf(self, curve_name, curve_path="", calc_id=None):
+	def read_oq_shcf(self, curve_name, curve_path="", calc_id=None, verbose=False):
 		"""
 		Read OpenQuake spectral hazard curve field
 
@@ -595,6 +595,8 @@ class PSHAModelBase(SHAModelBase):
 			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: None, will determine from folder structure)
+		:param verbose:
+			bool, whether or not to print additional information (default: False)
 
 		:return:
 			instance of :class:`SpectralHazardCurveField`
@@ -602,6 +604,8 @@ class PSHAModelBase(SHAModelBase):
 		from ..openquake import parse_hazard_curves, parse_spectral_hazard_curve_field
 
 		xml_filespec = self.get_oq_shcf_filespec(curve_name, curve_path=curve_path, calc_id=calc_id)
+		if verbose:
+			print("Reading hazard curve file %s" % xml_filespec)
 		try:
 			shcf = parse_hazard_curves(xml_filespec)
 		except:
@@ -760,7 +764,7 @@ class PSHAModelBase(SHAModelBase):
 		xml_filespec = os.path.join(disagg_folder, xml_filename)
 		return xml_filespec
 
-	def read_oq_disagg_matrix_multi(self, curve_name, site, curve_path="", calc_id=None):
+	def read_oq_disagg_matrix_multi(self, curve_name, site, curve_path="", calc_id=None, verbose=False):
 		"""
 		Read OpenQuake multi-deaggregation matrix for a particular site.
 
@@ -773,6 +777,8 @@ class PSHAModelBase(SHAModelBase):
 			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: None, will determine from folder structure)
+		:param verbose:
+			bool, whether or not to print additional information (default: False)
 
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
@@ -780,6 +786,8 @@ class PSHAModelBase(SHAModelBase):
 		from ..openquake import parse_spectral_deaggregation_curve
 
 		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
+		if verbose:
+			print("Reading deaggregation file %s" % xml_filespec)
 		sdc = parse_spectral_deaggregation_curve(xml_filespec, site.name)
 		return sdc
 
