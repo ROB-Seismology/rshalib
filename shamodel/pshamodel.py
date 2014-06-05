@@ -3707,7 +3707,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return mean_shcf
 
-	def get_oq_mean_shcf_by_source_model(self, source_model, write_xml=False, calc_id=None):
+	def get_oq_mean_shcf_by_source_model(self, source_model, write_xml=False, respect_gm_trt_correlation=False, calc_id=None):
 		"""
 		Compute or read mean spectral hazard curve field for a particular source model
 		by summing mean shcf's of individual sources
@@ -3718,6 +3718,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			bool, whether or not to write mean spectral hazard curve field to xml.
 			If mean shcf already exists, it will be overwritten
 			(default: False)
+		:param respect_gm_trt_correlation:
+			bool, whether or not mean should be computed separately for each trt,
+			in order to respect the correlation between sources in each trt in the
+			ground_motion logic tree.
+			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3725,9 +3730,6 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		## Although it is perhaps not necessary, we compute separately for each
-		## trt, in order to respect the correlation between sources in each trt
-		## in the ground-motion logic tree
 		curve_name = "mean"
 		curve_path = source_model.name
 		xml_filespec = self.get_oq_shcf_filespec(curve_name, curve_path=curve_path, calc_id=calc_id)
@@ -3735,39 +3737,59 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		if write_xml is False and os.path.exists(xml_filespec):
 			summed_shcf = self.read_oq_shcf(curve_name, curve_path=curve_path, calc_id=calc_id)
 		else:
-			summed_shcf = None
-			somo_trts = [src.tectonic_region_type for src in source_model]
-			for trt in somo_trts:
-				trt_shcf = None
-				for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
-					gmpe_shcf = None
-					for src_list in self.enumerate_correlated_sources(source_model, trt):
-						if len(src_list) == 1:
-							[src] = src_list
-							shcf = self.get_oq_mean_shcf_by_source(source_model.name, src, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
-						else:
-							shcf = self.get_oq_mean_shcf_by_correlated_sources(source_model.name, src_list, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
-						if shcf:
-							if gmpe_shcf is None:
-								gmpe_shcf = shcf
+			if respect_gm_trt_correlation:
+				## More explicit calculation
+				## Calculate mean for each trt separately, in order to respect
+				## correlation between sources in each trt in the ground-motion
+				## logic tree
+				summed_shcf = None
+				for trt in source_model.get_tectonic_region_types():
+					trt_shcf = None
+					for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+						gmpe_shcf = None
+						for src_list in self.enumerate_correlated_sources(source_model, trt):
+							if len(src_list) == 1:
+								[src] = src_list
+								shcf = self.get_oq_mean_shcf_by_source(source_model.name, src, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
 							else:
-								gmpe_shcf += shcf
-					gmpe_shcf *= gmpe_weight
-					if trt_shcf is None:
-						trt_shcf = gmpe_shcf
+								shcf = self.get_oq_mean_shcf_by_correlated_sources(source_model.name, src_list, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
+							if shcf:
+								if gmpe_shcf is None:
+									gmpe_shcf = shcf
+								else:
+									gmpe_shcf += shcf
+						gmpe_shcf *= gmpe_weight
+						if trt_shcf is None:
+							trt_shcf = gmpe_shcf
+						else:
+							trt_shcf += gmpe_shcf
+					if summed_shcf is None:
+						summed_shcf = trt_shcf
 					else:
-						trt_shcf += gmpe_shcf
-			if summed_shcf is None:
-				summed_shcf = trt_shcf
+						summed_shcf += trt_shcf
+
 			else:
-				summed_shcf += trt_shcf
+				## Simpler calculation:
+				## Compute mean for each source and sum
+				summed_shcf = None
+				for src_list in self.enumerate_correlated_sources(source_model):
+					if len(src_list) == 1:
+						[src] = src_list
+						shcf = self.get_oq_mean_shcf_by_source(source_model.name, src, write_xml=write_xml, calc_id=calc_id)
+					else:
+						shcf = self.get_oq_mean_shcf_by_correlated_sources(source_model.name, src_list, write_xml=write_xml, calc_id=calc_id)
+					if summed_shcf is None:
+						summed_shcf = shcf
+					else:
+						summed_shcf += shcf
+
 			summed_shcf.model_name = "%s weighted mean" % source_model.name
 
 			self.write_oq_shcf(summed_shcf, source_model.name, "", "", "", curve_name, calc_id=calc_id)
 
 		return summed_shcf
 
-	def get_oq_mean_shcf(self, write_xml=False, calc_id=None):
+	def get_oq_mean_shcf(self, write_xml=False, respect_gm_trt_correlation=False, calc_id=None):
 		"""
 		Read mean spectral hazard curve field of entire logic tree.
 		If mean shcf does not exist, it will be computed from the decomposed
@@ -3776,6 +3798,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param write_xml:
 			bool, whether or not to write mean spectral hazard curve field to xml.
 			If mean shcf already exists, it will be overwritten
+			(default: False)
+		:param respect_gm_trt_correlation:
+			bool, whether or not mean should be computed separately for each trt,
+			in order to respect the correlation between sources in each trt in the
+			ground_motion logic tree.
 			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
@@ -3792,7 +3819,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		else:
 			mean_shcf = None
 			for source_model, somo_weight in self.source_model_lt.source_model_pmf:
-				source_model_shcf = self.get_oq_mean_shcf_by_source_model(source_model, write_xml=write_xml, calc_id=calc_id)
+				source_model_shcf = self.get_oq_mean_shcf_by_source_model(source_model, write_xml=write_xml, respect_gm_trt_correlation=respect_gm_trt_correlation, calc_id=calc_id)
 				if mean_shcf is None:
 					mean_shcf = source_model_shcf * somo_weight
 				else:
