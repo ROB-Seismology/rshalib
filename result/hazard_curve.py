@@ -10,7 +10,7 @@ import os, sys
 from decimal import Decimal
 import numpy as np
 
-from scipy.stats import scoreatpercentile
+from scipy.stats import mstats, scoreatpercentile
 import matplotlib
 import pylab
 
@@ -137,12 +137,13 @@ class ExceedanceRateArray(HazardCurveArray):
 		else:
 			return self.__class__(np.average(self.array, axis=axis, weights=weights))
 
-	def percentile(self, axis, percentile_levels, weights=None):
+	def scoreatpercentile(self, axis, percentile_levels, weights=None):
 		#from openquake.engine.calculators.post_processing import quantile_curve, weighted_quantile_curve
+		quantiles = np.array(percentile_levels) / 100.
 		if weights is None:
-			from scipy.stats import mstats
-			quantiles = np.array(percentile_levels) / 100.
 			return self.__class__(mstats.mquantiles(self.array, prob=quantiles, axis=axis))
+		else:
+			pass
 
 
 class ProbabilityArray(HazardCurveArray):
@@ -179,8 +180,15 @@ class ProbabilityArray(HazardCurveArray):
 		# TODO: this is different from openquake.engine.calculators.post_processing,
 		# where the simple mean of the poes is computed.
 		# In practice, the differences appear to be minor
-		return ProbabilityArray(1 - np.exp(np.average(np.log((1 - self.array)),
+		return ProbabilityArray(1 - np.exp(np.average(np.log(1 - self.array),
 											axis=axis, weights=weights)))
+
+	def scoreatpercentile(self, axis, percentile_levels, weights=None):
+		#from openquake.engine.calculators.post_processing import quantile_curve, weighted_quantile_curve
+		if weights is None:
+			quantiles = np.array(percentile_levels) / 100.
+
+			return self.__class__(1 - np.exp(mstats.mquantiles(np.log(1 - self.array), prob=quantiles, axis=axis)))
 
 
 class HazardResult:
