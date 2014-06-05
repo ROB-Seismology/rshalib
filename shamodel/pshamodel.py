@@ -3910,12 +3910,15 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		import gc
 
-		try:
-			trt = src.tectonic_region_type
-			trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
-			curve_path = os.path.join(source_model_name, trt_short_name, src.source_id)
+		curve_name = "mean"
+		trt = src.tectonic_region_type
+		trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
+		curve_path = os.path.join(source_model_name, trt_short_name, src.source_id)
+		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
+
+		if write_xml is False and os.path.exists(xml_filespec):
 			mean_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id)
-		except:
+		else:
 			for i, (sdc, weight) in enumerate(self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)):
 				if verbose:
 					print i
@@ -3947,9 +3950,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			if mean_shc:
 				mean_sdc = mean_sdc.slice_return_periods(self.return_periods, mean_shc)
 
-			if write_xml:
-				curve_name = "mean"
-				self.write_oq_disagg_matrix_multi(mean_sdc, source_model_name, src.tectonic_region_type, src.source_id, "", curve_name, calc_id=calc_id)
+			self.write_oq_disagg_matrix_multi(mean_sdc, source_model_name, src.tectonic_region_type, src.source_id, "", curve_name, calc_id=calc_id)
 
 		return mean_sdc
 
@@ -3985,11 +3986,12 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		import gc
 
 		curve_name = "mean"
+		curve_path = source_model_name
+		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
 
-		try:
-			curve_path = source_model_name
+		if write_xml is False and os.path.exists(xml_filespec):
 			summed_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id)
-		except:
+		else:
 			source_model = self.get_source_model_by_name(source_model_name)
 			for i, src in enumerate(source_model.sources):
 				if verbose:
@@ -4018,8 +4020,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 			summed_sdc.model_name = "%s weighted mean" % source_model_name
 
-			if write_xml:
-				self.write_oq_disagg_matrix_multi(summed_sdc, source_model.name, "", "", "", curve_name, calc_id=calc_id)
+			self.write_oq_disagg_matrix_multi(summed_sdc, source_model.name, "", "", "", curve_name, calc_id=calc_id)
 
 		return summed_sdc
 
@@ -4027,7 +4028,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		Read mean spectral deaggregation curve of the entire logic tree.
 		If mean sdc does not exist, it will be computed from the decomposed
-		deaggregation curves.
+		deaggregation curves. If it exists, it will be read if write_xml is False
 
 		:param site:
 			instance of :class:`SHASite` or :class:`SoilSite`
@@ -4053,10 +4054,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		import gc
 
 		curve_name = "mean"
+		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, calc_id=calc_id)
 
-		try:
+		if write_xml is False and os.path.exists(xml_filespec):
 			mean_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, calc_id=calc_id)
-		except:
+		else:
 			for i, (source_model, somo_weight) in enumerate(self.source_model_lt.source_model_pmf):
 				if verbose:
 					print source_model.name
@@ -4096,8 +4098,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 			mean_sdc.model_name = "Logic-tree weighted mean"
 
-			if write_xml:
-				self.write_oq_disagg_matrix_multi(mean_sdc, "", "", "", "", curve_name, calc_id=calc_id)
+			self.write_oq_disagg_matrix_multi(mean_sdc, "", "", "", "", curve_name, calc_id=calc_id)
 
 		return mean_sdc
 
