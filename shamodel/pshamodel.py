@@ -3842,7 +3842,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			for src in source_model.sources:
 				print src.source_id
 				src_shcft = self.read_oq_source_shcft(source_model.name, src)
-				percs = src_shcft.calc_percentiles_epistemic(percentile_levels, weighted=True)
+				percs = src_shcft.calc_percentiles_epistemic(percentile_levels, weighted=True, interpol=True)
 				if somo_percs is None:
 					somo_percs = percs
 				else:
