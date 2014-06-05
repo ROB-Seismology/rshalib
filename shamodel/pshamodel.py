@@ -3474,15 +3474,19 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		shcf_list, weights, branch_names = [], [], []
 		for sample_idx, (sm_name, smlt_path, gmpelt_path, weight) in enumerate(self.sample_logic_tree_paths(self.num_lt_samples, skip_samples=skip_samples)):
-			sm_name = os.path.splitext(sm_name)[0]
-			shcf = self.read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
+			num_lt_samples = self.num_lt_samples or self.get_num_paths()
+			fmt = "%%0%dd" % len(str(num_lt_samples))
+			curve_name = "rlz-" + fmt % (sample_idx + 1 + skip_samples)
+			xml_filespec = self.get_oq_shcf_filespec(curve_name, calc_id=calc_id)
+
+			if write_xml is False and os.path.exists(xml_filespec):
+				shcf = self.read_oq_shcf(curve_name, calc_id=calc_id)
+			else:
+				sm_name = os.path.splitext(sm_name)[0]
+				shcf = self.read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
+				self.write_oq_shcf(shcf, "", "", "", "", curve_name, calc_id=calc_id)
 			shcf_list.append(shcf)
 			weights.append(weight)
-			if write_xml:
-				num_lt_samples = self.num_lt_samples or self.get_num_paths()
-				fmt = "%%0%dd" % len(str(num_lt_samples))
-				curve_name = "rlz-" + fmt % (sample_idx + 1 + skip_samples)
-				self.write_oq_shcf(shcf, "", "", "", "", curve_name, calc_id=calc_id)
 			# TODO: construct branch name
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, self.name, branch_names=branch_names, weights=weights)
 		return shcft
