@@ -3657,7 +3657,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					mean_shcf += (shcf * weight)
 			mean_shcf.model_name = "%s weighted mean" % src.source_id
 
-			self.write_oq_shcf(mean_shcf, source_model.name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
+			self.write_oq_shcf(mean_shcf, source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
 
 		return mean_shcf
 
@@ -3703,7 +3703,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					mean_shcf += (shcf * weight)
 			mean_shcf.model_name = "%s weighted mean" % '+'.join([src.source_id for src in src_list])
 
-			self.write_oq_shcf(mean_shcf, source_model.name, trt, src0.source_id, gmpe_name, curve_name, calc_id=calc_id)
+			self.write_oq_shcf(mean_shcf, source_model_name, trt, src0.source_id, gmpe_name, curve_name, calc_id=calc_id)
 
 		return mean_shcf
 
@@ -4146,7 +4146,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return mean_sdc
 
-	def delete_oq_stats(self):
+	def delete_oq_shcf_stats(self):
 		# TODO
 		pass
 
