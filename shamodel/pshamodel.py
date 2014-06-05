@@ -3832,6 +3832,27 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			self.write_oq_shcf(mean_shcf, "", "", "", "", curve_name, calc_id=calc_id)
 		return mean_shcf
 
+	def calc_oq_shcf_percentiles(self, percentile_levels):
+		"""
+		"""
+		total_percs = None
+		for source_model, somo_weight in self.source_model_lt.source_model_pmf:
+			print source_model.name
+			somo_percs = None
+			for src in source_model.sources:
+				print src.source_id
+				src_shcft = self.read_oq_source_shcft(source_model.name, src)
+				percs = src_shcft.calc_percentiles_epistemic(percentile_levels, weighted=True)
+				if somo_percs is None:
+					somo_percs = percs
+				else:
+					somo_percs += percs
+			if total_percs is None:
+				total_percs = somo_percs * somo_weight
+			else:
+				total_percs += (somo_percs * somo_weight)
+		return total_percs
+
 	def calc_shcf_stats(self, num_samples):
 		pass
 
