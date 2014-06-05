@@ -3148,9 +3148,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			curve_name = '--'.join(curve_name_parts[2:])
 			src = psha_model.source_model.sources[0]
 			trt = src.tectonic_region_type
-			trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
 			gmpe_name = psha_model.ground_motion_model[trt]
-			curve_path = self._get_curve_path(source_model_name, trt_short_name, src.source_id, gmpe_name)
+			curve_path = self._get_curve_path(source_model_name, trt, src.source_id, gmpe_name)
 			## Override return_periods property
 			psha_model.return_periods = return_periods
 
@@ -3159,7 +3158,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				files_exist = []
 				for (lon, lat) in site_imtls.keys():
 					site = SHASite(lon, lat)
-					xml_filespec = self.get_oq_sdc_filespec_decomposed(source_model_name, trt, source_id, gmpe_name, curve_name, calc_id=calc_id)
+					xml_filespec = self.get_oq_sdc_filespec_decomposed(source_model_name, trt, src.source_id, gmpe_name, curve_name, site, calc_id=calc_id)
 					files_exist.append(os.path.exists(xml_filespec))
 				if np.all(files_exist):
 					continue
@@ -3618,9 +3617,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				weights.append(gmpe_weight * smlt_weight)
 		return shcf_list, weights
 
-	def calc_mean_shcf_by_source(self, source_model_name, src, gmpe_name="", calc_id=None):
+	def get_oq_mean_shcf_by_source(self, source_model_name, src, gmpe_name="", write_xml=False, calc_id=None):
 		"""
-		Compute mean spectral hazard curve field for a particular source
+		Compute or read mean spectral hazard curve field for a particular source
 
 		:param source_model_name:
 			str, name of source model
@@ -3628,6 +3627,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			instance of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
 		:param gmpe_name:
 			str, name of GMPE (default: "", will read all GMPEs)
+		:param write_xml:
+			bool, whether or not to write mean spectral hazard curve field to xml.
+			If mean shcf already exists, it will be overwritten
+			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3635,21 +3638,32 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		shcf_list, weights = self.read_oq_source_realizations(source_model_name, src, gmpe_name=gmpe_name, calc_id=calc_id)
-		mean_shcf = None
-		for i in range(len(shcf_list)):
-			shcf = shcf_list[i]
-			weight = weights[i]
-			if i == 0:
-				mean_shcf = shcf * weight
-			else:
-				mean_shcf += (shcf * weight)
-		mean_shcf.model_name = "%s weighted mean" % src.source_id
+		curve_name = "mean"
+		trt = src.tectonic_region_type
+		curve_path = self._get_curve_path(source_model_name, trt, src.source_id, gmpe_name)
+		xml_filespec = self.get_oq_shcf_filespec(curve_name, curve_path=curve_path, calc_id=calc_id)
+
+		if write_xml is False and os.path.exists(xml_filespec):
+			mean_shcf = self.read_oq_shcf(curve_name, curve_path=curve_path, calc_id=calc_id)
+		else:
+			shcf_list, weights = self.read_oq_source_realizations(source_model_name, src, gmpe_name=gmpe_name, calc_id=calc_id)
+			mean_shcf = None
+			for i in range(len(shcf_list)):
+				shcf = shcf_list[i]
+				weight = weights[i]
+				if i == 0:
+					mean_shcf = shcf * weight
+				else:
+					mean_shcf += (shcf * weight)
+			mean_shcf.model_name = "%s weighted mean" % src.source_id
+
+			self.write_oq_shcf(mean_shcf, source_model.name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
+
 		return mean_shcf
 
-	def calc_mean_shcf_by_correlated_sources(self, source_model_name, src_list, gmpe_name="", calc_id=None):
+	def get_oq_mean_shcf_by_correlated_sources(self, source_model_name, src_list, gmpe_name="", write_xml=False, calc_id=None):
 		"""
-		Compute mean spectral hazard curve field for a list of correlated
+		Compute or read mean spectral hazard curve field for a list of correlated
 		sources
 
 		:param source_model_name:
@@ -3658,6 +3672,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			list with instances of :class:`rshalib.source.[Point|Area|SimpleFault|ComplexFault]Source`
 		:param gmpe_name:
 			str, name of GMPE (default: "", will read all GMPEs)
+		:param write_xml:
+			bool, whether or not to write mean spectral hazard curve field to xml.
+			If mean shcf already exists, it will be overwritten
+			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3665,25 +3683,41 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`SpectralHazardCurveField`
 		"""
-		shcf_list, weights = self.read_oq_correlated_source_realizations(source_model_name, src_list, gmpe_name=gmpe_name, calc_id=calc_id)
-		mean_shcf = None
-		for i in range(len(shcf_list)):
-			shcf = shcf_list[i]
-			weight = weights[i]
-			if i == 0:
-				mean_shcf = shcf * weight
-			else:
-				mean_shcf += (shcf * weight)
-		mean_shcf.model_name = "%s weighted mean" % '+'.join([src.source_id for src in src_list])
+		curve_name = "mean"
+		src0 = src_list[0]
+		trt = src0.tectonic_region_type
+		curve_path = self._get_curve_path(source_model_name, trt, src0.source_id, gmpe_name)
+		xml_filespec = self.get_oq_shcf_filespec(curve_name, curve_path=curve_path, calc_id=calc_id)
+
+		if write_xml is False and os.path.exists(xml_filespec):
+			mean_shcf = self.read_oq_shcf(curve_name, curve_path=curve_path, calc_id=calc_id)
+		else:
+			shcf_list, weights = self.read_oq_correlated_source_realizations(source_model_name, src_list, gmpe_name=gmpe_name, calc_id=calc_id)
+			mean_shcf = None
+			for i in range(len(shcf_list)):
+				shcf = shcf_list[i]
+				weight = weights[i]
+				if i == 0:
+					mean_shcf = shcf * weight
+				else:
+					mean_shcf += (shcf * weight)
+			mean_shcf.model_name = "%s weighted mean" % '+'.join([src.source_id for src in src_list])
+
+			self.write_oq_shcf(mean_shcf, source_model.name, trt, src0.source_id, gmpe_name, curve_name, calc_id=calc_id)
+
 		return mean_shcf
 
-	def calc_mean_shcf_by_source_model(self, source_model, calc_id=None):
+	def get_oq_mean_shcf_by_source_model(self, source_model, write_xml=False, calc_id=None):
 		"""
-		Compute mean spectral hazard curve field for a particular source model
+		Compute or read mean spectral hazard curve field for a particular source model
 		by summing mean shcf's of individual sources
 
 		:param source_model:
 			instance of :class:`rshalib.source.SourceModel`
+		:param write_xml:
+			bool, whether or not to write mean spectral hazard curve field to xml.
+			If mean shcf already exists, it will be overwritten
+			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -3694,44 +3728,54 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		## Although it is perhaps not necessary, we compute separately for each
 		## trt, in order to respect the correlation between sources in each trt
 		## in the ground-motion logic tree
-		summed_shcf = None
-		somo_trts = [src.tectonic_region_type for src in source_model]
-		for trt in somo_trts:
-			trt_shcf = None
-			for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
-				gmpe_shcf = None
-				for src_list in self.enumerate_correlated_sources(source_model, trt):
-					if len(src_list) == 1:
-						[src] = src_list
-						shcf = self.calc_mean_shcf_by_source(source_model.name, src, gmpe_name=gmpe_name, calc_id=calc_id)
-					else:
-						shcf = self.calc_mean_shcf_by_correlated_sources(source_model.name, src_list, gmpe_name=gmpe_name, calc_id=calc_id)
-					if shcf:
-						if gmpe_shcf is None:
-							gmpe_shcf = shcf
-						else:
-							gmpe_shcf += shcf
-				gmpe_shcf *= gmpe_weight
-				if trt_shcf is None:
-					trt_shcf = gmpe_shcf
-				else:
-					trt_shcf += gmpe_shcf
-		if summed_shcf is None:
-			summed_shcf = trt_shcf
+		curve_name = "mean"
+		curve_path = source_model.name
+		xml_filespec = self.get_oq_shcf_filespec(curve_name, curve_path=curve_path, calc_id=calc_id)
+
+		if write_xml is False and os.path.exists(xml_filespec):
+			summed_shcf = self.read_oq_shcf(curve_name, curve_path=curve_path, calc_id=calc_id)
 		else:
-			summed_shcf += trt_shcf
-		summed_shcf.model_name = "%s weighted mean" % source_model.name
+			summed_shcf = None
+			somo_trts = [src.tectonic_region_type for src in source_model]
+			for trt in somo_trts:
+				trt_shcf = None
+				for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+					gmpe_shcf = None
+					for src_list in self.enumerate_correlated_sources(source_model, trt):
+						if len(src_list) == 1:
+							[src] = src_list
+							shcf = self.get_oq_mean_shcf_by_source(source_model.name, src, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
+						else:
+							shcf = self.get_oq_mean_shcf_by_correlated_sources(source_model.name, src_list, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
+						if shcf:
+							if gmpe_shcf is None:
+								gmpe_shcf = shcf
+							else:
+								gmpe_shcf += shcf
+					gmpe_shcf *= gmpe_weight
+					if trt_shcf is None:
+						trt_shcf = gmpe_shcf
+					else:
+						trt_shcf += gmpe_shcf
+			if summed_shcf is None:
+				summed_shcf = trt_shcf
+			else:
+				summed_shcf += trt_shcf
+			summed_shcf.model_name = "%s weighted mean" % source_model.name
+
+			self.write_oq_shcf(summed_shcf, source_model.name, "", "", "", curve_name, calc_id=calc_id)
+
 		return summed_shcf
 
-	def read_oq_mean_shcf(self, write_xml=False, calc_id=None):
+	def get_oq_mean_shcf(self, write_xml=False, calc_id=None):
 		"""
 		Read mean spectral hazard curve field of entire logic tree.
 		If mean shcf does not exist, it will be computed from the decomposed
-		shcf's
+		shcf's. If it exists, it will be read if write_xml is False
 
 		:param write_xml:
 			bool, whether or not to write mean spectral hazard curve field to xml.
-			Ignored if mean shcf already exists
+			If mean shcf already exists, it will be overwritten
 			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
@@ -3741,19 +3785,20 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			instance of :class:`SpectralHazardCurveField`
 		"""
 		curve_name = "mean"
-		try:
-			mean_shcf = self.read_oq_shcf(curve_name=curve_name, calc_id=calc_id)
-		except:
+		xml_filespec = self.get_oq_shcf_filespec(curve_name, calc_id=calc_id)
+
+		if write_xml is False and os.path.exists(xml_filespec):
+			mean_shcf = self.read_oq_shcf(curve_name, calc_id=calc_id)
+		else:
 			mean_shcf = None
 			for source_model, somo_weight in self.source_model_lt.source_model_pmf:
-				source_model_shcf = self.calc_mean_shcf_by_source_model(source_model, calc_id=calc_id)
+				source_model_shcf = self.get_oq_mean_shcf_by_source_model(source_model, write_xml=write_xml, calc_id=calc_id)
 				if mean_shcf is None:
 					mean_shcf = source_model_shcf * somo_weight
 				else:
 					mean_shcf += (source_model_shcf * somo_weight)
 			mean_shcf.model_name = "Logic-tree weighted mean"
-			if write_xml:
-				self.write_oq_shcf(mean_shcf, "", "", "", "", curve_name, calc_id=calc_id)
+			self.write_oq_shcf(mean_shcf, "", "", "", "", curve_name, calc_id=calc_id)
 		return mean_shcf
 
 	def calc_shcf_stats(self, num_samples):
@@ -3901,7 +3946,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			str, precision of deaggregation matrix (default: 'f')
 		:param write_xml:
 			bool, whether or not to write mean spectral deaggregation curve
-			to xml (default: False)
+			to xml. If mean sdc exists, it will be overwritten (default: False)
 		:param verbose:
 			bool, wheter or not to print some progress info (default: False)
 
@@ -3912,8 +3957,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		curve_name = "mean"
 		trt = src.tectonic_region_type
-		trt_short_name = ''.join([word[0].capitalize() for word in trt.split()])
-		curve_path = os.path.join(source_model_name, trt_short_name, src.source_id)
+		curve_path = self._get_curve_path(source_model_name, trt, src.source_id, "")
 		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
 
 		if write_xml is False and os.path.exists(xml_filespec):
@@ -3976,7 +4020,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			str, precision of deaggregation matrix (default: 'f')
 		:param write_xml:
 			bool, whether or not to write mean spectral deaggregation curve
-			to xml (default: False)
+			to xml. If mean sdc exists, it will be overwritten (default: False)
 		:param verbose:
 			bool, whether or not to print some progress info (default: False)
 
@@ -4044,7 +4088,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			str, precision of deaggregation matrix (default: 'f')
 		:param write_xml:
 			bool, whether or not to write mean spectral deaggregation curve
-			to xml (default: False)
+			to xml. If mean sdc exists, it will be overwritten (default: False)
 		:param verbose:
 			bool, whether or not to print some progress info (default: False)
 
