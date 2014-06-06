@@ -20,7 +20,7 @@ import openquake.hazardlib as nhlib
 from ..nrml import ns
 from ..nrml.common import *
 from ..geo import NodalPlane
-from ..utils import interpolate
+from ..utils import interpolate, wquantiles
 
 
 
@@ -105,19 +105,9 @@ class NumericPMF(PMF):
 			array containing interpolated values corresponding to
 			percentile intercepts
 		"""
-		percentiles = np.array(percentiles, 'f')
-		if percentiles.max() > 1:
-			percentiles /= 100.
-		ordered_indexes = self.values.argsort()
-		values = self.values[ordered_indexes]
-		weights = self.weights[ordered_indexes].astype('d')
-		cdf = np.add.accumulate(weights)
-		if interpol:
-			percentile_intercepts = interpolate(cdf, values, percentiles)
-		else:
-			## Alternatively, if percentile should correspond to a value in the list
-			idxs = np.searchsorted(cdf, percentiles)
-			percentile_intercepts = values[idxs]
+		quantile_levels = np.array(percentiles, 'f') / 100.
+		weights = self.weights.astype('d')
+		percentile_intercepts = wquantiles(self.values, weights, quantile_levels, interpol=interpol)
 		return percentile_intercepts
 
 	def rebin_equal_weight(self, num_bins=5, precision=4):
