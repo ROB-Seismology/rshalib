@@ -46,6 +46,44 @@ def logrange(min, max, n):
 	return 10**logs
 
 
+def wquantiles(data, weights, quantile_levels, interpol=True):
+	"""
+	Compute weighted quantiles of a 1-D array
+
+	:param data:
+		1-D array containing data values
+	:param weights:
+		1-D array containing weights
+	:param quantile_levels:
+		list or array containing quantile levels (in range 0 - 1)
+	:param interpol:
+		bool, whether or not percentile intercept should be
+		interpolated (default: True)
+
+	:return:
+		1-D array containing data values corresponding to quantiles
+	"""
+	## Sort data and weights
+	ind_sorted = np.argsort(data)
+	sorted_data = data[ind_sorted]
+	sorted_weights = weights[ind_sorted]
+
+	## Compute the auxiliary arrays
+	Sn = np.cumsum(sorted_weights)
+	Pn = (Sn-0.5*sorted_weights)/np.sum(sorted_weights)
+
+	## Get quantile intercepts
+	if interpol:
+		## Interpolate the values of the weighted quantiles
+		quantile_intercepts = np.interp(quantile_levels, Pn, sorted_data)
+	else:
+		## Alternatively, if percentile should correspond to a value in the list
+		idxs = np.searchsorted(Pn, quantile_levels)
+		quantile_intercepts = sorted_data[idxs]
+
+	return quantile_intercepts
+
+
 class LevelNorm(matplotlib.colors.Normalize):
 	"""
 	Normalize a given value to the 0-1 range according to pre-defined levels,
