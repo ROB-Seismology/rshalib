@@ -2705,6 +2705,45 @@ class PSHAModelTree(PSHAModelBase):
 		# TODO
 		pass
 
+	def calc_oq_shcf_percentiles(self, percentile_levels, write_xml=False, calc_id=None):
+		"""
+		Compute percentiles of OpenQuake spectral hazard curve fields
+
+		:param percentile_levels:
+			list or array with percentile levels in the range 0 - 100
+		:param write_xml:
+			bool, whether or not to write percentile curves to xml files
+			(default: False)
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+
+		:return:
+			shcfs?
+		"""
+		shcft = self.read_oq_shcft(calc_id=calc_id)
+		perc_intercepts = shcft.calc_percentiles_epistemic(percentile_levels, weighted=True)
+
+		# TODO: check if XML files exist (or else read_oq_shcf_percentiles method ?)
+		perc_shcf_list = []
+		for p, perc_level in percentile_levels:
+			model_name = "P%02d(self.name)" % (perc_level, self.name)
+			hazard_values = perc_intercepts[:,:,:,p]
+			filespecs = []
+			sites = shcft.sites
+			periods = shcft.periods
+			IMT = shcft.IMT
+			intensities = shcft.intensities
+			intensity_unit = shcft.intensity_unit
+			timespan = self.time_span
+
+			shcf = SpectralHazardCurveField(model_name, hazard_values, filespecs, sites, periods, IMT, intensities, intensity_unit=intensity_unit, timespan=timespan)
+			perc_shcf_list.append(shcf)
+			if write_xml:
+				# TODO
+				curve_name = ""
+		return perc_shcf_list
+
 	def read_crisis_shcft(self, batch_filename="lt_batch.dat"):
 		"""
 		Read CRISIS spectral hazard curve field tree
@@ -3832,7 +3871,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			self.write_oq_shcf(mean_shcf, "", "", "", "", curve_name, calc_id=calc_id)
 		return mean_shcf
 
-	def calc_oq_shcf_percentiles(self, percentile_levels):
+	def calc_oq_shcf_percentiles_decomposed(self, percentile_levels):
 		"""
 		"""
 		total_percs = None
