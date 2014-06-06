@@ -19,7 +19,7 @@ from ..nrml import ns
 from ..nrml.common import *
 from ..site import SHASite
 from plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram
-from ..utils import interpolate, logrange, LevelNorm
+from ..utils import interpolate, logrange, wquantiles, LevelNorm
 from ..pmf import NumericPMF
 
 
@@ -114,21 +114,6 @@ class HazardCurveArray(np.ndarray):
 	def array(self):
 		return np.asarray(self)
 
-	@staticmethod
-	def _get_weighted_percentiles_1D(ar, weights, percentile_levels, interpol):
-		#pmf = NumericPMF.from_values_and_weights(ar, weights)
-		#return pmf.get_percentiles(percentile_levels, interpol=interpol)
-
-		quantiles = np.array(percentile_levels, 'f') / 100.
-		ind_sorted = np.argsort(ar)
-		sorted_data = ar[ind_sorted]
-		sorted_weights = weights[ind_sorted]
-		# Compute the auxiliary arrays
-		Sn = np.cumsum(sorted_weights)
-		Pn = (Sn-0.5*sorted_weights)/np.sum(sorted_weights)
-		# Get the value of the weighted median
-		return np.interp(quantiles, Pn, sorted_data)
-
 
 class ExceedanceRateArray(HazardCurveArray):
 	def to_exceedance_rates(self, timespan=None):
@@ -152,13 +137,16 @@ class ExceedanceRateArray(HazardCurveArray):
 		else:
 			return self.__class__(np.average(self.array, axis=axis, weights=weights))
 
-	def scoreatpercentile(self, axis, percentile_levels, weights=None, interpol=False):
-		#from openquake.engine.calculators.post_processing import quantile_curve, weighted_quantile_curve
+	def scoreatpercentile(self, axis, percentile_levels, weights=None, interpol=True):
+		quantile_levels = np.array(percentile_levels, 'f') / 100.
 		if weights is None:
-			quantiles = np.array(percentile_levels) / 100.
-			percentiles = mstats.mquantiles(self.array, prob=quantiles, axis=axis)
+			percentiles = np.apply_along_axis(mstats.mquantiles, axis, self.array, quantile_levels)
 		else:
-			percentiles = np.apply_along_axis(self._get_weighted_percentiles_1D, axis, self.array, weights, percentile_levels, interpol)
+			percentiles = np.apply_along_axis(wquantiles, axis, self.array, weights, quantile_levels, interpol)
+		## Rotate percentile axis to last position
+		# TODO: consider first position for percentile axis
+		ndim = self.array.ndim
+		percentiles = np.rollaxis(percentiles, axis, ndim)
 		return self.__class__(percentiles)
 
 
@@ -199,12 +187,15 @@ class ProbabilityArray(HazardCurveArray):
 		return ProbabilityArray(1 - np.exp(np.average(np.log(1 - self.array),
 											axis=axis, weights=weights)))
 
-	def scoreatpercentile(self, axis, percentile_levels, weights=None):
+	def scoreatpercentile(self, axis, percentile_levels, weights=None, interpol=True):
+		quantile_levels = np.array(percentile_levels, 'f') / 100.
 		if weights is None:
-			quantiles = np.array(percentile_levels) / 100.
-			percentiles = mstats.mquantiles(np.log(1 - self.array), prob=quantiles, axis=axis)
+			percentiles = np.apply_along_axis(mstats.mquantiles, axis, np.log(1 - self.array), quantile_levels)
 		else:
-			percentiles = np.apply_along_axis(self._get_weighted_percentiles_1D, axis, np.log(1 - self.array), weights, percentile_levels, interpol)
+			percentiles = np.apply_along_axis(wquantiles, axis, np.log(1 - self.array), weights, quantile_levels, interpol)
+		## Rotate percentile axis to last position
+		ndim = self.array.ndim
+		percentiles = np.rollaxis(percentiles, axis, ndim)
 		return self.__class__(1 - np.exp(percentiles))
 
 
@@ -1049,7 +1040,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			mean_variance = None
 		return mean_variance
 
-	def calc_percentiles_epistemic(self, percentile_levels=[], weighted=True, interpol=False):
+	def calc_percentiles_epistemic(self, percentile_levels=[], weighted=True, interpol=True):
 		"""
 		Compute percentiles of exceedance rate (epistemic uncertainty)
 
@@ -1063,7 +1054,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		:param interpol:
 			bool, whether or not percentile intercept should be
 			interpolated. Only applies to weighted percentiles
-			(default: False)
+			(default: True)
 
 		:return:
 			percentiles of hazard values: 4-D array [i,k,l,p]
@@ -1087,7 +1078,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			#			for p, per in enumerate(percentile_levels):
 			#				percentiles[i,k,l,p] = scoreatpercentile(self.exceedance_rates[i,:,k,l], per)
 			weights = None
-		percentiles = self._hazard_values.scoreatpercentile(3, percentile_levels, weights=weights)
+		percentiles = self._hazard_values.scoreatpercentile(1, percentile_levels, weights=weights)
 		#percentiles = ExceedanceRateArray(percentiles)
 		#if isinstance(self._hazard_values, ProbabilityArray):
 		#	percentiles = percentiles.to_probability_array(self.timespan)
@@ -1393,7 +1384,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 				percentile_levels = [5, 16, 50, 84, 95]
 			else:
 				percentile_levels = self.percentile_levels
-			percentiles = self.calc_percentiles(percentile_levels)
+			percentiles = self.calc_percentiles(percentile_levels, weighted=True)
 		else:
 			percentiles = self.percentiles
 			percentile_levels = self.percentile_levels
