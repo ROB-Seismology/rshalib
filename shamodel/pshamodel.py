@@ -2705,9 +2705,9 @@ class PSHAModelTree(PSHAModelBase):
 		# TODO
 		pass
 
-	def calc_oq_shcf_percentiles(self, percentile_levels, write_xml=False, calc_id=None):
+	def get_oq_shcf_percentiles(self, percentile_levels, write_xml=False, calc_id=None):
 		"""
-		Compute percentiles of OpenQuake spectral hazard curve fields
+		Compute or read percentiles of OpenQuake spectral hazard curve fields
 
 		:param percentile_levels:
 			list or array with percentile levels in the range 0 - 100
@@ -2719,29 +2719,30 @@ class PSHAModelTree(PSHAModelBase):
 				be determined automatically)
 
 		:return:
-			shcfs?
+			list with instances of :class:`rshalib.result.SpectralHazardCurveField`
 		"""
 		shcft = self.read_oq_shcft(calc_id=calc_id)
 		perc_intercepts = shcft.calc_percentiles_epistemic(percentile_levels, weighted=True)
 
-		# TODO: check if XML files exist (or else read_oq_shcf_percentiles method ?)
 		perc_shcf_list = []
 		for p, perc_level in percentile_levels:
-			model_name = "P%02d(self.name)" % (perc_level, self.name)
-			hazard_values = perc_intercepts[:,:,:,p]
-			filespecs = []
-			sites = shcft.sites
-			periods = shcft.periods
-			IMT = shcft.IMT
-			intensities = shcft.intensities
-			intensity_unit = shcft.intensity_unit
-			timespan = self.time_span
-
-			shcf = SpectralHazardCurveField(model_name, hazard_values, filespecs, sites, periods, IMT, intensities, intensity_unit=intensity_unit, timespan=timespan)
+			curve_name = "quantile-%.2f" % perc_level / 100.
+			xml_filespec = self.get_oq_shcf_filespec(curve_name, calc_id=calc_id)
+			if not write_xml and os.path.exists(xml_filespec):
+				shcf = self.read_oq_shcf(curve_name, calc_id=calc_id)
+			else:
+				model_name = "P%02d(self.name)" % (perc_level, self.name)
+				hazard_values = perc_intercepts[:,:,:,p]
+				filespecs = []
+				sites = shcft.sites
+				periods = shcft.periods
+				IMT = shcft.IMT
+				intensities = shcft.intensities
+				intensity_unit = shcft.intensity_unit
+				timespan = self.time_span
+				shcf = SpectralHazardCurveField(model_name, hazard_values, filespecs, sites, periods, IMT, intensities, intensity_unit=intensity_unit, timespan=timespan)
+				self.write_oq_shcf(shcf, curve_name, calc_id=calc_id)
 			perc_shcf_list.append(shcf)
-			if write_xml:
-				# TODO
-				curve_name = ""
 		return perc_shcf_list
 
 	def read_crisis_shcft(self, batch_filename="lt_batch.dat"):
