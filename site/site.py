@@ -15,7 +15,6 @@ as well as to generate input files for OpenQuake.
 import numpy as np
 
 from lxml import etree
-from scitools.numpytools import seq
 
 import openquake.hazardlib as nhlib
 
@@ -237,6 +236,8 @@ class SHASiteModel(nhlib.geo.Mesh):
 			self.lons = grid.lons
 			self.lats = grid.lats
 		else:
+			from scitools.numpytools import seq
+
 			slons = seq(np.array(self.grid_outline)[:,0].min(), np.array(self.grid_outline)[:,0].max(), self.grid_spacing[0])
 			slats = seq(np.array(self.grid_outline)[:,1].min(), np.array(self.grid_outline)[:,1].max(), self.grid_spacing[1])
 			grid = np.dstack(np.meshgrid(slons, slats[::-1]))
@@ -417,7 +418,7 @@ class SoilSite(nhlib.site.Site):
 	@property
 	def lat(self):
 		return self.location.latitude
-	
+
 	@property
 	def longitude(self):
 		return self.location.longitude
