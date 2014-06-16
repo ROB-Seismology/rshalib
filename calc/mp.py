@@ -132,19 +132,20 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 	return curves
 
 
-def calc_shcf_psha_model(psha_model, sample_idx, cav_min, combine_pga_and_sa, calc_id, verbose):
+def calc_shcf_psha_model(psha_model, curve_name, curve_path, cav_min, combine_pga_and_sa, calc_id, verbose):
 	"""
 	Stand-alone function that will compute hazard curves for a single
-	logic-tree sample.
+	PSHA model, e.g., a logic-tree sample.
 	Note:
 		- all necessary parameters have to provided, so as not to depend
 		  on variables defined elsewhere
 
 	:param psha_model:
 		instace of :class:`PSHAModel`
-	:param sample_idx:
-		str, sample index (formatted with adequate number of leading zeros,
-		and starting from 1)
+	:param curve_name:
+		str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+	:param curve_path:
+		str, path to hazard curve relative to main hazard-curve folder
 	:param cav_min:
 		float, CAV threshold in g.s
 	:param combine_pga_and_sa:
@@ -159,25 +160,24 @@ def calc_shcf_psha_model(psha_model, sample_idx, cav_min, combine_pga_and_sa, ca
 	"""
 	## Run
 	if verbose:
-		print("Starting hazard-curve calculation of sample %s..." % sample_idx)
+		print("Starting hazard-curve calculation of curve %s..." % curve_name)
 
 	try:
 		im_shcf_dict = psha_model.calc_shcf(cav_min=cav_min, combine_pga_and_sa=combine_pga_and_sa)
 	except Exception, err:
-		msg = 'Warning: An error occurred with sample %s. Error: %s'
-		msg %= (sample_idx, err.message)
+		msg = 'Warning: An error occurred with curve %s. Error: %s'
+		msg %= (curve_name, err.message)
 		#raise RuntimeError(msg)
 		print(msg)
 		return 1
 	else:
 		## Write XML file, creating directory if necessary
-		curve_name = "rlz-%s" % (sample_idx)
 		for im, shcf in im_shcf_dict.items():
 			if im == "SA":
-				psha_model.write_oq_shcf(shcf, curve_name, calc_id=calc_id)
+				psha_model.write_oq_shcf(shcf, curve_name, curve_path=curve_path, calc_id=calc_id)
 			else:
 				hcf = shcf.getHazardCurveField(period_spec=0)
-				psha_model.write_oq_hcf(hcf, curve_name, calc_id=calc_id)
+				psha_model.write_oq_hcf(hcf, curve_name, curve_path=curve_path, calc_id=calc_id)
 
 		return 0
 
@@ -328,9 +328,9 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape, site_
 		return 0
 
 
-def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, calc_id, interpolate_rp, verbose):
+def deaggregate_psha_model(psha_model, curve_name, curve_path, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, calc_id, interpolate_rp, verbose):
 	"""
-	Stand-alone function that will deaggregate a single logic-tree sample.
+	Stand-alone function that will deaggregate a single PSHA model, e.g. a logic-tree sample.
 	Intensity measure levels corresponding to psha_model.return_periods
 	will be interpolated first, so the hazard curves must have been
 	computed before.
@@ -340,9 +340,10 @@ def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_period
 
 	:param psha_model:
 		instace of :class:`PSHAModel`
-	:param sample_idx:
-		str, sample index (formatted with adequate number of leading zeros,
-		and starting from 1)
+	:param curve_name:
+		str, identifying hazard curve (e.g., "rlz-01", "mean", "quantile_0.84")
+	:param curve_path:
+		str, path to hazard curve relative to main hazard-curve folder
 	:param deagg_sites:
 		list with instances of :class:`SHASite` for which deaggregation
 		will be performed. Note that instances of class:`SoilSite` will
@@ -381,10 +382,9 @@ def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_period
 	if verbose:
 		print psha_model.name
 
-	curve_name = "rlz-%s" % sample_idx
 	if interpolate_rp:
 		## Determine intensity levels from saved hazard curves
-		site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, deagg_sites,
+		site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, curve_path, deagg_sites,
 													deagg_imt_periods, calc_id=calc_id)
 	else:
 		## Deaggregate for all available intensity levels
@@ -394,13 +394,13 @@ def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_period
 
 	## Deaggregation
 	if verbose:
-		print("Starting deaggregation of sample %s..." % sample_idx)
+		print("Starting deaggregation of curve %s..." % curve_name)
 
 	try:
 		spectral_deagg_curve_dict = psha_model.deaggregate(site_imtls, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, verbose=False)
 	except Exception, err:
-		msg = 'Warning: An error occurred with sample %s. Error: %s'
-		msg %= (sample_idx, err.message)
+		msg = 'Warning: An error occurred with curve %s. Error: %s'
+		msg %= (curve_path, err.message)
 		#raise RuntimeError(msg)
 		print(msg)
 		return 1
@@ -408,7 +408,7 @@ def deaggregate_psha_model(psha_model, sample_idx, deagg_sites, deagg_imt_period
 		## Write XML file(s), creating directory if necessary
 		for (lon, lat) in spectral_deagg_curve_dict.keys():
 			sdc = spectral_deagg_curve_dict[(lon, lat)]
-			psha_model.write_oq_disagg_matrix_multi(sdc, curve_name, calc_id=calc_id)
+			psha_model.write_oq_disagg_matrix_multi(sdc, curve_name, curve_path=curve_path, calc_id=calc_id)
 
 		## Don't return deaggregation results to preserve memory
 		return 0
