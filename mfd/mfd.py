@@ -596,7 +596,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			- params: (observed Mmax, n, a, b) tuple
 		"""
 		from matplotlib import mlab
-		from scitools.numpytools import seq
+		from ..utils import seq
 		from ..pmf import MmaxPMF
 
 		## Global prior distributions
