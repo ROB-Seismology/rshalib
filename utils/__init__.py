@@ -5,4 +5,4 @@
 import utils
 reload(utils)
 
-from utils import interpolate, logrange, wquantiles, LevelNorm
+from utils import interpolate, logrange, wquantiles, seq, LevelNorm

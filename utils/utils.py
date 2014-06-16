@@ -83,6 +83,44 @@ def wquantiles(data, weights, quantile_levels, interpol=True):
 
 	return quantile_intercepts
 
+def seq(start, stop, step):
+	"""
+	Alternative to scitools.numpytools.seq function to avoid
+	some nasty side effects of importing this module:
+	- modification of matplotlib defaults (e.g., backend);
+	- immediate disappearance of matplotlib plots when pylab.show()
+	  is called.
+
+	Generate sequence of numbers between start and stop (inclusive!),
+	with increment of step. More robust alternative to arange, where the
+	returned sequence normally should not include stop, but sometimes it
+	does in an unpredictable way (particulary with a step of 0.1).
+	Compare for instance:
+	np.arange(5.1, 6.1, 0.1):
+	array([ 5.1,  5.2,  5.3,  5.4,  5.5,  5.6,  5.7,  5.8,  5.9,  6. ])
+
+	np.arange(5.1, 6.2, 0.1):
+	array([ 5.1,  5.2,  5.3,  5.4,  5.5,  5.6,  5.7,  5.8,  5.9,  6. ,  6.1,  6.2])
+
+
+	Note that, if stop is not exactly aligned to start + n*dm,
+	rounding will apply.
+
+	:param start:
+		int or float, start of sequence
+	:param end:
+		int or float, end of sequence
+	:param step:
+		int or float, spacing between values
+
+	:return:
+		1-D numpy array, int if both start and step are integers,
+		float otherwise
+	"""
+	diff = float(stop - start)
+	nvals = int(round(diff / step)) + 1
+	return start + np.arange(nvals) * step
+
 
 class LevelNorm(matplotlib.colors.Normalize):
 	"""
