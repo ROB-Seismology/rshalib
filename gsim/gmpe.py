@@ -384,7 +384,6 @@ class GMPE(object):
 			float array, joint probability(ies) for each iml
 		"""
 		import scipy.stats
-		from scitools.numpytools import seq
 		from ..utils import interpolate
 		from ..cav import calc_CAV_exceedance_prob
 
