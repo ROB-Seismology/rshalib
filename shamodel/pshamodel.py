@@ -2463,8 +2463,10 @@ class PSHAModelTree(PSHAModelBase):
 		job_args = []
 		num_lt_samples = self.num_lt_samples or self.get_num_paths()
 		fmt = "%%0%dd" % len(str(num_lt_samples))
+		curve_name = "rlz-%s" % (fmt % (sample_idx + 1))
+		curve_path = ""
 		for sample_idx, (psha_model, weight) in enumerate(psha_models_weights):
-			job_args.append((psha_model, fmt % (sample_idx + 1), cav_min, combine_pga_and_sa, calc_id, verbose))
+			job_args.append((psha_model, curve_name, curve_path, cav_min, combine_pga_and_sa, calc_id, verbose))
 
 		## Launch multiprocessing
 		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose=verbose)
@@ -2565,8 +2567,10 @@ class PSHAModelTree(PSHAModelBase):
 		job_args = []
 		num_lt_samples = self.num_lt_samples or self.get_num_paths()
 		fmt = "%%0%dd" % len(str(num_lt_samples))
+		curve_name = "rlz-%s" % (fmt % (sample_idx + 1))
+		curve_path = ""
 		for sample_idx, (psha_model, weight) in enumerate(psha_models_weights):
-			job_args.append((psha_model, fmt % (sample_idx + 1), deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, calc_id, interpolate_rp, verbose))
+			job_args.append((psha_model, curve_name, curve_path, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, calc_id, interpolate_rp, verbose))
 
 		## Launch multiprocessing
 		return mp.run_parallel(mp.deaggregate_psha_model, job_args, num_processes, verbose=verbose)
@@ -3039,16 +3043,20 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		curve_path = os.path.sep.join([source_model_name, trt_short_name, source_id, gmpe_name])
 		return curve_path
 
-	def iter_psha_models(self):
+	def iter_psha_models(self, source_type=None):
 		"""
 		Loop over decomposed PSHA models
+
+		:param source_type:
+			str, one of "point", "area", "fault", "simple_fault", "complex_fault"
+			or "non_area" (default: None, will use all sources)
 
 		:return:
 			generator object yielding instances of :class:`PSHAModel`
 		"""
 		gmpe_system_def = self.gmpe_lt.gmpe_system_def
 		for source_model in self.source_models:
-			for src in source_model.sources:
+			for src in source_model.get_sources_by_type(source_type):
 				for (modified_src, branch_path, branch_weight) in self.source_model_lt.enumerate_source_realizations(source_model.name, src):
 					branch_path = [b.split('--')[-1] for b in branch_path]
 					somo_name = "%s--%s" % (source_model.name, src.source_id)
@@ -3083,7 +3091,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			bool, whether or not to print some progress information
 			(default: True)
 		"""
-		for psha_model in self.iter_psha_models():
+		## Area sources:
+		## multiprocesing is applied to decomposed area sources in each PSHA model
+		for psha_model in self.iter_psha_models("area"):
 			if verbose:
 				print psha_model.name
 			curve_name_parts = psha_model.source_model.name.split('--')
@@ -3109,6 +3119,40 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			for im in shcf_dict.keys():
 				shcf = shcf_dict[im]
 				self.write_oq_shcf(shcf, source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
+
+
+		## Non-area sources:
+		## multiprocessing is applied to PSHA models not containing area sources
+		psha_models = list(self.iter_psha_models("non_area"))
+
+		## Create list with arguments for each job
+		job_args = []
+		for psha_model in psha_models:
+			if verbose:
+				print psha_model.name
+			curve_name_parts = psha_model.source_model.name.split('--')
+			source_model_name = curve_name_parts[0]
+			curve_name = '--'.join(curve_name_parts[2:])
+			src = psha_model.source_model.sources[0]
+			trt = src.tectonic_region_type
+			gmpe_name = psha_model.ground_motion_model[trt]
+			curve_path = self._get_curve_path(source_model_name, trt, src.source_id, gmpe_name)
+
+			if overwrite is False:
+				## Skip if files already exist and overwrite is False
+				im_imls = self._get_im_imls(combine_pga_and_sa=combine_pga_and_sa)
+				files_exist = []
+				for im in im_imls.keys():
+					# TODO: different filespecs for different ims?
+					xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
+					files_exist.append(os.path.exists(xml_filespec))
+				if np.all(files_exist):
+					continue
+
+			job_args.append((psha_model, curve_name, curve_path, cav_min, combine_pga_and_sa, calc_id, None))
+
+		## Launch multiprocessing
+		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose=verbose)
 
 	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', num_cores=None, calc_id="oqhazlib", interpolate_rp=True, overwrite=True, verbose=False):
 		"""
@@ -3178,8 +3222,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			## Fake return periods
 			return_periods = np.zeros(self.num_intensities)
 
-		# Deaggregate
-		for psha_model in self.iter_psha_models():
+
+		## Deaggregate area sources:
+		## multiprocesing is applied to decomposed area sources in each PSHA model
+		for psha_model in self.iter_psha_models("area"):
 			if verbose:
 				print psha_model.name
 
@@ -3212,6 +3258,41 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			for (lon, lat) in sdc_dict.keys():
 				sdc = sdc_dict[(lon, lat)]
 				self.write_oq_disagg_matrix_multi(sdc, source_model_name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
+
+
+		## Deaggregate non-area sources:
+		## multiprocessing is applied to PSHA models not containing area sources
+		psha_models = list(self.iter_psha_models("non_area"))
+
+		## Create list with arguments for each job
+		job_args = []
+		for psha_model in psha_models:
+			if verbose:
+				print psha_model.name
+			curve_name_parts = psha_model.source_model.name.split('--')
+			source_model_name = curve_name_parts[0]
+			curve_name = '--'.join(curve_name_parts[2:])
+			src = psha_model.source_model.sources[0]
+			trt = src.tectonic_region_type
+			gmpe_name = psha_model.ground_motion_model[trt]
+			curve_path = self._get_curve_path(source_model_name, trt, src.source_id, gmpe_name)
+
+			if overwrite is False:
+				## Skip if files already exist and overwrite is False
+				im_imls = self._get_im_imls(combine_pga_and_sa=combine_pga_and_sa)
+				files_exist = []
+				for (lon, lat) in site_imtls.keys():
+					site = SHASite(lon, lat)
+					xml_filespec = self.get_oq_sdc_filespec_decomposed(source_model_name, trt, src.source_id, gmpe_name, curve_name, site, calc_id=calc_id)
+					files_exist.append(os.path.exists(xml_filespec))
+				if np.all(files_exist):
+					continue
+
+			deagg_sites = [SHASite(lon, lat) for (lon, lat) in site_imtls.keys()]
+			job_args.append((psha_model, curve_name, curve_path, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, calc_id, interpolate_rp, None))
+
+		## Launch multiprocessing
+		return mp.run_parallel(mp.deaggregate_psha_model, job_args, num_cores, verbose=verbose)
 
 	def _interpolate_oq_site_imtls(self, sites, imt_periods, curve_name="", curve_path="", calc_id=None):
 		"""
