@@ -236,7 +236,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			self.lons = grid.lons
 			self.lats = grid.lats
 		else:
-			from scitools.numpytools import seq
+			from ..utils import seq
 
 			slons = seq(np.array(self.grid_outline)[:,0].min(), np.array(self.grid_outline)[:,0].max(), self.grid_spacing[0])
 			slats = seq(np.array(self.grid_outline)[:,1].min(), np.array(self.grid_outline)[:,1].max(), self.grid_spacing[1])
