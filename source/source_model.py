@@ -214,11 +214,32 @@ class SourceModel():
 	def upper_seismogenic_depth(self):
 		return min([source.upper_seismogenic_depth for source in self.sources])
 
+	def get_sources_by_type(self, source_type):
+		"""
+		Fetch sources of a given type
+
+		:param source_type:
+			str, one of "point", "area", "fault", "simple_fault", "complex_fault"
+			or "non_area"
+			If None, all sources will be selected
+
+		:return:
+			list with source objects
+		"""
+		if source_type is None:
+			return self.sources
+		else:
+			meth_name = "get_%s_sources" % source_type
+			return getattr(self, meth_name)()
+
 	def get_point_sources(self):
 		return [source for source in self.sources if isinstance(source, PointSource)]
 
 	def get_area_sources(self):
 		return [source for source in self.sources if isinstance(source, AreaSource)]
+
+	def get_non_area_sources(self):
+		return [source for source in self.sources if not isinstance(source, AreaSource)]
 
 	def get_simple_fault_sources(self):
 		return [source for source in self.sources if isinstance(source, SimpleFaultSource)]
