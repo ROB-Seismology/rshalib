@@ -121,7 +121,7 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 				sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
 				if cav_min > 0 and not hasattr(sctx, "vs30"):
 					## Set vs30 explicitly for GMPEs that do not require vs30
-					setattr(sctx, "vs30", getattr(r_sites, vs30))
+					setattr(sctx, "vs30", getattr(r_sites, "vs30"))
 				for k, imt in enumerate(imts):
 					poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imts[imt],
 										 psha_model.truncation_level, cav_min=cav_min)
