@@ -19,6 +19,7 @@ import openquake.hazardlib as nhlib
 from openquake.hazardlib.imt import PGA, SA, PGV, PGD, MMI
 
 from base import SHAModelBase
+from ..calc import mp
 from ..geo import *
 from ..site import *
 from ..result import SpectralHazardCurveField, SpectralHazardCurveFieldTree, Poisson, ProbabilityArray, ProbabilityMatrix, DeaggregationSlice, SpectralDeaggregationCurve
@@ -979,8 +980,6 @@ class PSHAModel(PSHAModelBase):
 			- dict mapping source IDs to instances of
 			:class:`SpectralHazardCurveField` (if group_sources is False)
 		"""
-		from ..calc import mp
-
 		if not num_cores:
 			num_cores = mp.multiprocessing.cpu_count()
 
@@ -1417,8 +1416,6 @@ class PSHAModel(PSHAModelBase):
 			dict, mapping site (lon, lat) tuples to instances of
 			:class:`SpectralDeaggregationCurve`
 		"""
-		from ..calc import mp
-
 		if not n_epsilons:
 			n_epsilons = 2 * int(np.ceil(self.truncation_level))
 		if not mag_bin_width:
@@ -2448,8 +2445,6 @@ class PSHAModelTree(PSHAModelBase):
 			list of exit codes for each sample (0 for succesful execution,
 			1 for error)
 		"""
-		from ..calc import mp
-
 		## Generate all PSHA models
 		psha_models_weights = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
 
@@ -2521,7 +2516,6 @@ class PSHAModelTree(PSHAModelBase):
 		"""
 		import platform
 		import psutil
-		from ..calc import mp
 
 		## Generate all PSHA models
 		psha_models_weights = self.sample_logic_trees(self.num_lt_samples, enumerate_gmpe_lt=False, verbose=False)
