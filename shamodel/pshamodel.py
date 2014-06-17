@@ -3063,12 +3063,14 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						psha_model = self._get_psha_model(partial_source_model, gmpe_model, model_name)
 						yield psha_model
 
-	def calc_shcf_mp(self, num_cores=None, combine_pga_and_sa=True, calc_id="oqhazlib", overwrite=True, verbose=True):
+	def calc_shcf_mp(self, cav_min=0, num_cores=None, combine_pga_and_sa=True, calc_id="oqhazlib", overwrite=True, verbose=True):
 		"""
 		Compute spectral hazard curve fields using multiprocessing.
 		The results are written to XML files in a folder structure:
 		source_model_name / trt_short_name / source_id / gmpe_name
 
+		:param cav_min:
+			float, CAV threshold in g.s (default: 0)
 		:param num_cores:
 			int, number of CPUs to be used. Actual number of cores used
 			may be lower depending on available cores and memory
@@ -3108,7 +3110,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				if np.all(files_exist):
 					continue
 
-			shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
+			shcf_dict = psha_model.calc_shcf_mp(cav_min=cav_min, decompose_area_sources=True, num_cores=num_cores, combine_pga_and_sa=combine_pga_and_sa)
 
 			for im in shcf_dict.keys():
 				shcf = shcf_dict[im]
@@ -3146,7 +3148,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			job_args.append((psha_model, curve_name, curve_path, cav_min, combine_pga_and_sa, calc_id, None))
 
 		## Launch multiprocessing
-		return mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose=verbose)
+		if len(job_args) > 0:
+			mp.run_parallel(mp.calc_shcf_psha_model, job_args, num_cores, verbose=verbose)
 
 	def deaggregate_mp(self, sites, imt_periods, mag_bin_width=None, dist_bin_width=10., n_epsilons=None, coord_bin_width=1.0, dtype='d', num_cores=None, calc_id="oqhazlib", interpolate_rp=True, overwrite=True, verbose=False):
 		"""
@@ -3286,7 +3289,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			job_args.append((psha_model, curve_name, curve_path, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, calc_id, interpolate_rp, None))
 
 		## Launch multiprocessing
-		return mp.run_parallel(mp.deaggregate_psha_model, job_args, num_cores, verbose=verbose)
+		if len(job_args) > 0:
+			mp.run_parallel(mp.deaggregate_psha_model, job_args, num_cores, verbose=verbose)
 
 	def _interpolate_oq_site_imtls(self, sites, imt_periods, curve_name="", curve_path="", calc_id=None):
 		"""
