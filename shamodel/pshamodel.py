@@ -3145,7 +3145,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				if np.all(files_exist):
 					continue
 
-			job_args.append((psha_model, curve_name, curve_path, cav_min, combine_pga_and_sa, calc_id, None))
+			job_args.append((psha_model, curve_name, curve_path, cav_min, combine_pga_and_sa, calc_id, verbose))
+
+			## Create folder before starting mp to avoid race conditions
+			hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name, calc_id=calc_id)
+			self.create_folder_structure(hc_folder)
 
 		## Launch multiprocessing
 		if len(job_args) > 0:
@@ -3286,7 +3290,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					continue
 
 			deagg_sites = [SHASite(lon, lat) for (lon, lat) in site_imtls.keys()]
-			job_args.append((psha_model, curve_name, curve_path, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, calc_id, interpolate_rp, None))
+			job_args.append((psha_model, curve_name, curve_path, deagg_sites, imt_periods, mag_bin_width, dist_bin_width, n_epsilons, coord_bin_width, dtype, calc_id, interpolate_rp, verbose))
+
+			## Create folder before starting mp to avoid race conditions
+			hc_folder = self.get_oq_hc_folder_decomposed(source_model_name, trt, src.source_id, gmpe_name, calc_id=calc_id)
+			self.create_folder_structure(hc_folder)
 
 		## Launch multiprocessing
 		if len(job_args) > 0:
