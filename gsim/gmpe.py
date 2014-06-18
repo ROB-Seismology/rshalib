@@ -3456,7 +3456,7 @@ class RietbrockEtAl2013SS(NhlibGMPE):
 	def __init__(self):
 		name, short_name = "RietbrockEtAl2013SS", "R_2013SS"
 		distance_metric = "Joyner-Boore"
-		Mmin, Mmax = 2.0, 4.7
+		Mmin, Mmax = 3.0, 7.0
 		dmin, dmax = 1., 300.
 		Mtype = "MW"
 		dampings = [5.]
@@ -3492,7 +3492,7 @@ class RietbrockEtAl2013MD(RietbrockEtAl2013SS):
 	def __init__(self):
 		name, short_name = "RietbrockEtAl2013MD", "R_2013MD"
 		distance_metric = "Joyner-Boore"
-		Mmin, Mmax = 2.0, 4.7
+		Mmin, Mmax = 3.0, 7.0
 		dmin, dmax = 1., 300.
 		Mtype = "MW"
 		dampings = [5.]
