@@ -658,7 +658,7 @@ class LogicTree(object):
 						pos[branch.branch_id] = (l+1+0.5, ymin + b*(dy/(num_branches-1)))
 		return pos
 
-	def plot_diagram(self, highlight_path=[], branch_label="branch_id", branchset_label="", title=None, fig_filespec=None, dpi=300):
+	def plot_diagram(self, highlight_path=[], branch_label="branch_id", branchset_label="", title=None, legend_location=0, fig_filespec=None, dpi=300):
 		"""
 		Plot diagram of logic tree using networkx or pygraphviz.
 		Requires branches to be connected.
@@ -671,6 +671,9 @@ class LogicTree(object):
 			string, branchset property to label (default: "")
 		:param title:
 			string, plot title (default: None)
+		:param legend_location:
+			int or string, matplotlib legend location specifier
+			(default: 0)
 		:param fig_filespec:
 			string, full path to output file. If None, diagram will be
 			displayed on screen (default: None)
@@ -747,7 +750,19 @@ class LogicTree(object):
 				node_labels[branch.branch_id] = label
 		if branchset_label:
 			for bs in all_branchsets:
-				node_labels[bs.id] = getattr(bs, branchset_label)
+				label = getattr(bs, branchset_label)
+				if isinstance(label, list):
+					## applyToSources
+					if len(label) == 0:
+						label = ""
+						#for branch in bs.branches:
+						#	node_labels[branch.branch_id] = branch.value
+					elif len(label) == 1:
+						label = label[0]
+					else:
+						label = "CORR"
+				#label = label.replace('"', '').replace('[', '').replace(']', '')
+				node_labels[bs.id] = label
 		## TODO: label offset doesn't work
 		label_offset = 0.05
 		label_pos = {}
@@ -758,7 +773,7 @@ class LogicTree(object):
 		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, label_pos=0.5, font_size=10)
 
 		## Plot decoration
-		pylab.legend(loc=2, scatterpoints=1, markerscale=0.75, prop={'size': 12})
+		pylab.legend(loc=legend_location, scatterpoints=1, markerscale=0.75, prop={'size': 12})
 		pylab.axis((-0.5, len(self.branching_levels), 0, 1.2))
 		pylab.xticks(range(len(self.branching_levels) + 1))
 		pylab.yticks([])

@@ -686,7 +686,7 @@ class SeismicSourceSystem(LogicTree):
 		branch_sets = self.get_source_branch_sets(source_model.name, src)
 		for bl_index, bs in enumerate(branch_sets):
 			pmf_dict = {source_model.name: bs.to_pmf_dict(source_model)}
-			sss.append_independent_uncertainty_level(pmf_dict)
+			sss.append_independent_uncertainty_level(pmf_dict, correlated=True)
 		sss.connect_branches()
 		return sss
 
