@@ -4114,6 +4114,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		else:
 			mean_sdc = None
 			for sample_idx, (sm_name, smlt_path, gmpelt_path, weight) in enumerate(self.sample_logic_tree_paths(self.num_lt_samples, skip_samples=skip_samples)):
+				sm_name = os.path.splitext(sm_name)[0]
 				num_lt_samples = self.num_lt_samples or self.get_num_paths()
 				fmt = "%%0%dd" % len(str(num_lt_samples))
 				curve_name = "rlz-" + fmt % (sample_idx + 1 + skip_samples)
@@ -4123,7 +4124,6 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				if write_xml is False and os.path.exists(xml_filespec):
 					summed_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id)
 				else:
-					sm_name = os.path.splitext(sm_name)[0]
 					summed_sdc = self.read_oq_deagg_realization(sm_name, smlt_path, gmpelt_path, site, calc_id=calc_id, dtype=dtype)
 
 				if interpolate_rp:
