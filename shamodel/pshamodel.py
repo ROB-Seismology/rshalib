@@ -807,7 +807,7 @@ class PSHAModelBase(SHAModelBase):
 		:param calc_id:
 			str, calculation ID. (default: "oqhazlib")
 		"""
-		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
+		xml_filespec = self.get_oq_sdc_filespec(curve_name, sdc.site, curve_path=curve_path, calc_id=calc_id)
 		disagg_folder = os.path.split(xml_filespec)[0]
 		self.create_folder_structure(disagg_folder)
 		sdc.write_nrml(xml_filespec, self.smlt_path, self.gmpelt_path)
