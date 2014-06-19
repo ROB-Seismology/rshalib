@@ -3280,7 +3280,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 			if overwrite is False:
 				## Skip if files already exist and overwrite is False
-				im_imls = self._get_im_imls(combine_pga_and_sa=combine_pga_and_sa)
+				im_imls = self._get_im_imls(combine_pga_and_sa=True)
 				files_exist = []
 				for (lon, lat) in site_imtls.keys():
 					site = SHASite(lon, lat)
