@@ -4145,9 +4145,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					mean_sdc = summed_sdc
 					mean_sdc.model_name = "Logic-tree weighted mean"
 				else:
-					mean_sdc += summed_sdc
+					mean_sdc.deagg_matrix += summed_sdc.deagg_matrix
 
-			mean_sdc /= (sample_idx + 1)
+			mean_sdc.deagg_matrix /= (sample_idx + 1)
 			self.write_oq_disagg_matrix_multi(mean_sdc, "", "", "", "", mean_curve_name, calc_id=calc_id)
 
 		return mean_sdc
