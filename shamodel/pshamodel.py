@@ -4082,12 +4082,15 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return summed_sdc
 
-	def get_oq_mean_sdc_from_lt_samples(self, site, skip_samples=0, write_xml=False, calc_id=None, dtype='f'):
+	def get_oq_mean_sdc_from_lt_samples(self, site, interpolate_rp=True, skip_samples=0, write_xml=False, calc_id=None, dtype='f'):
 		"""
 		Read or compute mean spectral deaggregation curve based on logic-tree samples
 
 		:param site:
 			instance of :class:`SHASite` or :class:`SoilSite`
+		:param interpolate_rp:
+			bool, whether or not to interpolate each logic-tree sample at
+			the return periods defined in logic tree (default: True)
 		:param skip_samples:
 			int, number of samples to skip (default: 0)
 		:param write_xml:
@@ -4123,6 +4126,13 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					sm_name = os.path.splitext(sm_name)[0]
 					summed_sdc = self.read_oq_deagg_realization(sm_name, smlt_path, gmpelt_path, site, calc_id=calc_id, dtype=dtype)
 					self.write_oq_disagg_matrix_multi(summed_sdc, "", "", "", "", curve_name, calc_id=calc_id)
+
+				if interpolate_rp:
+					## Read shcf corresponding to logic-tree sample, and use it to slice
+					## spectral deaggregation curve at return periods defined in logic tree
+					shcf = self.read_oq_shcf(curve_name, curve_path=curve_path, calc_id=calc_id)
+					shc = shcf.getSpectralHazardCurve(site_spec=site)
+					summed_sdc = summed_sdc.slice_return_periods(self.return_periods, shc)
 
 				if mean_sdc is None:
 					mean_sdc = summed_sdc
