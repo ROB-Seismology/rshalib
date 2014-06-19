@@ -1627,7 +1627,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		mean_high_freq_dc.period = periods.mean()
 		return mean_high_freq_dc
 
-	def analyze_controlling_earthquakes(self, remote_distance=100):
+	def analyze_controlling_earthquakes(self, remote_distance=100, filespec=None):
 		"""
 		Print magnitude and distance of controlling earthquakes.
 
@@ -1641,22 +1641,37 @@ class SpectralDeaggregationCurve(DeaggBase):
 		"""
 		mean_high_freq_dc = self.get_mean_high_freq_curve()
 		mean_low_freq_dc = self.get_mean_low_freq_curve()
-
+		
+		strings = []
 		for i, return_period in enumerate(self.return_periods):
-			print("Return period: %s yr" % return_period)
+			string = "Return period: %s yr" % return_period
+			print(string)
+			strings.append(string)
 
 			mean_high_freq_ds = mean_high_freq_dc.get_slice(iml_index=i)
 			mean_low_freq_ds = mean_low_freq_dc.get_slice(iml_index=i)
 
 			contrib = mean_low_freq_ds.get_contribution_above_distance(remote_distance)
-			print("  Low-freq contribution for d > %s km: %.2f %%" % (remote_distance, contrib * 100))
+			string = "  Low-freq contribution for d > %s km: %.2f %%" % (remote_distance, contrib * 100)
+			print(string)
+			strings.append(string)
 
 			mean_mag, mean_dist = mean_high_freq_ds.get_mean_eq_scenario()
-			print("  High-frequency controlling earthquake: M=%.1f, d=%.0f km" % (mean_mag, mean_dist))
+			string = "  High-frequency controlling earthquake: M=%.1f, d=%.0f km" % (mean_mag, mean_dist)
+			print(string)
+			strings.append(string)
 
 			mean_remote_low_freq_ds = mean_low_freq_ds.get_fractional_contribution_slice_above(remote_distance, 1)
 			mean_mag, mean_dist = mean_remote_low_freq_ds.get_mean_eq_scenario()
-			print("  Remote low-frequency controlling earthquake: M=%.1f, d=%.0f km" % (mean_mag, mean_dist))
+			string = "  Remote low-frequency controlling earthquake: M=%.1f, d=%.0f km" % (mean_mag, mean_dist)
+			print(string)
+			strings.append(string)
+			
+		if filespec:
+			with open(filespec, "w") as f:
+				for string in strings:
+					f.write(string)
+					f.write("\n")
 
 		return (mean_high_freq_dc, mean_low_freq_dc)
 
