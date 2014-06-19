@@ -3571,7 +3571,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:return:
 			instance of :class:`rshalib.result.SpectralHazardCurveField`
 		"""
-		source_model = [somo for somo in self.source_models if somo.name == source_model_name][0]
+		source_model = self.get_source_model_by_name(source_model_name)
 		summed_shcf = None
 		for src in source_model.sources:
 			shcf, weight = self.read_oq_realization_by_source(source_model_name, src, smlt_path, gmpelt_path, calc_id=calc_id)
@@ -4028,10 +4028,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path, calc_id=calc_id)
 				return sdc, weight
 
-	def read_oq_deagg_realization(self, source_model_name, smlt_path, gmpelt_path, site, calc_id=None):
+	def read_oq_deagg_realization(self, source_model_name, smlt_path, gmpelt_path, site, calc_id=None, dtype='f'):
 		"""
 		Read deaggregation results of a particular logic-tree sample
-		(by summing deaggregation curves of individual sources)
+		(by summing deaggregation curves of individual sources).
 
 		:param source_model_name:
 			str, name of source model
@@ -4044,23 +4044,96 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
+		:param dtype:
+			str, precision of deaggregation matrix (default: 'f')
 
 		:return:
 			instance of :class:`rshalib.result.SpectralDeaggregationCurve`
 		"""
-		# TODO: this is in fact not possible, because we did not compute contribution
-		# to hazard curve corresponding to a logic-tree sample...!
-		source_model = [somo for somo in self.source_models if somo.name == source_model_name][0]
-		summed_sdc = None
-		for src in source_model.sources:
+		import gc
+
+		source_model = self.get_source_model_by_name(source_model_name)
+		for i, src in enumerate(source_model.sources):
 			sdc, weight = self.read_oq_deagg_realization_by_source(source_model_name, src, smlt_path, gmpelt_path, site, calc_id=calc_id)
-			if sdc:
-				if summed_sdc is None:
-					summed_sdc = sdc
-				else:
-					# TODO: doesn't work because bins are different
-					summed_sdc += sdc
+			if i == 0:
+				## Create empty deaggregation matrix
+				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
+				mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = bin_edges
+				num_periods = len(sdc.periods)
+				num_intensities = len(sdc.return_periods)
+				summed_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
+
+				max_mag_idx = min(sdc.nmags, len(mag_bins) - 1)
+				min_lon_idx = int((sdc.min_lon - lon_bins[0]) / sdc.lon_bin_width)
+				max_lon_idx = min_lon_idx + sdc.nlons
+				min_lat_idx = int((sdc.min_lat - lat_bins[0]) / sdc.lat_bin_width)
+				max_lat_idx = min_lat_idx + sdc.nlats
+				try:
+					trt_idx = trts.index(src.source_id)
+				except:
+					trt_idx = trts.index(src.tectonic_region_type)
+
+				summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:max_mag_idx,:,:,:,:,0]
+				del sdc.deagg_matrix
+				gc.collect()
+			#intensities = np.zeros(sdc.intensities.shape)
+			summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+			summed_sdc.model_name = "%s weighted mean" % source_model_name
+
 		return summed_sdc
+
+	def get_oq_mean_sdc_from_lt_samples(self, site, skip_samples=0, write_xml=False, calc_id=None, dtype='f'):
+		"""
+		Read or compute mean spectral deaggregation curve based on logic-tree samples
+
+		:param site:
+			instance of :class:`SHASite` or :class:`SoilSite`
+		:param skip_samples:
+			int, number of samples to skip (default: 0)
+		:param write_xml:
+			bool, whether or not to write spectral hazard curve fields
+			corresponding to different logic-tree realizations to xml
+			(default: False)
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+		:param dtype:
+			str, precision of deaggregation matrix (default: 'f')
+
+		:return:
+			instance of :class:`rshalib.result.SpectralDeaggregationCurve`
+		"""
+		mean_curve_name = "mean_lt"
+		curve_path = ""
+		xml_filespec = self.get_oq_sdc_filespec(mean_curve_name, site, curve_path=curve_path, calc_id=calc_id)
+		if write_xml is False and os.path.exists(xml_filespec):
+			mean_sdc = self.read_oq_disagg_matrix_multi(mean_curve_name, site, curve_path=curve_path, calc_id=calc_id)
+		else:
+			mean_sdc = None
+			for sample_idx, (sm_name, smlt_path, gmpelt_path, weight) in enumerate(self.sample_logic_tree_paths(self.num_lt_samples, skip_samples=skip_samples)):
+				num_lt_samples = self.num_lt_samples or self.get_num_paths()
+				fmt = "%%0%dd" % len(str(num_lt_samples))
+				curve_name = "rlz-" + fmt % (sample_idx + 1 + skip_samples)
+				curve_path = ""
+				xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
+
+				if write_xml is False and os.path.exists(xml_filespec):
+					summed_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id)
+				else:
+					sm_name = os.path.splitext(sm_name)[0]
+					summed_sdc = self.read_oq_deagg_realization(sm_name, smlt_path, gmpelt_path, site, calc_id=calc_id, dtype=dtype)
+					self.write_oq_disagg_matrix_multi(summed_sdc, "", "", "", "", curve_name, calc_id=calc_id)
+
+				if mean_sdc is None:
+					mean_sdc = summed_sdc
+					mean_sdc.model_name = "Logic-tree weighted mean"
+				else:
+					mean_sdc += summed_sdc
+
+			mean_sdc /= (sample_idx + 1)
+			self.write_oq_disagg_matrix_multi(mean_sdc, "", "", "", "", mean_curve_name, calc_id=calc_id)
+
+		return mean_sdc
 
 	def read_oq_source_deagg_realizations(self, source_model_name, src, site, gmpe_name="", calc_id=None, verbose=False):
 		"""
