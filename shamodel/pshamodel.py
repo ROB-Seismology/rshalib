@@ -4133,7 +4133,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					if write_xml is False and os.path.exists(shcf_filespec):
 						shcf = self.read_oq_shcf(curve_name, curve_path=curve_path, calc_id=calc_id)
 					else:
-						shcf = read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
+						shcf = self.read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
 						self.write_oq_shcf(shcf, sm_name, "", "", "", curve_name, calc_id=calc_id)
 					shc = shcf.getSpectralHazardCurve(site_spec=site)
 					summed_sdc = summed_sdc.slice_return_periods(self.return_periods, shc)
