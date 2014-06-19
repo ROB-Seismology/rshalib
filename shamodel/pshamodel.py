@@ -4125,14 +4125,21 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				else:
 					sm_name = os.path.splitext(sm_name)[0]
 					summed_sdc = self.read_oq_deagg_realization(sm_name, smlt_path, gmpelt_path, site, calc_id=calc_id, dtype=dtype)
-					self.write_oq_disagg_matrix_multi(summed_sdc, "", "", "", "", curve_name, calc_id=calc_id)
 
 				if interpolate_rp:
 					## Read shcf corresponding to logic-tree sample, and use it to slice
 					## spectral deaggregation curve at return periods defined in logic tree
-					shcf = self.read_oq_shcf(curve_name, curve_path=curve_path, calc_id=calc_id)
+					shcf_filespec = self.get_oq_shcf_filespec(curve_name, curve_path=curve_path, calc_id=calc_id)
+					if write_xml is False and os.path.exists(shcf_filespec):
+						shcf = self.read_oq_shcf(curve_name, curve_path=curve_path, calc_id=calc_id)
+					else:
+						shcf = read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
+						self.write_oq_shcf(shcf, sm_name, "", "", "", curve_name, calc_id=calc_id)
 					shc = shcf.getSpectralHazardCurve(site_spec=site)
 					summed_sdc = summed_sdc.slice_return_periods(self.return_periods, shc)
+
+				if not os.path.exists(xml_filespec):
+					self.write_oq_disagg_matrix_multi(summed_sdc, "", "", "", "", curve_name, calc_id=calc_id)
 
 				if mean_sdc is None:
 					mean_sdc = summed_sdc
