@@ -1130,6 +1130,7 @@ class DeaggregationCurve(DeaggBase):
 		"""
 		if iml is not None:
 			iml_index = np.argmin(np.abs(self.intensities - iml))
+			iml = self.intensities[iml_index]
 		else:
 			iml = self.intensities[iml_index]
 		matrix = self.deagg_matrix[iml_index]
