@@ -881,7 +881,7 @@ class DeaggregationSlice(DeaggBase):
 		bin_edges = list(self.bin_edges)
 		axis_bin_edges = self.get_axis_bin_edges(axis)
 		stop_idx = np.digitize([threshold], axis_bin_edges)[0]
-		axis_bin_edges = axis_bin_edges[:stop_idx]
+		axis_bin_edges = axis_bin_edges[:stop_idx+1]
 		bin_edges[axis] = axis_bin_edges
 		return DeaggregationSlice(tuple(bin_edges), matrix, self.site, self.imt, self.iml, self.period, self.return_period, self.timespan)
 
@@ -1376,8 +1376,8 @@ class SpectralDeaggregationCurve(DeaggBase):
 		assert self.site == other_sdc.site
 		assert self.imt == other_sdc.imt
 		assert (self.periods == other_sdc.periods).all()
-		assert (self.intensities == other_sdc.intensities).all()
-		assert (self.return_periods == other_sdc.return_periods).all()
+		assert self.intensities.shape == other_sdc.intensities.shape
+		assert (self.intensities == other_sdc.intensities).all() or (self.return_periods == other_sdc.return_periods).all()
 		assert self.timespan == other_sdc.timespan
 		deagg_matrix = self.deagg_matrix + other_sdc.deagg_matrix
 		return self.__class__(self.bin_edges, deagg_matrix, self.site, self.imt, self.intensities, self.periods, self.return_periods, self.timespan)
@@ -1642,7 +1642,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		"""
 		mean_high_freq_dc = self.get_mean_high_freq_curve()
 		mean_low_freq_dc = self.get_mean_low_freq_curve()
-		
+
 		strings = []
 		for i, return_period in enumerate(self.return_periods):
 			string = "Return period: %s yr" % return_period
@@ -1667,7 +1667,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 			string = "  Remote low-frequency controlling earthquake: M=%.1f, d=%.0f km" % (mean_mag, mean_dist)
 			print(string)
 			strings.append(string)
-			
+
 		if filespec:
 			with open(filespec, "w") as f:
 				for string in strings:
@@ -1690,10 +1690,10 @@ def get_mean_deaggregation_slice(deagg_slices):
 		:class:`FractionalContributionMatrix`
 	"""
 	ds0 = deagg_slices[0]
-	matrix = ds0.get_fractional_contribution_matrix()
+	matrix = ds0.get_fractional_contribution_matrix(renormalize=True)
 	for ds in deagg_slices[1:]:
 		assert ds.bin_edges == ds0.bin_edges
-		matrix += ds.get_fractional_contribution_matrix()
+		matrix += ds.get_fractional_contribution_matrix(renormalize=True)
 	matrix /= np.sum(matrix)
 	return DeaggregationSlice(ds0.bin_edges, matrix, ds0.site, ds0.imt, ds0.iml, ds0.period, ds0.return_period, ds0.timespan)
 
@@ -1710,10 +1710,10 @@ def get_mean_deaggregation_curve(deagg_curves):
 		:class:`FractionalContributionMatrix`
 	"""
 	dc0 = deagg_curves[0]
-	matrix = dc0.get_fractional_contribution_matrix()
+	matrix = dc0.get_fractional_contribution_matrix(renormalize=True)
 	for dc in deagg_curves[1:]:
 		assert dc.bin_edges == dc0.bin_edges
-		matrix += dc.get_fractional_contribution_matrix()
+		matrix += dc.get_fractional_contribution_matrix(renormalize=True)
 	matrix /= np.sum(matrix)
 	return DeaggregationCurve(dc0.bin_edges, matrix, dc0.site, dc0.imt, dc0.intensities, dc0.period, dc0.return_periods, dc0.timespan)
 
