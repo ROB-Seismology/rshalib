@@ -137,6 +137,18 @@ class ExceedanceRateArray(HazardCurveArray):
 		else:
 			return self.__class__(np.average(self.array, axis=axis, weights=weights))
 
+	def mean_and_variance(self, axis, weights=None):
+		"""
+		Return the weighted average and variance.
+		"""
+		mean = self.mean(axis, weights=weights)
+		if weights is None:
+			variance = np.var(self.array, axis=axis)
+		else:
+			variance = np.average((self.array - mean)**2, axis=axis, weights=weights)
+		variance = self.__class__(variance)
+		return (mean, variance)
+
 	def scoreatpercentile(self, axis, percentile_levels, weights=None, interpol=True):
 		quantile_levels = np.array(percentile_levels, 'f') / 100.
 		if weights is None:
@@ -184,8 +196,20 @@ class ProbabilityArray(HazardCurveArray):
 		# TODO: this is different from openquake.engine.calculators.post_processing,
 		# where the simple mean of the poes is computed.
 		# In practice, the differences appear to be minor
-		return ProbabilityArray(1 - np.exp(np.average(np.log(1 - self.array),
+		return self.__class__(1 - np.exp(np.average(np.log(1 - self.array),
 											axis=axis, weights=weights)))
+
+	def mean_and_variance(self, axis, weights=None):
+		"""
+		Return the weighted average and variance.
+		"""
+		log_non_exceedance_probs = np.log(1 - self.array)
+		mean = np.average(log_non_exceedance_probs, axis=axis, weights=weights)
+		mean = np.expand_dims(mean, axis)
+		variance = np.average((log_non_exceedance_probs - mean)**2, axis=axis, weights=weights)
+		mean = self.__class__(1 - np.exp(mean))
+		variance = self.__class__(1 - np.exp(variance))
+		return (mean, variance)
 
 	def scoreatpercentile(self, axis, percentile_levels, weights=None, interpol=True):
 		quantile_levels = np.array(percentile_levels, 'f') / 100.
@@ -999,6 +1023,12 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		else:
 			weights = None
 		return self._hazard_values.mean(axis=1, weights=weights)
+
+	def calc_variance(self, weighted=True):
+		"""
+		Compute variance of hazard curves
+		"""
+		pass
 
 	def calc_variance_of_mean(self, weighted=True):
 		"""

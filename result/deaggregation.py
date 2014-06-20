@@ -1146,12 +1146,14 @@ class DeaggregationCurve(DeaggBase):
 		:return:
 			instance of :class:`HazardCurve`
 		"""
+		from hazard_curve import ExceedanceRateArray
 		exceedance_rates = []
 		for slice in self:
 			exceedance_rates.append(slice.get_total_exceedance_rate())
+		exceedance_rates = ExceedanceRateArray(exceedance_rates)
 		model_name = ""
 		filespec = ""
-		return HazardCurve(model_name, filespec, self.site, self.period, self.imt, self.intensities, "g", self.timespan, poes=None, exceedance_rates=exceedance_rates, variances=None, site_name="")
+		return HazardCurve(model_name, exceedance_rates, filespec, self.site, self.period, self.imt, self.intensities, "g", self.timespan, variances=None)
 
 	def get_occurrence_rates(self):
 		"""
