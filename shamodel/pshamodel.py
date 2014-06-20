@@ -2723,7 +2723,7 @@ class PSHAModelTree(PSHAModelBase):
 		perc_intercepts = shcft.calc_percentiles_epistemic(percentile_levels, weighted=True)
 
 		perc_shcf_list = []
-		for p, perc_level in percentile_levels:
+		for p, perc_level in enumerate(percentile_levels):
 			curve_name = "quantile-%.2f" % perc_level / 100.
 			xml_filespec = self.get_oq_shcf_filespec(curve_name, calc_id=calc_id)
 			if not write_xml and os.path.exists(xml_filespec):
