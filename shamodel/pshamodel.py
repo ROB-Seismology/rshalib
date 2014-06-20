@@ -2724,7 +2724,7 @@ class PSHAModelTree(PSHAModelBase):
 
 		perc_shcf_list = []
 		for p, perc_level in enumerate(percentile_levels):
-			curve_name = "quantile-%.2f" % perc_level / 100.
+			curve_name = "quantile-%.2f" % (perc_level / 100.)
 			xml_filespec = self.get_oq_shcf_filespec(curve_name, calc_id=calc_id)
 			if not write_xml and os.path.exists(xml_filespec):
 				shcf = self.read_oq_shcf(curve_name, calc_id=calc_id)
