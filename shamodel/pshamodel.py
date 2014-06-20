@@ -2729,7 +2729,7 @@ class PSHAModelTree(PSHAModelBase):
 			if not write_xml and os.path.exists(xml_filespec):
 				shcf = self.read_oq_shcf(curve_name, calc_id=calc_id)
 			else:
-				model_name = "P%02d(self.name)" % (perc_level, self.name)
+				model_name = "P%02d(%s)" % (perc_level, self.name)
 				hazard_values = perc_intercepts[:,:,:,p]
 				filespecs = []
 				sites = shcft.sites
