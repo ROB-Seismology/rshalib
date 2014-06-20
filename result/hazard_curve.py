@@ -205,14 +205,18 @@ class ProbabilityArray(HazardCurveArray):
 		"""
 		log_non_exceedance_probs = np.log(1 - self.array)
 		mean = np.average(log_non_exceedance_probs, axis=axis, weights=weights)
-		mean = np.expand_dims(mean, axis)
-		variance = np.average((log_non_exceedance_probs - mean)**2, axis=axis, weights=weights)
+		_mean = 1 - np.exp(np.expand_dims(mean, axis))
+		variance = np.average((log_non_exceedance_probs - _mean)**2, axis=axis, weights=weights)
 		mean = self.__class__(1 - np.exp(mean))
-		variance = self.__class__(1 - np.exp(variance))
+		# TODO: from Wikipedia, but probably not correct
+		variance = (np.exp(variance) - 1.) * np.exp(2 * mean.array + variance)
+		variance = self.__class__(variance)
 		return (mean, variance)
 
 	def scoreatpercentile(self, axis, percentile_levels, weights=None, interpol=True):
 		quantile_levels = np.array(percentile_levels, 'f') / 100.
+		## Note: for probabilities, we need to take 1 - quantile_levels!
+		quantile_levels = 1 - quantile_levels
 		if weights is None:
 			percentiles = np.apply_along_axis(mstats.mquantiles, axis, np.log(1 - self.array), quantile_levels)
 		else:
@@ -1024,11 +1028,15 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			weights = None
 		return self._hazard_values.mean(axis=1, weights=weights)
 
-	def calc_variance(self, weighted=True):
+	def calc_variance_epistemic(self, weighted=True):
 		"""
 		Compute variance of hazard curves
 		"""
-		pass
+		if weighted:
+			weights = self.weights
+		else:
+			weights = np.ones(len(self))
+		return self._hazard_values.mean_and_variance(axis=1, weights=weights)[1]
 
 	def calc_variance_of_mean(self, weighted=True):
 		"""
