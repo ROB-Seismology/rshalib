@@ -768,18 +768,20 @@ class DeaggregationSlice(DeaggBase):
 		Return mean magnitude according to formula in DOE-STD-1023-95,
 		appendix A, page 5.
 		"""
-		deagg_matrix = self.deagg_matrix.to_fractional_contribution_matrix()
-		deagg_matrix = deagg_matrix.fold_axes([1,2,3,4,5])
-		return float(np.sum(self.mag_bin_centers * deagg_matrix))
+		fcm = self.deagg_matrix.to_fractional_contribution_matrix()
+		fcm = fcm.fold_axes([1,2,3,4,5])
+		#return float(np.sum(self.mag_bin_centers * fcm))
+		return np.average(self.mag_bin_centers, weights=fcm)
 
 	def get_mean_distance(self):
 		"""
 		Return mean distance according to formula in DOE-STD-1023-95,
 		appendix A, page 6.
 		"""
-		deagg_matrix = self.deagg_matrix.to_fractional_contribution_matrix()
-		deagg_matrix = deagg_matrix.fold_axes([0,2,3,4,5])
-		return np.exp(float(np.sum(np.log(self.dist_bin_centers) * deagg_matrix)))
+		fcm = self.deagg_matrix.to_fractional_contribution_matrix()
+		fcm = fcm.fold_axes([0,2,3,4,5])
+		#return np.exp(float(np.sum(np.log(self.dist_bin_centers) * fcm)))
+		return np.average(np.log(self.dist_bin_centers), weights=fcm)
 
 	def get_fractional_contribution_matrix_above(self, threshold, axis, renormalize=False):
 		"""
