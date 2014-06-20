@@ -1690,10 +1690,10 @@ def get_mean_deaggregation_slice(deagg_slices):
 		:class:`FractionalContributionMatrix`
 	"""
 	ds0 = deagg_slices[0]
-	matrix = ds0.get_fractional_contribution_matrix(renormalize=True)
+	matrix = ds0.get_fractional_contribution_matrix()
 	for ds in deagg_slices[1:]:
 		assert ds.bin_edges == ds0.bin_edges
-		matrix += ds.get_fractional_contribution_matrix(renormalize=True)
+		matrix += ds.get_fractional_contribution_matrix()
 	matrix /= np.sum(matrix)
 	return DeaggregationSlice(ds0.bin_edges, matrix, ds0.site, ds0.imt, ds0.iml, ds0.period, ds0.return_period, ds0.timespan)
 
@@ -1710,10 +1710,10 @@ def get_mean_deaggregation_curve(deagg_curves):
 		:class:`FractionalContributionMatrix`
 	"""
 	dc0 = deagg_curves[0]
-	matrix = dc0.get_fractional_contribution_matrix(renormalize=True)
+	matrix = dc0.get_fractional_contribution_matrix()
 	for dc in deagg_curves[1:]:
 		assert dc.bin_edges == dc0.bin_edges
-		matrix += dc.get_fractional_contribution_matrix(renormalize=True)
+		matrix += dc.get_fractional_contribution_matrix()
 	matrix /= np.sum(matrix)
 	return DeaggregationCurve(dc0.bin_edges, matrix, dc0.site, dc0.imt, dc0.intensities, dc0.period, dc0.return_periods, dc0.timespan)
 
