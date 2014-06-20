@@ -2739,7 +2739,10 @@ class PSHAModelTree(PSHAModelBase):
 				intensity_unit = shcft.intensity_unit
 				timespan = self.time_span
 				shcf = SpectralHazardCurveField(model_name, hazard_values, filespecs, sites, periods, IMT, intensities, intensity_unit=intensity_unit, timespan=timespan)
-				self.write_oq_shcf(shcf, curve_name, calc_id=calc_id)
+				if isinstance(self, DecomposedPSHAModelTree):
+					self.write_oq_shcf(shcf, "", "", "", "", curve_name, calc_id=calc_id)
+				else:
+					self.write_oq_shcf(shcf, curve_name, calc_id=calc_id)
 			perc_shcf_list.append(shcf)
 		return perc_shcf_list
 
