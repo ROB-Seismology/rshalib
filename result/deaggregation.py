@@ -781,7 +781,7 @@ class DeaggregationSlice(DeaggBase):
 		fcm = self.deagg_matrix.to_fractional_contribution_matrix()
 		fcm = fcm.fold_axes([0,2,3,4,5])
 		#return np.exp(float(np.sum(np.log(self.dist_bin_centers) * fcm)))
-		return np.average(np.log(self.dist_bin_centers), weights=fcm)
+		return np.exp(np.average(np.log(self.dist_bin_centers), weights=fcm))
 
 	def get_fractional_contribution_matrix_above(self, threshold, axis, renormalize=False):
 		"""
