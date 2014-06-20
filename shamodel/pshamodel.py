@@ -3460,7 +3460,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model_name, trt, source_id, gmpe_name, curve_name, calc_id=calc_id)
 		hc_folder = os.path.split(xml_filespec)[0]
 		self.create_folder_structure(hc_folder)
-		shcf.write_nrml(xml_filespec)
+		smlt_path = getattr(self, "smlt_path", "")
+		gmpelt_path = getattr(self, "gmpelt_path", "")
+		shcf.write_nrml(xml_filespec, smlt_path=smlt_path, gmpelt_path=gmpelt_path)
 
 	def get_oq_sdc_filespec_decomposed(self, source_model_name, trt, source_id, gmpe_name, curve_name, site, calc_id="oqhazlib"):
 		"""
@@ -3611,10 +3613,14 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			else:
 				sm_name = os.path.splitext(sm_name)[0]
 				shcf = self.read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
+				shcf.model_name = "%s, LT sample %s" % (self.name, fmt % (sample_idx + 1 + skip_samples))
+				self.smlt_path = " -- ".join(smlt_path)
+				self.gmpelt_path = " -- ".join(gmpelt_path)
 				self.write_oq_shcf(shcf, "", "", "", "", curve_name, calc_id=calc_id)
 			shcf_list.append(shcf)
 			weights.append(weight)
-			# TODO: construct branch name
+			self.smlt_path = ""
+			self.gmpelt_path = ""
 		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, self.name, branch_names=branch_names, weights=weights)
 		return shcft
 
@@ -4134,11 +4140,12 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						shcf = self.read_oq_shcf(curve_name, curve_path=curve_path, calc_id=calc_id)
 					else:
 						shcf = self.read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
-						self.write_oq_shcf(shcf, sm_name, "", "", "", curve_name, calc_id=calc_id)
+						self.write_oq_shcf(shcf, "", "", "", "", curve_name, calc_id=calc_id)
 					shc = shcf.getSpectralHazardCurve(site_spec=(site.lon, site.lat))
 					summed_sdc = summed_sdc.slice_return_periods(self.return_periods, shc)
 
 				if not os.path.exists(xml_filespec):
+					# TODO: smlt_path and gmpelt_path
 					self.write_oq_disagg_matrix_multi(summed_sdc, "", "", "", "", curve_name, calc_id=calc_id)
 
 				if mean_sdc is None:
