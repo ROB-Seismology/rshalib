@@ -167,9 +167,17 @@ class ProbabilityArray(HazardCurveArray):
 		assert isinstance(other, ProbabilityArray)
 		return ProbabilityArray(1 - ((1 - self.array) * (1 - other.array)))
 
+	def __sub__(self, other):
+		assert isinstance(other, ProbabilityArray)
+		return ProbabilityArray(1 - ((1 - self.array) / (1 - other.array)))
+
 	def __mul__(self, number):
 		assert isinstance(number, (int, float, Decimal))
 		return ProbabilityArray(1 - np.exp(np.log(1 - self.array) * float(number)))
+
+	def __div__(self, number):
+		assert isinstance(number, (int, float, Decimal))
+		return ProbabilityArray(1 - np.exp(np.log(1 - self.array) / float(number)))
 
 	def to_exceedance_rates(self, timespan):
 		return 1. / Poisson(life_time=timespan, prob=self.array)
@@ -205,11 +213,13 @@ class ProbabilityArray(HazardCurveArray):
 		"""
 		log_non_exceedance_probs = np.log(1 - self.array)
 		mean = np.average(log_non_exceedance_probs, axis=axis, weights=weights)
-		_mean = 1 - np.exp(np.expand_dims(mean, axis))
+		_mean = np.expand_dims(mean, axis)
 		variance = np.average((log_non_exceedance_probs - _mean)**2, axis=axis, weights=weights)
+		#np.sum(weights * (log_non_exceedance_probs - _mean)**2, axis=axis) / np.sum(weights)
 		mean = self.__class__(1 - np.exp(mean))
 		# TODO: from Wikipedia, but probably not correct
 		variance = (np.exp(variance) - 1.) * np.exp(2 * mean.array + variance)
+		#variance = np.exp(variance)
 		variance = self.__class__(variance)
 		return (mean, variance)
 

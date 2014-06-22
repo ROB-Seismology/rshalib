@@ -33,7 +33,7 @@ class DeaggMatrix(np.ndarray):
 
 	def slice_axis(self, axis, start=None, stop=None):
 		"""
-		Slice matrix along a given axis.
+		Slice deaggregation matrix along a given axis.
 
 		:param axis:
 			Int, index of axis to slice
@@ -52,6 +52,56 @@ class DeaggMatrix(np.ndarray):
 		idxs = range(start, stop)
 		return self.take(idxs, axis=axis)
 
+	def interpolate_axis(self, axis, axis_values, target_values):
+		"""
+		Interpolate deaggregation matrix along a given axis.
+
+		:param axis:
+			Int, index of axis to slice
+		:param axis_values:
+			1-D array, x values corresponding to axis.
+			Length should correspond to length of matrix along given axis
+		:param target_values:
+			1-D array, x values for which axis will be interpolated
+
+		:return:
+			instance of subclass of :class:`DeaggMatrix`
+		"""
+		from ..utils import interpolate
+
+		def interp_wrapper(yin, xin, xout):
+			return interpolate(xin, yin, xout)
+
+		interp_matrix = np.apply_along_axis(interp_wrapper, axis, self, axis_values, target_values)
+		return self.__class__(interp_matrix)
+
+	def rebin_axis(self, axis, axis_bin_edges, target_bin_edges):
+		"""
+		Rebin deaggregation matrix along a given axis.
+
+		:param axis:
+			Int, index of axis to slice
+		:param axis_bin_edges:
+			1-D array, bin edges corresponding to axis.
+			Length should correspond to length of matrix along given axis + 1
+		:param target_bin_edges:
+			1-D array, bin edges for which axis will be rebinned
+
+		:return:
+			instance of subclass of :class:`DeaggMatrix`
+		"""
+		from ..utils import interpolate
+
+		zero = np.zeros(1)
+		def interp_wrapper(yin, xin, xout):
+			yin = np.insert(np.cumsum(yin), 0, zero)
+			yout = interpolate(xin, yin, xout)
+			yout = np.diff(yout)
+			return yout
+
+		rebinned_matrix = np.apply_along_axis(interp_wrapper, axis, self, axis_bin_edges, target_bin_edges)
+		return self.__class__(rebinned_matrix)
+
 
 class FractionalContributionMatrix(DeaggMatrix):
 	"""
@@ -67,7 +117,7 @@ class FractionalContributionMatrix(DeaggMatrix):
 		"""
 		return np.sum(self.matrix)
 
-	def fold_axis(self, axis):
+	def fold_axis(self, axis, keepdims=False):
 		"""
 		Fold matrix along one axis.
 		Total contribution / exceedance rate in given axis is computed
@@ -75,6 +125,9 @@ class FractionalContributionMatrix(DeaggMatrix):
 
 		:param axis:
 			Int, index of axis to fold
+		:param keepdims:
+			Bool, whether or not folded matrix should have same dimensions
+			as original matrix (default: False)
 
 		:return:
 			instance of :class:`FractionalContributionMatrix` or
@@ -82,7 +135,7 @@ class FractionalContributionMatrix(DeaggMatrix):
 		"""
 		if axis < 0:
 			axis = self.num_axes + axis
-		return self.sum(axis=axis)
+		return self.sum(axis=axis, keepdims=keepdims)
 
 	def fold_axes(self, axes):
 		"""
@@ -191,9 +244,17 @@ class ProbabilityMatrix(DeaggMatrix):
 		assert isinstance(other, ProbabilityMatrix)
 		return ProbabilityMatrix(1 - ((1 - self.matrix) * (1 - other.matrix)))
 
+	def __sub__(self, other):
+		assert isinstance(other, ProbabilityMatrix)
+		return ProbabilityMatrix(1 - ((1 - self.matrix) / (1 - other.matrix)))
+
 	def __mul__(self, number):
 		assert isinstance(number, (int, float, Decimal))
 		return ProbabilityMatrix(1 - np.exp(np.log(1 - self.matrix) * float(number)))
+
+	def __div__(self, number):
+		assert isinstance(number, (int, float, Decimal))
+		return ProbabilityMatrix(1 - np.exp(np.log(1 - self.matrix) / float(number)))
 
 	def get_total_exceedance_rate(self, timespan):
 		"""
@@ -252,7 +313,7 @@ class ProbabilityMatrix(DeaggMatrix):
 		ln_non_exceedance_probs = np.log(1. - self.matrix)
 		return FractionalContributionMatrix(ln_non_exceedance_probs / np.sum(ln_non_exceedance_probs))
 
-	def fold_axis(self, axis):
+	def fold_axis(self, axis, keepdims=False):
 		"""
 		Fold matrix along one axis.
 		Total probability in given axis is computed as product of all
@@ -260,13 +321,16 @@ class ProbabilityMatrix(DeaggMatrix):
 
 		:param axis:
 			Int, index of axis to fold
+		:param keepdims:
+			Bool, whether or not folded matrix should have same dimensions
+			as original matrix (default: False)
 
 		:return:
 			instance of :class:`ProbabilityMatrix`
 		"""
 		if axis < 0:
 			axis = self.num_axes + axis
-		return 1 - np.prod(1 - self, axis=axis)
+		return 1 - np.prod(1 - self, axis=axis, keepdims=keepdims)
 
 	def fold_axes(self, axes):
 		"""
@@ -968,39 +1032,12 @@ class DeaggregationSlice(DeaggBase):
 		:return:
 			instance of :class:`DeaggregationSlice`
 		"""
-		#TODO: renormalization!
-		from ..utils import interpolate
-		rebinned_shape = list(self.deagg_matrix.shape)
-		rebinned_shape[axis] = len(new_bin_edges) - 1
-		rebinned_deagg = np.zeros(rebinned_shape, 'd')
-		other_axes = [i for i in range(6) if not i == axis]
-		old_bin_edges = self.bin_edges[axis]
-		for i in range(rebinned_shape[other_axes[0]]):
-			for j in range(rebinned_shape[other_axes[1]]):
-				for k in range(rebinned_shape[other_axes[2]]):
-					for l in range(rebinned_shape[other_axes[3]]):
-						for m in range(rebinned_shape[other_axes[4]]):
-							## Construct list with axis indexes
-							ax = [0] * 6
-							ax[other_axes[0]] = i
-							ax[other_axes[1]] = j
-							ax[other_axes[2]] = k
-							ax[other_axes[3]] = l
-							ax[other_axes[4]] = m
-							ax[axis] = slice(None)
-							interpol_deagg = interpolate(old_bin_edges[:-1], self.deagg_matrix[ax[0], ax[1], ax[2], ax[3], ax[4], ax[5]], new_bin_edges[:-1])
-							interpol_deagg = self.deagg_matrix.__class__(interpol_deagg)
-							## Renormalize
-							#total = self.deagg_matrix[ax[0], ax[1], ax[2], ax[3], ax[4], ax[5]].get_total_exceedance_rate(self.timespan)
-							#rebinned_total = interpol_deagg.get_total_exceedance_rate(self.timespan)
-							#if rebinned_total != 0:
-							#	interpol_deagg = interpol_deagg * (total / rebinned_total)
-							rebinned_deagg[ax[0], ax[1], ax[2], ax[3], ax[4], ax[5]] = interpol_deagg
-		rebinned_deagg = self.deagg_matrix.__class__(rebinned_deagg)
+		axis_bin_edges = self.bin_edges[axis]
+		rebinned_deagg_matrix = self.deagg_matrix.rebin_axis(axis, axis_bin_edges, new_bin_edges)
 		bin_edges = list(self.bin_edges)
 		bin_edges[axis] = new_bin_edges
 		bin_edges = tuple(bin_edges)
-		return DeaggregationSlice(bin_edges, rebinned_deagg, self.site, self.imt, self.iml, self.period, self.return_period, self.timespan)
+		return DeaggregationSlice(bin_edges, rebinned_deagg_matrix, self.site, self.imt, self.iml, self.period, self.return_period, self.timespan)
 
 	def rebin_magnitudes(self, mag_bin_edges):
 		"""
@@ -1029,6 +1066,34 @@ class DeaggregationSlice(DeaggBase):
 			instance of :class:`DeaggregationSlice`
 		"""
 		return self.rebin(dist_bin_edges, axis=1)
+
+	def rebin_longitudes(self, lon_bin_edges):
+		"""
+		Rebin longitude bins
+
+		:param lon_bin_edges:
+			array-like, new longitude bin edges
+		:param axis:
+			Int, axis index
+
+		:return:
+			instance of :class:`DeaggregationSlice`
+		"""
+		return self.rebin(lon_bin_edges, axis=2)
+
+	def rebin_latitudes(self, lat_bin_edges):
+		"""
+		Rebin latitude bins
+
+		:param lat_bin_edges:
+			array-like, new latitude bin edges
+		:param axis:
+			Int, axis index
+
+		:return:
+			instance of :class:`DeaggregationSlice`
+		"""
+		return self.rebin(lat_bin_edges, axis=3)
 
 	def write_nrml(self, nrml_filespec, sourceModelTreePath=None, gsimTreePath=None):
 		"""
@@ -1137,6 +1202,56 @@ class DeaggregationCurve(DeaggBase):
 			iml = self.intensities[iml_index]
 		matrix = self.deagg_matrix[iml_index]
 		return DeaggregationSlice(self.bin_edges, matrix, self.site, self.imt, iml, self.period, self.return_periods[iml_index], self.timespan)
+
+	def interpolate_curve(self, imls, return_periods=None):
+		"""
+		Interpolate deaggregation curve at particular intensity levels
+
+		:param imls:
+			1-D numpy array
+		:param return_periods:
+			1-D numpy array with return periods corresponding to imls.
+			If None, return periods will be interpolated as well
+			(default: None)
+
+		:return:
+			instance of :class:`DeaggregationCurve`
+		"""
+		deagg_matrix = self.deagg_matrix.interpolate_axis(0, self.intensities, imls)
+		if return_periods is None:
+			from ..utils import interpolate
+			return_periods = interpolate(self.intensities, self.return_periods, imls)
+		return DeaggregationCurve(self.bin_edges, deagg_matrix, self.site, self.imt, imls, self.period, return_periods, self.timespan)
+
+	def slice_return_periods(self, return_periods, hc, interpolate_matrix=False):
+		"""
+		Reduce the spectral deaggregation curve to one where slices correspond to
+		return periods. First, intensities are interpolated from the given
+		spectral hazard curve, and a new spectral deaggregation curve is constructed
+		from slices corresponding to these interpolated intensities.
+
+		:param return_periods:
+			list of floats, return periods
+		:param hc:
+			instance of :class:`rshalib.result.HazardCurve`
+		:param interpolate_matrix:
+			bool, whether or not the deaggregation matrix should be
+			interpolated at the intensities interpolated from the
+			hazard curve. If False, the nearest slices will be selected
+			(default: False)
+
+		:return:
+			instance of :class:`DeaggregationCurve`
+		"""
+		imls = hc.interpolate_return_periods(return_periods)
+		if interpolate_matrix is False:
+			slices = []
+			for iml in imls:
+				ds = self.get_slice(iml=iml)
+				slices.append(ds)
+		else:
+			slices = self.interpolate_curve(imls, return_periods=return_periods)
+		return DeaggregationCurve.from_deaggregation_slices(slices)
 
 	def get_hazard_curve(self):
 		"""
@@ -1558,7 +1673,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		nrml_file.write(etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8"))
 		nrml_file.close()
 
-	def slice_return_periods(self, return_periods, shc):
+	def slice_return_periods(self, return_periods, shc, interpolate_matrix=False):
 		"""
 		Reduce the spectral deaggregation curve to one where slices correspond to
 		return periods. First, intensities are interpolated from the given
@@ -1569,6 +1684,11 @@ class SpectralDeaggregationCurve(DeaggBase):
 			list of floats, return periods
 		:param shc:
 			instance of :class:`rshalib.result.SpectralHazardCurve`
+		:param interpolate_matrix:
+			bool, whether or not the deaggregation matrix should be
+			interpolated at the intensities interpolated from the
+			hazard curve. If False, the nearest slices will be selected
+			(default: False)
 
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
@@ -1577,12 +1697,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		for T in self.periods:
 			dc = self.get_curve(period=T)
 			hc = shc.getHazardCurve(period_spec=float(T))
-			imls = hc.interpolate_return_periods(return_periods)
-			slices = []
-			for iml in imls:
-				ds = dc.get_slice(iml=iml)
-				slices.append(ds)
-			rp_dc = DeaggregationCurve.from_deaggregation_slices(slices)
+			rp_dc = dc.slice_return_periods(return_periods, hc, interpolate_matrix=interpolate_matrix)
 			curves.append(rp_dc)
 		rp_sdc = SpectralDeaggregationCurve.from_deaggregation_curves(curves)
 		rp_sdc.return_periods = np.array(return_periods)
