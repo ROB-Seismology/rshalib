@@ -109,7 +109,6 @@ def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, titl
 	   ax2.figure.canvas.draw()
 
 	fig, ax1 = pylab.subplots()
-	ax2 = ax1.twinx()
 
 	category_names = category_value_dict.keys()
 	num_categories = len(category_names)
@@ -141,7 +140,10 @@ def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, titl
 	x0values = np.array(x0values)
 
 	## Set up double Y axes
-	ax1.callbacks.connect("ylim_changed", update_ax2)
+	if mean_value != 0:
+		ax2 = ax1.twinx()
+		ax1.callbacks.connect("ylim_changed", update_ax2)
+		ax2.set_ylabel(ylabel)
 
 	## Plot bars
 	yvalues = np.array(yvalues)
@@ -177,7 +179,6 @@ def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, titl
 	#ax1.text(xmax, 0, "%s" % mean_value, ha='left', va='center')
 
 	ax1.set_ylabel("$\Delta$ " + ylabel)
-	ax2.set_ylabel(ylabel)
 	ax1.set_title(title)
 	ax1.set_xticks([])
 	ax1.grid(True)
