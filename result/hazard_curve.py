@@ -3404,10 +3404,14 @@ class UHSFieldSet(HazardResult, HazardField, HazardSpectrum):
 				index = np.where(np.abs(self.poes - poe) < 1E-12)[0]
 				if len(index) == 0:
 					raise ValueError("No UHS field for poE=%s" % poe)
+				else:
+					index = index[0]
 			elif return_period is not None:
-				index = np.where(np.abs(self.return_periods - return_period) < 1E-12)[0]
+				index = np.where(np.abs(self.return_periods - return_period) < 1E-1)[0]
 				if len(index) == 0:
-					raise ValueError("No UHS field for return period=%s" % return_period)
+					raise ValueError("No UHS field for return period=%s yr" % return_period)
+				else:
+					index = index[0]
 
 		try:
 			return_period = self.return_periods[index]
