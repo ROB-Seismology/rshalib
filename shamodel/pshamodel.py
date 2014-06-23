@@ -3847,13 +3847,17 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return mean_shcf
 
-	def get_oq_mean_shcf_by_source_model(self, source_model, write_xml=False, respect_gm_trt_correlation=False, calc_id=None):
+	def get_oq_mean_shcf_by_source_model(self, source_model, trt="", gmpe_name="", write_xml=False, respect_gm_trt_correlation=False, calc_id=None):
 		"""
 		Compute or read mean spectral hazard curve field for a particular source model
 		by summing mean shcf's of individual sources
 
 		:param source_model:
 			instance of :class:`rshalib.source.SourceModel`
+		:param trt:
+			str, tectonic region type (default: "")
+		:param gmpe_name:
+			str, name of GMPE (default: "", will read all GMPEs)
 		:param write_xml:
 			bool, whether or not to write mean spectral hazard curve field to xml.
 			If mean shcf already exists, it will be overwritten
@@ -3871,7 +3875,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			instance of :class:`SpectralHazardCurveField`
 		"""
 		curve_name = "mean"
-		curve_path = source_model.name
+		curve_path = self._get_curve_path(source_model.name, trt, "", gmpe_name)
 		xml_filespec = self.get_oq_shcf_filespec(curve_name, curve_path=curve_path, calc_id=calc_id)
 
 		if write_xml is False and os.path.exists(xml_filespec):
@@ -3883,41 +3887,43 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				## correlation between sources in each trt in the ground-motion
 				## logic tree
 				summed_shcf = None
-				for trt in source_model.get_tectonic_region_types():
-					trt_shcf = None
-					for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
-						gmpe_shcf = None
-						for src_list in self.enumerate_correlated_sources(source_model, trt):
-							if len(src_list) == 1:
-								[src] = src_list
-								shcf = self.get_oq_mean_shcf_by_source(source_model.name, src, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
-							else:
-								shcf = self.get_oq_mean_shcf_by_correlated_sources(source_model.name, src_list, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
-							if shcf:
-								if gmpe_shcf is None:
-									gmpe_shcf = shcf
+				for _trt in source_model.get_tectonic_region_types():
+					if not trt or _trt == trt:
+						trt_shcf = None
+						for _gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+							if not gmpe_name or _gmpe_name == gmpe_name:
+								gmpe_shcf = None
+								for src_list in self.enumerate_correlated_sources(source_model, _trt):
+									if len(src_list) == 1:
+										[src] = src_list
+										shcf = self.get_oq_mean_shcf_by_source(source_model.name, src, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
+									else:
+										shcf = self.get_oq_mean_shcf_by_correlated_sources(source_model.name, src_list, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
+									if shcf:
+										if gmpe_shcf is None:
+											gmpe_shcf = shcf
+										else:
+											gmpe_shcf += shcf
+								gmpe_shcf *= gmpe_weight
+								if trt_shcf is None:
+									trt_shcf = gmpe_shcf
 								else:
-									gmpe_shcf += shcf
-						gmpe_shcf *= gmpe_weight
-						if trt_shcf is None:
-							trt_shcf = gmpe_shcf
+									trt_shcf += gmpe_shcf
+						if summed_shcf is None:
+							summed_shcf = trt_shcf
 						else:
-							trt_shcf += gmpe_shcf
-					if summed_shcf is None:
-						summed_shcf = trt_shcf
-					else:
-						summed_shcf += trt_shcf
+							summed_shcf += trt_shcf
 
 			else:
 				## Simpler calculation:
 				## Compute mean for each source and sum
 				summed_shcf = None
-				for src_list in self.enumerate_correlated_sources(source_model):
+				for src_list in self.enumerate_correlated_sources(source_model, trt=trt):
 					if len(src_list) == 1:
 						[src] = src_list
-						shcf = self.get_oq_mean_shcf_by_source(source_model.name, src, write_xml=write_xml, calc_id=calc_id)
+						shcf = self.get_oq_mean_shcf_by_source(source_model.name, src, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
 					else:
-						shcf = self.get_oq_mean_shcf_by_correlated_sources(source_model.name, src_list, write_xml=write_xml, calc_id=calc_id)
+						shcf = self.get_oq_mean_shcf_by_correlated_sources(source_model.name, src_list, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
 					if summed_shcf is None:
 						summed_shcf = shcf
 					else:
@@ -3925,7 +3931,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 			summed_shcf.model_name = "%s weighted mean" % source_model.name
 
-			self.write_oq_shcf(summed_shcf, source_model.name, "", "", "", curve_name, calc_id=calc_id)
+			self.write_oq_shcf(summed_shcf, source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
 
 		return summed_shcf
 
@@ -4287,7 +4293,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return mean_sdc
 
-	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", mean_shc=None, interpolate_matrix=False, calc_id=None, dtype='f', write_xml=False, verbose=False):
+	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, trt="", gmpe_name="", mean_shc=None, interpolate_matrix=False, calc_id=None, dtype='f', write_xml=False, verbose=False):
 		"""
 		Read or compute mean spectral deaggregation curve for a particular source model
 
@@ -4295,6 +4301,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			str, name of source model
 		:param site:
 			instance of :class:`SHASite` or :class:`SoilSite`
+		:param trt:
+			str, tectonic region type (default: "")
 		:param gmpe_name:
 			str, name of GMPE (default: "", will read all GMPEs)
 		:param mean_shc:
@@ -4324,7 +4332,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		import gc
 
 		curve_name = "mean"
-		curve_path = source_model_name
+		curve_path = self._get_curve_path(source_model.name, trt, "", gmpe_name)
 		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
 
 		if write_xml is False and os.path.exists(xml_filespec):
@@ -4332,33 +4340,34 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		else:
 			source_model = self.get_source_model_by_name(source_model_name)
 			for i, src in enumerate(source_model.sources):
-				if verbose:
-					print src.source_id
-				sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, interpolate_matrix=interpolate_matrix, calc_id=calc_id, dtype=dtype, write_xml=write_xml, verbose=verbose)
-				if i == 0:
-					## Create empty deaggregation matrix
-					bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
-					mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = bin_edges
-					trts = sorted([src.source_id for src in source_model.sources])
-					bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
-					num_periods = len(sdc.periods)
-					num_intensities = len(sdc.return_periods)
-					summed_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
+				if not trt or src.tectonic_region_type == trt:
+					if verbose:
+						print src.source_id
+					sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, interpolate_matrix=interpolate_matrix, calc_id=calc_id, dtype=dtype, write_xml=write_xml, verbose=verbose)
+					if i == 0:
+						## Create empty deaggregation matrix
+						bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
+						mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = bin_edges
+						trts = sorted([src.source_id for src in source_model.sources])
+						bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
+						num_periods = len(sdc.periods)
+						num_intensities = len(sdc.return_periods)
+						summed_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
 
-				max_mag_idx = min(sdc.nmags, len(mag_bins) - 1)
-				min_lon_idx = int((sdc.min_lon - lon_bins[0]) / sdc.lon_bin_width)
-				max_lon_idx = min_lon_idx + sdc.nlons
-				min_lat_idx = int((sdc.min_lat - lat_bins[0]) / sdc.lat_bin_width)
-				max_lat_idx = min_lat_idx + sdc.nlats
-				trt_idx = trts.index(src.source_id)
-				summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:max_mag_idx,:,:,:,:,0]
-				del sdc.deagg_matrix
-				gc.collect()
+					max_mag_idx = min(sdc.nmags, len(mag_bins) - 1)
+					min_lon_idx = int((sdc.min_lon - lon_bins[0]) / sdc.lon_bin_width)
+					max_lon_idx = min_lon_idx + sdc.nlons
+					min_lat_idx = int((sdc.min_lat - lat_bins[0]) / sdc.lat_bin_width)
+					max_lat_idx = min_lat_idx + sdc.nlats
+					trt_idx = trts.index(src.source_id)
+					summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:max_mag_idx,:,:,:,:,0]
+					del sdc.deagg_matrix
+					gc.collect()
 			#intensities = np.zeros(sdc.intensities.shape)
 			summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 			summed_sdc.model_name = "%s weighted mean" % source_model_name
 
-			self.write_oq_disagg_matrix_multi(summed_sdc, source_model.name, "", "", "", curve_name, calc_id=calc_id)
+			self.write_oq_disagg_matrix_multi(summed_sdc, source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
 
 		return summed_sdc
 
