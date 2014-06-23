@@ -4091,7 +4091,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return summed_sdc
 
-	def get_oq_mean_sdc_from_lt_samples(self, site, interpolate_rp=True, skip_samples=0, write_xml=False, calc_id=None, dtype='f'):
+	def get_oq_mean_sdc_from_lt_samples(self, site, interpolate_rp=True, interpolate_matrix=False, skip_samples=0, write_xml=False, calc_id=None, dtype='f'):
 		"""
 		Read or compute mean spectral deaggregation curve based on logic-tree samples
 
@@ -4100,6 +4100,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param interpolate_rp:
 			bool, whether or not to interpolate each logic-tree sample at
 			the return periods defined in logic tree (default: True)
+		:param interpolate_matrix:
+			bool, whether or not the deaggregation matrix should be
+			interpolated at the intensities interpolated from the
+			hazard curve. If False, the nearest slices will be selected
+			(default: False)
 		:param skip_samples:
 			int, number of samples to skip (default: 0)
 		:param write_xml:
@@ -4145,7 +4150,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						shcf = self.read_oq_realization(sm_name, smlt_path, gmpelt_path, calc_id=calc_id)
 						self.write_oq_shcf(shcf, "", "", "", "", curve_name, calc_id=calc_id)
 					shc = shcf.getSpectralHazardCurve(site_spec=(site.lon, site.lat))
-					summed_sdc = summed_sdc.slice_return_periods(self.return_periods, shc)
+					summed_sdc = summed_sdc.slice_return_periods(self.return_periods, shc, interpolate_matrix=interpolate_matrix)
 
 				if not os.path.exists(xml_filespec):
 					# TODO: smlt_path and gmpelt_path
@@ -4201,7 +4206,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				weight = gmpe_weight * smlt_weight
 				yield (sdc, weight)
 
-	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f', write_xml=False, verbose=False):
+	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", mean_shc=None, interpolate_matrix=False, calc_id=None, dtype='f', write_xml=False, verbose=False):
 		"""
 		Read or compute mean spectral deaggregation curve for a particular source
 
@@ -4218,6 +4223,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			If specified, sdc will be reduced to intensities corresponding
 			to return periods of PSHA model tree
 			(default: None).
+		:param interpolate_matrix:
+			bool, whether or not the deaggregation matrix should be
+			interpolated at the intensities interpolated from the mean
+			hazard curve. If False, the nearest slices will be selected
+			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -4271,13 +4281,13 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			mean_sdc = SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
 			mean_sdc.model_name = "%s weighted mean" % src.source_id
 			if mean_shc:
-				mean_sdc = mean_sdc.slice_return_periods(self.return_periods, mean_shc)
+				mean_sdc = mean_sdc.slice_return_periods(self.return_periods, mean_shc, interpolate_matrix=interpolate_matrix)
 
 			self.write_oq_disagg_matrix_multi(mean_sdc, source_model_name, src.tectonic_region_type, src.source_id, "", curve_name, calc_id=calc_id)
 
 		return mean_sdc
 
-	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", mean_shc=None, calc_id=None, dtype='f', write_xml=False, verbose=False):
+	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, gmpe_name="", mean_shc=None, interpolate_matrix=False, calc_id=None, dtype='f', write_xml=False, verbose=False):
 		"""
 		Read or compute mean spectral deaggregation curve for a particular source model
 
@@ -4292,6 +4302,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			If specified, sdc will be reduced to intensities corresponding
 			to return periods of PSHA model tree
 			(default: None).
+		:param interpolate_matrix:
+			bool, whether or not the deaggregation matrix should be
+			interpolated at the intensities interpolated from the mean
+			hazard curve. If False, the nearest slices will be selected
+			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -4319,7 +4334,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			for i, src in enumerate(source_model.sources):
 				if verbose:
 					print src.source_id
-				sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype, write_xml=write_xml, verbose=verbose)
+				sdc = self.get_oq_mean_sdc_by_source(source_model_name, src, site, gmpe_name=gmpe_name, mean_shc=mean_shc, interpolate_matrix=interpolate_matrix, calc_id=calc_id, dtype=dtype, write_xml=write_xml, verbose=verbose)
 				if i == 0:
 					## Create empty deaggregation matrix
 					bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
@@ -4347,7 +4362,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return summed_sdc
 
-	def get_oq_mean_sdc(self, site, mean_shc=None, calc_id=None, dtype='f', write_xml=False, verbose=False):
+	def get_oq_mean_sdc(self, site, mean_shc=None, interpolate_matrix=False, calc_id=None, dtype='f', write_xml=False, verbose=False):
 		"""
 		Read mean spectral deaggregation curve of the entire logic tree.
 		If mean sdc does not exist, it will be computed from the decomposed
@@ -4360,6 +4375,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			If specified, sdc will be reduced to intensities corresponding
 			to return periods of PSHA model tree
 			(default: None).
+		:param interpolate_matrix:
+			bool, whether or not the deaggregation matrix should be
+			interpolated at the intensities interpolated from the mean
+			hazard curve. If False, the nearest slices will be selected
+			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
@@ -4385,7 +4405,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			for i, (source_model, somo_weight) in enumerate(self.source_model_lt.source_model_pmf):
 				if verbose:
 					print source_model.name
-				sdc = self.get_oq_mean_sdc_by_source_model(source_model.name, site, mean_shc=mean_shc, calc_id=calc_id, dtype=dtype, write_xml=write_xml, verbose=verbose)
+				sdc = self.get_oq_mean_sdc_by_source_model(source_model.name, site, mean_shc=mean_shc, interpolate_matrix=interpolate_matrix, calc_id=calc_id, dtype=dtype, write_xml=write_xml, verbose=verbose)
 				if i == 0:
 					## Create empty deaggregation matrix
 					bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
