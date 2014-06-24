@@ -4340,7 +4340,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		import gc
 
 		curve_name = "mean"
-		curve_path = self._get_curve_path(source_model.name, trt, "", gmpe_name)
+		curve_path = self._get_curve_path(source_model_name, trt, "", gmpe_name)
 		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
 
 		if write_xml is False and os.path.exists(xml_filespec):
