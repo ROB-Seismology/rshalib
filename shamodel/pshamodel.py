@@ -3935,12 +3935,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return summed_shcf
 
-	def get_oq_mean_shcf(self, write_xml=False, respect_gm_trt_correlation=False, calc_id=None):
+	def get_oq_mean_shcf(self, trt="", gmpe_name="", write_xml=False, respect_gm_trt_correlation=False, calc_id=None):
 		"""
 		Read mean spectral hazard curve field of entire logic tree.
 		If mean shcf does not exist, it will be computed from the decomposed
 		shcf's. If it exists, it will be read if write_xml is False
 
+		:param trt:
+			str, tectonic region type (default: "")
+		:param gmpe_name:
+			str, name of GMPE (default: "", will read all GMPEs)
 		:param write_xml:
 			bool, whether or not to write mean spectral hazard curve field to xml.
 			If mean shcf already exists, it will be overwritten
@@ -3958,20 +3962,21 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			instance of :class:`SpectralHazardCurveField`
 		"""
 		curve_name = "mean"
-		xml_filespec = self.get_oq_shcf_filespec(curve_name, calc_id=calc_id)
+		curve_path = self._get_curve_path("", trt, "", gmpe_name)
+		xml_filespec = self.get_oq_shcf_filespec(curve_name, curve_path=curve_path, calc_id=calc_id)
 
 		if write_xml is False and os.path.exists(xml_filespec):
 			mean_shcf = self.read_oq_shcf(curve_name, calc_id=calc_id)
 		else:
 			mean_shcf = None
 			for source_model, somo_weight in self.source_model_lt.source_model_pmf:
-				source_model_shcf = self.get_oq_mean_shcf_by_source_model(source_model, write_xml=write_xml, respect_gm_trt_correlation=respect_gm_trt_correlation, calc_id=calc_id)
+				source_model_shcf = self.get_oq_mean_shcf_by_source_model(source_model, trt=trt, gmpe_name=gmpe_name, write_xml=write_xml, respect_gm_trt_correlation=respect_gm_trt_correlation, calc_id=calc_id)
 				if mean_shcf is None:
 					mean_shcf = source_model_shcf * somo_weight
 				else:
 					mean_shcf += (source_model_shcf * somo_weight)
 			mean_shcf.model_name = "Logic-tree weighted mean"
-			self.write_oq_shcf(mean_shcf, "", "", "", "", curve_name, calc_id=calc_id)
+			self.write_oq_shcf(mean_shcf, "", trt, "", gmpe_name, curve_name, calc_id=calc_id)
 		return mean_shcf
 
 	def calc_oq_shcf_percentiles_decomposed(self, percentile_levels):
