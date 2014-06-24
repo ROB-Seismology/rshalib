@@ -805,7 +805,13 @@ class DeaggregationSlice(DeaggBase):
 		else:
 			eps_pmf = None
 		eps_bin_edges = self.eps_bin_edges[1:]
-		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, self.return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, mr_style="2D", site_name=self.site.name, struc_period=self.period, title_comment=title, fig_filespec=fig_filespec)
+		if self.ntrts > 1:
+			trt_pmf = self.get_trt_pmf().to_fractional_contribution_matrix()
+			trt_labels = self.trt_bins
+		else:
+			trt_pmf = None
+			trt_labels = []
+		plot_deaggregation(mag_dist_pmf, self.mag_bin_edges, self.dist_bin_edges, self.return_period, eps_values=eps_pmf, eps_bin_edges=eps_bin_edges, fue_values=trt_pmf, fue_labels=trt_labels, mr_style="2D", site_name=self.site.name, struc_period=self.period, title_comment=title, fig_filespec=fig_filespec)
 
 	def get_modal_eq_scenario(self):
 		"""

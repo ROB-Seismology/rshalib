@@ -1312,6 +1312,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		Return value:
 			UHSFieldTree object
 		"""
+		# TODO: this is very slow !
 		num_sites, num_periods, num_branches = self.num_sites, self.num_periods, self.num_branches
 		rp_intensities = np.zeros((num_sites, num_branches, num_periods), dtype='d')
 		if self.mean not in (None, []):
