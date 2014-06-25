@@ -2809,16 +2809,16 @@ class PSHAModelTree(PSHAModelBase):
 			if north > max_lat:
 				max_lat = north
 
-		trt_bins = set()
 		if len(self.source_models) > 1:
 			## Collect tectonic region types
+			trt_bins = set()
 			for source_model in self.source_models:
 				for src in source_model:
 					trt_bins.add(src.tectonic_region_type)
+			trt_bins = sorted(trt_bins)
 		else:
 			## Collect source IDs
-			for src in self.source_models[0]:
-				trt_bins.add(src.source_id)
+			trt_bins = [src.source_id for src in self.source_models[0]]
 
 		#min_mag = np.floor(min_mag / mag_bin_width) * mag_bin_width
 		dmag = np.ceil((max_mag - min_mag) / mag_bin_width) * mag_bin_width
@@ -2844,7 +2844,6 @@ class PSHAModelTree(PSHAModelBase):
 		lat_bins = np.linspace(min_lat, max_lat, nlats + 1)
 		eps_bins = np.linspace(-self.truncation_level, self.truncation_level,
 								  n_epsilons + 1)
-		trt_bins = sorted(trt_bins)
 
 		return (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trt_bins)
 
@@ -4356,7 +4355,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					## Create empty deaggregation matrix
 					bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
 					mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts = bin_edges
-					trts = sorted([src.source_id for src in sources])
+					trts = [src.source_id for src in sources]
 					bin_edges = (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trts)
 					num_periods = len(sdc.periods)
 					num_intensities = len(sdc.return_periods)
@@ -4367,8 +4366,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				max_lon_idx = min_lon_idx + sdc.nlons
 				min_lat_idx = int((sdc.min_lat - lat_bins[0]) / sdc.lat_bin_width)
 				max_lat_idx = min_lat_idx + sdc.nlats
-				trt_idx = trts.index(src.source_id)
-				summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:max_mag_idx,:,:,:,:,0]
+				#trt_idx = trts.index(src.source_id)
+				summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,i] += sdc.deagg_matrix[:,:,:max_mag_idx,:,:,:,:,0]
 				del sdc.deagg_matrix
 				gc.collect()
 			#intensities = np.zeros(sdc.intensities.shape)
