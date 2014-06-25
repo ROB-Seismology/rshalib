@@ -214,6 +214,22 @@ class SourceModel():
 	def upper_seismogenic_depth(self):
 		return min([source.upper_seismogenic_depth for source in self.sources])
 
+	def get_sources_by_trt(self, trt):
+		"""
+		Fetch sources of a given tectonic region type
+
+		:param trt:
+			str, tectonic region type
+			If empty, all sources will be selected
+
+		:return:
+			list with source objects
+		"""
+		if not trt:
+			return self.sources
+		else:
+			return [source for source in self.sources if source.tectonic_region_type == trt]
+
 	def get_sources_by_type(self, source_type):
 		"""
 		Fetch sources of a given type
@@ -226,7 +242,7 @@ class SourceModel():
 		:return:
 			list with source objects
 		"""
-		if source_type is None:
+		if not source_type:
 			return self.sources
 		else:
 			meth_name = "get_%s_sources" % source_type
