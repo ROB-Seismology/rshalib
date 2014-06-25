@@ -135,7 +135,11 @@ class FractionalContributionMatrix(DeaggMatrix):
 		"""
 		if axis < 0:
 			axis = self.num_axes + axis
-		return self.sum(axis=axis, keepdims=keepdims)
+		#return self.sum(axis=axis, keepdims=keepdims)
+		sum = self.sum(axis=axis)
+		if keepdims:
+			sum = np.expand_dims(sum, axis)
+		return sum
 
 	def fold_axes(self, axes):
 		"""
@@ -330,7 +334,11 @@ class ProbabilityMatrix(DeaggMatrix):
 		"""
 		if axis < 0:
 			axis = self.num_axes + axis
-		return 1 - np.prod(1 - self, axis=axis, keepdims=keepdims)
+		#return 1 - np.prod(1 - self, axis=axis, keepdims=keepdims)
+		prod = 1 - np.prod(1 - self, axis=axis)
+		if keepdims:
+			prod = np.expand_dims(prod, axis)
+		return prod
 
 	def fold_axes(self, axes):
 		"""
