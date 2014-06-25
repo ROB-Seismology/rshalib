@@ -3462,8 +3462,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model_name, trt, source_id, gmpe_name, curve_name, calc_id=calc_id)
 		hc_folder = os.path.split(xml_filespec)[0]
 		self.create_folder_structure(hc_folder)
-		smlt_path = getattr(self, "smlt_path", "")
-		gmpelt_path = getattr(self, "gmpelt_path", "")
+		smlt_path = getattr(self, "smlt_path", "--".join([source_model_name, source_id, curve_name]))
+		gmpelt_path = getattr(self, "gmpelt_path", gmpe_name)
 		shcf.write_nrml(xml_filespec, smlt_path=smlt_path, gmpelt_path=gmpelt_path)
 
 	def get_oq_sdc_filespec_decomposed(self, source_model_name, trt, source_id, gmpe_name, curve_name, site, calc_id="oqhazlib"):
@@ -3514,8 +3514,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		xml_filespec = self.get_oq_sdc_filespec_decomposed(source_model_name, trt, source_id, gmpe_name, curve_name, sdc.site, calc_id=calc_id)
 		disagg_folder = os.path.split(xml_filespec)[0]
 		self.create_folder_structure(disagg_folder)
-		smlt_path = "--".join([source_model_name, source_id, curve_name])
-		gmpelt_path = gmpe_name
+		smlt_path = getattr(self, "smlt_path", "--".join([source_model_name, source_id, curve_name]))
+		gmpelt_path = getattr(self, "gmpelt_path", gmpe_name)
 		sdc.write_nrml(xml_filespec, smlt_path, gmpelt_path)
 
 	def read_oq_realization_by_source(self, source_model_name, src, smlt_path, gmpelt_path, calc_id=None):
@@ -4166,7 +4166,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					summed_sdc = summed_sdc.slice_return_periods(self.return_periods, shc, interpolate_matrix=interpolate_matrix)
 
 				if not os.path.exists(xml_filespec):
-					# TODO: smlt_path and gmpelt_path
+					self.smlt_path = smlt_path
+					self.gmpelt_path = gmpelt_path
 					self.write_oq_disagg_matrix_multi(summed_sdc, "", "", "", "", curve_name, calc_id=calc_id)
 
 				if mean_sdc is None:
