@@ -508,8 +508,9 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 
 	## Plot deaggregation by source
 	if fue_values not in (None, []):
+		num_sources = len(fue_values)
 		if not fue_labels:
-			fue_labels = range(1,len(fue_values)+1)
+			fue_labels = range(1,num_sources+1)
 		ax3 = fig.add_axes([0.575, 0.0, 0.4, 0.4], aspect='equal')
 		fue_values /= np.add.reduce(fue_values)
 		large_slice_indexes = np.where(fue_values >= 0.01)
@@ -528,7 +529,7 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		greens = [item[1] for item in cdict['green']]
 		blues = [item[1] for item in cdict['blue']]
 		## Make sure same zones have same colors
-		num_sources, num_colors = len(fue_values), len(reds)
+		num_colors = len(reds)
 		if num_sources > num_colors:
 			color_ar = np.arange(num_colors, dtype='f') / (num_colors - 1)
 			source_ar = np.arange(num_sources, dtype='f') / (num_sources -1)
