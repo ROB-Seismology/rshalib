@@ -386,7 +386,7 @@ class DeaggBase(object):
 	"""
 	def __init__(self, bin_edges, deagg_matrix, timespan):
 		assert len(bin_edges) == 6, "bin_edges must contain 6 elements!"
-		self.bin_edges = bin_edges
+		self.bin_edges = list(bin_edges)
 		assert deagg_matrix.shape[-6] == max(1, len(bin_edges[0]) - 1), "Number of magnitude bins not in accordance with specified bin edges!"
 		assert deagg_matrix.shape[-5] == max(1, len(bin_edges[1]) - 1), "Number of distance bins not in accordance with specified bin edges!"
 		assert deagg_matrix.shape[-4] == max(1, len(bin_edges[2]) - 1), "Number of longitude bins not in accordance with specified bin edges!"
