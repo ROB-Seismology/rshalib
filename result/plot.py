@@ -549,10 +549,10 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		struc_period_name = "T=%.2f s" % struc_period
 	else:
 		struc_period_name = "PGA"
-	fig_title += ' %s, $T_R$=%d yr' % (struc_period_name, return_period)
 	if title_comment:
-		fig_title += ', %s' % title_comment
-	fig_title += ')'
+		fig_title = title_comment
+	else:
+		fig_title += ' %s, $T_R$=%d yr' % (struc_period_name, return_period)
 	fig.canvas.set_window_title('Deaggregation Results')
 	pylab.gcf().text(0.5, 0.95, fig_title, horizontalalignment='center', fontproperties=FontProperties(size=15))
 	if fig_filespec:
