@@ -220,7 +220,7 @@ class SourceModel():
 
 		:param trt:
 			str, tectonic region type
-			If empty, all sources will be selected
+			If None or empty string, all sources will be selected.
 
 		:return:
 			list with source objects
@@ -228,7 +228,7 @@ class SourceModel():
 		if not trt:
 			return self.sources
 		else:
-			return [source for source in self.sources if source.tectonic_region_type == trt]
+			return [source for source in self.sources if src.tectonic_region_type == trt]
 
 	def get_sources_by_type(self, source_type):
 		"""
