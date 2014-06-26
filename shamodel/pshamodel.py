@@ -4444,11 +4444,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					mean_deagg_matrix[:,:,:,:,:,:,:,:] += (sdc.deagg_matrix * somo_weight)
 				else:
 					## trt bins correspond to tectonic region types
-					for trt_idx, trt in enumerate(trt_bins):
+					for trt_idx, _trt in enumerate(trt_bins):
 						src_idxs = []
 						for src_idx, src_id in enumerate(sdc.trt_bins):
 							src = source_model[src_id]
-							if src.tectonic_region_type == trt:
+							if src.tectonic_region_type == _trt:
 								src_idxs.append(src_idx)
 						src_idxs = np.array(src_idxs)
 						## Loop needed to avoid running out of memory...
