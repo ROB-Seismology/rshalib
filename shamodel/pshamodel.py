@@ -4450,14 +4450,14 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 							src = source_model[src_id]
 							if src.tectonic_region_type == trt:
 								src_idxs.append(src_idx)
-					src_idxs = np.array(src_idxs)
-					## Loop needed to avoid running out of memory...
-					for t in range(num_periods):
-						for l in range(num_intensities):
-							# Note: something very strange happens here: if we slice t, l, and
-							# src_idxs simultaneously, src_idxs becomes first dimension!
-							mean_deagg_matrix[t,l,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[t,l][:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
-					#mean_deagg_matrix[:,:,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[:,:,:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
+						src_idxs = np.array(src_idxs)
+						## Loop needed to avoid running out of memory...
+						for t in range(num_periods):
+							for l in range(num_intensities):
+								# Note: something very strange happens here: if we slice t, l, and
+								# src_idxs simultaneously, src_idxs becomes first dimension!
+								mean_deagg_matrix[t,l,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[t,l][:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
+						#mean_deagg_matrix[:,:,:,:,:,:,:,trt_idx] += (sdc.deagg_matrix[:,:,:,:,:,:,:,src_idxs].fold_axis(-1) * somo_weight)
 
 				del sdc.deagg_matrix
 				gc.collect()
