@@ -2731,7 +2731,7 @@ class PSHAModelTree(PSHAModelBase):
 			else:
 				model_name = "P%02d(%s)" % (perc_level, self.name)
 				hazard_values = perc_intercepts[:,:,:,p]
-				filespecs = []
+				filespecs = ['']*len(shcft.sites)
 				sites = shcft.sites
 				periods = shcft.periods
 				IMT = shcft.IMT
