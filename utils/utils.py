@@ -41,8 +41,7 @@ def logrange(min, max, n):
 	:return:
 		Float array
 	"""
-	step = (np.log10(max) - np.log10(min)) / (n - 1)
-	logs = np.array([np.log10(min) + i * step for i in range(n)])
+	logs = np.linspace(np.log10(min), np.log10(max), n)
 	return 10**logs
 
 
