@@ -5,16 +5,16 @@ according to Cotton et al. (2006)
 
 import numpy as np
 
-from ..utils import logrange, interpolate
-
 
 
 ## Anchoring depths in generic rock models of Boore & Joyner (1997)
 Za = np.array([1., 30., 190., 4000., 8000.])
 
+
 ## Rock models of Boore & Joyner (1997) (Table 3)
 BJ1997_WNA_Vs = np.array([336., 850., 1800., 3300., 3500.])
 BJ1997_ENA_Vs = np.array([2768., 2791., 2914., 3570., 3600.])
+
 
 ## Vs0 and p0 values for several Vs30 and depth ranges
 ## (Table 4)
@@ -115,6 +115,8 @@ def calc_generic_Vs_profile(vs30, z_ar, method="powerlaw"):
 	:return:
 		1-D float array, shear-wave velocities (m/s)
 	"""
+	from ..utils import interpolate
+
 	if vs30 < 600 or vs30 > 2700:
 		raise Exception("vs30 should be between 600 m/s and 2700 m/s")
 
@@ -183,6 +185,7 @@ def build_generic_rock_profile(vs30, num_depths=100):
 		instance of :class:`ElasticContinuousModel`
 	"""
 	from transfer1D import ElasticContinuousModel
+	from ..utils import logrange
 
 	## Ignore division warnings
 	np.seterr(divide='ignore', invalid='ignore')
@@ -201,4 +204,25 @@ def build_generic_rock_profile(vs30, num_depths=100):
 
 
 if __name__ == "__main__":
-	pass
+	import pylab
+	for vs30 in range(600, 2800, 300):
+		print vs30
+
+		generic_Vs_anchors = calc_generic_Vs_anchors(vs30)
+		print generic_Vs_anchors
+
+		z_ar = np.arange(8001)
+
+		Vs_profile = calc_generic_Vs_profile(vs30, z_ar, method="powerlaw")
+
+		pylab.plot(Vs_profile, z_ar, '%s' % colors[i], label="Vs30=%d m/s" % vs30)
+		pylab.plot(generic_Vs_anchors, Za, 'o', color='%s' % colors[i], label="_nolegend_")
+
+	pylab.xlabel("Vs (m/s)")
+	pylab.ylabel("Depth (m)")
+	ax = pylab.gca()
+	ax.set_ylim(ax.get_ylim()[::-1])
+
+	pylab.legend(loc=0)
+	pylab.grid(True)
+	pylab.show()

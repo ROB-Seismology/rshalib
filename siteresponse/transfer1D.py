@@ -7,7 +7,6 @@ import numpy as np
 import pylab
 
 from tf import TransferFunction, ComplexTransferFunction, ComplexTransferFunctionSet
-from ..calc.mp import mp_func_wrapper
 
 
 class ElasticLayer:
@@ -399,6 +398,7 @@ def randomized_reflectivity_mp(layer_model, theta=0., FrMax=50, NFr=2048, num_sa
 	Multiprocessing version of randomized_reflectivity.
 	"""
 	import multiprocessing
+	from ..calc.mp import mp_func_wrapper
 
 	num_processes = min(multiprocessing.cpu_count(), num_samples)
 	print("Starting %d parallel processes" % num_processes)
@@ -1118,4 +1118,14 @@ def get_host_to_target_adjustment(freqs, host_vs30, host_kappa, target_vs30, tar
 
 
 if __name__ == "__main__":
-	pass
+	from generic_rock import build_generic_rock_profile
+
+	for vs30 in range(600, 2800, 300):
+		print vs30
+
+		freqs = np.linspace(0.05, 50, 100)
+		rock_profile = build_generic_rock_profile(vs30)
+		tf, _ = rock_profile.site_amp(freqs)
+		pylab.plot(tf.freqs, tf.magnitudes)
+
+	pylab.show()
