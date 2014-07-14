@@ -53,6 +53,10 @@ reload(geo)
 import site
 reload(site)
 
+## Depends on calc, utils
+import siteresponse
+reload(siteresponse)
+
 ## Depends on utils, cav
 import gsim
 reload(gsim)
