@@ -195,9 +195,10 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 		label.set_size('large')
 	if fig_filespec:
 		pylab.savefig(fig_filespec, dpi=300)
-		pylab.clf()
 	else:
 		pylab.show()
+
+	pylab.clf()
 
 
 def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", legend_location=0, lang="en"):
@@ -328,9 +329,10 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 
 	if fig_filespec:
 		pylab.savefig(fig_filespec, dpi=300)
-		pylab.clf()
 	else:
 		pylab.show()
+
+	pylab.clf()
 
 
 def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_color='g', amax=0, da=0.005, intensity_unit="g", lang="en"):
@@ -391,9 +393,10 @@ def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_c
 
 	if fig_filespec:
 		pylab.savefig(fig_filespec, dpi=300)
-		pylab.clf()
 	else:
 		pylab.show()
+
+	pylab.clf()
 
 
 def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_values=None, eps_bin_edges=[1.0, 1.5, 2.0, 2.5, 3.0], fue_values=None, fue_labels=None, mr_style="2D", site_name="", struc_period=None, title_comment="", fig_filespec=None):
@@ -557,6 +560,7 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 	pylab.gcf().text(0.5, 0.95, fig_title, horizontalalignment='center', fontproperties=FontProperties(size=15))
 	if fig_filespec:
 		pylab.savefig(fig_filespec, dpi=300)
-		pylab.clf()
 	else:
 		pylab.show()
+
+	pylab.clf()
