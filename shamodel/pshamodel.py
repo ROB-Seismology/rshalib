@@ -4483,6 +4483,540 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		return PSHAModelTree(self.name, self.source_model_lt, self.gmpe_lt, self.root_folder, self.sites, self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance, self.num_lt_samples, self.random_seed)
 
+	def plot_source_model_sensitivity(self, fig_folder, somo_colors={}, somo_shortnames={}, plot_hc=True, plot_uhs=True, plot_barchart=True, hc_periods=[0, 0.2, 1], barchart_periods=[0, 0.2, 2], Tmax=10, amax={}, calc_id=None, recompute=False, fig_site_id="name"):
+		"""
+		Generate plots showing source-model sensitivity
+
+		:param fig_folder:
+			str, full path to folder where figures will be saved
+		:param somo_colors:
+			dict, mapping source model names to matplotlib color definitions
+			If empty, will be generated automatically. Note that the color red
+			will be reserved for the weighted mean.
+			(default: {})
+		:param somo_shortnames:
+			dict, mapping source model names to short names used in barcharts.
+			If empty, will be generated automatically (default: {})
+		:param plot_hc:
+			bool, whether or not hazard curves should be plotted
+			(default: True)
+		:param plot_uhs:
+			bool, whether or not UHS should be plotted
+			(default: True)
+		:param plot_barchart:
+			bool, whether or not barcharts should be plotted
+			(default: True)
+		:param hc_periods:
+			list or array, spectral periods for which to plot hazard curves
+			(default: [0, 0.2, 1])
+		:param barchart_periods:
+			list or array, spectral periods for which to plot barcharts
+			(default: [0, 0.2, 1])
+		:param Tmax:
+			float, maximum period in X axis of UHS
+		:param amax:
+			dict, mapping return periods to maximum spectral acceleration
+			in Y axis of UHS
+			(default: {})
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+		:param recompute:
+			bool, whether or not mean spectral hazard curve fields should
+			be recomputed in case they already exist
+			(default: False)
+		:param fig_site_id:
+			str, site attribute to use in file names
+			(default: "name")
+		"""
+		from ..result import HazardCurveCollection, UHSCollection
+		from ..plot.barchart import plot_nested_variation_barchart
+
+		num_source_models = len(self.source_models)
+
+		if somo_colors == {}:
+			all_colors = ["green", "magenta", "blue", "cyan", "yellow", "black"]
+			for s, source_model in enumerate(self.source_models):
+				somo_colors[source_model.name] = all_colors[s]
+
+		if somo_shortnames == {}:
+			for source_model in self.source_models:
+				somo_shortnames[source_model.name] = ''.join([word[0].capitalize() for word in source_model.name.split('_')])
+
+		bc_colors = {}
+		for source_model in self.source_models:
+			bc_colors[somo_shortnames[source_model.name]] = somo_colors[source_model.name]
+
+		## Read or compute mean spectral hazard curve field
+		mean_somo_shcf_list = []
+		for source_model in self.source_models:
+			shcf = self.get_oq_mean_shcf_by_source_model(source_model, calc_id=calc_id, write_xml=recompute)
+			mean_somo_shcf_list.append(shcf)
+		mean_shcf = self.get_oq_mean_shcf(calc_id=calc_id, write_xml=recompute)
+
+		## Plot hazard curves
+		if plot_hc:
+			for site in self.get_sites():
+				mean_somo_shc_list = [shcf.getSpectralHazardCurve(site_spec=site.name) for shcf in mean_somo_shcf_list]
+				mean_shc = mean_shcf.getSpectralHazardCurve(site_spec=site.name)
+				for period in hc_periods:
+					hc_list, labels, colors = [], [], []
+					for s, source_model in enumerate(self.source_models):
+						hc = mean_somo_shc_list[s].getHazardCurve(period_spec=period)
+						hc_list.append(hc)
+						labels.append(source_model.name)
+						colors.append(somo_colors[source_model.name])
+					mean_hc = mean_shc.getHazardCurve(period_spec=period)
+					hc_list.append(mean_hc)
+					labels.append("Weighted mean")
+					colors.append("red")
+					hcc = HazardCurveCollection(hc_list, labels=labels, colors=colors)
+					title = "Mean hazard curves, %s, T=%s s" % (site.name, period)
+					fig_filename = "SHC_somo_mean_site_%s=%s_T=%s.png" % (fig_site_id, getattr(site, fig_site_id), period)
+					fig_filespec = os.path.join(fig_folder, fig_filename)
+					hcc.plot(title=title, fig_filespec=fig_filespec)
+
+		## Compute UHS
+		mean_somo_uhsfs_list = [shcf.interpolate_return_periods(self.return_periods) for shcf in mean_somo_shcf_list]
+		mean_uhsfs = mean_shcf.interpolate_return_periods(self.return_periods)
+
+		for return_period in self.return_periods:
+			mean_somo_uhsf_list = [uhsfs.getUHSField(return_period=return_period) for uhsfs in mean_somo_uhsfs_list]
+			mean_uhsf = mean_uhsfs.getUHSField(return_period=return_period)
+
+			for site in self.get_sites():
+				uhs_list, labels, colors = [], [], []
+				for s, source_model in enumerate(self.source_models):
+					mean_somo_uhs = mean_somo_uhsf_list[s].getUHS(site_spec=site.name)
+					uhs_list.append(mean_somo_uhs)
+					labels.append(source_model.name)
+					colors.append(somo_colors[source_model.name])
+					## Export somo mean to csv
+					#csv_filename = "UHS_mean_%s_site_%s=%s_Tr=%.Eyr.csv" % (source_model.name, fig_site_id, getattr(site, fig_site_id), return_period)
+					#mean_somo_uhs.export_csv(os.path.join(fig_folder, csv_filename))
+
+				mean_uhs = mean_uhsf.getUHS(site_spec=site.name)
+				uhs_list.append(mean_uhs)
+				labels.append("Weighted mean")
+				colors.append("red")
+
+				## Plot UHS
+				if plot_uhs:
+					uhsc = UHSCollection(uhs_list, colors=colors, labels=labels)
+					title = "Mean UHS, %s, Tr=%.E yr" % (site.name, return_period)
+					fig_filename = "UHS_somo_mean_site_%s=%s_Tr=%.Eyr.png" % (fig_site_id, getattr(site, fig_site_id), return_period)
+					fig_filespec = os.path.join(fig_folder, fig_filename)
+					uhsc.plot(title=title, Tmax=Tmax, amax=amax.get(return_period, None), legend_location=1, fig_filespec=fig_filespec)
+
+				## Plot barchart
+				if plot_barchart:
+					category_value_dict = OrderedDict()
+					for period in barchart_periods:
+						period_label = "T=%s s" % period
+						mean_value = float("%.3f" % mean_uhs[period])
+						category_value_dict[period_label] = OrderedDict()
+						for source_model_name, uhs in zip(labels, uhs_list)[:3]:
+							somo_shortname = somo_shortnames[source_model_name]
+							category_value_dict[period_label][somo_shortname] = uhs[period] - mean_value
+					fig_filename = "Barchart_somo_site_%s=%s_Tr=%.Eyr.png" % (fig_site_id, getattr(site, fig_site_id), return_period)
+					fig_filespec = os.path.join(fig_folder, fig_filename)
+					ylabel = "SA (g)"
+					title = "Source-model sensitivity, %s, Tr=%.E yr" % (site.name, return_period)
+					plot_nested_variation_barchart(0, category_value_dict, ylabel, title, color=bc_colors, fig_filespec=fig_filespec)
+
+	def plot_source_sensitivity(self, fig_folder, sources_to_combine={}, plot_hc=True, plot_uhs=True, hc_periods=[0, 0.2, 1], Tmax=10, amax={}, calc_id=None, recompute=False, fig_site_id="name"):
+		"""
+		Generate plots showing source sensitivity
+
+		:param fig_folder:
+			str, full path to folder where figures will be saved
+		:param sources_to_combine:
+			dict mapping source model names to dicts mapping in turn
+			names to lists of source ids that should be combined in
+			the plot
+			(default: {})
+		:param plot_hc:
+			bool, whether or not hazard curves should be plotted
+			(default: True)
+		:param plot_uhs:
+			bool, whether or not UHS should be plotted
+			(default: True)
+		:param hc_periods:
+			list or array, spectral periods for which to plot hazard curves
+			(default: [0, 0.2, 1])
+		:param Tmax:
+			float, maximum period in X axis of UHS
+		:param amax:
+			dict, mapping return periods to maximum spectral acceleration
+			in Y axis of UHS
+			(default: {})
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+		:param recompute:
+			bool, whether or not mean spectral hazard curve fields should
+			be recomputed in case they already exist
+			(default: False)
+		:param fig_site_id:
+			str, site attribute to use in file names
+			(default: "name")
+		"""
+		from ..result import HazardCurveCollection, UHSCollection
+
+		src_colors = ["aqua", "blue", "fuchsia", "green", "lime", "maroon", "navy", "olive", "orange", "purple", "silver", "teal", "yellow", "slateblue", "saddlebrown", "forestgreen"]
+
+		## Read or compute mean spectral hazard curve fields
+		for source_model in self.source_models:
+			mean_somo_shcf = self.get_oq_mean_shcf_by_source_model(source_model, calc_id=calc_id, write_xml=recompute)
+			somo_sources_to_combine = sources_to_combine.get(source_model.name, [])
+			all_somo_sources_to_combine = sum(somo_sources_to_combine.values(), [])
+			for src in source_model.sources:
+				if not src.source_id in all_somo_sources_to_combine:
+					somo_sources_to_combine[src.source_id] = [src.source_id]
+
+			## Organize combined and uncombined sources
+			mean_src_shcf_dict = {}
+			for combined_src_id, src_id_list in somo_sources_to_combine.items():
+				combined_shcf = None
+				for src_id in src_id_list:
+					src = source_model[src_id]
+					shcf = self.get_oq_mean_shcf_by_source(source_model.name, src, calc_id=calc_id, write_xml=recompute)
+					## Sum remote sources
+					if combined_shcf is None:
+						combined_shcf = shcf
+					else:
+						combined_shcf += shcf
+				mean_src_shcf_dict[combined_src_id] = combined_shcf
+
+			## Plot hazard curves
+			if plot_hc:
+				for site in self.get_sites():
+					mean_somo_shc = mean_somo_shcf.getSpectralHazardCurve(site_spec=site.name)
+					for period in hc_periods:
+						mean_somo_hc = mean_somo_shc.getHazardCurve(period_spec=period)
+						hc_list = [mean_somo_hc]
+						labels = ["All sources"]
+						colors = ["red"]
+						for s, combined_src_id in enumerate(sorted(mean_src_shcf_dict.keys())):
+							mean_src_shc = mean_src_shcf_dict[combined_src_id].getHazardCurve(site_spec=site.name, period_spec=period)
+							hc_list.append(mean_src_shc)
+							labels.append(combined_src_id)
+							colors.append(src_colors[s])
+						hcc = HazardCurveCollection(hc_list, labels=labels, colors=colors)
+						title = "Source hazard curves, %s, T=%s s" % (site.name, period)
+						fig_filename = "SHC_%s_sources_site_%s=%s_T=%s.png" % (source_model.name, fig_site_id, getattr(site, fig_site_id), period)
+						fig_filespec = os.path.join(fig_folder, fig_filename)
+						hcc.plot(title=title, fig_filespec=fig_filespec)
+
+			## Compute UHS
+			if plot_uhs:
+				return_periods = self.return_periods
+				mean_somo_uhsfs = mean_somo_shcf.interpolate_return_periods(return_periods)
+				mean_src_uhsfs_dict = {}
+				for combined_src_id in mean_src_shcf_dict.keys():
+					mean_src_uhsfs_dict[combined_src_id] = mean_src_shcf_dict[combined_src_id].interpolate_return_periods(return_periods)
+
+				for return_period in self.return_periods:
+					mean_somo_uhsf = mean_somo_uhsfs.getUHSField(return_period=return_period)
+					mean_src_uhsf_dict = {}
+					for combined_src_id in mean_src_uhsfs_dict.keys():
+						mean_src_uhsf_dict[combined_src_id] = mean_src_uhsfs_dict[combined_src_id].getUHSField(return_period=return_period)
+
+					for site in self.get_sites():
+						mean_somo_uhs = mean_somo_uhsf.getUHS(site_spec=site.name)
+						uhs_list = [mean_somo_uhs]
+						labels = ["All sources"]
+						colors = ["red"]
+						for s, combined_src_id in enumerate(sorted(mean_src_uhsf_dict.keys())):
+							mean_src_uhsf = mean_src_uhsf_dict[combined_src_id]
+							mean_src_uhs = mean_src_uhsf.getUHS(site_spec=site.name)
+							uhs_list.append(mean_src_uhs)
+							labels.append(combined_src_id)
+							colors.append(src_colors[s])
+
+						## Plot UHS
+						uhsc = UHSCollection(uhs_list, labels=labels, colors=colors)
+						title = "Source UHS, %s, %s, Tr=%.E yr" % (source_model.name, site.name, return_period)
+						fig_filename = "UHS_%s_sources_site_%s=%s_Tr=%.Eyr.png" % (source_model.name, fig_site_id, getattr(site, fig_site_id), return_period)
+						fig_filespec = os.path.join(fig_folder, fig_filename)
+						uhsc.plot(title=title, Tmax=Tmax, amax=amax[return_period], legend_location=1, fig_filespec=fig_filespec)
+
+	def plot_gmpe_sensitivity(self, fig_folder, gmpe_colors={}, gmpe_shortnames={}, somo_colors={}, somo_shortnames={}, plot_hc=True, plot_uhs=True, plot_barchart=True, plot_by_source_model=False, hc_periods=[0, 0.2, 1], barchart_periods=[0, 0.2, 2], Tmax=10, amax={}, calc_id=None, recompute=False, fig_site_id="name"):
+		"""
+		Generate plots showing GMPE sensitiviy
+
+		:param fig_folder:
+			str, full path to folder where figures will be saved
+		:param gmpe_colors:
+			dict, mapping GMPE names to matplotlib color definitions
+			If empty, will be generated automatically. Note that the color red
+			will be reserved for the weighted mean.
+			(default: {})
+		:param gmpe_shortnames:
+			dict, mapping GMPE names to short names used in barcharts.
+			If empty, will be generated automatically (default: {})
+		:param somo_colors:
+			dict, mapping source model names to matplotlib color definitions
+			to be used in barcharts
+			If empty, will be generated automatically. Note that the color red
+			will be reserved for the weighted mean.
+			(default: {})
+		:param somo_shortnames:
+			dict, mapping source model names to short names used in barcharts.
+			If empty, will be generated automatically (default: {})
+		:param plot_hc:
+			bool, whether or not hazard curves should be plotted
+			(default: True)
+		:param plot_uhs:
+			bool, whether or not UHS should be plotted
+			(default: True)
+		:param plot_barchart:
+			bool, whether or not barcharts should be plotted
+			(default: True)
+		:param plot_by_source_model:
+			bool, whether or not hazard curves and UHS should be plotted
+			by source model in addition to the plots by TRT
+			(default: False)
+		:param hc_periods:
+			list or array, spectral periods for which to plot hazard curves
+			(default: [0, 0.2, 1])
+		:param barchart_periods:
+			list or array, spectral periods for which to plot barcharts
+			(default: [0, 0.2, 1])
+		:param Tmax:
+			float, maximum period in X axis of UHS
+		:param amax:
+			dict, mapping return periods to maximum spectral acceleration
+			in Y axis of UHS
+			(default: {})
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: None, will
+				be determined automatically)
+		:param recompute:
+			bool, whether or not mean spectral hazard curve fields should
+			be recomputed in case they already exist
+			(default: False)
+		:param fig_site_id:
+			str, site attribute to use in file names
+			(default: "name")
+		"""
+		from ..result import HazardCurveCollection, UHSCollection
+		from ..plot.barchart import plot_nested_variation_barchart
+
+		if gmpe_colors == {}:
+			for trt in self.gmpe_lt.tectonicRegionTypes:
+				all_colors = ["green", "magenta", "blue", "cyan", "yellow", "gray", "black"]
+				for g, (gmpe_name, gmpe_weight) in enumerate(self.gmpe_lt.gmpe_system_def[trt]):
+					gmpe_colors[gmpe_name] = all_colors[g]
+
+		if somo_shortnames == {}:
+			for source_model in self.source_models:
+				somo_shortnames[source_model.name] = ''.join([word[0].capitalize() for word in source_model.name.split('_')])
+
+		if gmpe_shortnames == {}:
+			for trt in self.gmpe_lt.tectonicRegionTypes:
+				for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+					try:
+						gmpe_short_name = getattr(rshalib.gsim, gmpe_name)().short_name
+					except:
+						gmpe_short_name = "".join([c for c in gmpe_name if c.isupper() or c.isdigit()])
+					gmpe_shortnames[gmpe_name] = gmpe_short_name
+
+		if somo_colors == {}:
+			all_colors = ["green", "magenta", "blue", "cyan", "yellow", "black"]
+			for s, source_model in enumerate(self.source_models):
+				somo_colors[source_model.name] = all_colors[s]
+
+		bc_colors = {}
+		for source_model in self.source_models:
+			bc_colors[somo_shortnames[source_model.name]] = somo_colors[source_model.name]
+		bc_colors["Avg"] = "red"
+
+		trt_shortnames = {}
+		for trt in self.gmpe_lt.tectonicRegionTypes:
+			trt_shortnames[trt] = ''.join([word[0].capitalize() for word in trt.split()])
+
+		return_periods = self.return_periods
+		sites = self.get_sites()
+
+		## Initialize category_value_dict for barchart plot
+		category_value_dict = {}
+		mean_value_dict = {}
+		for site in sites:
+			category_value_dict[site.name] = {}
+			mean_value_dict[site.name] = {}
+			for return_period in return_periods:
+				category_value_dict[site.name][return_period] = {}
+				mean_value_dict[site.name][return_period] = {}
+				for period in barchart_periods:
+					category_value_dict[site.name][return_period][period] = {}
+					mean_value_dict[site.name][return_period][period] = {}
+					for trt in self.gmpe_lt.tectonicRegionTypes:
+						category_value_dict[site.name][return_period][period][trt] = OrderedDict()
+						for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+							gmpe_short_name = gmpe_shortnames[gmpe_name]
+							category_value_dict[site.name][return_period][period][trt][gmpe_short_name] = OrderedDict()
+
+		## By TRT
+		for trt in self.gmpe_lt.tectonicRegionTypes:
+			trt_short_name = trt_shortnames[trt]
+			trt_gmpes = [gmpe_name for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]]
+			mean_trt_shcf = self.get_oq_mean_shcf(trt=trt, write_xml=recompute, calc_id=calc_id)
+			gmpe_shcf_list = []
+			for gmpe_name in trt_gmpes:
+				shcf = self.get_oq_mean_shcf(trt=trt, gmpe_name=gmpe_name, calc_id=calc_id, write_xml=recompute)
+				gmpe_shcf_list.append(shcf)
+
+			## Plot hazard curves
+			if plot_hc:
+				for site in sites:
+					mean_trt_shc = mean_trt_shcf.getSpectralHazardCurve(site_spec=site.name)
+					gmpe_shc_list = [shcf.getSpectralHazardCurve(site_spec=site.name) for shcf in gmpe_shcf_list]
+					for period in hc_periods:
+						hc_list, labels, colors = [], [], []
+						for g, gmpe_name in enumerate(trt_gmpes):
+							hc = gmpe_shc_list[g].getHazardCurve(period_spec=period)
+							hc_list.append(hc)
+							labels.append(gmpe_name)
+							colors.append(gmpe_colors[gmpe_name])
+						mean_trt_hc = mean_trt_shc.getHazardCurve(period_spec=period)
+						hc_list.append(mean_trt_hc)
+						labels.append("Weighted mean")
+						colors.append("red")
+						hcc = HazardCurveCollection(hc_list, labels=labels, colors=colors)
+						title = "Mean %s hazard curves, %s, T=%s s" % (trt_short_name, site.name, period)
+						fig_filename = "SHC_%s_site_%s=%s_T=%s.png" % (trt_short_name, fig_site_id, getattr(site, fig_site_id), period)
+						fig_filespec = os.path.join(fig_folder, fig_filename)
+						hcc.plot(title=title, fig_filespec=fig_filespec)
+
+			## Compute UHS and collect mean values by TRT
+			mean_trt_uhsfs = mean_trt_shcf.interpolate_return_periods(return_periods)
+			gmpe_uhsfs_list = [shcf.interpolate_return_periods(return_periods) for shcf in gmpe_shcf_list]
+			for return_period in return_periods:
+				mean_trt_uhsf = mean_trt_uhsfs.getUHSField(return_period=return_period)
+				gmpe_uhsf_list = [uhsfs.getUHSField(return_period=return_period) for uhsfs in gmpe_uhsfs_list]
+				for site in sites:
+					uhs_list, labels, colors = [], [], []
+					for g, (gmpe_name, gmpe_weight) in enumerate(self.gmpe_lt.gmpe_system_def[trt]):
+						gmpe_short_name = gmpe_shortnames[gmpe_name]
+						gmpe_uhs = gmpe_uhsf_list[g].getUHS(site_spec=site.name)
+						uhs_list.append(gmpe_uhs)
+						labels.append(gmpe_name)
+						colors.append(gmpe_colors[gmpe_name])
+
+					mean_trt_uhs = mean_trt_uhsf.getUHS(site_spec=site.name)
+					uhs_list.append(mean_trt_uhs)
+					labels.append("Weighted mean")
+					colors.append("red")
+
+					## Plot UHS
+					if plot_uhs:
+						uhsc = UHSCollection(uhs_list, colors=colors, labels=labels)
+						title = "UHS, %s, %s, Tr=%.E yr" % (trt_short_name, site.name, return_period)
+						fig_filename = "UHS_%s_site_%s=%s_Tr=%.Eyr.png" % (trt_short_name, fig_site_id, getattr(site, fig_site_id), return_period)
+						fig_filespec = os.path.join(fig_folder, fig_filename)
+						uhsc.plot(title=title, Tmax=Tmax, amax=amax[return_period], legend_location=1, fig_filespec=fig_filespec)
+
+					for period in barchart_periods:
+						mean_value_dict[site.name][return_period][period][trt] = mean_trt_uhs[period]
+
+		## Collect mean values per TRT/GMPE
+		for trt in self.gmpe_lt.tectonicRegionTypes:
+			for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+				gmpe_short_name = gmpe_shortnames[gmpe_name]
+				mean_trt_gmpe_shcf = self.get_oq_mean_shcf(trt=trt, gmpe_name=gmpe_name, write_xml=recompute, calc_id=calc_id)
+				mean_trt_gmpe_uhsfs = mean_trt_gmpe_shcf.interpolate_return_periods(return_periods)
+				for return_period in return_periods:
+					mean_trt_gmpe_uhsf = mean_trt_gmpe_uhsfs.getUHSField(return_period=return_period)
+					for site in sites:
+						mean_trt_gmpe_uhs = mean_trt_gmpe_uhsf.getUHS(site_spec=site.name)
+						for period in barchart_periods:
+							category_value_dict[site.name][return_period][period][trt][gmpe_short_name]["Avg"] = mean_trt_gmpe_uhs[period]
+
+		## By source model
+		for source_model in self.source_models:
+			somo_short_name = somo_shortnames[source_model.name]
+			for trt in source_model.get_tectonic_region_types():
+				trt_short_name = trt_shortnames[trt]
+				trt_gmpes = [gmpe_name for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]]
+				gmpe_shcf_list = []
+				trt_shcf = self.get_oq_mean_shcf_by_source_model(source_model, trt=trt, calc_id=calc_id, write_xml=recompute)
+				for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+					shcf = self.get_oq_mean_shcf_by_source_model(source_model, trt=trt, gmpe_name=gmpe_name, calc_id=calc_id, write_xml=recompute)
+					gmpe_shcf_list.append(shcf)
+
+				if plot_hc and plot_by_source_model:
+					for site in sites:
+						trt_shc = trt_shcf.getSpectralHazardCurve(site_spec=site.name)
+						gmpe_shc_list = [shcf.getSpectralHazardCurve(site_spec=site.name) for shcf in gmpe_shcf_list]
+						for period in hc_periods:
+							hc_list, labels, colors = [], [], []
+							for g, gmpe_name in enumerate(trt_gmpes):
+								hc = gmpe_shc_list[g].getHazardCurve(period_spec=period)
+								hc_list.append(hc)
+								labels.append(gmpe_name)
+								colors.append(gmpe_colors[gmpe_name])
+							trt_hc = trt_shc.getHazardCurve(period_spec=period)
+							hc_list.append(trt_hc)
+							labels.append("Weighted mean")
+							colors.append("red")
+							hcc = HazardCurveCollection(hc_list, labels=labels, colors=colors)
+							title = "%s, %s, %s, T=%s s" % (source_model.name, trt_short_name, site.name, period)
+							fig_filename = "SHC_%s_%s_site_%s=%s_T=%s.png" % (source_model.name, trt_short_name, fig_site_id, getattr(site, fig_site_id), period)
+							fig_filespec = os.path.join(fig_folder, fig_filename)
+							hcc.plot(title=title, fig_filespec=fig_filespec)
+
+				## Compute UHS
+				gmpe_uhsfs_list = [shcf.interpolate_return_periods(return_periods) for shcf in gmpe_shcf_list]
+				trt_uhsfs = trt_shcf.interpolate_return_periods(return_periods)
+
+				for return_period in return_periods:
+					gmpe_uhsf_list = [uhsfs.getUHSField(return_period=return_period) for uhsfs in gmpe_uhsfs_list]
+					trt_uhsf = trt_uhsfs.getUHSField(return_period=return_period)
+
+					for site in sites:
+						uhs_list, labels, colors = [], [], []
+						labels = []
+						for g, (gmpe_name, gmpe_weight) in enumerate(self.gmpe_lt.gmpe_system_def[trt]):
+							gmpe_short_name = gmpe_shortnames[gmpe_name]
+							gmpe_uhs = gmpe_uhsf_list[g].getUHS(site_spec=site.name)
+							uhs_list.append(gmpe_uhs)
+							labels.append(gmpe_name)
+							colors.append(gmpe_colors[gmpe_name])
+
+							for period in barchart_periods:
+								category_value_dict[site.name][return_period][period][trt][gmpe_short_name][somo_short_name] = gmpe_uhs[period]
+
+						trt_uhs = trt_uhsf.getUHS(site_spec=site.name)
+						uhs_list.append(trt_uhs)
+						labels.append("Weighted mean")
+						colors.append("red")
+
+						## Plot UHS
+						if plot_uhs and plot_by_source_model:
+							uhsc = UHSCollection(uhs_list, colors=colors, labels=labels)
+							title = "UHS, %s, %s, %s, Tr=%.E yr" % (source_model.name, trt_short_name, site.name, return_period)
+							fig_filename = "UHS_%s_%s_site_%s=%s_Tr=%.Eyr.png" % (source_model.name, trt_short_name, fig_site_id, getattr(site, fig_site_id), return_period)
+							fig_filespec = os.path.join(fig_folder, fig_filename)
+							uhsc.plot(title=title, Tmax=Tmax, amax=amax[return_period], legend_location=1, fig_filespec=fig_filespec)
+
+		## Barchart plot
+		if plot_barchart:
+			for site in sites:
+				for return_period in return_periods:
+					for period in barchart_periods:
+						for trt in self.gmpe_lt.tectonicRegionTypes:
+							trt_short_name = trt_shortnames[trt]
+							fig_filename = "Barchart_gmpe_site_%s=%s_%s_Tr=%.Eyr_T=%ss.png" % (fig_site_id, getattr(site, fig_site_id), trt_short_name, return_period, period)
+							fig_filespec = os.path.join(fig_folder, fig_filename)
+							if period == 0:
+								ylabel = "PGA (g)"
+							else:
+								ylabel = "SA (g)"
+							title = "GMPE sensitivity, %s, %s, Tr=%.E yr, T=%s s" % (site.name, trt_short_name, return_period, period)
+							cv_dict = category_value_dict[site.name][return_period][period][trt]
+							mean_value = mean_value_dict[site.name][return_period][period][trt]
+							plot_nested_variation_barchart(mean_value, cv_dict, ylabel, title, color=bc_colors, fig_filespec=fig_filespec)
 
 
 if __name__ == '__main__':
