@@ -4615,8 +4615,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						period_label = "T=%s s" % period
 						mean_value = float("%.3f" % mean_uhs[period])
 						category_value_dict[period_label] = OrderedDict()
-						for source_model_name, uhs in zip(labels, uhs_list)[:3]:
-							somo_shortname = somo_shortnames[source_model_name]
+						#for source_model_name, uhs in zip(labels, uhs_list)[:3]:
+						for s, source_model in enumerate(self.source_models):
+							uhs = uhs_list[s]
+							somo_shortname = somo_shortnames[source_model.name]
 							category_value_dict[period_label][somo_shortname] = uhs[period] - mean_value
 					fig_filename = "Barchart_somo_site_%s=%s_Tr=%.Eyr.png" % (fig_site_id, getattr(site, fig_site_id), return_period)
 					fig_filespec = os.path.join(fig_folder, fig_filename)
@@ -4668,7 +4670,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		## Read or compute mean spectral hazard curve fields
 		for source_model in self.source_models:
 			mean_somo_shcf = self.get_oq_mean_shcf_by_source_model(source_model, calc_id=calc_id, write_xml=recompute)
-			somo_sources_to_combine = sources_to_combine.get(source_model.name, [])
+			somo_sources_to_combine = sources_to_combine.get(source_model.name, {})
 			all_somo_sources_to_combine = sum(somo_sources_to_combine.values(), [])
 			for src in source_model.sources:
 				if not src.source_id in all_somo_sources_to_combine:
@@ -4739,7 +4741,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						title = "Source UHS, %s, %s, Tr=%.E yr" % (source_model.name, site.name, return_period)
 						fig_filename = "UHS_%s_sources_site_%s=%s_Tr=%.Eyr.png" % (source_model.name, fig_site_id, getattr(site, fig_site_id), return_period)
 						fig_filespec = os.path.join(fig_folder, fig_filename)
-						uhsc.plot(title=title, Tmax=Tmax, amax=amax[return_period], legend_location=1, fig_filespec=fig_filespec)
+						uhsc.plot(title=title, Tmax=Tmax, amax=amax.get(return_period, None), legend_location=1, fig_filespec=fig_filespec)
 
 	def plot_gmpe_sensitivity(self, fig_folder, gmpe_colors={}, gmpe_shortnames={}, somo_colors={}, somo_shortnames={}, plot_hc=True, plot_uhs=True, plot_barchart=True, plot_by_source_model=False, hc_periods=[0, 0.2, 1], barchart_periods=[0, 0.2, 2], Tmax=10, amax={}, calc_id=None, recompute=False, fig_site_id="name"):
 		"""
@@ -4915,7 +4917,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						title = "UHS, %s, %s, Tr=%.E yr" % (trt_short_name, site.name, return_period)
 						fig_filename = "UHS_%s_site_%s=%s_Tr=%.Eyr.png" % (trt_short_name, fig_site_id, getattr(site, fig_site_id), return_period)
 						fig_filespec = os.path.join(fig_folder, fig_filename)
-						uhsc.plot(title=title, Tmax=Tmax, amax=amax[return_period], legend_location=1, fig_filespec=fig_filespec)
+						uhsc.plot(title=title, Tmax=Tmax, amax=amax.get(return_period, None), legend_location=1, fig_filespec=fig_filespec)
 
 					for period in barchart_periods:
 						mean_value_dict[site.name][return_period][period][trt] = mean_trt_uhs[period]
@@ -4998,7 +5000,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 							title = "UHS, %s, %s, %s, Tr=%.E yr" % (source_model.name, trt_short_name, site.name, return_period)
 							fig_filename = "UHS_%s_%s_site_%s=%s_Tr=%.Eyr.png" % (source_model.name, trt_short_name, fig_site_id, getattr(site, fig_site_id), return_period)
 							fig_filespec = os.path.join(fig_folder, fig_filename)
-							uhsc.plot(title=title, Tmax=Tmax, amax=amax[return_period], legend_location=1, fig_filespec=fig_filespec)
+							uhsc.plot(title=title, Tmax=Tmax, amax=amax.get(return_period, None), legend_location=1, fig_filespec=fig_filespec)
 
 		## Barchart plot
 		if plot_barchart:
