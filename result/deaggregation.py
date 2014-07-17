@@ -7,6 +7,10 @@ from plot import plot_deaggregation
 from hazard_curve import Poisson, HazardCurve
 
 
+# TODO: add intensity_unit parameter to DeaggregationSlice, DeaggregationCurve and SpectralDeaggregationCurve
+# TODO: common base class for ExceedanceRateArray, ExceedanceRateMatrix etc.
+
+
 class DeaggMatrix(np.ndarray):
 	"""
 	Base class for deaggregation matrix, subclassed from numpy ndarray
@@ -1275,14 +1279,17 @@ class DeaggregationCurve(DeaggBase):
 		:return:
 			instance of :class:`HazardCurve`
 		"""
-		from hazard_curve import ExceedanceRateArray
-		exceedance_rates = []
-		for slice in self:
-			exceedance_rates.append(slice.get_total_exceedance_rate())
-		exceedance_rates = ExceedanceRateArray(exceedance_rates)
+		from hazard_curve import ExceedanceRateArray, ProbabilityArray, HazardCurve
+		hazard_values = self.deagg_matrix.fold_axes([6,5,4,3,2])
+		if isinstance(self.deagg_matrix, ExceedanceRateMatrix):
+			hazard_values = ExceedanceRateArray(hazard_values)
+		elif isinstance(self.deagg_matrix, ProbabilityMatrix):
+			hazard_values = ProbabilityArray(hazard_values)
+		else:
+			raise Exception("Not supported for FractionalContributionMatrix!")
 		model_name = ""
 		filespec = ""
-		return HazardCurve(model_name, exceedance_rates, filespec, self.site, self.period, self.imt, self.intensities, "g", self.timespan, variances=None)
+		return HazardCurve(model_name, hazard_values, filespec, self.site, self.period, self.imt, self.intensities, "g", self.timespan, variances=None)
 
 	def get_occurrence_rates(self):
 		"""
@@ -1808,6 +1815,27 @@ class SpectralDeaggregationCurve(DeaggBase):
 					f.write("\n")
 
 		return (mean_high_freq_dc, mean_low_freq_dc)
+
+	def get_spectral_hazard_curve(self):
+		"""
+		Get spectral hazard curve corresponding to total exceedance rate or
+		probability for each intensity level.
+
+		:return:
+			instance of :class:`SpectralHazardCurve`
+		"""
+		from hazard_curve import ExceedanceRateArray, ProbabilityArray, SpectralHazardCurve
+		hazard_values = self.deagg_matrix.fold_axes([7,6,5,4,3,2])
+		if isinstance(self.deagg_matrix, ExceedanceRateMatrix):
+			hazard_values = ExceedanceRateArray(hazard_values)
+		elif isinstance(self.deagg_matrix, ProbabilityMatrix):
+			hazard_values = ProbabilityArray(hazard_values)
+		else:
+			raise Exception("Not supported for FractionalContributionMatrix!")
+		model_name = ""
+		filespec = ""
+		return SpectralHazardCurve(model_name, hazard_values, filespec, self.site, self.periods, self.imt, self.intensities, "g", self.timespan, variances=None)
+
 
 
 def get_mean_deaggregation_slice(deagg_slices):
