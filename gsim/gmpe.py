@@ -2614,7 +2614,7 @@ class NhlibGMPE(GMPE):
 				else:
 					imt_periods[imt.__name__] = [0]
 
-		if name in ("ToroEtAl2002", "ToroEtAl2002SHARE"):
+		if name in ("ToroEtAl2002", "ToroEtAl2002SHARE", "ToroEtAl2002HTT"):
 			## Remove T=3 and T=4 seconds, which are not supported by the
 			## original publication
 			imt_periods['SA'] = imt_periods['SA'][:-2]
@@ -2628,7 +2628,7 @@ class NhlibGMPE(GMPE):
 		self.imt_scaling["PGV"] = {"ms": 1E-2, "cms": 1.0}
 		self.imt_scaling["PGD"] = {"m": 1E-2, "cm": 1.0}
 
-	def _get_nhlib_mean_and_stddevs(self, M, d, h=0., imt="PGA", T=0, vs30=None, kappa=None, mechanism="normal", damping=5):
+	def _get_nhlib_mean_and_stddevs(self, M, d, h=0., imt="PGA", T=0, vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
 		## Convert arguments to correct shape
 		if isinstance(M, (int, float)):
 			magnitude_is_array = False
@@ -2650,7 +2650,7 @@ class NhlibGMPE(GMPE):
 		ln_means, ln_stddevs = [], []
 		for M in Mags:
 			## get sctx, rctx, dctx and imt
-			sctx, rctx, dctx, imt_object = self._get_contexts_and_imt(M, d, h, vs30, kappa, mechanism, imt, T, damping)
+			sctx, rctx, dctx, imt_object = self._get_contexts_and_imt(M, d, h, vs30, vs30measured, z1pt0, z2pt5, kappa, mechanism, imt, T, damping)
 
 			## get mean and sigma
 			ln_mean, [ln_sigma] = self.gmpe().get_mean_and_stddevs(sctx, rctx, dctx, imt_object, ['Total'])
@@ -2671,7 +2671,7 @@ class NhlibGMPE(GMPE):
 
 		return (ln_means, ln_stddevs)
 
-	def _get_contexts_and_imt(self, M, d, h, vs30, kappa, mechanism, imt, T, damping):
+	def _get_contexts_and_imt(self, M, d, h, vs30, vs30measured, z1pt0, z2pt5, kappa, mechanism, imt, T, damping):
 		"""
 		Return site, rupture and distance context, and imt objects.
 
@@ -2681,14 +2681,21 @@ class NhlibGMPE(GMPE):
 		sctx = nhlib.gsim.base.SitesContext()
 		if not vs30:
 			vs30 = 800.
-		sctx.vs30 = np.ones_like(d, dtype="d")
-		sctx.vs30 *= vs30
+		if vs30:
+			sctx.vs30 = np.ones_like(d, dtype='d')
+			sctx.vs30 *= vs30
+		if vs30measured:
+			sctx.vs30measured = np.ones_like(d, dtype='d')
+			sctx.vs30measured *= vs30measured
+		if z1pt0:
+			sctx.z1pt0 = np.ones_like(d, dtype='d')
+			sctx.z1pt0 *= z1pt0
+		if z2pt5:
+			sctx.z2pt5 = np.ones_like(d, dtype='d')
+			sctx.z2pt5 *= z2pt5
 		if kappa:
 			sctx.kappa = np.ones_like(d, dtype='d')
 			sctx.kappa *= kappa
-#		sctx.vs30measured = None
-#		sctx.z1pt0 = None
-#		sctx.z2pt5 = None
 
 		## set rupture context
 		rctx = nhlib.gsim.base.RuptureContext()
@@ -2706,21 +2713,19 @@ class NhlibGMPE(GMPE):
 
 		## TODO: implement other attributes of contexts
 		## One option would be to add (some of) these parameters to the __call__ function
-
-		if self.name in ("ChiouYoungs2008", "AbrahamsonSilva2008"):
+		if self.name in ("ChiouYoungs2008", "AbrahamsonSilva2008", "CampbellBozorgnia2008"):
 			## First 3 parameters are only needed for hanging-wall effect
 			setattr(dctx, "rx", np.ones_like(getattr(dctx, "rrup")) * -1)
 			setattr(dctx, "rjb", np.ones_like(getattr(dctx, "rrup")))
-			setattr(rctx, "dip", 45)
+			setattr(rctx, "dip", 90)
 			## This one is only for Abrahamson & Silva (2008)
 			setattr(rctx, "width", 20.)
 			## Other required parameters
 			setattr(rctx, "ztor", 5.)
 			## The following parameters probably only concern site effects
-			setattr(sctx, "z1pt0", np.array([0.034]))
+#			setattr(sctx, "z1pt0", np.array([0.034]))
 			# TODO: check whether vs30measured should be a boolean
-			setattr(sctx, "vs30measured", np.zeros_like(sctx.vs30, dtype=bool))
-
+#			setattr(sctx, "vs30measured", np.zeros_like(sctx.vs30, dtype=bool))
 		## set imt
 		if imt == "SA":
 			imt_object = self.IMT_DICT[imt](T, damping)
@@ -2729,13 +2734,13 @@ class NhlibGMPE(GMPE):
 
 		return sctx, rctx, dctx, imt_object
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, vs30=None, kappa=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		See class GMPE for params.
 
 		Note: soil_type not supported. Should be implemented for each subclass.
 		"""
-		ln_means, ln_stddevs = self._get_nhlib_mean_and_stddevs(M, d, h=h, imt=imt, T=T, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+		ln_means, ln_stddevs = self._get_nhlib_mean_and_stddevs(M, d, h=h, imt=imt, T=T, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
 
 		## number of standard deviations
 		if epsilon:
@@ -2752,14 +2757,14 @@ class NhlibGMPE(GMPE):
 
 		return imls
 
-	def log_sigma(self, M, d, h=0., imt="PGA", T=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+	def log_sigma(self, M, d, h=0., imt="PGA", T=0, soil_type="rock", vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		Return sigma as log10.
 
 		See method self.__call__ for params.
 		"""
 		#TODO: check whether we should support soil_type !
-		_, ln_stddevs = self._get_nhlib_mean_and_stddevs(M, d, h=h, imt=imt, T=T, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+		_, ln_stddevs = self._get_nhlib_mean_and_stddevs(M, d, h=h, imt=imt, T=T, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
 
 		log_sigmas = np.log10(np.exp(ln_stddevs))
 
@@ -3254,6 +3259,25 @@ class Campbell2003adjusted(NhlibGMPE):
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 
 
+class Campbell2003HTT(Campbell2003):
+	def __init__(self):
+		name, short_name = "Campbell2003HTT", "C_2003HTT"
+		distance_metric = "Rupture"
+		Mmin, Mmax = 5.0, 8.2
+		dmin, dmax = 0., 1000.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type=None, vs30=None, kappa=None, mechanism="normal", damping=5):
+		"""
+		"""
+		if vs30 is None:
+			raise SoilTypeNotSupportedError(soil_type)
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+
+
 class CauzziFaccioli2008(NhlibGMPE):
 	def __init__(self):
 		name, short_name = "CauzziFaccioli2008", "CF_2008"
@@ -3403,6 +3427,25 @@ class ToroEtAl2002adjusted(NhlibGMPE):
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping, kappa=kappa)
 
 
+class ToroEtAl2002HTT(NhlibGMPE):
+	def __init__(self):
+		name, short_name = "ToroEtAl2002HTT", "T_2002HTT"
+		distance_metric = "Joyner-Boore"
+		Mmin, Mmax = 5.0, 8.0
+		dmin, dmax = 1., 1000.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type=None, vs30=None, kappa=None, mechanism="normal", damping=5):
+		"""
+		"""
+		if vs30 is None:
+			raise SoilTypeNotSupportedError(soil_type)
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+
+
 class ZhaoEtAl2006Asc(NhlibGMPE):
 	def __init__(self):
 		name, short_name = "ZhaoEtAl2006Asc", "Z_2006_Asc"
@@ -3418,7 +3461,7 @@ class ZhaoEtAl2006Asc(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings, imt_periods)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
 		if vs30 is None:
@@ -3500,6 +3543,28 @@ class RietbrockEtAl2013MD(RietbrockEtAl2013SS):
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
 
+class RietbrockEtAl2013MDHTT(RietbrockEtAl2013SS):
+	"""
+	VS30 ~2300 m/s
+	"""
+	def __init__(self):
+		name, short_name = "RietbrockEtAl2013MDHTT", "R_2013MDHTT"
+		distance_metric = "Joyner-Boore"
+		Mmin, Mmax = 3.0, 7.0
+		dmin, dmax = 1., 300.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type=None, vs30=None, kappa=None, mechanism="normal", damping=5):
+		"""
+		"""
+		if vs30 is None:
+			raise SoilTypeNotSupportedError(soil_type)
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+
+
 class PezeshkEtAl2011(NhlibGMPE):
 	"""
 	VS30 >= 2000 m/s
@@ -3530,15 +3595,17 @@ class AbrahamsonSilva2008(NhlibGMPE):
 		name, short_name = "AbrahamsonSilva2008", "AS_2008"
 		# TODO: parameters below need to be looked up
 		distance_metric = "Rupture"
-		Mmin, Mmax = 5.0, 8.0
+		Mmin, Mmax = 5.0, 8.5
 		dmin, dmax = 1., 1000.
 		Mtype = "MW"
 		dampings = [5.]
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, kappa=None, mechanism="normal", damping=5):
-		raise Exception("Not supported for this GMPE")
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type=None, vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
+		if vs30 is None:
+			raise SoilTypeNotSupportedError(soil_type)
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
 
 
 class CampbellBozorgnia2008(NhlibGMPE):
@@ -3555,8 +3622,10 @@ class CampbellBozorgnia2008(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, kappa=None, mechanism="normal", damping=5):
-		raise Exception("Not supported for this GMPE")
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type=None, vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
+		if vs30 is None:
+			raise SoilTypeNotSupportedError(soil_type)
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
 
 
 class ChiouYoungs2008(NhlibGMPE):
@@ -3573,8 +3642,9 @@ class ChiouYoungs2008(NhlibGMPE):
 
 		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, kappa=None, mechanism="normal", damping=5):
-		raise Exception("Not supported for this GMPE")
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="hard_rock", vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
+#		raise Exception("Not supported for this GMPE")
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
 
 
 def adjust_hard_rock_to_rock(imt, periods, gm, gm_logsigma=None):
