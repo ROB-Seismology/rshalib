@@ -1081,51 +1081,5 @@ class ElasticContinuousModel:
 		return (tf, layer_model)
 
 
-def get_host_to_target_adjustment(freqs, host_vs30, host_kappa, target_vs30, target_kappa):
-	"""
-	Compute host-to-target adjustment factor
-
-	:param freqs:
-		1-D float array, frequencies for which adjustment factor
-		needs to be computed:
-	:param host_vs30:
-		float, vs30 of host rock (in m/s)
-	:param host_kappa:
-		float, kappa of host rock (in s)
-	:param target_vs30:
-		float, vs30 of target rock (in m/s)
-	:param target_kappa:
-		float, kappa of target rock (in s)
-
-	:return:
-		instance of :class:`TransferFunction` representing target/host amplification
-	"""
-	from generic_rock import build_generic_rock_profile
-
-	if host_vs30 != target_vs30:
-		vel_source, rho_source = 3570., 2.8
-		host_rock_profile = build_generic_rock_profile(host_vs30)
-		target_rock_profile = build_generic_rock_profile(target_vs30)
-		host_tf, _ = host_rock_profile.site_amp(freqs, vel_source=vel_source, rho_source=rho_source, kappa=host_kappa)
-		target_tf, _ = target_rock_profile.site_amp(freqs, vel_source=vel_source, rho_source=rho_source, kappa=target_kappa)
-		amps = target_tf.magnitudes / host_tf.magnitudes
-	else:
-		host_amps = np.exp(-np.pi * host_kappa * freqs)
-		target_amps = np.exp(-np.pi * target_kappa * freqs)
-		amps = target_amps / host_amps
-	return TransferFunction(freqs, amps)
-
-
-
 if __name__ == "__main__":
-	from generic_rock import build_generic_rock_profile
-
-	for vs30 in range(600, 2800, 300):
-		print vs30
-
-		freqs = np.linspace(0.05, 50, 100)
-		rock_profile = build_generic_rock_profile(vs30)
-		tf, _ = rock_profile.site_amp(freqs)
-		pylab.plot(tf.freqs, tf.magnitudes)
-
-	pylab.show()
+	pass

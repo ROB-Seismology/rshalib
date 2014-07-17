@@ -12,11 +12,11 @@ import generic_rock
 reload(generic_rock)
 
 from generic_rock import (Za, calc_generic_Vs_anchors, calc_generic_Vs_profile,
-							build_generic_rock_profile)
+							build_generic_rock_profile, get_host_to_target_adjustment)
 
 import transfer1D
 reload(transfer1D)
 
 from transfer1D import (ElasticLayer, ElasticLayerModel, ElasticContinuousModel,
 						reflectivity, randomized_reflectivity, randomized_reflectivity_mp,
-						transfer1D, parse_layer_model, get_host_to_target_adjustment)
+						transfer1D, parse_layer_model)
