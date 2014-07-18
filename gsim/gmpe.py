@@ -3492,6 +3492,24 @@ class ZhaoEtAl2006Asc(NhlibGMPE):
 		self.plot_distance(mags=[5., 6., 7., 8.], mechanism="strike-slip", soil_type="SC II", dmin=1, dmax=400, amin=5E-4, amax=3.0, plot_style="loglog")
 
 
+class ZhaoEtAl2006AscMOD(ZhaoEtAl2006Asc):
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
+		"""
+		"""
+		if vs30 is None:
+			if soil_type == "hard rock":
+				vs30 = 1101
+			elif soil_type in ("rock", "SC I"):
+				vs30 = 850
+			elif soil_type in ("hard soil", "SC II"):
+				vs30 = 450
+			elif soil_type in ("medium soil", "SC III"):
+				vs30 = 250
+			elif soil_type in ("soft soil", "SC IV"):
+				vs30 = 220
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
+
 class RietbrockEtAl2013SS(NhlibGMPE):
 	"""
 	VS30 ~2300 m/s
