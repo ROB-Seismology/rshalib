@@ -255,8 +255,8 @@ if __name__ == "__main__":
 
 		Vs_profile = rshalib.siteresponse.calc_generic_Vs_profile(vs30, z_ar, method="powerlaw")
 
-		pylab.plot(Vs_profile, z_ar, '%s' % colors[i], label="Vs30=%d m/s" % vs30)
-		pylab.plot(generic_Vs_anchors, Za, 'o', color='%s' % colors[i], label="_nolegend_")
+		pylab.plot(Vs_profile, z_ar, '%s' % colors[i], lw=2, label="Vs30=%d m/s" % vs30)
+		pylab.plot(generic_Vs_anchors, Za, 'o', color='%s' % colors[i], lw=2, label="_nolegend_")
 
 	pylab.xlabel("Vs (m/s)")
 	pylab.ylabel("Depth (m)")
@@ -278,11 +278,11 @@ if __name__ == "__main__":
 		freqs = np.linspace(0.05, 50, 100)
 		rock_profile = rshalib.siteresponse.build_generic_rock_profile(vs30)
 		tf, _ = rock_profile.site_amp(freqs)
-		pylab.plot(tf.freqs, tf.magnitudes, '%s' % colors[i], label="Vs30=%d m/s" % vs30)
+		pylab.semilogx(tf.freqs, tf.magnitudes, '%s' % colors[i], lw=2, label="Vs30=%d m/s" % vs30)
 
 	pylab.xlabel("Frequency (Hz)")
 	pylab.ylabel("Amplification")
-	pylab.legend(loc=1)
+	pylab.legend(loc=2)
 	pylab.grid(True)
 	pylab.title("SITE_AMP response wrt VS=%s m/s, Rho=%s kg/dm3" % (vel_source, rho_source))
 	pylab.show()
@@ -301,14 +301,16 @@ if __name__ == "__main__":
 	htt3 = rshalib.siteresponse.get_host_to_target_adjustment(freqs, host_vs30, host_kappa, target3_vs30, target3_kappa)
 	htt4 = rshalib.siteresponse.TransferFunction(freqs, htt2.magnitudes * htt3.magnitudes)
 
-	pylab.semilogx(freqs, htt1.magnitudes, label="1) target=(%s,%s)" % (target1_vs30, target1_kappa))
-	pylab.semilogx(freqs, htt2.magnitudes, label="2) target=(%s,%s)" % (target2_vs30, target2_kappa))
-	pylab.semilogx(freqs, htt3.magnitudes, label="3) target=(%s,%s)" % (target3_vs30, target3_kappa))
-	pylab.semilogx(freqs, htt4.magnitudes, label="4) 2 * 3")
+	pylab.semilogx(freqs, htt1.magnitudes, lw=3, label="1) VS30=%s m/s, kappa=%s s" % (target1_vs30, target1_kappa))
+	pylab.semilogx(freqs, htt2.magnitudes, lw=2, label="2) VS30=%s m/s, kappa=%s s" % (target2_vs30, target2_kappa))
+	pylab.semilogx(freqs, htt3.magnitudes, lw=2, label="3) VS30=%s m/s, kappa=%s s" % (target3_vs30, target3_kappa))
+	pylab.semilogx(freqs, htt4.magnitudes, lw=1, label="4) 2 * 3")
 
+	xmin, xmax, ymin, ymax = pylab.axis()
+	pylab.axis((xmin, xmax, 0.4, ymax))
 	pylab.xlabel("Frequency (Hz)")
 	pylab.ylabel("Amplification")
-	pylab.legend(loc=2)
+	pylab.legend(loc=3)
 	pylab.grid(True)
-	pylab.title("Host-to-target adjustments wrt VS=%s m/s, kappa=%s s" % (host_vs30, host_kappa))
+	pylab.title("Host-to-target adjustments wrt VS30=%s m/s, kappa=%s s" % (host_vs30, host_kappa))
 	pylab.show()

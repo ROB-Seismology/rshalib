@@ -1082,4 +1082,26 @@ class ElasticContinuousModel:
 
 
 if __name__ == "__main__":
-	pass
+	import hazard.rshalib as rshalib
+
+	## Compare site_amp with SITE_AMP
+	site_amp_folder = r"C:\Geo\SITE_AMP"
+	asc_filespec = os.path.join(site_amp_folder, "OFR_AMP.ASC")
+	tf_boore = rshalib.siteresponse.read_TF_SITE_AMP(asc_filespec)
+	mdl_filespec = os.path.join(site_amp_folder, "OFR_AMP.DAT")
+	mdl = ElasticContinuousModel.from_mdl_file(mdl_filespec)
+	freqs = tf_boore.freqs
+	vel_source, rho_source =3000., 2.8
+	kappa, aoi = 0., 0.
+	density_coeffs = [2.5, 2.8, 300, 3500]
+	tf, _ = mdl.site_amp(freqs, vel_source=vel_source, rho_source=rho_source, kappa=kappa, aoi=aoi, density_coeffs=density_coeffs)
+
+	pylab.semilogx(freqs, tf_boore.magnitudes, "r", lw=3, label="SITE_AMP")
+	pylab.semilogx(freqs, tf.magnitudes, "b", lw=1, label="site_amp")
+
+	pylab.xlabel("Frequency (Hz)")
+	pylab.ylabel("Amplification")
+	pylab.legend(loc=2)
+	pylab.grid(True)
+	pylab.title("SITE_AMP benchmark: OFR_AMP example")
+	pylab.show()
