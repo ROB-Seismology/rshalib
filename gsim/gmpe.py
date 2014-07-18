@@ -3494,6 +3494,20 @@ class ZhaoEtAl2006Asc(NhlibGMPE):
 
 class ZhaoEtAl2006AscMOD(ZhaoEtAl2006Asc):
 
+	def __init__(self):
+		name, short_name = "ZhaoEtAl2006AscMOD", "Z_2006_AscMOD"
+		distance_metric = "Rupture"
+		Mmin, Mmax = 5.0, 8.3
+		dmin, dmax = 0., 400.
+		Mtype = "MW"
+		dampings = [5.]
+		imt_periods = {}
+		## Note: attribute name for periods in ZhaoEtAl2006Asc is different, therefore they are provided here
+		imt_periods["PGA"] = [0]
+		imt_periods["SA"] = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00, 1.25, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings, imt_periods)
+
 	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		"""
@@ -3509,6 +3523,7 @@ class ZhaoEtAl2006AscMOD(ZhaoEtAl2006Asc):
 			elif soil_type in ("soft soil", "SC IV"):
 				vs30 = 220
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
+
 
 class RietbrockEtAl2013SS(NhlibGMPE):
 	"""
