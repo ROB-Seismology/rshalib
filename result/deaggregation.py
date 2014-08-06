@@ -1280,7 +1280,7 @@ class DeaggregationCurve(DeaggBase):
 			instance of :class:`HazardCurve`
 		"""
 		from hazard_curve import ExceedanceRateArray, ProbabilityArray, HazardCurve
-		hazard_values = self.deagg_matrix.fold_axes([6,5,4,3,2])
+		hazard_values = self.deagg_matrix.fold_axes([6,5,4,3,2,1])
 		if isinstance(self.deagg_matrix, ExceedanceRateMatrix):
 			hazard_values = ExceedanceRateArray(hazard_values)
 		elif isinstance(self.deagg_matrix, ProbabilityMatrix):
