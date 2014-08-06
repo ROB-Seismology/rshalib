@@ -377,12 +377,28 @@ def parse_disaggregation_full(xml_filespec, site_name=None):
 	return deaggregation_slice
 
 
-def parse_spectral_deaggregation_curve(xml_filespec, site_name=None):
+def parse_spectral_deaggregation_curve(xml_filespec, site_name=None, ignore_coords=False, dtype='f'):
 	"""
+	Parse spectral deaggregation curve
+
+	:param xml_filespec:
+		String, filespec of file to parse.
+	:param site_name:
+		String, name of site (default: None)
+	:param ignore_coords:
+		Bool, whether or not to ignore coordinate bins
+		(default: False)
+	:param dtype:
+		String, precision of deaggregation matrix (default: 'f')
+
+	:return:
+		instance of :class:`SpectralDeaggregationCurve`
 	"""
 	nrml = etree.parse(xml_filespec).getroot()
 	sdc_elem = nrml.find(ns.SPECTRAL_DEAGGREGATION_CURVE)
-	shape = tuple(map(int, sdc_elem .get(ns.DIMS).split(',')))
+	shape = list(map(int, sdc_elem.get(ns.DIMS).split(',')))
+	if ignore_coords:
+		shape[-3] = shape[-4] = 1
 	mag_bin_edges = np.array(sdc_elem.get(ns.MAG_BIN_EDGES).split(', '),
 		dtype=float)
 	dist_bin_edges = np.array(sdc_elem.get(ns.DIST_BIN_EDGES).split(', '),
@@ -391,6 +407,9 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None):
 		dtype=float)
 	lat_bin_edges = np.array(sdc_elem.get(ns.LAT_BIN_EDGES).split(', '),
 		dtype=float)
+	if ignore_coords:
+		lon_bin_edges = lon_bin_edges[::len(lon_bin_edges)-1]
+		lat_bin_edges = lat_bin_edges[::len(lat_bin_edges)-1]
 	eps_bin_edges = np.array(sdc_elem.get(ns.EPS_BIN_EDGES).split(', '),
 		dtype=float)
 	tectonic_region_types = sdc_elem.get(
@@ -409,11 +428,20 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None):
 			iml = float(ds_elem.get(ns.IML))
 			poe = float(ds_elem.get(ns.POE))
 			return_period = Poisson(life_time=timespan, prob=poe)
-			prob_matrix = ProbabilityMatrix(np.zeros(shape, dtype='f'))
+			prob_matrix = ProbabilityMatrix(np.zeros(shape, dtype=dtype))
 			for prob in ds_elem.findall(ns.PROB):
 				index = prob.get(ns.INDEX)
-				value = prob.get(ns.VALUE)
-				prob_matrix[tuple(map(int, index.split(',')))] = value
+				value = float(prob.get(ns.VALUE))
+				idx = list(map(int, index.split(',')))
+				if ignore_coords:
+					idx[-3] = idx[-4] = 0
+					idx = tuple(idx)
+					if prob_matrix[idx] == 0:
+						prob_matrix[idx] = value
+					else:
+						prob_matrix[idx] = 1 - ((1 - prob_matrix[idx]) * (1 - value))
+				else:
+					prob_matrix[idx] = value
 			ds = DeaggregationSlice(bin_edges, prob_matrix, site, imt, iml, period, return_period, timespan)
 			dss.append(ds)
 		dc = DeaggregationCurve.from_deaggregation_slices(dss)
