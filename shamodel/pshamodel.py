@@ -699,6 +699,8 @@ class PSHAModelBase(SHAModelBase):
 		:return:
 			instance of :class:`DeaggregationSlice`
 		"""
+		from ..openquake import parse_disaggregation
+
 		poe = str(round(Poisson(life_time=self.time_span, return_period=return_period), 13))
 
 		disagg_folder = self.get_oq_disagg_folder(calc_id=calc_id, multi=False)
@@ -765,7 +767,7 @@ class PSHAModelBase(SHAModelBase):
 		xml_filespec = os.path.join(disagg_folder, xml_filename)
 		return xml_filespec
 
-	def read_oq_disagg_matrix_multi(self, curve_name, site, curve_path="", calc_id=None, verbose=False):
+	def read_oq_disagg_matrix_multi(self, curve_name, site, curve_path="", calc_id=None, dtype='f', verbose=False):
 		"""
 		Read OpenQuake multi-deaggregation matrix for a particular site.
 
@@ -778,6 +780,8 @@ class PSHAModelBase(SHAModelBase):
 			(default: "")
 		:param calc_id:
 			str, calculation ID. (default: None, will determine from folder structure)
+		:param dtype:
+			str, precision of deaggregation matrix (default: 'f')
 		:param verbose:
 			bool, whether or not to print additional information (default: False)
 
@@ -789,7 +793,7 @@ class PSHAModelBase(SHAModelBase):
 		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
 		if verbose:
 			print("Reading deaggregation file %s" % xml_filespec)
-		sdc = parse_spectral_deaggregation_curve(xml_filespec, site.name)
+		sdc = parse_spectral_deaggregation_curve(xml_filespec, site.name, dtype=dtype)
 		return sdc
 
 	def write_oq_disagg_matrix_multi(self, sdc, curve_name, curve_path="", calc_id="oqhazlib"):
@@ -2847,7 +2851,7 @@ class PSHAModelTree(PSHAModelBase):
 
 		return (mag_bins, dist_bins, lon_bins, lat_bins, eps_bins, trt_bins)
 
-	def get_oq_mean_sdc(self, site, calc_id=None):
+	def get_oq_mean_sdc(self, site, calc_id=None, dtype='d'):
 		"""
 		Compute mean spectral deaggregation curve from individual models.
 
@@ -2856,6 +2860,8 @@ class PSHAModelTree(PSHAModelBase):
 		:param calc_id:
 			list of ints, calculation IDs.
 			(default: None, will determine from folder structure)
+		:param dtype:
+			str, precision of deaggregation matrix (default: 'd')
 
 		:return:
 			instance of :class:`SpectralDeaggregationCurve`
@@ -2869,7 +2875,7 @@ class PSHAModelTree(PSHAModelBase):
 		for i, (psha_model, weight) in enumerate(self.sample_logic_trees()):
 			curve_name = fmt % (i+1)
 			print curve_name
-			sdc = self.read_oq_disagg_matrix_multi(curve_name, site, calc_id=calc_id)
+			sdc = self.read_oq_disagg_matrix_multi(curve_name, site, calc_id=calc_id, dtype=dtype)
 			## Apply weight
 			sdc_matrix = sdc.deagg_matrix.to_fractional_contribution_matrix()
 			sdc_matrix *= weight
@@ -4007,7 +4013,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 	# TODO: methods to compute minimum / maximum scenarios
 
-	def read_oq_deagg_realization_by_source(self, source_model_name, src, smlt_path, gmpelt_path, site, calc_id=None):
+	def read_oq_deagg_realization_by_source(self, source_model_name, src, smlt_path, gmpelt_path, site, calc_id=None, dtype='d'):
 		"""
 		Read deaggregation results of a particular logictree sample for 1 source
 
@@ -4024,6 +4030,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
+		:param dtype:
+			str, precision of deaggregation matrix (default: 'd')
 
 		:return:
 			(sdc, weight) tuple:
@@ -4047,10 +4055,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				branch_path = [bp.split('--')[-1] for bp in branch_path]
 				curve_name = '--'.join(branch_path)
 				curve_path = self._get_curve_path(source_model_name, trt, src.source_id, gmpe_name)
-				sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path, calc_id=calc_id)
+				sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path, calc_id=calc_id, dtype=dtype)
 				return sdc, weight
 
-	def read_oq_deagg_realization(self, source_model_name, smlt_path, gmpelt_path, site, calc_id=None, dtype='f'):
+	def read_oq_deagg_realization(self, source_model_name, smlt_path, gmpelt_path, site, calc_id=None, dtype='d'):
 		"""
 		Read deaggregation results of a particular logic-tree sample
 		(by summing deaggregation curves of individual sources).
@@ -4067,7 +4075,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
 		:param dtype:
-			str, precision of deaggregation matrix (default: 'f')
+			str, precision of deaggregation matrix (default: 'd')
 
 		:return:
 			instance of :class:`rshalib.result.SpectralDeaggregationCurve`
@@ -4076,7 +4084,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		source_model = self.get_source_model_by_name(source_model_name)
 		for i, src in enumerate(source_model.sources):
-			sdc, weight = self.read_oq_deagg_realization_by_source(source_model_name, src, smlt_path, gmpelt_path, site, calc_id=calc_id)
+			sdc, weight = self.read_oq_deagg_realization_by_source(source_model_name, src, smlt_path, gmpelt_path, site, calc_id=calc_id, dtype=dtype)
 			if i == 0:
 				## Create empty deaggregation matrix
 				bin_edges = self.get_deagg_bin_edges(sdc.mag_bin_width, sdc.dist_bin_width, sdc.lon_bin_width, sdc.neps)
@@ -4104,7 +4112,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return summed_sdc
 
-	def get_oq_mean_sdc_from_lt_samples(self, site, interpolate_rp=True, interpolate_matrix=False, skip_samples=0, write_xml=False, calc_id=None, dtype='f'):
+	def get_oq_mean_sdc_from_lt_samples(self, site, interpolate_rp=True, interpolate_matrix=False, skip_samples=0, write_xml=False, calc_id=None, dtype='d'):
 		"""
 		Read or compute mean spectral deaggregation curve based on logic-tree samples
 
@@ -4128,7 +4136,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
 		:param dtype:
-			str, precision of deaggregation matrix (default: 'f')
+			str, precision of deaggregation matrix (default: 'd')
 
 		:return:
 			instance of :class:`rshalib.result.SpectralDeaggregationCurve`
@@ -4137,7 +4145,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		curve_path = ""
 		xml_filespec = self.get_oq_sdc_filespec(mean_curve_name, site, curve_path=curve_path, calc_id=calc_id)
 		if write_xml is False and os.path.exists(xml_filespec):
-			mean_sdc = self.read_oq_disagg_matrix_multi(mean_curve_name, site, curve_path=curve_path, calc_id=calc_id)
+			mean_sdc = self.read_oq_disagg_matrix_multi(mean_curve_name, site, curve_path=curve_path, calc_id=calc_id, dtype=dtype)
 		else:
 			mean_sdc = None
 			for sample_idx, (sm_name, smlt_path, gmpelt_path, weight) in enumerate(self.sample_logic_tree_paths(self.num_lt_samples, skip_samples=skip_samples)):
@@ -4149,7 +4157,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
 
 				if write_xml is False and os.path.exists(xml_filespec):
-					summed_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id)
+					summed_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id, dtype=dtype)
 				else:
 					summed_sdc = self.read_oq_deagg_realization(sm_name, smlt_path, gmpelt_path, site, calc_id=calc_id, dtype=dtype)
 
@@ -4181,7 +4189,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return mean_sdc
 
-	def read_oq_source_deagg_realizations(self, source_model_name, src, site, gmpe_name="", calc_id=None, verbose=False):
+	def read_oq_source_deagg_realizations(self, source_model_name, src, site, gmpe_name="", calc_id=None, dtype='d', verbose=False):
 		"""
 		Read deaggregation results for all realizations of a particular source
 
@@ -4196,6 +4204,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
+		:param dtype:
+			str, precision of deaggregation matrix (default: 'd')
 		:param verbose:
 			bool, whether or not to print some progress information
 			(default: False)
@@ -4216,11 +4226,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				branch_path = [b.branch_id.split('--')[-1] for b in branch_path]
 				curve_name = '--'.join(branch_path)
 				curve_path = self._get_curve_path(source_model_name, trt, src.source_id, gmpe_name)
-				sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path, calc_id=calc_id)
+				sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path, calc_id=calc_id, dtype=dtype)
 				weight = gmpe_weight * smlt_weight
 				yield (sdc, weight)
 
-	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", mean_shc=None, interpolate_matrix=False, calc_id=None, dtype='f', write_xml=False, verbose=False):
+	def get_oq_mean_sdc_by_source(self, source_model_name, src, site, gmpe_name="", mean_shc=None, interpolate_matrix=False, calc_id=None, dtype='d', write_xml=False, verbose=False):
 		"""
 		Read or compute mean spectral deaggregation curve for a particular source
 
@@ -4246,7 +4256,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
 		:param dtype:
-			str, precision of deaggregation matrix (default: 'f')
+			str, precision of deaggregation matrix (default: 'd')
 		:param write_xml:
 			bool, whether or not to write mean spectral deaggregation curve
 			to xml. If mean sdc exists, it will be overwritten (default: False)
@@ -4264,9 +4274,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		xml_filespec = self.get_oq_sdc_filespec(curve_name, site, curve_path=curve_path, calc_id=calc_id)
 
 		if write_xml is False and os.path.exists(xml_filespec):
-			mean_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id)
+			mean_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id, dtype=dtype)
 		else:
-			for i, (sdc, weight) in enumerate(self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id)):
+			for i, (sdc, weight) in enumerate(self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id, dtype=dtype)):
 				if verbose:
 					print i
 				if i == 0:
@@ -4301,7 +4311,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return mean_sdc
 
-	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, trt="", gmpe_name="", mean_shc=None, interpolate_matrix=False, calc_id=None, dtype='f', write_xml=False, verbose=False):
+	def get_oq_mean_sdc_by_source_model(self, source_model_name, site, trt="", gmpe_name="", mean_shc=None, interpolate_matrix=False, calc_id=None, dtype='d', write_xml=False, verbose=False):
 		"""
 		Read or compute mean spectral deaggregation curve for a particular source model
 
@@ -4327,7 +4337,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
 		:param dtype:
-			str, precision of deaggregation matrix (default: 'f')
+			str, precision of deaggregation matrix (default: 'd')
 		:param write_xml:
 			bool, whether or not to write mean spectral deaggregation curve
 			to xml. If mean sdc exists, it will be overwritten (default: False)
@@ -4379,7 +4389,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return summed_sdc
 
-	def get_oq_mean_sdc(self, site, trt="", gmpe_name="", mean_shc=None, interpolate_matrix=False, calc_id=None, dtype='f', write_xml=False, verbose=False):
+	def get_oq_mean_sdc(self, site, trt="", gmpe_name="", mean_shc=None, interpolate_matrix=False, calc_id=None, dtype='d', write_xml=False, verbose=False):
 		"""
 		Read mean spectral deaggregation curve of the entire logic tree.
 		If mean sdc does not exist, it will be computed from the decomposed
@@ -4405,7 +4415,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			int or str, OpenQuake calculation ID (default: None, will
 				be determined automatically)
 		:param dtype:
-			str, precision of deaggregation matrix (default: 'f')
+			str, precision of deaggregation matrix (default: 'd')
 		:param write_xml:
 			bool, whether or not to write mean spectral deaggregation curve
 			to xml. If mean sdc exists, it will be overwritten (default: False)
