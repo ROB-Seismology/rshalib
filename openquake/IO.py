@@ -432,7 +432,7 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None, ignore_coor
 			for prob in ds_elem.findall(ns.PROB):
 				index = prob.get(ns.INDEX)
 				value = float(prob.get(ns.VALUE))
-				idx = list(map(int, index.split(',')))
+				idx = map(int, index.split(','))
 				if ignore_coords:
 					idx[-3] = idx[-4] = 0
 					idx = tuple(idx)
@@ -441,6 +441,7 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None, ignore_coor
 					else:
 						prob_matrix[idx] = 1 - ((1 - prob_matrix[idx]) * (1 - value))
 				else:
+					idx = tuple(idx)
 					prob_matrix[idx] = value
 			ds = DeaggregationSlice(bin_edges, prob_matrix, site, imt, iml, period, return_period, timespan)
 			dss.append(ds)
