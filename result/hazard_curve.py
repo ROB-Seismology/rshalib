@@ -3712,7 +3712,7 @@ class HazardMap(HazardResult, HazardField):
 
 		return HazardMap(model_name, filespec, sites, period, IMT, intensities, intensity_unit, timespan, poe, return_period, vs30s)
 
-	def get_residual_map(self, other_map, grid_extent=(None, None, None, None), num_grid_cells=50, interpol_method="linear"):
+	def get_residual_map(self, other_map, grid_extent=(None, None, None, None), num_grid_cells=50, interpol_method="linear", abs=True):
 		"""
 		Compute difference with another hazard map. If sites are different,
 		the maps will be interpolated on a regular (lon, lat) grid
@@ -3726,12 +3726,19 @@ class HazardMap(HazardResult, HazardField):
 		:param interpol_method:
 			Str, interpolation method supported by griddata (either
 			"linear", "nearest" or "cubic") (default: "linear")
+		:param:
+			Bool, whether or not residual map values should be absolute (True)
+			or in percentage relative to current map (False)
+			(default: True)
 
 		:return:
 			instance of :class:`HazardMap`
 		"""
 		if self.sites == other_map.sites:
 			residuals = self.intensities - other_map.intensities
+			if not abs:
+				residuals /= self.intensities
+				residuals *= 100
 			sites = self.sites
 			vs30s = self.vs30s
 		else:
@@ -3746,6 +3753,9 @@ class HazardMap(HazardResult, HazardField):
 			grid_intensities2 = other_map.get_grid_intensities(grid_extent, num_grid_cells, interpol_method)
 			residuals = (grid_intensities1 - grid_intensities2).flatten()
 			residuals[np.isnan(residuals)] = 0.
+			if not abs:
+				residuals /= grid_intensities1.flatten()
+				residuals *= 100
 			sites = zip(grid_lons.flatten(), grid_lats.flatten())
 			vs30s = None
 
