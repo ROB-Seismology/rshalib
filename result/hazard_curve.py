@@ -3726,7 +3726,7 @@ class HazardMap(HazardResult, HazardField):
 		:param interpol_method:
 			Str, interpolation method supported by griddata (either
 			"linear", "nearest" or "cubic") (default: "linear")
-		:param:
+		:param abs:
 			Bool, whether or not residual map values should be absolute (True)
 			or in percentage relative to current map (False)
 			(default: True)
