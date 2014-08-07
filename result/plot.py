@@ -423,7 +423,7 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		fig_filespec: full path to ouptut image. If not set, graph will be plotted on screen
 			(default: None)
 	"""
-	from matplotlib import cm, mpl
+	from matplotlib import cm
 
 	Nmag, Ndist = len(magnitudes), len(distances)
 

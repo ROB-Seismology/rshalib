@@ -308,6 +308,9 @@ class ProbabilityMatrix(DeaggMatrix):
 		:return:
 			instance of :class:`ExceedanceRateMatrix`
 		"""
+		## Ignore division warnings
+		np.seterr(divide='ignore', invalid='ignore')
+
 		return ExceedanceRateMatrix(1. / Poisson(life_time=timespan, prob=self.matrix))
 
 	def to_fractional_contribution_matrix(self):

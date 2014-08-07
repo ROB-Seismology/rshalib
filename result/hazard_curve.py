@@ -70,6 +70,9 @@ def Poisson(life_time=None, return_period=None, prob=None):
 	Two parameters need to be specified, the value will be computed for the
 	missing parameter
 	"""
+	## Ignore division warnings
+	np.seterr(divide='ignore', invalid='ignore')
+
 	## Return period
 	if life_time != None and prob != None:
 		return -life_time / np.log(1.0 - prob)
@@ -180,6 +183,9 @@ class ProbabilityArray(HazardCurveArray):
 		return ProbabilityArray(1 - np.exp(np.log(1 - self.array) / float(number)))
 
 	def to_exceedance_rates(self, timespan):
+		## Ignore division warnings
+		np.seterr(divide='ignore', invalid='ignore')
+
 		return 1. / Poisson(life_time=timespan, prob=self.array)
 
 	def to_exceedance_rate_array(self, timespan):
