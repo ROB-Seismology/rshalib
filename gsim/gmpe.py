@@ -960,7 +960,7 @@ class GMPE(object):
 		"""
 		plot_distance([self], mags=mags, dmin=dmin, dmax=dmax, distance_metric=distance_metric, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, plot_style=plot_style, amin=amin, amax=amax, colors=[color], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
 
-	def plot_spectrum(self, mags, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_freq=False, plot_style="loglog", amin=None, amax=None, color='k', label=None, fig_filespec=None, title="", want_minor_grid=False, include_pgm=True, legend_location=None, lang="en"):
+	def plot_spectrum(self, mags, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_freq=False, plot_style="loglog", amin=None, amax=None, color='k', label=None, fig_filespec=None, title="", want_minor_grid=False, include_pgm=True, pgm_freq=50, legend_location=None, lang="en"):
 		"""
 		Plot ground motion spectrum for this GMPE.
 		Horizontal axis: spectral periods or frequencies.
@@ -1005,6 +1005,9 @@ class GMPE(object):
 			Boolean, whether or not to include peak ground motion in the plot,
 			if possible (plot_freq == False and plot_style in ("lin", "linlog")
 			(default: True).
+		:param pgm_freq:
+			float, frequency (in Hz) at which to plot PGM if horizontal axis is
+			logarithmic or is in frequencies (default: 50)
 		:param plot_freq:
 			Boolean, whether or not to plot frequencies instead of periods
 			(default: False).
@@ -1047,7 +1050,7 @@ class GMPE(object):
 			Tmin = self.Tmin(imt)
 		if Tmax is None:
 			Tmax = self.Tmax(imt)
-		plot_spectrum([self], mags=mags, d=d, h=h, imt=imt, Tmin=Tmin, Tmax=Tmax, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, include_pgm=include_pgm, plot_freq=plot_freq, plot_style=plot_style, amin=amin, amax=amax, colors=[color], labels=[label], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
+		plot_spectrum([self], mags=mags, d=d, h=h, imt=imt, Tmin=Tmin, Tmax=Tmax, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping, include_pgm=include_pgm, pgm_freq=pgm_freq, plot_freq=plot_freq, plot_style=plot_style, amin=amin, amax=amax, colors=[color], labels=[label], fig_filespec=fig_filespec, title=title, want_minor_grid=want_minor_grid, legend_location=legend_location, lang=lang)
 
 
 class Ambraseys1995DDGMPE(GMPE):
@@ -3990,7 +3993,7 @@ def plot_distance(gmpe_list, mags, dmin=None, dmax=None, distance_metric=None, h
 		pylab.show()
 
 
-def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, include_pgm=True, plot_freq=False, plot_style="loglog", amin=None, amax=None, colors=None, labels=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=None, lang="en"):
+def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, include_pgm=True, pgm_freq=50, plot_freq=False, plot_style="loglog", amin=None, amax=None, colors=None, labels=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=None, lang="en"):
 	"""
 	Function to plot ground motion spectrum for one or more GMPE's.
 	Horizontal axis: spectral periods or frequencies.
@@ -4035,8 +4038,11 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_u
 		Float, damping in percent (default: 5).
 	:param include_pgm:
 		Boolean, whether or not to include peak ground motion in the plot,
-		if possible (plot_freq == False and plot_style in ("lin", "linlog")
+		if possible
 		(default: True).
+	:param pgm_freq:
+		float, frequency (in Hz) at which to plot PGM if horizontal axis is
+		logarithmic or is in frequencies (default: 50)
 	:param plot_freq:
 		Boolean, whether or not to plot frequencies instead of periods
 		(default: False).
@@ -4127,8 +4133,10 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_u
 				except:
 					pass
 				else:
-					if gmpe.has_imt(pgm) and plot_style in ("lin", "linlog") and plot_freq == False:
+					if gmpe.has_imt(pgm):
 						[pgm_T], [pgm_Avalue] = gmpe.get_spectrum(M, d, h=h, imt=pgm, imt_unit=imt_unit, epsilon=0, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+						if plot_style in ("loglin", "loglog") or plot_freq == True:
+							pgm_T = 1./pgm_freq
 						pgm_sigma = gmpe.log_sigma(M, d, h=h, imt=pgm, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 						Tmin = pgm_T
 						# TODO: add outline color and symbol size
