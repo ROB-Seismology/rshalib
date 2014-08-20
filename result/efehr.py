@@ -370,19 +370,20 @@ def get_hazard_spectrum():
 
 if __name__ == "__main__":
 	lon, lat = 4, 51
-	map_models = get_map_models(lon, lat)
+	verbose = False
+	map_models = get_map_models(lon, lat, verbose=verbose)
 	for map_id, map_name in map_models.items():
 		print map_id,map_name
-		for imt, imt_unit in get_map_imts(map_id):
+		for imt, imt_unit in get_map_imts(map_id, verbose=verbose):
 			print imt, imt_unit
-			for poe, timespan in get_map_poes(map_id, imt):
+			for poe, timespan in get_map_poes(map_id, imt, verbose=verbose):
 				print poe, timespan
-				for soil_class in get_map_soil_classes(map_id, imt, poe, timespan):
+				for soil_class in get_map_soil_classes(map_id, imt, poe, timespan, verbose=verbose):
 					print soil_class
-					for agg_type, agg_level in get_map_aggregation_types(map_id, imt, poe, timespan, soil_class):
+					for agg_type, agg_level in get_map_aggregation_types(map_id, imt, poe, timespan, soil_class, verbose=verbose):
 						print agg_type, agg_level
-						#print get_map_wms_id(map_id, imt, poe, timespan, soil_class, agg_type, agg_level)
-						print get_map_wms_url(map_id, imt, poe, timespan, soil_class, agg_type, agg_level)
+						#print get_map_wms_id(map_id, imt, poe, timespan, soil_class, agg_type, agg_level, verbose=verbose)
+						print get_map_wms_url(map_id, imt, poe, timespan, soil_class, agg_type, agg_level, verbose=verbose)
 
 
 	"""
