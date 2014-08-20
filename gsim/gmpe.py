@@ -562,7 +562,7 @@ class GMPE(object):
 			if not allclose:
 				print values
 
-	def get_spectrum(self, M, d, h=0, imt="SA", periods=[], imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+	def get_spectrum(self, M, d, h=0, imt="SA", periods=[], imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, include_pgm=False, pgm_period=0):
 		"""
 		Return (periods, intensities) tuple for given magnitude, distance, depth
 		and number of standard deviations.
@@ -595,10 +595,24 @@ class GMPE(object):
 			(default: "normal").
 		:param damping:
 			Float, damping in percent.
+		:param include_pgm:
+			Boolean, whether or not to include peak ground motion (default: False).
+		:param pgm_period:
+			float, period (in s) at which to include PGM (default: 0)
 		"""
 		if periods in (None, []):
 			periods = self.imt_periods[imt]
 		intensities = [self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)[0] for T in periods]
+		if include_pgm:
+			try:
+				pgm = {"SA": "PGA", "PSV": "PGV", "SD": "PGD"}[imt]
+			except:
+				pass
+			else:
+				if self.has_imt(pgm):
+					[pgm_Avalue] = self.__call__(M, d, h=h, imt=pgm, T=0, imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+					intensities.insert(0, pgm_Avalue)
+					periods = np.concatenate([[pgm_period], periods])
 		intensities = np.array(intensities)
 		return (periods, intensities)
 
@@ -3726,6 +3740,69 @@ def adjust_hard_rock_to_rock(imt, periods, gm, gm_logsigma=None):
 	return adjusted_gm
 
 
+def adjust_host_to_target(imt, periods, gm, M, d, host_vs30, host_kappa, target_vs30, target_kappa, region="ena"):
+	"""
+	Perform host-to-target adjustments for VS30 and kappa using a combination of
+	generic rock profiles and (inverse) random vibration theory.
+
+	First, a transfer function is computed between a generic host rock profile
+	and a generic target rock profile. The transfer function magnitudes are
+	multiplied with the Fourier amplitude spectrum, which is obtained with
+	inverse random vibration theory. The adjusted FAS is then converted back to
+	a response spectrum using random vibration theory
+
+	:param imt:
+		String, intensity measure type, only "SA" is supported. For PGA, include
+		it in SA at an appropriate period (between 1./34 and 1.100)
+	:param periods:
+		List or array, periods for given imt
+	:param gm:
+		Float array: ground motions corresponding to given periods
+	:param M:
+		Float, magnitude
+	:param d:
+		Float, distance
+	:param host_vs30:
+		Float, vs30 of host rock (in m/s)
+	:param host_kappa:
+		Float, kappa of host rock (in s)
+	:param target_vs30:
+		Float, vs30 of target rock (in m/s)
+	:param target_kappa:
+		Float, kappa of target rock (in s)
+	:param region:
+		String, either "ena" or "wna" (default: "ena")
+
+	:return:
+		Float array, adjusted ground motions
+	"""
+	import pyrvt
+	from ..siteresponse import get_host_to_target_adjustment
+
+	if imt != "SA":
+		raise Exception("Host-to-target adjustment not supported for %s!" % imt)
+
+	if target_kappa < host_kappa:
+		raise Exception("Manual intervention needed if target kappa < host kappa!")
+
+	if host_vs30 > 2700:
+		print("Warning: host vs30 will be clipped to 2700 m/s!")
+		host_vs30 = min(host_vs30, 2700)
+
+	if target_vs30 > 2700:
+		print("Warning: target vs30 will be clipped to 2700 m/s!")
+		target_vs30 = min(target_vs30, 2700)
+
+	freqs = 1./np.asarray(periods)
+	irvt = pyrvt.motions.CompatibleRvtMotion(freqs, gm, magnitude=M, distance=d, region=region)
+	tf = get_host_to_target_adjustment(irvt.freqs, host_vs30, host_kappa, target_vs30, target_kappa)
+	irvt.fourier_amps *= tf.magnitudes
+	rvt = pyrvt.motions.RvtMotion(irvt.freqs, irvt.fourier_amps, irvt.duration)
+	adjusted_gm = rvt.compute_osc_resp(freqs)
+
+	return adjusted_gm
+
+
 def adjust_faulting_style(imt, periods, gm, mechanism):
 	"""
 	Adjust style of faulting for GMPE's that do not include a style-of-faulting
@@ -4134,9 +4211,11 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_u
 					pass
 				else:
 					if gmpe.has_imt(pgm):
-						[pgm_T], [pgm_Avalue] = gmpe.get_spectrum(M, d, h=h, imt=pgm, imt_unit=imt_unit, epsilon=0, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
+						[pgm_Avalue] = gmpe.__call__(M, d, h=h, imt=pgm, imt_unit=imt_unit, epsilon=0, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 						if plot_style in ("loglin", "loglog") or plot_freq == True:
 							pgm_T = 1./pgm_freq
+						else:
+							pgm_T = 0
 						pgm_sigma = gmpe.log_sigma(M, d, h=h, imt=pgm, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 						Tmin = pgm_T
 						# TODO: add outline color and symbol size
