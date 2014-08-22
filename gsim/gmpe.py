@@ -3777,7 +3777,7 @@ def adjust_host_to_target(imt, periods, gm, M, d, host_vs30, host_kappa, target_
 		Float array, adjusted ground motions
 	"""
 	import pyrvt
-	from ..siteresponse import get_host_to_target_adjustment
+	from ..siteresponse import get_host_to_target_tf
 
 	if imt != "SA":
 		raise Exception("Host-to-target adjustment not supported for %s!" % imt)
@@ -3795,7 +3795,7 @@ def adjust_host_to_target(imt, periods, gm, M, d, host_vs30, host_kappa, target_
 
 	freqs = 1./np.asarray(periods)
 	irvt = pyrvt.motions.CompatibleRvtMotion(freqs, gm, magnitude=M, distance=d, region=region)
-	tf = get_host_to_target_adjustment(irvt.freqs, host_vs30, host_kappa, target_vs30, target_kappa)
+	tf = get_host_to_target_tf(irvt.freqs, host_vs30, host_kappa, target_vs30, target_kappa)
 	irvt.fourier_amps *= tf.magnitudes
 	rvt = pyrvt.motions.RvtMotion(irvt.freqs, irvt.fourier_amps, irvt.duration)
 	adjusted_gm = rvt.compute_osc_resp(freqs)
