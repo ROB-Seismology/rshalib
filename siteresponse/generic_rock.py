@@ -202,9 +202,9 @@ def build_generic_rock_profile(vs30, num_depths=100):
 	return rock_profile
 
 
-def get_host_to_target_adjustment(freqs, host_vs30, host_kappa, target_vs30, target_kappa):
+def get_host_to_target_tf(freqs, host_vs30, host_kappa, target_vs30, target_kappa):
 	"""
-	Compute host-to-target adjustment factor
+	Compute host-to-target transfer function
 
 	:param freqs:
 		1-D float array, frequencies for which adjustment factor
@@ -315,9 +315,9 @@ if __name__ == "__main__":
 	target2_vs30, target2_kappa = target1_vs30, host_kappa
 	target3_vs30, target3_kappa = host_vs30, target1_kappa
 
-	htt1 = rshalib.siteresponse.get_host_to_target_adjustment(freqs, host_vs30, host_kappa, target1_vs30, target1_kappa)
-	htt2 = rshalib.siteresponse.get_host_to_target_adjustment(freqs, host_vs30, host_kappa, target2_vs30, target2_kappa)
-	htt3 = rshalib.siteresponse.get_host_to_target_adjustment(freqs, host_vs30, host_kappa, target3_vs30, target3_kappa)
+	htt1 = rshalib.siteresponse.get_host_to_target_tf(freqs, host_vs30, host_kappa, target1_vs30, target1_kappa)
+	htt2 = rshalib.siteresponse.get_host_to_target_tf(freqs, host_vs30, host_kappa, target2_vs30, target2_kappa)
+	htt3 = rshalib.siteresponse.get_host_to_target_tf(freqs, host_vs30, host_kappa, target3_vs30, target3_kappa)
 	htt4 = rshalib.siteresponse.TransferFunction(freqs, htt2.magnitudes * htt3.magnitudes)
 
 	pylab.semilogx(freqs, htt1.magnitudes, lw=3, label="1) VS30=%s m/s, kappa=%s s" % (target1_vs30, target1_kappa))
