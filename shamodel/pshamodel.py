@@ -4413,7 +4413,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			(default: False)
 		:param calc_id:
 			int or str, OpenQuake calculation ID (default: None, will
-				be determined automatically)
+			be determined automatically)
 		:param dtype:
 			str, precision of deaggregation matrix (default: 'd')
 		:param write_xml:
@@ -4480,9 +4480,134 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		return mean_sdc
 
-	def delete_oq_shcf_stats(self):
-		# TODO
-		pass
+	def delete_oq_shcf_stats(self, percentile_levels=[5, 16, 50, 84, 95], calc_id="oqhazlib", verbose=True, dry_run=False):
+		"""
+		Delete all xml files with hazard-curve statistics
+
+		:param percentile_levels:
+			list or array with percentile levels in the range 0 - 100
+			(default: [5, 16, 50, 84, 100])
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+		:param verbose:
+			bool, whether or not to print filenames to be deleted
+			(default: True)
+		:param dry_run:
+			bool, whether or not to run without actually deleting files
+			(default: False, will delete xml files)
+		"""
+		curve_names = ["mean"]
+		for perc_level in percentile_levels:
+			curve_names.append("quantile-%.2f" % (perc_level / 100.))
+
+		xml_filespecs = []
+		for curve_name in curve_names:
+			for source_model, _ in self.source_model_lt.source_model_pmf:
+				xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, "", "", "", curve_name, calc_id=calc_id)
+				xml_filespecs.append(xml_filespec)
+					for trt in source_model.get_tectonic_region_types():
+						xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, "", "", curve_name, calc_id=calc_id)
+						xml_filespecs.append(xml_filespec)
+							for gmpe_name, _ in self.gmpe_lt.gmpe_system_def[trt]:
+								xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
+								xml_filespecs.append(xml_filespec)
+									for src_list in self.enumerate_correlated_sources(source_model, trt):
+										for src_id in src_list:
+											xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, src_id, gmpe_name, curve_name, calc_id=calc_id)
+											xml_filespecs.append(xml_filespec)
+
+		for xml_filespec in xml_filespecs:
+			if os.path.exists(xml_filespec):
+				if verbose:
+					print("Deleting %s" % xml_filespec)
+				if not dry_run:
+					os.unlink(xml_filespec)
+
+	def delete_oq_shcf_samples(self, calc_id="oqhazlib", verbose=True, dry_run=False):
+		"""
+		Delete xml files corresponding to logictree samples (hazard curves)
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+		:param verbose:
+			bool, whether or not to print filenames to be deleted
+			(default: True)
+		:param dry_run:
+			bool, whether or not to run without actually deleting files
+			(default: False, will delete xml files)
+		"""
+		num_lt_samples = self.num_lt_samples or self.get_num_paths()
+		for sample_idx in range(num_lt_samples):
+			fmt = "%%0%dd" % len(str(num_lt_samples))
+			curve_name = "rlz-" + fmt % (sample_idx + 1)
+			xml_filespec = self.get_oq_shcf_filespec(curve_name, calc_id=calc_id)
+			if os.path.exists(xml_filespec):
+				if verbose:
+					print("Deleting %s" % xml_filespec)
+				if not dry_run:
+					os.unlink(xml_filespec)
+
+	def delete_oq_sdc_stats(self, calc_id="oqhazlib", verbose=True, dry_run=False):
+		"""
+		Delete all xml files with deaggregation statistics
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+		:param verbose:
+			bool, whether or not to print filenames to be deleted
+			(default: True)
+		:param dry_run:
+			bool, whether or not to run without actually deleting files
+			(default: False, will delete xml files)
+		"""
+		curve_names = ["mean"]
+
+		xml_filespecs = []
+		for curve_name in curve_names:
+			for source_model, _ in self.source_model_lt.source_model_pmf:
+				xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, "", "", "", curve_name, calc_id=calc_id)
+				xml_filespecs.append(xml_filespec)
+					for trt in source_model.get_tectonic_region_types():
+						xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, "", "", curve_name, calc_id=calc_id)
+						xml_filespecs.append(xml_filespec)
+							for gmpe_name, _ in self.gmpe_lt.gmpe_system_def[trt]:
+								xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
+								xml_filespecs.append(xml_filespec)
+									for src_list in self.enumerate_correlated_sources(source_model, trt):
+										for src_id in src_list:
+											xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, src_id, gmpe_name, curve_name, calc_id=calc_id)
+											xml_filespecs.append(xml_filespec)
+
+		for xml_filespec in xml_filespecs:
+			if os.path.exists(xml_filespec):
+				if verbose:
+					print("Deleting %s" % xml_filespec)
+				if not dry_run:
+					os.unlink(xml_filespec)
+
+	def delete_oq_sdc_samples(self, calc_id="oqhazlib", verbose=True, dry_run=False):
+		"""
+		Delete xml files corresponding to logictree samples (deaggregation)
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+		:param verbose:
+			bool, whether or not to print filenames to be deleted
+			(default: True)
+		:param dry_run:
+			bool, whether or not to run without actually deleting files
+			(default: False, will delete xml files)
+		"""
+		num_lt_samples = self.num_lt_samples or self.get_num_paths()
+		for sample_idx in range(num_lt_samples):
+			fmt = "%%0%dd" % len(str(num_lt_samples))
+			curve_name = "rlz-" + fmt % (sample_idx + 1)
+			xml_filespec = self.get_oq_sdc_filespec(curve_name, calc_id=calc_id)
+			if os.path.exists(xml_filespec):
+				if verbose:
+					print("Deleting %s" % xml_filespec)
+				if not dry_run:
+					os.unlink(xml_filespec)
 
 	def to_psha_model_tree(self):
 		"""
