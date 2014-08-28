@@ -4502,18 +4502,21 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		xml_filespecs = []
 		for curve_name in curve_names:
+			xml_filespec = self.get_oq_shcf_filespec_decomposed("", "", "", "", curve_name, calc_id=calc_id)
+			xml_filespecs.append(xml_filespec)
 			for source_model, _ in self.source_model_lt.source_model_pmf:
-				xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, "", "", "", curve_name, calc_id=calc_id)
+				xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model.name, "", "", "", curve_name, calc_id=calc_id)
 				xml_filespecs.append(xml_filespec)
 				for trt in source_model.get_tectonic_region_types():
-					xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, "", "", curve_name, calc_id=calc_id)
+					xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model.name, trt, "", "", curve_name, calc_id=calc_id)
 					xml_filespecs.append(xml_filespec)
-					for gmpe_name, _ in self.gmpe_lt.gmpe_system_def[trt]:
-						xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
+					gmpe_names = [""] + self.gmpe_lt.gmpe_system_def[trt].gmpe_names
+					for gmpe_name in gmpe_names:
+						xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
 						xml_filespecs.append(xml_filespec)
 						for src_list in self.enumerate_correlated_sources(source_model, trt):
-							for src_id in src_list:
-								xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, src_id, gmpe_name, curve_name, calc_id=calc_id)
+							for src in src_list:
+								xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model.name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
 								xml_filespecs.append(xml_filespec)
 
 		for xml_filespec in xml_filespecs:
@@ -4563,20 +4566,24 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		curve_names = ["mean"]
 
 		xml_filespecs = []
-		for curve_name in curve_names:
-			for source_model, _ in self.source_model_lt.source_model_pmf:
-				xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, "", "", "", curve_name, calc_id=calc_id)
+		for site in self.get_sites():
+			for curve_name in curve_names:
+				xml_filespec = self.get_oq_sdc_filespec_decomposed("", "", "", "", curve_name, site, calc_id=calc_id)
 				xml_filespecs.append(xml_filespec)
-				for trt in source_model.get_tectonic_region_types():
-					xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, "", "", curve_name, calc_id=calc_id)
+				for source_model, _ in self.source_model_lt.source_model_pmf:
+					xml_filespec = self.get_oq_sdc_filespec_decomposed(source_model.name, "", "", "", curve_name, site, calc_id=calc_id)
 					xml_filespecs.append(xml_filespec)
-					for gmpe_name, _ in self.gmpe_lt.gmpe_system_def[trt]:
-						xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
+					for trt in source_model.get_tectonic_region_types():
+						xml_filespec = self.get_oq_sdc_filespec_decomposed(source_model.name, trt, "", "", curve_name, site, calc_id=calc_id)
 						xml_filespecs.append(xml_filespec)
-						for src_list in self.enumerate_correlated_sources(source_model, trt):
-							for src_id in src_list:
-								xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, src_id, gmpe_name, curve_name, calc_id=calc_id)
-								xml_filespecs.append(xml_filespec)
+						gmpe_names = [""] + self.gmpe_lt.gmpe_system_def[trt].gmpe_names
+						for gmpe_name in gmpe_names:
+							xml_filespec = self.get_oq_sdc_filespec_decomposed(source_model.name, trt, "", gmpe_name, curve_name, site, calc_id=calc_id)
+							xml_filespecs.append(xml_filespec)
+							for src_list in self.enumerate_correlated_sources(source_model, trt):
+								for src in src_list:
+									xml_filespec = self.get_oq_sdc_filespec_decomposed(source_model.name, trt, src.source_id, gmpe_name, curve_name, site, calc_id=calc_id)
+									xml_filespecs.append(xml_filespec)
 
 		for xml_filespec in xml_filespecs:
 			if os.path.exists(xml_filespec):
@@ -4599,15 +4606,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			(default: False, will delete xml files)
 		"""
 		num_lt_samples = self.num_lt_samples or self.get_num_paths()
-		for sample_idx in range(num_lt_samples):
-			fmt = "%%0%dd" % len(str(num_lt_samples))
-			curve_name = "rlz-" + fmt % (sample_idx + 1)
-			xml_filespec = self.get_oq_sdc_filespec(curve_name, calc_id=calc_id)
-			if os.path.exists(xml_filespec):
-				if verbose:
-					print("Deleting %s" % xml_filespec)
-				if not dry_run:
-					os.unlink(xml_filespec)
+		for site in self.get_sites():
+			for sample_idx in range(num_lt_samples):
+				fmt = "%%0%dd" % len(str(num_lt_samples))
+				curve_name = "rlz-" + fmt % (sample_idx + 1)
+				xml_filespec = self.get_oq_sdc_filespec(curve_name, site, calc_id=calc_id)
+				if os.path.exists(xml_filespec):
+					if verbose:
+						print("Deleting %s" % xml_filespec)
+					if not dry_run:
+						os.unlink(xml_filespec)
 
 	def to_psha_model_tree(self):
 		"""
