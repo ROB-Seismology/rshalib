@@ -4505,16 +4505,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			for source_model, _ in self.source_model_lt.source_model_pmf:
 				xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, "", "", "", curve_name, calc_id=calc_id)
 				xml_filespecs.append(xml_filespec)
-					for trt in source_model.get_tectonic_region_types():
-						xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, "", "", curve_name, calc_id=calc_id)
+				for trt in source_model.get_tectonic_region_types():
+					xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, "", "", curve_name, calc_id=calc_id)
+					xml_filespecs.append(xml_filespec)
+					for gmpe_name, _ in self.gmpe_lt.gmpe_system_def[trt]:
+						xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
 						xml_filespecs.append(xml_filespec)
-							for gmpe_name, _ in self.gmpe_lt.gmpe_system_def[trt]:
-								xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
+						for src_list in self.enumerate_correlated_sources(source_model, trt):
+							for src_id in src_list:
+								xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, src_id, gmpe_name, curve_name, calc_id=calc_id)
 								xml_filespecs.append(xml_filespec)
-									for src_list in self.enumerate_correlated_sources(source_model, trt):
-										for src_id in src_list:
-											xml_filespec = get_oq_shcf_filespec_decomposed(source_model.name, trt, src_id, gmpe_name, curve_name, calc_id=calc_id)
-											xml_filespecs.append(xml_filespec)
 
 		for xml_filespec in xml_filespecs:
 			if os.path.exists(xml_filespec):
@@ -4567,16 +4567,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			for source_model, _ in self.source_model_lt.source_model_pmf:
 				xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, "", "", "", curve_name, calc_id=calc_id)
 				xml_filespecs.append(xml_filespec)
-					for trt in source_model.get_tectonic_region_types():
-						xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, "", "", curve_name, calc_id=calc_id)
+				for trt in source_model.get_tectonic_region_types():
+					xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, "", "", curve_name, calc_id=calc_id)
+					xml_filespecs.append(xml_filespec)
+					for gmpe_name, _ in self.gmpe_lt.gmpe_system_def[trt]:
+						xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
 						xml_filespecs.append(xml_filespec)
-							for gmpe_name, _ in self.gmpe_lt.gmpe_system_def[trt]:
-								xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
+						for src_list in self.enumerate_correlated_sources(source_model, trt):
+							for src_id in src_list:
+								xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, src_id, gmpe_name, curve_name, calc_id=calc_id)
 								xml_filespecs.append(xml_filespec)
-									for src_list in self.enumerate_correlated_sources(source_model, trt):
-										for src_id in src_list:
-											xml_filespec = get_oq_sdc_filespec_decomposed(source_model.name, trt, src_id, gmpe_name, curve_name, calc_id=calc_id)
-											xml_filespecs.append(xml_filespec)
 
 		for xml_filespec in xml_filespecs:
 			if os.path.exists(xml_filespec):
