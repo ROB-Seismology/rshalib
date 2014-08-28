@@ -2792,8 +2792,9 @@ class NhlibGMPE(GMPE):
 		Indicate whether or not GMPE depends on rake of the source
 		"""
 		M, d = 6.0, 15.0
-		val1 = self.__call__(M, d, vs30=800., mechanism="normal")
-		val2 = self.__call__(M, d, vs30=800., mechanism="reverse")
+		# TODO: may fail if vs30, kappa values are not supported
+		val1 = self.__call__(M, d, vs30=800., kappa=0.03, mechanism="normal")
+		val2 = self.__call__(M, d, vs30=800., kappa=0.03, mechanism="reverse")
 		if np.allclose(val1, val2):
 			return False
 		else:
