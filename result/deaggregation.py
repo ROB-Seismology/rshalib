@@ -602,8 +602,8 @@ class DeaggBase(object):
 		new_deagg_matrix = old_deagg_matrix.__class__(np.zeros(shape, dtype=old_deagg_matrix.dtype))
 		for i, trt in enumerate(new_trt_bins):
 			if trt in trt_dict.keys():
-				idx = old_trt_bins.index(combined_trt)
 				for combined_trt in trt_dict[trt]:
+					idx = old_trt_bins.index(combined_trt)
 					new_deagg_matrix[..., i] += old_deagg_matrix[..., idx]
 			else:
 				idx = old_trt_bins.index(trt)
