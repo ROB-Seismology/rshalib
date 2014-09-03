@@ -4977,9 +4977,20 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			bc_colors[somo_shortnames[source_model.name]] = somo_colors[source_model.name]
 		bc_colors["Avg"] = "red"
 
-		trt_shortnames = {}
-		for trt in self.gmpe_lt.tectonicRegionTypes:
-			trt_shortnames[trt] = ''.join([word[0].capitalize() for word in trt.split()])
+		all_trts = self.gmpe_lt.tectonicRegionTypes
+		if len(all_trts) == 2 and self.gmpe_lt.gmpe_system_def[all_trts[0]] == self.gmpe_lt.gmpe_system_def[all_trts[1]]:
+			# TODO: ideally, this should also work if more than 2 trt's have same GMPE system def
+			trt = ""
+			trt_shortnames = [''.join([word[0].capitalize() for word in all_trts[i].split()]) for i in range(len(all_trts))]
+			trt_shortnames = {trt: '+'.join([trtsn for trtsn in sorted(trt_shortnames)])}
+			trts = [trt]
+			gmpe_system_def = {trt: self.gmpe_lt.gmpe_system_def[all_trts[0]]}
+		else:
+			trts = all_trts
+			trt_shortnames = {}
+			for trt in trts:
+				trt_shortnames[trt] = ''.join([word[0].capitalize() for word in trt.split()])
+			gmpe_system_def = self.gmpe_lt.gmpe_system_def
 
 		return_periods = self.return_periods
 		sites = self.get_sites()
@@ -4996,16 +5007,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				for period in barchart_periods:
 					category_value_dict[site.name][return_period][period] = {}
 					mean_value_dict[site.name][return_period][period] = {}
-					for trt in self.gmpe_lt.tectonicRegionTypes:
+					for trt in trts:
 						category_value_dict[site.name][return_period][period][trt] = OrderedDict()
-						for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+						for gmpe_name, gmpe_weight in gmpe_system_def[trt]:
 							gmpe_short_name = gmpe_shortnames[gmpe_name]
 							category_value_dict[site.name][return_period][period][trt][gmpe_short_name] = OrderedDict()
 
 		## By TRT
-		for trt in self.gmpe_lt.tectonicRegionTypes:
+		for trt in trts:
 			trt_short_name = trt_shortnames[trt]
-			trt_gmpes = [gmpe_name for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]]
+			trt_gmpes = [gmpe_name for gmpe_name, gmpe_weight in gmpe_system_def[trt]]
 			mean_trt_shcf = self.get_oq_mean_shcf(trt=trt, write_xml=recompute, calc_id=calc_id)
 			gmpe_shcf_list = []
 			for gmpe_name in trt_gmpes:
@@ -5042,7 +5053,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				gmpe_uhsf_list = [uhsfs.getUHSField(return_period=return_period) for uhsfs in gmpe_uhsfs_list]
 				for site in sites:
 					uhs_list, labels, colors = [], [], []
-					for g, (gmpe_name, gmpe_weight) in enumerate(self.gmpe_lt.gmpe_system_def[trt]):
+					for g, (gmpe_name, gmpe_weight) in enumerate(gmpe_system_def[trt]):
 						gmpe_short_name = gmpe_shortnames[gmpe_name]
 						gmpe_uhs = gmpe_uhsf_list[g].getUHS(site_spec=site.name)
 						uhs_list.append(gmpe_uhs)
@@ -5066,8 +5077,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						mean_value_dict[site.name][return_period][period][trt] = mean_trt_uhs[period]
 
 		## Collect mean values per TRT/GMPE
-		for trt in self.gmpe_lt.tectonicRegionTypes:
-			for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+		for trt in trts:
+			for gmpe_name, gmpe_weight in gmpe_system_def[trt]:
 				gmpe_short_name = gmpe_shortnames[gmpe_name]
 				mean_trt_gmpe_shcf = self.get_oq_mean_shcf(trt=trt, gmpe_name=gmpe_name, write_xml=recompute, calc_id=calc_id)
 				mean_trt_gmpe_uhsfs = mean_trt_gmpe_shcf.interpolate_return_periods(return_periods)
@@ -5081,12 +5092,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		## By source model
 		for source_model in self.source_models:
 			somo_short_name = somo_shortnames[source_model.name]
-			for trt in source_model.get_tectonic_region_types():
+			if trts == [""]:
+				somo_trts = [""]
+			else:
+				somo_trts = source_model.get_tectonic_region_types()
+			for trt in somo_trts:
 				trt_short_name = trt_shortnames[trt]
-				trt_gmpes = [gmpe_name for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]]
+				trt_gmpes = [gmpe_name for gmpe_name, gmpe_weight in gmpe_system_def[trt]]
 				gmpe_shcf_list = []
 				trt_shcf = self.get_oq_mean_shcf_by_source_model(source_model, trt=trt, calc_id=calc_id, write_xml=recompute)
-				for gmpe_name, gmpe_weight in self.gmpe_lt.gmpe_system_def[trt]:
+				for gmpe_name, gmpe_weight in gmpe_system_def[trt]:
 					shcf = self.get_oq_mean_shcf_by_source_model(source_model, trt=trt, gmpe_name=gmpe_name, calc_id=calc_id, write_xml=recompute)
 					gmpe_shcf_list.append(shcf)
 
@@ -5122,7 +5137,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					for site in sites:
 						uhs_list, labels, colors = [], [], []
 						labels = []
-						for g, (gmpe_name, gmpe_weight) in enumerate(self.gmpe_lt.gmpe_system_def[trt]):
+						for g, (gmpe_name, gmpe_weight) in enumerate(gmpe_system_def[trt]):
 							gmpe_short_name = gmpe_shortnames[gmpe_name]
 							gmpe_uhs = gmpe_uhsf_list[g].getUHS(site_spec=site.name)
 							uhs_list.append(gmpe_uhs)
@@ -5150,7 +5165,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			for site in sites:
 				for return_period in return_periods:
 					for period in barchart_periods:
-						for trt in self.gmpe_lt.tectonicRegionTypes:
+						for trt in trts:
 							trt_short_name = trt_shortnames[trt]
 							fig_filename = "Barchart_gmpe_site_%s=%s_%s_Tr=%.Eyr_T=%ss.png" % (fig_site_id, getattr(site, fig_site_id), trt_short_name, return_period, period)
 							fig_filespec = os.path.join(fig_folder, fig_filename)
