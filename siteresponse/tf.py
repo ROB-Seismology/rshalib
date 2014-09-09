@@ -248,6 +248,21 @@ class TransferFunction:
 		data = np.complex(reals, imags)
 		return ComplexTransferFunction(self.freqs, data)
 
+	def interpolate(self, freqs):
+		"""
+		Interpolate transfer function at different frequencies
+
+		:param freqs:
+			float array, frequencies at which to interpolate tf
+
+		:return:
+			instance of :class:`TransferFunction`
+		"""
+		from ..utils import interpolate
+
+		magnitudes = interpolate(self.freqs, self.magnitudes, freqs)
+		return TransferFunction(freqs, magnitudes)
+
 	def plot_magnitude(self, color='b', line_style='-', line_width=2, label=""):
 		"""
 		Plot magnitudes
