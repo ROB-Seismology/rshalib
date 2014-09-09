@@ -401,6 +401,42 @@ class SourceModel():
 			else:
 				return False
 
+	def get_total_fault_length(self):
+		"""
+		Report total length of (simple) faults in source model
+
+		:return:
+			float, fault length in km
+		"""
+		flt_len = 0
+		for flt in self.get_simple_fault_sources():
+			flt_len += flt.get_length()
+		return flt_len
+
+	def get_total_fault_area(self):
+		"""
+		Report total area of (simple) faults in source model
+
+		:return:
+			float, fault area in square km
+		"""
+		total_area = 0
+		for flt in self.get_simple_fault_sources():
+			total_area += flt.get_area()
+		return total_area
+
+	def get_total_area(self):
+		"""
+		Report total surface area of area sources in source model
+
+		:return:
+			float, surface area in square km
+		"""
+		total_area = 0
+		for src in self.get_area_sources():
+			total_area += src.get_area()
+		return total_area
+
 
 
 if __name__ == '__main__':
