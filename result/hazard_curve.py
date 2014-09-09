@@ -3290,6 +3290,81 @@ class UHS(HazardResult, HazardSpectrum):
 		intensity_unit = self.intensity_unit
 		plot_hazard_spectrum(datasets, pgm=pgm, pgm_period=pgm_period, labels=labels, colors=[color], linestyles=[linestyle], linewidths=[linewidth], fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
 
+	def get_fas_irvt(self, pgm_freq=50. , mag=6.0, distance=10, region="ENA"):
+		"""
+		Obtain "matching" Fourier Amplitude Spectrum using Inverse Random Vibration Theory
+
+		:param pgm_freq:
+			float, frequency (in Hz) at which to consider PGM (zero period)
+			(default: 50.)
+		:param mag:
+			float, earthquake magnitude (default: 6.0)
+		:param distance:
+			float, distance in km (default: 10)
+		:param region:
+			str, region, either "ENA" or "WNA"
+
+		:return:
+			instance of :class:`pyrvt.motions.CompatibleRvtMotion`
+		"""
+		import pyrvt
+
+		freqs = 1./self.periods
+		freqs[self.periods == 0] = pgm_freq
+		irvt = pyrvt.motions.CompatibleRvtMotion(freqs, self.intensities, magnitude=mag, distance=distance, region=region)
+		return irvt
+
+	def to_srs(self, tf, pgm_freq=50., mag=6.0, distance=10, region="ENA"):
+		"""
+		Convert UHS to surface response spectrum with a transfer function
+		and using Inverse Random Vibration Theory.
+		There is a slight dependency on magnitude and distance considered
+		for the conversion of response spectrum to Fourier amplitude spectrum
+		using IRVT.
+
+		:param tf:
+			instance of :class:`rshalib.siteresponse.TransferFunction` or
+			:class:`rshalib.siteresponse.ComplexTransferFunction`
+		:param pgm_freq:
+			float, frequency (in Hz) at which to consider PGM (zero period)
+			(default: 50.)
+		:param mag:
+			float, earthquake magnitude (default: 6.0)
+		:param distance:
+			float, distance in km (default: 10)
+		:param region:
+			str, region, either "ENA" or "WNA"
+
+		:return:
+			instance of :class:`UHS`
+		"""
+		import pyrvt
+		from ..siteresponse import ComplexTransferFunction
+
+		irvt = self.get_fas_irvt(pgm_freq=pgm_freq, mag=mag, distance=distance, region=region)
+		print irvt.freqs.min(), irvt.freqs.max()
+		print tf.freqs.min(), tf.freqs.max()
+		if isinstance(tf, ComplexTransferFunction):
+			tf = tf.to_transfer_function()
+		tf2 = tf.interpolate(irvt.freqs)
+		irvt.fourier_amps *= tf2.magnitudes
+		rvt = pyrvt.motions.RvtMotion(irvt.freqs, irvt.fourier_amps, irvt.duration)
+
+		sa_periods = self.periods[self.periods > 0]
+		sa_freqs = 1./ sa_periods
+		freqs = tf.freqs[tf.freqs > sa_freqs.min()]
+		freqs = freqs[freqs < sa_freqs.max()]
+		freqs = np.concatenate([[pgm_freq], freqs])
+		periods = np.concatenate([[0], 1./freqs[1:]])
+		srs_motion = rvt.compute_osc_resp(freqs)
+		model_name = self.model_name + " (SRS)"
+		#periods[np.allclose(tf.freqs, pgm_freq)] = 0
+		#periods = periods[tf.freqs <= pgm_freq]
+		print periods.min(), periods.max()
+		#srs_motion = srs_motion[tf.freqs <= pgm_freq]
+		uhs = UHS(model_name, "", self.site, periods, self.IMT, srs_motion, self.intensity_unit, self.timespan, poe=self.poe, return_period=self.return_period)
+		return uhs
+
 	def export_csv(self, csv_filespec=None):
 		if csv_filespec:
 			f = open(csv_filespec, "w")
