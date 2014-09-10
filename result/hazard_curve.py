@@ -3321,6 +3321,8 @@ class UHS(HazardResult, HazardSpectrum):
 		There is a slight dependency on magnitude and distance considered
 		for the conversion of response spectrum to Fourier amplitude spectrum
 		using IRVT.
+		The resulting response spectrum will be clipped to the frequency
+		range of the transfer function.
 
 		:param tf:
 			instance of :class:`rshalib.siteresponse.TransferFunction` or
