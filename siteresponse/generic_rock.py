@@ -204,7 +204,7 @@ def build_generic_rock_profile(vs30, num_depths=100):
 
 def get_host_to_target_tf(freqs, host_vs30, host_kappa, target_vs30, target_kappa):
 	"""
-	Compute host-to-target transfer function
+	Compute host-to-target transfer function based on quarter-wavelength approximation
 
 	:param freqs:
 		1-D float array, frequencies for which adjustment factor
@@ -231,27 +231,7 @@ def get_host_to_target_tf(freqs, host_vs30, host_kappa, target_vs30, target_kapp
 		target_tf, _ = target_rock_profile.site_amp(freqs, vel_source=vel_source, rho_source=rho_source, kappa=target_kappa)
 		amps = target_tf.magnitudes / host_tf.magnitudes
 	else:
-		#host_amps = np.exp(-np.pi * host_kappa * freqs)
-		#target_amps = np.exp(-np.pi * target_kappa * freqs)
-		#amps = target_amps / host_amps
 		amps = np.exp(-np.pi * (target_kappa - host_kappa) * freqs)
-
-#		from ..utils import interpolate
-
-#		freq_anchors = np.array([0.5, 1.0, 2.0, 5.0, 10, 20])
-#		C10 = np.array([-1.540, -3.156, -6.056, -13.76, -23.37, -31.83])
-#		C10_PGA = -18.64
-#		C11 = np.array([-38.64, -24.59, -5.412, 26.11, 98.78, 378.67])
-#		C11_PGA = 301.22
-
-#		c10 = interpolate(freq_anchors, C10, freqs)
-#		c10[np.isinf(freqs)] = C10_PGA
-#		c10[freqs >= 100] = C10_PGA
-#		c11 = interpolate(freq_anchors, C11, freqs)
-#		c11[np.isinf(freqs)] = C11_PGA
-#		c11[freqs >= 100] = C11_PGA
-
-#		amps = np.exp(c10 * (target_kappa - host_kappa) + c11 * ((target_kappa - 0.025)**2 - (host_kappa - 0.025)**2))
 
 	return TransferFunction(freqs, amps)
 
