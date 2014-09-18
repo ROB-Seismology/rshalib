@@ -1825,13 +1825,20 @@ class SpectralDeaggregationCurve(DeaggBase):
 		mean_high_freq_dc.period = periods.mean()
 		return mean_high_freq_dc
 
-	def analyze_controlling_earthquakes(self, remote_distance=100, filespec=None):
+	def analyze_controlling_earthquakes(self, remote_distance=100, truncate_hf_distance=False, filespec=None):
 		"""
 		Print magnitude and distance of controlling earthquakes.
 
 		:param remote_distance:
 			float, threshold distance (in km) considered for remote
 			low-frequency earthquakes (default: 100)
+		:param truncate_hf_distance:
+			bool, whether or not to truncate distance for mean HF eq
+			to :param:`remote_distance`
+			(default: False)
+		:param filespec:
+			str, full path to output file
+			(default: None)
 
 		:return:
 			(mean_high_freq_dc, mean_low_freq_dc) tuple with
@@ -1854,6 +1861,8 @@ class SpectralDeaggregationCurve(DeaggBase):
 			print(string)
 			strings.append(string)
 
+			if truncate_hf_distance:
+				mean_high_freq_ds = mean_high_freq_ds.get_fractional_contribution_slice_below(remote_distance, 1)
 			mean_mag, mean_dist = mean_high_freq_ds.get_mean_eq_scenario()
 			string = "  High-frequency controlling earthquake: M=%.1f, d=%.0f km" % (mean_mag, mean_dist)
 			print(string)
