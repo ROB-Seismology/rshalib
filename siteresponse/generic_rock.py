@@ -290,8 +290,9 @@ if __name__ == "__main__":
 	## Plot host-to-target adjustment
 	freqs = np.linspace(0.05, 50, 100)
 
-	host_vs30, host_kappa = 2700, 0.006
-	target1_vs30, target1_kappa = 1700, 0.01
+	host_vs30, host_kappa = 2700, 0.007
+	#target1_vs30, target1_kappa = 1700, 0.01
+	target1_vs30, target1_kappa = 1800, 0.03
 	target2_vs30, target2_kappa = target1_vs30, host_kappa
 	target3_vs30, target3_kappa = host_vs30, target1_kappa
 
