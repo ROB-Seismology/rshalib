@@ -4053,7 +4053,7 @@ def plot_distance(gmpe_list, mags, dmin=None, dmax=None, distance_metric=None, h
 	if not imt in ("PGA", "PGV", "PGD"):
 		title += " (T=%s s)" % T
 	pylab.title(title)
-	font = FontProperties(size='large')
+	font = FontProperties(size='medium')
 	pylab.legend(loc=legend_location, prop=font)
 	xmin, xmax, ymin, ymax = pylab.axis()
 	if amin is None:
@@ -4220,7 +4220,7 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_u
 						pgm_sigma = gmpe.log_sigma(M, d, h=h, imt=pgm, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 						Tmin = pgm_T
 						# TODO: add outline color and symbol size
-						plotfunc(pgm_T, pgm_Avalue, colors[j]+"o", label="_nolegend_")
+						plotfunc(pgm_T, pgm_Avalue, colors[i]+"o", label="_nolegend_")
 					else:
 						pgm = None
 
@@ -4234,13 +4234,14 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA", Tmin=None, Tmax=None, imt_u
 					for sign in (1.0, -1.0):
 						pgm_sigma_value = 10**(np.log10(pgm_Avalue) + epsilon * sign * pgm_sigma)
 						# TODO: add outline color and symbol size
-						plotfunc(pgm_T, pgm_sigma_value, "o", label="_nolegend_")
+						plotfunc(pgm_T, pgm_sigma_value, "o", mec=colors[i], mfc="None", label="_nolegend_")
 
 	## PLot decoration
 	pylab.grid(True)
 	if want_minor_grid:
 		pylab.grid(True, which="minor")
-	title += "\nd=%.1f km, h=%d km" % (d, int(round(h)))
+	if not title:
+		title = "\nd=%.1f km, h=%d km" % (d, int(round(h)))
 	pylab.title(title)
 	font = FontProperties(size='medium')
 	xmin, xmax, ymin, ymax = pylab.axis()
