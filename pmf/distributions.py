@@ -355,6 +355,44 @@ class NodalPlaneDistribution(PMF):
 	def __len__(self):
 		return len(self.nodal_planes)
 
+	def get_strike_weights(self):
+		"""
+		Return weights for each strike
+
+		:return:
+			Tuple of arrays (strikes, weights)
+		"""
+		strikes, weights = [], []
+		for nodal_plane, weight in self:
+			strike = nodal_plane.strike
+			try:
+				idx = strikes.index(strike)
+			except ValueError:
+				strikes.append(strike)
+				weights.append(weight)
+			else:
+				weights[idx] += weight
+		return np.array(strikes), np.array(weights)
+
+	def get_dip_weights(self):
+		"""
+		Return weights for each dip
+
+		:return:
+			Tuple of arrays (dips, weights)
+		"""
+		dips, weights = [], []
+		for nodal_plane, weight in self:
+			dip = nodal_plane.dip
+			try:
+				idx = dips.index(dip)
+			except ValueError:
+				dips.append(dip)
+				weights.append(weight)
+			else:
+				weights[idx] += weight
+		return np.array(dips), np.array(weights)
+
 	def get_rake_weights(self):
 		"""
 		Return weights for each faulting style
