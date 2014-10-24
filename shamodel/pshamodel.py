@@ -3012,7 +3012,7 @@ class PSHAModelTree(PSHAModelBase):
 
 class DecomposedPSHAModelTree(PSHAModelTree):
 	"""
-	Special version of PSHAModelTree that is computed in a different way.
+	Special version of PSHAModelTree that is computed in a source-centric way.
 	Instead of computing hazard curves for a complete source model
 	corresponding to sampled or enumerated branches, all realizations
 	for each source are computed separately, in order to save computation
@@ -4519,7 +4519,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 								xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model.name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
 								xml_filespecs.append(xml_filespec)
 
-		for xml_filespec in xml_filespecs:
+			for trt in self.gmpe_lt.tectonicRegionTypes:
+				xml_filespec = self.get_oq_shcf_filespec_decomposed("", trt, "", "", curve_name, calc_id=calc_id)
+				xml_filespecs.append(xml_filespec)
+				gmpe_names = self.gmpe_lt.gmpe_system_def[trt].gmpe_names
+				for gmpe_name in gmpe_names:
+					xml_filespec = self.get_oq_shcf_filespec_decomposed("", trt, "", gmpe_name, curve_name, calc_id=calc_id)
+					xml_filespecs.append(xml_filespec)
+
+
+		for xml_filespec in set(xml_filespecs):
 			if os.path.exists(xml_filespec):
 				if verbose:
 					print("Deleting %s" % xml_filespec)
