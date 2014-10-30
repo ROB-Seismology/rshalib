@@ -2462,9 +2462,10 @@ class PSHAModelTree(PSHAModelBase):
 		job_args = []
 		num_lt_samples = self.num_lt_samples or self.get_num_paths()
 		fmt = "%%0%dd" % len(str(num_lt_samples))
-		curve_name = "rlz-%s" % (fmt % (sample_idx + 1))
+#		curve_name = "rlz-%s" % (fmt % (sample_idx + 1))
 		curve_path = ""
 		for sample_idx, (psha_model, weight) in enumerate(psha_models_weights):
+			curve_name = "rlz-%s" % (fmt % (sample_idx + 1))
 			job_args.append((psha_model, curve_name, curve_path, cav_min, combine_pga_and_sa, calc_id, verbose))
 
 		## Launch multiprocessing
