@@ -90,7 +90,7 @@ def calc_generic_Vs_anchors(vs30):
 	return generic_Vs
 
 
-def calc_generic_Vs_profile(vs30, z_ar, method="powerlaw"):
+def calc_generic_Vs_profile(vs30, z_ar, method="powerlaw", verbose=False):
 	"""
 	Calculate generic shear-wave velocity profile at depth z according to a
 	power-law model which goes through the anchoring depths Za
@@ -111,6 +111,10 @@ def calc_generic_Vs_profile(vs30, z_ar, method="powerlaw"):
 		- powerlaw: modified version of powerlaw_original, where Vs0 and p0
 			are computed rather than taken from Table 4 in the paper
 		(default: "powerlaw")
+	:param verbose:
+		bool, whether or not to print the shear-wave velocities and
+		power-law coefficients at the anchoring depths. Only applies
+		when :param:`method` is set to powerlaw. (default: False)
 
 	:return:
 		1-D float array, shear-wave velocities (m/s)
@@ -147,12 +151,14 @@ def calc_generic_Vs_profile(vs30, z_ar, method="powerlaw"):
 		## This also allows to compute profiles for vs30 not appearing in this table
 		Vs0_vs30 = np.concatenate([[Vs00], Vs_anchors])
 		Vs_profile = np.zeros_like(z_ar, 'd')
+		param_table = {}
 		for zi, z in enumerate(z_ar):
 			[idx] = np.digitize([z], Za, right=True)
 			if idx >= 1:
 				z0 = Za[idx-1]
 			else:
 				z0 = 0
+			param_table[z0] = {}
 
 			try:
 				z1 = Za[idx]
@@ -164,11 +170,21 @@ def calc_generic_Vs_profile(vs30, z_ar, method="powerlaw"):
 			else:
 				p0_vs30 = 0
 
+			try:
+				param_table[z0]["beta"] = Vs0_vs30[idx]
+			except:
+				param_table[z0]["beta"] = Vs00
+			param_table[z0]["p"] = p0_vs30
+
 			if z0:
 				Vs = Vs0_vs30[idx] * (z/z0) ** p0_vs30
 			else:
 				Vs = Vs00
 			Vs_profile[zi] = Vs
+
+		if verbose:
+			for z0 in sorted(param_table.keys()):
+				print vs30, z0, param_table[z0]["beta"], param_table[z0]["p"]
 
 	return Vs_profile
 
@@ -250,9 +266,9 @@ if __name__ == "__main__":
 		generic_Vs_anchors = rshalib.siteresponse.calc_generic_Vs_anchors(vs30)
 		print generic_Vs_anchors
 
-		z_ar = np.arange(8001)
+		z_ar = np.arange(8002)
 
-		Vs_profile = rshalib.siteresponse.calc_generic_Vs_profile(vs30, z_ar, method="powerlaw")
+		Vs_profile = rshalib.siteresponse.calc_generic_Vs_profile(vs30, z_ar, method="powerlaw", verbose=True)
 
 		pylab.plot(Vs_profile, z_ar, '%s' % colors[i], lw=2, label="Vs30=%d m/s" % vs30)
 		pylab.plot(generic_Vs_anchors, Za, 'o', color='%s' % colors[i], lw=2, label="_nolegend_")
