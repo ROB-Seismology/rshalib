@@ -18,7 +18,7 @@ class SmoothedSeismicity(object):
 	"""
 	"""
 	
-	def __init__(self, e_lons, e_lats, e_mags, s_lons, s_lats, completeness, end_date, bin_width, bandwidth):
+	def __init__(self, e_lons, e_lats, e_mags, s_lons, s_lats, completeness, end_date, bin_width, bandwidth, number=None):
 		"""
 		:param e_lons:
 			1d np.array of floats, lons of earthquakes
@@ -27,9 +27,9 @@ class SmoothedSeismicity(object):
 		:param e_mags:
 			1d np.array of floats, mags of earthquakes
 		:param s_lons:
-			1d np.array of floats, lons of sites
+			1d np.array of floats, lons of source sites
 		:param s_lats:
-			1d np.array of floats, lats of sites
+			1d np.array of floats, lats of source sites
 		:param completeness:
 			instance of eqcatalog.Completeness
 		:param end_date:
@@ -38,6 +38,8 @@ class SmoothedSeismicity(object):
 			positve float, width of magnitude bins
 		:param bandwidth:
 			positive float, bandwidth of smoothing (in km)
+		:param number:
+			positive integer, distance n-th closest earthquake as bandwidth
 		"""
 		self.e_lons = e_lons
 		self.e_lats = e_lats
@@ -48,10 +50,31 @@ class SmoothedSeismicity(object):
 		self.end_date = end_date
 		self.bin_width = bin_width
 		self.bandwidth = bandwidth
+		self.number = number
 		self._smooth()
+	
+	@property
+	def region(self):
+		"""
+		Get bounding box of source sites
+		
+		:returns:
+			tuple of four floats, (min_lon, max_lon, min_lat, max_lat)
+		"""
+		min_lon = self.s_lons.min()
+		max_lon = self.s_lons.max()
+		min_lat = self.s_lats.min()
+		max_lat = self.s_lats.max()
+		return (min_lon, max_lon, min_lat, max_lat)
 	
 	def _get_mag_bins(self, min_mag, max_mag):
 		"""
+		Give lower edges of magnitude bins.
+		
+		:param min_mag:
+			float, minimum magnitude
+		:param max_mag:
+			float, maximum magnitude
 		"""
 		mag = min_mag
 		mag_bins = []
@@ -60,6 +83,18 @@ class SmoothedSeismicity(object):
 			mag += self.bin_width
 		return np.array(mag_bins)
 	
+	def _get_bandwidths(self):
+		"""
+		"""
+		distances = haversine(
+			self.e_lons, self.e_lats,
+			self.e_lons, self.e_lats,
+			)
+		distances.sort(axis=1)
+		distances = distances[:,self.number]
+		distances[distances < self.bandwidth] = self.bandwidth
+		return distances
+	
 	def _smooth(self):
 		"""
 		"""
@@ -67,8 +102,12 @@ class SmoothedSeismicity(object):
 			self.e_lons, self.e_lats,
 			self.s_lons, self.s_lats,
 			)
-		rv = norm(0, self.bandwidth)
-		weights = rv.pdf(distances)
+		if not self.number:
+			rv = norm(0, self.bandwidth)
+			weights = rv.pdf(distances)
+		else:
+			rv = norm(0, self._get_bandwidths()[np.newaxis].T)
+			weights = rv.pdf(distances)
 		e_sums = weights.sum(axis=1)
 		weights /= e_sums[np.newaxis].T
 		min_mag = self.completeness.min_mag
@@ -85,7 +124,7 @@ class SmoothedSeismicity(object):
 		values /= time_spans[np.newaxis].T
 		self.values = values
 	
-	def get_mfd_obs(self, i, max_mag=None):
+	def _get_mfd_obs(self, i, max_mag=None):
 		"""
 		"""
 		min_mag = self.completeness.min_mag + self.bin_width / 2.
@@ -100,10 +139,10 @@ class SmoothedSeismicity(object):
 		else:
 			return None
 
-	def get_mfd_est(self, i, max_mag=None, b_val=None, method="Weichert"):
+	def _get_mfd_est(self, i, max_mag=None, b_val=None, method="Weichert"):
 		"""
 		"""
-		mfd_obs = self.get_mfd_obs(i, max_mag)
+		mfd_obs = self._get_mfd_obs(i, max_mag)
 		if mfd_obs:
 			return mfd_obs.to_truncated_GR_mfd(self.completeness, self.end_date, b_val=b_val, method=method, verbose=False)
 		else:
@@ -111,6 +150,15 @@ class SmoothedSeismicity(object):
 	
 	def to_source_model(self, source_model, mfd_est_method="Weichert"):
 		"""
+		Get smoothed version of an area source_model.
+		
+		:param source_model:
+			instance of :class:`rshalib.source.SourceModel`
+		:param mfd_est_method:
+			str, method to estimate mfds by
+		
+		:returns:
+			instance of :class:`rshalib.source.SourceModel`
 		"""
 		point_sources = []
 		for i in np.ndindex(self.values.shape[1:2]):
@@ -122,7 +170,7 @@ class SmoothedSeismicity(object):
 				if source.to_ogr_geometry().Contains(ogr_point):
 					Mmax = source.mfd.max_mag
 					b_val = source.mfd.b_val
-					mfd_est = self.get_mfd_est(i, max_mag=Mmax, b_val=b_val, method=mfd_est_method)
+					mfd_est = self._get_mfd_est(i, max_mag=Mmax, b_val=b_val, method=mfd_est_method)
 					if mfd_est:
 						id = '%s' % i[0]
 						name = '%.2f %.2f' % (lon, lat)
