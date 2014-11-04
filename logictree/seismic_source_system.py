@@ -690,6 +690,30 @@ class SeismicSourceSystem(LogicTree):
 		sss.connect_branches()
 		return sss
 
+	def get_source_model_logic_tree(self, source_model_name):
+		"""
+		Construct reduced logic tree for a single source model
+
+		:param source_model_name:
+			str, name of source model
+
+		:return:
+			instance of :class:`SeismicSourceSystem`
+		"""
+		source_model = self.get_source_model_by_name(source_model_name)
+		sss = SeismicSourceSystem("%s" % source_model.name, source_model)
+		branch_sets = self.get_bl_branchsets()[source_model_name]
+		for bl_index, bs in enumerate(branch_sets):
+			pmf_dict = {source_model.name: bs.to_pmf_dict(source_model)}
+			if len(bs.applyToSources) > 1:
+				correlated = True
+			else:
+				correlated = False
+			sss.append_independent_uncertainty_level(pmf_dict, correlated=correlated)
+		sss.connect_branches()
+		return sss
+
+
 
 class SeismicSourceSystem_v1(LogicTree):
 	def __init__(self, ID, source_system_dict={}, sourceModelObjs=[]):
