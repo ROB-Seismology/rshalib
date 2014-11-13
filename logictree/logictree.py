@@ -658,13 +658,15 @@ class LogicTree(object):
 						pos[branch.branch_id] = (l+1+0.5, ymin + b*(dy/(num_branches-1)))
 		return pos
 
-	def plot_diagram(self, highlight_path=[], branch_label="branch_id", branchset_label="", title=None, legend_location=0, fig_filespec=None, dpi=300):
+	def plot_diagram(self, highlight_path=[], highlight_label="", branch_label="branch_id", branchset_label="", title=None, legend_location=0, fig_filespec=None, dpi=300):
 		"""
 		Plot diagram of logic tree using networkx or pygraphviz.
 		Requires branches to be connected.
 
 		:param highlight_path:
 			list of strings: branch ID's of path to highlight
+		:param highlight_label:
+			string, branch property to label for highlighted path (default: "")
 		:param branch_label:
 			string, branch property to label (default: "branch_id")
 		:param branchset_label:
@@ -706,7 +708,7 @@ class LogicTree(object):
 		## Add nodes
 		graph.add_nodes_from(branchset_nodes)
 		graph.add_nodes_from(branch_nodes)
-		## Add edges (= connecting lines), and collect edge labels
+		## Add edges (= connecting lines), and collect edge labels (weights)
 		edge_labels = {}
 		for branch in self.branches:
 			graph.add_edge(branch.parent_branchset.id, branch.branch_id)
@@ -763,6 +765,13 @@ class LogicTree(object):
 						label = "CORR"
 				#label = label.replace('"', '').replace('[', '').replace(']', '')
 				node_labels[bs.id] = label
+		if highlight_label:
+			node_hl_labels = {}
+			for branch_id in highlight_path:
+				branch = self.get_branch_by_id(branch_id)
+				label = getattr(branch, highlight_label).split('--')[-1].strip()
+				node_hl_labels[branch.branch_id] = label
+
 		## TODO: label offset doesn't work
 		label_offset = 0.05
 		label_pos = {}
@@ -770,6 +779,7 @@ class LogicTree(object):
 			x, y = pos[key]
 			label_pos[key] = (x, y+label_offset)
 		nx.draw_networkx_labels(graph, label_pos, labels=node_labels, font_size=10, horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
+		nx.draw_networkx_labels(graph, label_pos, labels=node_hl_labels, font_size=10, font_color='r', horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
 		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, label_pos=0.5, font_size=10)
 
 		## Plot decoration
