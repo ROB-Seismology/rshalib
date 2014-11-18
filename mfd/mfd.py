@@ -1229,6 +1229,9 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		mfd = TruncatedGRMFD(min_mag, max_mag, bin_width, a, b, stda, stdb, Mtype="MW")
 		return mfd * (area / 1E5)
 
+	def get_Mmax_from_moment_rate(self, moment_rate):
+		pass
+
 
 class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, EvenlyDiscretizedMFD):
 	"""
