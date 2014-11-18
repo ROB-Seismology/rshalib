@@ -823,11 +823,24 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 		return (strain_rate * 2 * rigidity * self.get_area() * 1E+6
 				* self.get_seismogenic_thickness() * 1E+3)
 
-	def get_Mmax_from_strain_rate(self):
+	def get_Mmax_from_strain_rate(self, strain_rate, rigidity=3E+10):
 		"""
-		TruncatedGRMFD method: get_Mmax_from_moment_rate()
+		Determine maximum possible magnitude that is in agreement with
+		the MFD of the source and a given moment rate
+		Note: MFD of source must be truncated Gutenberg-Richter MFD !
+
+		:param strain_rate:
+			float, strain rate in 1/yr
+		:param rigidity:
+			float, rigidity (default: 3E+10)
+
+		:return:
+			float, maximum magnitude
 		"""
-		pass
+		assert isinstance(self.mfd, TruncatedGRMFD)
+		moment_rate = self.get_moment_rate_from_strain_rate(strain_rate, rigidity)
+		Mmax = self.mfd.get_Mmax_from_moment_rate(moment_rate)
+		return Mmax
 
 
 class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):

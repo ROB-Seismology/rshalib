@@ -12,6 +12,7 @@ from lxml import etree
 
 from ..nrml import ns
 from ..nrml.common import *
+from ..mfd import *
 from source import PointSource, AreaSource, SimpleFaultSource, ComplexFaultSource
 
 import jsonpickle
@@ -463,10 +464,34 @@ class SourceModel():
 				* self.get_average_seismogenic_thickness() * 1E+3)
 
 	def get_summed_mfd(self):
-		pass
+		"""
+		Compute summed MFD of all sources in model
+
+		:return:
+			instance of :class:`EvenlyDiscretizedMFD` or :class:`TruncatedGRMFD`
+		"""
+		mfd_list = [src.mfd for src in self.sources]
+		return sum_MFDs(mfd_list)
 
 	def get_summed_fault_mfd(self):
-		return MFD.sum_MFDs(fault_mfds)
+		"""
+		Compute summed MFD of all fault sources in model
+
+		:return:
+			instance of :class:`EvenlyDiscretizedMFD` or :class:`TruncatedGRMFD`
+		"""
+		mfd_list = [src.mfd for src in self.get_fault_sources()]
+		return sum_MFDs(mfd_list)
+
+	def get_summed_area_source_mfd(self):
+		"""
+		Compute summed MFD of all area sources in model
+
+		:return:
+			instance of :class:`EvenlyDiscretizedMFD` or :class:`TruncatedGRMFD`
+		"""
+		mfd_list = [src.mfd for src in self.get_area_sources()]
+		return sum_MFDs(mfd_list)
 
 
 
