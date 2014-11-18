@@ -281,6 +281,29 @@ class MFD(object):
 		end_date = mxDateTime.Date(timespan, 12, 31)
 		return EQCatalog(eq_list, start_date, end_date)
 
+	def get_incremental_moment_rates(self):
+		"""
+		Calculate moment rates corresponding to each magnitude bin
+
+		:return:
+			float array, moment rates in N.m
+		"""
+		magnitudes, occurrence_rates = zip(*self.get_annual_occurrence_rates())
+		magnitudes, occurrence_rates = np.array(magnitudes), np.array(occurrence_rates)
+		moments = 10 ** (1.5 * (magnitudes + 6.06))
+		moment_rates = moments * occurrence_rates
+		return moment_rates
+
+	def get_total_moment_rate(self):
+		"""
+		Calculate total moment rate
+
+		:return:
+			Float, total moment rate in N.m/yr
+		"""
+		return np.add.reduce(self.get_incremental_moment_rates())
+
+
 
 class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 	"""
@@ -381,19 +404,6 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		magnitudes = np.arange(len(self.occurrence_rates), dtype='f')
 		magnitudes = self.get_min_mag_center() + magnitudes * self.bin_width
 		return magnitudes
-
-	def _get_total_moment_rate(self):
-		"""
-		Calculate total moment rate
-
-		:return:
-			Float, total moment rate in N.m/yr
-		"""
-		magnitudes, occurrence_rates = zip(*self.get_annual_occurrence_rates())
-		magnitudes, occurrence_rates = np.array(magnitudes), np.array(occurrence_rates)
-		moments = 10 ** (1.5 * (magnitudes + 6.06))
-		moment_rates = moments * occurrence_rates
-		return np.add.reduce(moment_rates)
 
 	#def get_magnitude_bin_edges(self):
 	#	return np.array(zip(*self.get_annual_occurrence_rates())[0])
@@ -1230,7 +1240,22 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		return mfd * (area / 1E5)
 
 	def get_Mmax_from_moment_rate(self, moment_rate):
-		pass
+		"""
+		Determine maximum possible magnitude that is in agreement with
+		the MFD and a given moment rate
+
+		:param moment_rate:
+			float, moment rate in N.m/yr
+
+		:return:
+			float, maximum magnitude
+		"""
+		for max_mag in np.arange(self.min_mag + self.bin_width, 10, self.bin_width):
+			mfd = TruncatedGRMFD(self.min_mag, max_mag, self.bin_width, self.a_val, self.b_val)
+			if mfd.get_total_moment_rate() > moment_rate:
+				break
+		return max_mag
+
 
 
 class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, EvenlyDiscretizedMFD):
