@@ -437,6 +437,37 @@ class SourceModel():
 			total_area += src.get_area()
 		return total_area
 
+	def get_average_seismogenic_thickness(self):
+		"""
+		Determine average seismogenic thickness of all area sources,
+		weighted by area.
+		"""
+		seismogenic_thicknesses = [src.get_seismogenic_thickness() for src in self.get_area_sources()]
+		areas = [src.get_area() for src in self.get_area_sources()]
+		return numpy.average(seismogenic_thicknesses, weights=areas)
+
+	def get_moment_rate_from_strain_rate(self, strain_rate, rigidity=3E+10):
+		"""
+		Given the strain rate, determine the corresponding moment rate
+		in the area source according to the Kostrov formula
+
+		:param strain_rate:
+			float, strain rate in 1/yr
+		:param rigidity:
+			float, rigidity (default: 3E+10)
+
+		:return:
+			float, moment rate in N.m/yr
+		"""
+		return (strain_rate * 2 * rigidity * self.get_total_area() * 1E+6
+				* self.get_average_seismogenic_thickness() * 1E+3)
+
+	def get_summed_mfd(self):
+		pass
+
+	def get_summed_fault_mfd(self):
+		return MFD.sum_MFDs(fault_mfds)
+
 
 
 if __name__ == '__main__':

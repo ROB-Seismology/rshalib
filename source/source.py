@@ -493,6 +493,12 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		n = self.location.latitude
 		return (w, e, s, n)
 
+	def get_seismogenic_thickness(self):
+		"""
+		Return seismogenic thickness in km
+		"""
+		return self.lower_seismogenic_depth - self.upper_seismogenic_depth
+
 
 class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 	"""
@@ -794,6 +800,34 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 								self.nodal_plane_distribution, self.hypocenter_distribution)
 			point_sources.append(ptsrc)
 		return point_sources
+
+	def get_seismogenic_thickness(self):
+		"""
+		Return seismogenic thickness in km
+		"""
+		return self.lower_seismogenic_depth - self.upper_seismogenic_depth
+
+	def get_moment_rate_from_strain_rate(self, strain_rate, rigidity=3E+10):
+		"""
+		Given the strain rate, determine the corresponding moment rate
+		in the area source according to the Kostrov formula
+
+		:param strain_rate:
+			float, strain rate in 1/yr
+		:param rigidity:
+			float, rigidity (default: 3E+10)
+
+		:return:
+			float, moment rate in N.m/yr
+		"""
+		return (strain_rate * 2 * rigidity * self.get_area() * 1E+6
+				* self.get_seismogenic_thickness() * 1E+3)
+
+	def get_Mmax_from_strain_rate(self):
+		"""
+		TruncatedGRMFD method: get_Mmax_from_moment_rate()
+		"""
+		pass
 
 
 class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
