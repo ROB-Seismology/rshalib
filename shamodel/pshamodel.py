@@ -979,8 +979,8 @@ class PSHAModel(PSHAModelBase):
 
 		:return:
 			dictionary mapping intensity measure (str) to:
-			- instance of :class:`SpectralHazardCurveField` (if group_sources
-			is True) or
+			- instance of :class:`SpectralHazardCurveField` (if individual_sources
+			is False) or
 			- dict mapping source IDs to instances of
 			:class:`SpectralHazardCurveField` (if group_sources is False)
 		"""
