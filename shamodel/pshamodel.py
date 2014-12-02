@@ -3932,7 +3932,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				#		shcf = self.get_oq_mean_shcf_by_source(source_model.name, src, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
 				#	else:
 				#		shcf = self.get_oq_mean_shcf_by_correlated_sources(source_model.name, src_list, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
-				for src in source_model:
+				for src in [src for src in source_model if src.tectonic_region_type == trt or trt == ""]:
 					shcf = self.get_oq_mean_shcf_by_source(source_model.name, src, gmpe_name=gmpe_name, write_xml=write_xml, calc_id=calc_id)
 					if summed_shcf is None:
 						summed_shcf = shcf
