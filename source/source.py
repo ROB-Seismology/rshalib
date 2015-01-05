@@ -705,6 +705,7 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 		poly = ogr.Geometry(ogr.wkbPolygon)
 		poly.AssignSpatialReference(wgs84)
 		poly.AddGeometry(ring)
+		poly.CloseRings()
 
 		return poly
 
