@@ -1198,43 +1198,49 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		"""
 		## Table 4-7, page 4-60
 		if region.lower() == "africa":
-			a, b, stdb = 2.46, 0.982, 0.119
+			a, b = 2.46, 0.982
 			## Note: since a_normalized = a + log10(100000 / area),
 			## standard deviation on a_normalized is same as on a
-			stda = 0.073
+			stda, stdb = 0.073, 0.119
+		elif region.lower() == "antarctica":
+			a, b = 1.27, 1.0
+			stda, stdb = None, None
+		elif region.lower() in ("asia", "russia"):
+			a, b = 2.09, 1.16
+			stda, stdb = None, None
 		elif region.lower() == "australia":
-			a, b, stdb = 2.29, 0.896, 0.077
-			stda = 0.051
+			a, b = 2.29, 0.896
+			stda, stdb = 0.051, 0.077
 		elif region.lower() == "europe":
-			a, b, stdb = 3.32, 1.156, 0.106
-			stda = 0.069
+			a, b = 3.32, 1.156
+			stda, stdb = 0.069, 0.106
 		elif region.lower() == "china":
-			a, b, stdb = 2.96, 1.029, 0.109
-			stda = 0.096
+			a, b = 2.96, 1.029
+			stda, stdb = 0.096, 0.109
 		elif region.lower() == "india":
-			a, b, stdb = 3.02, 0.966, 0.154
-			stda = 0.101
+			a, b = 3.02, 0.966
+			stda, stdb = 0.101, 0.154
 		elif region.lower() == "north america":
-			a, b, stdb = 1.12, 0.728, 0.067
-			stda = 0.056
+			a, b = 1.12, 0.728
+			stda, stdb = 0.056, 0.067
 		elif region.lower() == "na extended":
-			a, b, stdb = 1.33, 0.747, 0.076
-			stda = 0.063
+			a, b = 1.33, 0.747
+			stda, stdb = 0.063, 0.076
 		elif region.lower() == "na non-extended":
-			a, b, stdb = 1.32, 0.790, 0.158
-			stda = 0.107
+			a, b = 1.32, 0.790
+			stda, stdb = 0.107, 0.158
 		elif region.lower() == "south america":
-			a, b, stdb = 3.46, 1.212, 0.270
-			stda = 0.130
+			a, b = 3.46, 1.212
+			stda, stdb = 0.130, 0.270
 		elif region.lower() == "total":
-			a, b, stdb = 2.46, 0.975, 0.047
-			stda = 0.030
+			a, b = 2.46, 0.975
+			stda, stdb = 0.030, 0.047
 		elif region.lower() == "total extended":
-			a, b, stdb = 2.36, 0.887, 0.054
-			stda = 0.039
+			a, b = 2.36, 0.887
+			stda, stdb = 0.039, 0.054
 		elif region.lower() == "total non-extended":
-			a, b, stdb = 3.26, 1.186, 0.094
-			stda = 0.049
+			a, b = 3.26, 1.186
+			stda, stdb = 0.049, 0.094
 
 		mfd = TruncatedGRMFD(min_mag, max_mag, bin_width, a, b, stda, stdb, Mtype="MW")
 		return mfd * (area / 1E5)
