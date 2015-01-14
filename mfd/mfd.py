@@ -268,7 +268,7 @@ class MFD(object):
 
 			fractional_years = np.add.accumulate(iets)
 			for year in fractional_years:
-				date = start_date + mxDateTime.RelativeDateTime(year=year)
+				date = start_date + mxDateTime.RelativeDate(years=year)
 				if num_lon_lats == 0:
 					lon, lat = 0., 0.
 				else:
@@ -277,8 +277,7 @@ class MFD(object):
 				eq = LocalEarthquake(ID, date, None, lon, lat, depth, ML, MS, MW, name)
 				eq_list.append(eq)
 				ID += 1
-		#end_date = mxDateTime.Date(timespan+1, 1, 1)
-		end_date = mxDateTime.Date(timespan, 12, 31)
+		end_date = start_date + mxDateTime.RelativeDate(years=timespan) - mxDateTime.RelativeDate(days=1)
 		return EQCatalog(eq_list, start_date, end_date)
 
 	def get_incremental_moment_rates(self):
