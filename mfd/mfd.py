@@ -1625,9 +1625,9 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 			dpi = dpi * (fig_width / default_figsize[0])
 
 		pylab.savefig(fig_filespec, dpi=dpi)
-		pylab.clf()
 	else:
 		pylab.show()
+	pylab.clf()
 
 
 def alphabetalambda(a, b, M=0):
