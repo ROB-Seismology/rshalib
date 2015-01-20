@@ -1261,6 +1261,39 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 				break
 		return max_mag
 
+	def print_report(self):
+		"""
+		Report cumulative frequencies for whole magnitude units
+		"""
+		mags = self.get_magnitude_bin_edges()
+		idxs = [0]
+		second_idx = int(round((np.ceil(mags[0]) - mags[0]) / self.bin_width))
+		idxs += range(second_idx, len(self), int(round(1./self.bin_width)))
+		if idxs[1] == 0:
+			idxs = idxs[1:]
+
+		if not self.a_sigma:
+			cumul_rates = self.get_cumulative_rates()
+			for i in idxs:
+				M = mags[i]
+				rate = cumul_rates[i]
+				if rate > 1:
+					print("%s>=%.1f: %.1f per year" % (self.Mtype, M, rate))
+				else:
+					print("%s>=%.1f: 1 every %.0f years" % (self.Mtype, M, 1./rate))
+		else:
+			mfd1 = self.get_mfd_from_b_val(self.b_val + self.b_sigma)
+			mfd2 = self.get_mfd_from_b_val(self.b_val - self.b_sigma)
+			cumul_rates1 = mfd1.get_cumulative_rates()
+			cumul_rates2 = mfd2.get_cumulative_rates()
+			for i in idxs:
+				M = mags[i]
+				rate1, rate2 = cumul_rates1[i], cumul_rates2[i]
+				if rate1 > 1 or rate2 > 1:
+					print("%s>=%.1f: %.1f - %.1f per year" % ((self.Mtype, M) + tuple(np.sort([rate1, rate2]))))
+				else:
+					print("%s>=%.1f: 1 every %.0f - %.0f years" % ((self.Mtype, M) + tuple(np.sort([1./rate1, 1./rate2]))))
+
 
 
 class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, EvenlyDiscretizedMFD):
