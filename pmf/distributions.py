@@ -41,8 +41,9 @@ class PMF(nhlib.pmf.PMF):
 		:return:
 			new instance of same class
 		"""
+		assert len(values) > 0 and len(values) == len(weights)
 		weights = np.array([Decimal(str(w)) for w in weights])
-		weights /= sum(weights)
+		weights /= np.sum(weights)
 		## If sum is not one, adjust last weight
 		if np.sum(weights) != 1.0:
 			weights[-1] = Decimal(1) - np.sum(weights[:-1])
@@ -90,6 +91,13 @@ class NumericPMF(PMF):
 		"""
 		return np.average(self.values, weights=self.weights)
 
+	def get_median(self):
+		"""
+		Return weighted median of PMF
+		"""
+		[median] = self.get_percentiles([50])
+		return median
+
 	def get_percentiles(self, percentiles, interpol=False):
 		"""
 		Compute weighted percentiles of PMF
@@ -126,6 +134,7 @@ class NumericPMF(PMF):
 			Note that actual number of bins may be less than specified
 			if one or more bins have much higher weight than the average.
 		"""
+		assert num_bins > 1
 		values = self.values
 		weights = self.weights.astype('d')
 		bin_width = values[1] - values[0]
