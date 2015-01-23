@@ -1319,8 +1319,6 @@ def read_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[], ver
 			deagg_exceedances: 4-D [k,l,r,m] array of M,r- deaggregated exceedance rates
 				for a range of structural periods (k) and intensities (l)
 			intensities: 1-D or 2-D array of intensity values
-	Note:
-		either intensity or return_period must be specified
 	"""
 	if filespec[-4:].lower() != ".des":
 		filespec += ".des"
@@ -1423,7 +1421,8 @@ def read_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[], ver
 	site = SHASite(*sites[site_nr])
 	imt = shcf.IMT
 	time_span = 50
-	return SpectralDeaggregationCurve(bin_edges, deagg_exceedances, site, imt, intensities, struc_periods, time_span)
+	return_periods = np.zeros_like(intensities[0])  ## Dummy return periods
+	return SpectralDeaggregationCurve(bin_edges, deagg_exceedances, site, imt, intensities, struc_periods, return_periods, time_span)
 
 
 # TODO: implement length parameters
