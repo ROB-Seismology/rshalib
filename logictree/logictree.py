@@ -779,7 +779,8 @@ class LogicTree(object):
 			x, y = pos[key]
 			label_pos[key] = (x, y+label_offset)
 		nx.draw_networkx_labels(graph, label_pos, labels=node_labels, font_size=10, horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
-		nx.draw_networkx_labels(graph, label_pos, labels=node_hl_labels, font_size=10, font_color='r', horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
+		if highlight_label:
+			nx.draw_networkx_labels(graph, label_pos, labels=node_hl_labels, font_size=10, font_color='r', horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
 		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, label_pos=0.5, font_size=10)
 
 		## Plot decoration
