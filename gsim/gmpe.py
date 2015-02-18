@@ -1133,7 +1133,7 @@ class Ambraseys1995DDGMPE(GMPE):
 		if not self.has_imt(imt):
 			raise IMTUndefinedError(imt)
 		if imt == "PGA":
-			return self.sigma[imt][0]
+			return np.array(self.sigma[imt][0])
 		else:
 			pass
 
@@ -1338,7 +1338,7 @@ class AmbraseysEtAl1996GMPE(GMPE):
 		if not self.has_imt(imt):
 			raise IMTUndefinedError(imt)
 		if imt == "PGA":
-			return self.sigma[imt][0]
+			return np.array(self.sigma[imt][0])
 		else:
 			if T < self.Tmin(imt) or T > self.Tmax(imt):
 				raise PeriodUndefinedError(imt, T)
@@ -1346,7 +1346,7 @@ class AmbraseysEtAl1996GMPE(GMPE):
 			elif damping not in self.dampings:
 				raise DampingNotSupportedError(damping)
 			else:
-				return interpolate(self.imt_periods["SA"], self.sigma["SA"], [T])[0]
+				return interpolate(self.imt_periods["SA"], self.sigma["SA"], [T])
 
 	def is_rake_dependent(self):
 		"""
@@ -1599,7 +1599,7 @@ class BergeThierry2003GMPE(GMPE):
 		imt = imt.upper()
 		if imt == "PGA":
 			damping_index = 0
-			return self.sigma[damping_index][-1]
+			return np.array(self.sigma[damping_index][-1])
 		else:
 			if not self.has_imt(imt):
 				raise IMTUndefinedError(imt)
@@ -1611,7 +1611,7 @@ class BergeThierry2003GMPE(GMPE):
 				raise DampingNotSupportedError(damping)
 			else:
 				sigma = self.sigma[damping_index]
-				return interpolate(self.imt_periods["SA"], sigma, [T])[0]
+				return interpolate(self.imt_periods["SA"], sigma, [T])
 
 	def is_rake_dependent(self):
 		"""
@@ -1960,9 +1960,9 @@ class CauzziFaccioli2008GMPE(GMPE):
 			raise IMTUndefinedError(imt)
 		if imt == "PGA":
 			if not mechanism in ("normal", "reverse", "strike-slip"):
-				return self.SigmaTU[imt][0]
+				return np.array(self.SigmaTU[imt][0])
 			else:
-				return self.SigmaTM[imt][0]
+				return np.array(self.SigmaTM[imt][0])
 		elif imt in ("SD", "SA"):
 			if T < self.Tmin(imt) or T > self.Tmax(imt):
 				raise PeriodUndefinedError(imt, T)
@@ -1971,9 +1971,9 @@ class CauzziFaccioli2008GMPE(GMPE):
 				raise DampingNotSupportedError(damping)
 			else:
 				if not mechanism in ("normal", "reverse", "strike-slip"):
-					return interpolate(self.imt_periods[imt], self.SigmaTU[imt], [T])[0]
+					return interpolate(self.imt_periods[imt], self.SigmaTU[imt], [T])
 				else:
-					return interpolate(self.imt_periods[imt], self.SigmaTM[imt], [T])[0]
+					return interpolate(self.imt_periods[imt], self.SigmaTM[imt], [T])
 
 	def plot_Figure4(self, M=5., d=25.):
 		"""
@@ -2269,7 +2269,7 @@ class AkkarBommer2010GMPE(GMPE):
 		if not self.has_imt(imt):
 			raise IMTUndefinedError(imt)
 		if imt in ("PGA", "PGV"):
-			return self.SigmaTot[imt][0]
+			return np.array(self.SigmaTot[imt][0])
 		else:
 			if T < self.Tmin(imt) or T > self.Tmax(imt):
 				raise PeriodUndefinedError(imt, T)
@@ -2277,7 +2277,7 @@ class AkkarBommer2010GMPE(GMPE):
 			elif damping not in self.dampings:
 				raise DampingNotSupportedError(damping)
 			else:
-				return interpolate(self.imt_periods[imt], self.SigmaTot[imt], [T])[0]
+				return interpolate(self.imt_periods[imt], self.SigmaTot[imt], [T])
 
 	def is_rake_dependent(self):
 		"""
@@ -3637,26 +3637,6 @@ class PezeshkEtAl2011(NhlibGMPE):
 			if not soil_type in ("generic rock", "hard rock"):
 				raise SoilTypeNotSupportedError(soil_type)
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
-
-
-class AbrahamsonSilva2008(NhlibGMPE):
-	"""
-	"""
-	def __init__(self):
-		name, short_name = "AbrahamsonSilva2008", "AS_2008"
-		# TODO: parameters below need to be looked up
-		distance_metric = "Rupture"
-		Mmin, Mmax = 5.0, 8.5
-		dmin, dmax = 1., 1000.
-		Mtype = "MW"
-		dampings = [5.]
-
-		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
-
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type=None, vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
-		if vs30 is None:
-			raise SoilTypeNotSupportedError(soil_type)
-		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
 
 
 class CampbellBozorgnia2008(NhlibGMPE):
