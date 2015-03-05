@@ -53,10 +53,6 @@ reload(geo)
 import site
 reload(site)
 
-## Depends on calc, utils
-import siteresponse
-reload(siteresponse)
-
 ## Depends on utils, cav
 import gsim
 reload(gsim)
@@ -80,6 +76,10 @@ reload(rob)
 ## Depends on nrml, pmf, site, utils
 import result
 reload(result)
+
+## Depends on calc, utils, result
+import siteresponse
+reload(siteresponse)
 
 ## Depends on mfd, result, source
 import crisis
