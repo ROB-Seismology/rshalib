@@ -1543,7 +1543,7 @@ class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 		Convert to a characteristic fault source
 
 		:return:
-			instance of :class:`CharacteristicSource`
+			instance of :class:`CharacteristicFaultSource`
 		"""
 		surface = oqhazlib.geo.surface.ComplexFaultSurface.from_fault_data(
 			self.edges, self.rupture_mesh_spacing)
