@@ -87,6 +87,7 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 		else:
 			interpol_prob = np.array(interpol_prob)
 
+	pylab.clf()
 	ax = pylab.subplot(111)
 
 	for i, dataset in enumerate(datasets):
@@ -198,7 +199,7 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 	else:
 		pylab.show()
 
-	pylab.clf()
+	#pylab.clf()
 
 
 def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", legend_location=0, lang="en"):
@@ -258,6 +259,8 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 		plotfunc = pylab.semilogx
 	elif plot_style.lower() == "loglog":
 		plotfunc = pylab.loglog
+
+	pylab.clf()
 
 	for i, dataset in enumerate(datasets):
 		periods, intensities = dataset
@@ -332,7 +335,7 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 	else:
 		pylab.show()
 
-	pylab.clf()
+	#pylab.clf()
 
 
 def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_color='g', amax=0, da=0.005, intensity_unit="g", lang="en"):
@@ -355,6 +358,7 @@ def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_c
 	bins_acc = np.arange(0.0, amax + da, da)
 	bins_N, junk = np.histogram(intensities, bins_acc, normed=False, weights=weights)
 
+	pylab.clf()
 	ax1 = pylab.subplot(111)
 	plt = pylab.bar(bins_acc[:-1], bins_N, width=da, color=bar_color)
 
@@ -396,7 +400,7 @@ def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_c
 	else:
 		pylab.show()
 
-	pylab.clf()
+	#pylab.clf()
 
 
 def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_values=None, eps_bin_edges=[1.0, 1.5, 2.0, 2.5, 3.0], fue_values=None, fue_labels=None, mr_style="2D", site_name="", struc_period=None, title_comment="", fig_filespec=None):
@@ -432,6 +436,8 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 
 	## Plot deaggregation by M,r
 	fig = pylab.figure()
+	pylab.clf()
+
 	if eps_values not in (None, []) or fue_values not in (None, []):
 		mr_rect = [0.1, 0.0, 0.5, 0.9]
 	else:
@@ -563,4 +569,4 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 	else:
 		pylab.show()
 
-	pylab.clf()
+	#pylab.clf()

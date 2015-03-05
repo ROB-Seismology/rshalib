@@ -326,7 +326,7 @@ class HazardResult:
 		return self.intensities * conv_factor
 
 
-class HazardSpectrum:
+class HazardSpectrum():
 	"""
 	Generic class providing common methods related to periods
 	"""
@@ -353,6 +353,10 @@ class HazardSpectrum:
 	@property
 	def num_periods(self):
 		return len(self.periods)
+
+	@property
+	def frequencies(self):
+		return 1./self.periods
 
 	def reorder_periods(self):
 		"""
@@ -3230,58 +3234,32 @@ class UHSField(HazardResult, HazardField, HazardSpectrum):
 		plot_hazard_spectrum(datasets, pgm=pgm, pgm_period=pgm_period, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
 
 
-class UHS(HazardResult, HazardSpectrum):
+class ResponseSpectrum(HazardSpectrum):
 	"""
-	Uniform Hazard Spectrum
+	Generic response spectrum
 	"""
-	def __init__(self, model_name, filespec, site, periods, IMT, intensities, intensity_unit="g", timespan=50, poe=None, return_period=None):
-		if return_period:
-			hazard_values = ExceedanceRateArray([1./return_period])
-		elif poe:
-			hazard_values = ProbabilityArray([poe])
-		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+	def __init__(self, model_name, periods, IMT, intensities, intensity_unit="g"):
 		HazardSpectrum.__init__(self, periods)
 		self.model_name = model_name
-		self.filespec = filespec
-		self.site = site
-		self.period_axis = None
-
-	def __getitem__(self, period_spec):
-		period_index = self.period_index(period_spec)
-		try:
-			intensity = self.intensities[period_index]
-		except IndexError:
-			raise IndexError("Period index %s out of range" % period_index)
-		else:
-			return intensity
-
-	def __add__(self, other_uhs):
-		raise Exception("UHSs cannot gennerally be summed!")
+		self.IMT = IMT
+		self.intensities = as_array(intensities)
+		self.intensity_unit = intensity_unit
 
 	@property
-	def poe(self):
-		return self.poes[0]
-
-	@property
-	def return_period(self):
-		return self.return_periods[0]
-
-	@property
-	def exceedance_rate(self):
-		return self.exceedance_rates[0]
-
-	@property
-	def site_name(self):
-		return self.site.name
+	def pgm(self):
+		"""
+		Peak ground motion
+		"""
+		if 0 in self.periods:
+			idx = list(self.periods).index(0)
+			return self.intensities[idx]
 
 	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
 		if title is None:
-			title = "UHS"
-			title += "\nSite: %s, Return period: %d yr" % (self.site_name, self.return_periods[0])
+			title = "Response Spectrum"
 		## Plot PGM separately if present
 		if 0 in self.periods:
-			idx = list(self.periods).index(0)
-			pgm = [self.intensities[idx]]
+			pgm = [self.pgm]
 			datasets = [(self.periods[self.periods>0], self.intensities[self.periods>0])]
 		else:
 			pgm = None
@@ -3357,7 +3335,8 @@ class UHS(HazardResult, HazardSpectrum):
 		freqs = tf.freqs[tf.freqs > sa_freqs.min()]
 		freqs = freqs[freqs < sa_freqs.max()]
 		freqs = np.concatenate([[pgm_freq], freqs])
-		periods = np.concatenate([[0], 1./freqs[1:]])
+		periods = np.concatenate([[0], 1./freqs[1:]])
+
 		srs_motion = rvt.compute_osc_resp(freqs)
 		model_name = self.model_name + " (SRS)"
 		#periods[np.allclose(tf.freqs, pgm_freq)] = 0
@@ -3376,6 +3355,56 @@ class UHS(HazardResult, HazardSpectrum):
 		for period, intensity in zip(self.periods, self.intensities):
 			f.write("%.3E, %.3E\n" % (period, intensity))
 		f.close()
+
+
+class UHS(HazardResult, ResponseSpectrum):
+	"""
+	Uniform Hazard Spectrum
+	"""
+	def __init__(self, model_name, filespec, site, periods, IMT, intensities, intensity_unit="g", timespan=50, poe=None, return_period=None):
+		if return_period:
+			hazard_values = ExceedanceRateArray([1./return_period])
+		elif poe:
+			hazard_values = ProbabilityArray([poe])
+		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+		ResponseSpectrum.__init__(self, model_name, periods, IMT, intensities, intensity_unit=intensity_unit)
+		self.filespec = filespec
+		self.site = site
+		self.period_axis = None
+
+	def __getitem__(self, period_spec):
+		period_index = self.period_index(period_spec)
+		try:
+			intensity = self.intensities[period_index]
+		except IndexError:
+			raise IndexError("Period index %s out of range" % period_index)
+		else:
+			return intensity
+
+	def __add__(self, other_uhs):
+		raise Exception("UHSs cannot gennerally be summed!")
+
+	@property
+	def poe(self):
+		return self.poes[0]
+
+	@property
+	def return_period(self):
+		return self.return_periods[0]
+
+	@property
+	def exceedance_rate(self):
+		return self.exceedance_rates[0]
+
+	@property
+	def site_name(self):
+		return self.site.name
+
+	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
+		if title is None:
+			title = "UHS"
+			title += "\nSite: %s, Return period: %d yr" % (self.site_name, self.return_periods[0])
+		ResponseSpectrum.plot(color, linestyle, linewidth, fig_filespec, title, plot_freq, plot_style, Tmin, Tmax, amin, amx, pgm_period, legend_location, lang)
 
 	@classmethod
 	def from_csv(self, csv_filespec, site, col_spec=1, intensity_unit="g", model_name="", timespan=50, poe=None, return_period=None):
@@ -3622,13 +3651,20 @@ class UHSCollection:
 	def plot(self, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
 		if title is None:
 			title = "UHS Collection"
-		uhs0 = self.UHSlist[0]
-		if 0 in uhs0.periods:
-			pgm = [uhs.intensities[uhs.periods==0] for uhs in self.UHSlist]
-			datasets = [(uhs.periods[uhs.periods>0], uhs.intensities[uhs.periods>0]) for uhs in self.UHSlist]
-		else:
-			pgm = None
-			datasets = [(uhs.periods, uhs.intensities) for uhs in self.UHSlist]
+		pgm, datasets = [], []
+		for uhs in self.UHSlist:
+			if 0 in uhs.periods:
+				pgm.append(uhs.pgm)
+			else:
+				pgm.append(np.nan)
+			datasets.append((uhs.periods[uhs.periods>0], uhs.intensities[uhs.periods>0]))
+		#uhs0 = self.UHSlist[0]
+		#if 0 in uhs0.periods:
+		#	pgm = [uhs.intensities[uhs.periods==0] for uhs in self.UHSlist]
+		#	datasets = [(uhs.periods[uhs.periods>0], uhs.intensities[uhs.periods>0]) for uhs in self.UHSlist]
+		#else:
+		#	pgm = None
+		#	datasets = [(uhs.periods, uhs.intensities) for uhs in self.UHSlist]
 
 
 		intensity_unit = self.intensity_unit
