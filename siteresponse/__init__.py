@@ -20,3 +20,8 @@ reload(transfer1D)
 from transfer1D import (ElasticLayer, ElasticLayerModel, ElasticContinuousModel,
 						reflectivity, randomized_reflectivity, randomized_reflectivity_mp,
 						transfer1D, parse_layer_model)
+
+import refspec
+reload(refspec)
+
+from refspec import (get_refspec_RG160, get_refspec_EC8)
