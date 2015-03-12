@@ -10,6 +10,8 @@ as well as to generate input files for OpenQuake.
 
 from lxml import etree
 
+from openquake.hazardlib.scalerel import WC1994
+
 from ..nrml import ns
 from ..nrml.common import *
 from ..mfd import *
@@ -126,6 +128,55 @@ class SourceModel():
 	@classmethod
 	def from_json(self, json_string):
 		return jsonpickle.decode(json_string)
+
+	@classmethod
+	def from_eq_catalog(self, eq_catalog, Mtype="MW", Mrelation={}, area_source_model_name=None,
+				tectonic_region_type="Stable Shallow Crust",
+				magnitude_scaling_relationship=WC1994(),
+				rupture_mesh_spacing=1., rupture_aspect_ratio=1.,
+				upper_seismogenic_depth=5., lower_seismogenic_depth=25.):
+		"""
+		Construct point source model from earthquake catalog
+
+		:param eq_catalog:
+			instance of :class:`EQCatalog`
+
+		...
+
+		:return:
+			instance of :class:`SourceModel`
+		"""
+		src_list = []
+		if area_source_model_name:
+			from ..rob import create_rob_source_model
+			zone_catalogs = eq_catalog.split_into_zones(area_source_model_name)
+			source_model = create_rob_source_model(area_source_model_name)
+			for zone_id in zone_catalogs.keys():
+				zone_catalog = zone_catalogs[zone_id]
+				source_zone = source_model[zone_id]
+				for eq in zone_catalog:
+					tectonic_region_type = source_zone.tectonic_region_type
+					upper_seismogenic_depth = source_zone.upper_seismogenic_depth
+					lower_seismogenic_depth = source_zone.lower_seismogenic_depth
+					nodal_plane_distribution = source_zone.nodal_plane_distribution
+
+					## TODO: nodal plane distribution from as model
+					pt_src = PointSource.from_eq_record(eq, Mtype, Mrelation,
+						tectonic_region_type, magnitude_scaling_relationship,
+						rupture_mesh_spacing, rupture_aspect_ratio,
+						upper_seismogenic_depth, lower_seismogenic_depth,
+						nodal_plane_distribution)
+					src_list.append(pt_src)
+
+		else:
+			for eq in eq_catalog:
+				pt_src = PointSource.from_eq_record(eq, Mtype, Mrelation,
+					tectonic_region_type, magnitude_scaling_relationship,
+					rupture_mesh_spacing, rupture_aspect_ratio,
+					upper_seismogenic_depth, lower_seismogenic_depth)
+				src_list.append(pt_src)
+
+		return SourceModel(eq_catalog.name, src_list)
 
 	def append(self, source):
 		"""

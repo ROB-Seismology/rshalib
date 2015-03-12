@@ -20,7 +20,8 @@ from ..nrml import ns
 from ..nrml.common import *
 from ..mfd import *
 from ..geo.angle import *
-from ..geo import Point, Line, Polygon
+from ..geo import Point, Line, Polygon, NodalPlane
+from ..pmf import HypocentralDepthDistribution, NodalPlaneDistribution
 
 
 
@@ -389,6 +390,54 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 				location=location,
 				nodal_plane_distribution=nodal_plane_distribution,
 				hypocenter_distribution=hypocenter_distribution)
+
+	@classmethod
+	def from_eq_record(self, eq, Mtype="MW", Mrelation={},
+				tectonic_region_type="Stable Shallow Crust",
+				magnitude_scaling_relationship=oqhazlib.scalerel.WC1994(),
+				rupture_mesh_spacing=1., rupture_aspect_ratio=1.,
+				upper_seismogenic_depth=5., lower_seismogenic_depth=25.,
+				nodal_plane_distribution=None):
+		"""
+		Construct point source from earthquake object
+
+		:param eq:
+			instance of :class:`LocalEarthquake`
+
+		:param nodal_plane_distribution:
+			if eq does not have a focal mechanism, use this distribution.
+
+		...
+
+		:return:
+			instance of :class:`PointSource`
+		"""
+		source_id = eq.ID
+		name = eq.name
+		location = Point(eq.lon, eq.lat)
+		M = np.round(eq.get_M(Mtype, Mrelation), decimals=1)
+		mfd = EvenlyDiscretizedMFD(M, 0.1, [1.], Mtype)
+		depth = min(lower_seismogenic_depth, max(5, eq.depth))
+		hdd = HypocentralDepthDistribution([depth], [1.])
+		focmec_rec = eq.get_focal_mechanism()
+		if focmec_rec:
+			focmec = focmec_rec.get_focmec()
+			np1 = NodalPlane(*[round(angle.deg()) for angle in focmec.sdr1()])
+			np2 = NodalPlane(*[round(angle.deg()) for angle in focmec.sdr2()])
+			npd = NodalPlaneDistribution([np1, np2], [0.5] * 2)
+		elif not nodal_plane_distribution:
+			np1 = NodalPlane(0, 45, 0)
+			np2 = NodalPlane(90, 45, 0)
+			np3 = NodalPlane(180, 45, 0)
+			np4 = NodalPlane(270, 45, 0)
+			npd = NodalPlaneDistribution([np1, np2, np3, np4], [0.25] * 4)
+		else:
+			npd = nodal_plane_distribution
+
+		return PointSource(source_id, name, tectonic_region_type, mfd,
+					rupture_mesh_spacing, magnitude_scaling_relationship,
+					rupture_aspect_ratio, upper_seismogenic_depth,
+					lower_seismogenic_depth, location, npd, hdd)
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
