@@ -99,14 +99,6 @@ class PSHAModelBase(SHAModelBase):
 		self.time_span = time_span
 
 	@property
-	def source_site_filter(self):
-		return nhlib.calc.filters.source_site_distance_filter(self.integration_distance)
-
-	@property
-	def rupture_site_filter(self):
-		return nhlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
-
-	@property
 	def poisson_tom(self):
 		return nhlib.tom.PoissonTOM(self.time_span)
 
@@ -336,34 +328,6 @@ class PSHAModelBase(SHAModelBase):
 					imt = self._construct_imt(im, T)
 					site_imtls[(lon, lat)][imt] = all_imtls[imt]
 		return site_imtls
-
-	def _get_imts(self):
-		"""
-		Construct ordered list of IMT objects
-		"""
-		imts = []
-		for im, periods in sorted(self.imt_periods.items()):
-			for period in periods:
-				imts.append(self._construct_imt(im, period))
-		return imts
-
-	def _construct_imt(self, im, period):
-		"""
-		Construct IMT object from intensity measure and period.
-
-		:param im:
-			str, intensity measure, e.g. "PGA", "SA"
-		:param period:
-			float, spectral period
-
-		:return:
-			instance of :class:`IMT`
-		"""
-		if im == "SA":
-			imt = getattr(nhlib.imt, im)(period, damping=5.)
-		else:
-			imt = getattr(nhlib.imt, im)()
-		return imt
 
 	def _get_openquake_imts(self):
 		"""

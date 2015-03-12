@@ -19,7 +19,7 @@ from ..site.ref_soil_params import REF_SOIL_PARAMS
 # But realizations are calculated per rupture, not per set of ruptures, so is this correct?
 
 
-class DSHAModel(SHAModelBase):
+class RuptureDSHAModel(SHAModelBase):
 	"""
 	Class representing a single DSHA model.
 	"""
@@ -91,8 +91,8 @@ class DSHAModel(SHAModelBase):
 		"""
 		soil_site_model = self.get_soil_site_model()
 		gsim = get_available_gsims()[self.gsim_name]()
-		imts = self._get_hazardlib_imts()
-		rsdf = self._get_hazardlib_rsdf()
+		imts = self._get_imts()
+		rsdf = self.rupture_site_filter
 		intensities = {imt: np.zeros((len(soil_site_model), len(self.ruptures), self.realizations)) for imt in imts}
 		for i, rupture in enumerate(self.ruptures):
 			gmfs = ground_motion_fields(rupture, soil_site_model, imts, gsim, self.truncation_level, self.realizations, self.correlation_model, rsdf)
@@ -116,25 +116,75 @@ class DSHAModel(SHAModelBase):
 		return hazard_map_sets
 
 
+class DSHAModel(SHAModelBase):
+	def __init__(self, name, source_model, gmpe_system_def, sites=None,
+				grid_outline=None, grid_spacing=None, soil_site_model=None,
+				ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]},
+				truncation_level=0., integration_distance=200.,
+				correlation_model=None):
+
+		# TODO: evaluate whether truncation_level and correlation_model have to be class properties
+
+		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, truncation_level, integration_distance)
+		self.source_model = source_model
+		self.gmpe_system_def = gmpe_system_def
+		self.correlation_model = correlation_model
+
+	def calc_gmf(self, num_realizations=1, correlation_model=None):
+		pass
+
+	def calc_gmf_envelope(self, total_residual_epsilon=0):
+		"""
+		Historical ground motion check
+		"""
+		fake_tom = oqhazlib.tom.PoissonTOM(1)
+		total_residual_epsilons = np.ones_like(self.get_sha_sites())
+		total_residual_epsilons *= total_residual_epsilon
+
+		soil_site_model = self.get_soil_site_model()
+		imt_list = self._get_imts()
+		gmf = np.zeros((len(soil_site_model), len(imt_list)))
+
+		for k, imt in enumerate(imt_list):
+			for src in self.source_model:
+				src_gmf = np.zeros(len(soil_site_model))
+				trt = src.tectonic_region_type
+				gmpe_pmf = self.gmpe_system_def[trt]
+				for (gmpe_name, weight) in gmpe_pmf:
+					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]
+					gsim_gmf = np.zeros(len(soil_site_model))
+					for rup in src.iter_ruptures(fake_tom):
+						# TODO: check if CharacteristicFaultSources return only 1 rupture
+						# Weighted average using rup.occurrence_rate or envelope?
+						gmf = oqhazlib.ground_motion_field_with_residuals(
+							rup, soil_site_model, imt, gsim, 1,
+							total_residual_epsilons=total_residual_epsilons,
+							intra_residual_epsilons=None,
+							inter_residual_epsilons=None)
+
+		return UHSField(self.name, "", sites, periods, IMT, gmf, intensity_unit="g", timespan=1, poe=None, return_period=None, vs30s=None)
+
+
+
 if __name__ == "__main__":
 	"""
 	Test
 	"""
 	from openquake.hazardlib.scalerel import PointMSR
-	
+
 	from hazard.rshalib.source.rupture import Rupture
 
 	name = "TestDSHAModel"
-	
+
 	strike, dip, rake, trt, rms, rar, usd, lsd, msr = 0., 45., 0., "", 1., 1., 0., 30., PointMSR()
-	
+
 	## earthquake
 	earthquakes = [(4.5, 50.5, 10., 6.5)]
 
 	## catalog
 	from hazard.psha.Projects.SHRE_NPP.catalog import cc_catalog
 	earthquakes = [(e.lon, e.lat, e.depth or 10., e.get_MW())for e in cc_catalog]
-	
+
 	ruptures = [Rupture.from_hypocenter(lon, lat, depth, mag, strike, dip, rake, trt, rms, rar, usd, lsd, msr) for lon, lat, depth, mag in earthquakes]
 
 	gsim = "CauzziFaccioli2008"

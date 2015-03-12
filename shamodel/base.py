@@ -3,6 +3,8 @@
 """
 
 
+import openquake.hazardlib as oqhazlib
+
 from ..site import SHASiteModel, REF_SOIL_PARAMS
 
 
@@ -53,6 +55,48 @@ class SHAModelBase(object):
 		self.imt_periods = imt_periods
 		self.truncation_level = truncation_level
 		self.integration_distance = integration_distance
+
+	@property
+	def source_site_filter(self):
+		if self.integration_distance:
+			return oqhazlib.calc.filters.source_site_distance_filter(self.integration_distance)
+		else:
+			return oqhazlib.calc.filters.source_site_noop_filter
+
+	@property
+	def rupture_site_filter(self):
+		if self.integration_distance:
+			return oqhazlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
+		else:
+			return oqhazlib.calc.filters.rupture_site_noop_filter
+
+	def _get_imts(self):
+		"""
+		Construct ordered list of IMT objects
+		"""
+		imts = []
+		for im, periods in sorted(self.imt_periods.items()):
+			for period in periods:
+				imts.append(self._construct_imt(im, period))
+		return imts
+
+	def _construct_imt(self, im, period):
+		"""
+		Construct IMT object from intensity measure and period.
+
+		:param im:
+			str, intensity measure, e.g. "PGA", "SA"
+		:param period:
+			float, spectral period
+
+		:return:
+			instance of :class:`IMT`
+		"""
+		if im == "SA":
+			imt = getattr(nhlib.imt, im)(period, damping=5.)
+		else:
+			imt = getattr(nhlib.imt, im)()
+		return imt
 
 	def get_sites(self):
 		"""
