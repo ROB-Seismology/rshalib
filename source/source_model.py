@@ -149,8 +149,8 @@ class SourceModel():
 		src_list = []
 		if area_source_model_name:
 			from ..rob import create_rob_source_model
-			zone_catalogs = eq_catalog.split_into_zones(area_source_model_name)
-			source_model = create_rob_source_model(area_source_model_name)
+			zone_catalogs = eq_catalog.split_into_zones(area_source_model_name, verbose=False)
+			source_model = create_rob_source_model(area_source_model_name, verbose=False)
 			for zone_id in zone_catalogs.keys():
 				zone_catalog = zone_catalogs[zone_id]
 				source_zone = source_model[zone_id]
