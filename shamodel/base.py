@@ -70,16 +70,6 @@ class SHAModelBase(object):
 		else:
 			return oqhazlib.calc.filters.rupture_site_noop_filter
 
-	def _get_imts(self):
-		"""
-		Construct ordered list of IMT objects
-		"""
-		imts = []
-		for im, periods in sorted(self.imt_periods.items()):
-			for period in periods:
-				imts.append(self._construct_imt(im, period))
-		return imts
-
 	def _construct_imt(self, im, period):
 		"""
 		Construct IMT object from intensity measure and period.
@@ -93,10 +83,32 @@ class SHAModelBase(object):
 			instance of :class:`IMT`
 		"""
 		if im == "SA":
-			imt = getattr(nhlib.imt, im)(period, damping=5.)
+			imt = getattr(oqhazlib.imt, im)(period, damping=5.)
 		else:
-			imt = getattr(nhlib.imt, im)()
+			imt = getattr(oqhazlib.imt, im)()
 		return imt
+
+	def _get_imts(self):
+		"""
+		Construct ordered list of IMT objects
+		"""
+		imts = []
+		for im, periods in sorted(self.imt_periods.items()):
+			for period in periods:
+				imts.append(self._construct_imt(im, period))
+		return imts
+
+	def _get_periods(self):
+		"""
+		Return list of periods corresponding to ordered list of IMT objects
+		"""
+		periods = []
+		for imt in self._get_imts():
+			try:
+				periods.append(imt.period)
+			except AttributeError:
+				periods.append(0)
+		return periods
 
 	def get_sites(self):
 		"""

@@ -5,12 +5,13 @@
 
 import numpy as np
 
-from openquake.hazardlib.calc import ground_motion_fields
-from openquake.hazardlib.calc.filters import rupture_site_distance_filter, rupture_site_noop_filter
+import openquake.hazardlib as oqhazlib
+#from openquake.hazardlib.calc import ground_motion_fields
+#from openquake.hazardlib.calc.filters import rupture_site_distance_filter, rupture_site_noop_filter
 from openquake.hazardlib.gsim import get_available_gsims
 from openquake.hazardlib.imt import *
 
-from ..result import HazardMap, HazardMapSet
+from ..result import HazardMap, HazardMapSet, UHSField
 from base import SHAModelBase
 from ..site.ref_soil_params import REF_SOIL_PARAMS
 
@@ -133,36 +134,79 @@ class DSHAModel(SHAModelBase):
 	def calc_gmf(self, num_realizations=1, correlation_model=None):
 		pass
 
-	def calc_gmf_envelope(self, total_residual_epsilon=0):
+	def calc_gmf_envelope(self, stddev_type="total", np_aggregation="avg"):
 		"""
 		Historical ground motion check
-		"""
-		fake_tom = oqhazlib.tom.PoissonTOM(1)
-		total_residual_epsilons = np.ones_like(self.get_sha_sites())
-		total_residual_epsilons *= total_residual_epsilon
 
+		:param stddev_type:
+			str, standard deviation type, one of "total", "inter-event" or "intra-event"
+			Note: GMPE must support inter-event / intra-event standard deviations
+			if one of these options is chosen.
+			(default: "total")
+		:param np_aggregation:
+			str, how to aggregate nodal planes for a given point rupture,
+			either "avg" (weighted average) or "max" (maximum)
+			(default: "avg")
+		"""
 		soil_site_model = self.get_soil_site_model()
+		num_sites = len(soil_site_model)
 		imt_list = self._get_imts()
-		gmf = np.zeros((len(soil_site_model), len(imt_list)))
+		fake_tom = oqhazlib.tom.PoissonTOM(1)
+		# TODO: check if inter + intra = total
+		if stddev_type == "total":
+			total_residual_epsilons = np.ones_like(num_sites)
+			total_residual_epsilons *= self.truncation_level
+			inter_residual_epsilons = total_residual_epsilons
+			intra_residual_epsilons = total_residual_epsilons
+		elif stddev_type == "inter-event":
+			total_residual_epsilons = None
+			inter_residual_epsilons = np.ones_like(num_sites)
+			inter_residual_epsilons *= self.truncation_level
+			intra_residual_epsilons = np.ones_like(num_sites)
+		elif stddev_type == "intra-event":
+			total_residual_epsilons = None
+			inter_residual_epsilons = np.ones_like(num_sites)
+			intra_residual_epsilons = np.ones_like(num_sites)
+			intra_residual_epsilons *= self.truncation_level
+
+		gmf_envelope = np.zeros((num_sites, len(imt_list)))
+		amax = 0
 
 		for k, imt in enumerate(imt_list):
 			for src in self.source_model:
 				src_gmf = np.zeros(len(soil_site_model))
 				trt = src.tectonic_region_type
 				gmpe_pmf = self.gmpe_system_def[trt]
-				for (gmpe_name, weight) in gmpe_pmf:
-					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]
-					gsim_gmf = np.zeros(len(soil_site_model))
+				for (gmpe_name, gmpe_weight) in gmpe_pmf:
+					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
+					gmpe_gmf = np.zeros(len(soil_site_model))
+					total_rupture_probability = 0
 					for rup in src.iter_ruptures(fake_tom):
+						total_rupture_probability += rup.occurrence_rate
 						# TODO: check if CharacteristicFaultSources return only 1 rupture
-						# Weighted average using rup.occurrence_rate or envelope?
-						gmf = oqhazlib.ground_motion_field_with_residuals(
-							rup, soil_site_model, imt, gsim, 1,
+						gmf = oqhazlib.calc.gmf.ground_motion_field_with_residuals(
+							rup, soil_site_model, imt, gsim, self.truncation_level,
 							total_residual_epsilons=total_residual_epsilons,
-							intra_residual_epsilons=None,
-							inter_residual_epsilons=None)
+							intra_residual_epsilons=intra_residual_epsilons,
+							inter_residual_epsilons=inter_residual_epsilons,
+							rupture_site_filter=self.rupture_site_filter)
+						## Aggregate gmf's corresponding to different nodal planes
+						if np_aggregation == "avg":
+							gmpe_gmf += (gmf * rup.occurrence_rate)
+						elif np_aggregation == "max":
+							gmpe_gmf = np.max([gmpe_gmf, gmf], axis=0)
+					## Weighted average of gmf's due to different GMPEs
+					assert np.allclose(total_rupture_probability, 1)
+					src_gmf += (gmpe_gmf * float(gmpe_weight))
+				amax = max(amax, src_gmf.max())
+				## Take envelope of different source gmf's
+				gmf_envelope[:,k] = np.max([gmf_envelope[:,k], src_gmf], axis=0)
+		print gmf_envelope.min(), gmf_envelope.max()
+		print amax
 
-		return UHSField(self.name, "", sites, periods, IMT, gmf, intensity_unit="g", timespan=1, poe=None, return_period=None, vs30s=None)
+		periods = self._get_periods()
+		sites = soil_site_model.get_sha_sites()
+		return UHSField(self.name, "", sites, periods, "SA", gmf_envelope, intensity_unit="g", timespan=1, return_period=1)
 
 
 
