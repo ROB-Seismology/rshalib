@@ -3245,6 +3245,60 @@ class ResponseSpectrum(HazardSpectrum):
 		self.intensities = as_array(intensities)
 		self.intensity_unit = intensity_unit
 
+	def __mul__(self, other):
+		"""
+		Multiply response spectrum with another spectrum or a fixed value
+
+		:param other:
+			int, float or instance of :class:`ResponseSpectrum`
+			If other response spectrum has different periods, interpolation
+			will occur.
+
+		:return:
+			instance of :class:`ResponseSpectrum`
+		"""
+		if isinstance(other, ResponseSpectrum):
+			if not np.array_equal(self.periods, other.periods):
+				print("Warning: Periods incompatible, need to interpolate")
+				other = other.interpolate_periods(self.periods)
+			intensities = self.intensities * other.intensities
+			model_name = "%s * %s" % (self.model_name, other.model_name)
+		elif isinstance(other, (int, float)):
+			intensities = self.intensities * other
+			model_name = "%s x %s" % (model_name, other)
+		else:
+			raise TypeError
+
+		return ResponseSpectrum(model_name, self.periods, self.IMT, intensities,
+								self.intensity_unit)
+
+	def __div__(self, other):
+		"""
+		Divide response spectrum by another spectrum or a fixed value
+
+		:param other:
+			int, float or instance of :class:`ResponseSpectrum`
+			If other response spectrum has different periods, interpolation
+			will occur.
+
+		:return:
+			instance of :class:`ResponseSpectrum`
+		"""
+		if isinstance(other, ResponseSpectrum):
+			if not np.array_equal(self.periods, other.periods):
+				print("Warning: Periods incompatible, need to interpolate")
+				other = other.interpolate_periods(self.periods)
+			intensities = self.intensities / other.intensities
+			model_name = "%s / %s" % (self.model_name, other.model_name)
+		elif isinstance(other, (int, float)):
+			intensities = self.intensities / other
+			model_name = "%s / %s" % (self.model_name, other)
+		else:
+			raise TypeError
+
+		return ResponseSpectrum(model_name, self.periods, self.IMT, intensities,
+								self.intensity_unit)
+
 	@property
 	def pgm(self):
 		"""
@@ -3253,6 +3307,21 @@ class ResponseSpectrum(HazardSpectrum):
 		if 0 in self.periods:
 			idx = list(self.periods).index(0)
 			return self.intensities[idx]
+
+	def interpolate_periods(self, out_periods):
+		"""
+		Interpolate response spectrum at different periods
+
+		:param out_periods:
+			list or 1-D array: periods of output response spectrum
+
+		:return:
+			instance of :class:`ResponseSpectrum`
+		"""
+		intensities = interpolate(self.periods, self.intensities, out_periods)
+		model_name = "%s (interpolated)" % self.model_name
+		return ResponseSpectrum(model_name, out_periods, self.IMT, intensities,
+								self.intensity_unit)
 
 	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
 		if title is None:
