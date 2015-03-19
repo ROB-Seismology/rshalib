@@ -4595,6 +4595,94 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					if not dry_run:
 						os.unlink(xml_filespec)
 
+	def iter_oq_shcf_files(self, calc_id="oqhazlib"):
+		"""
+		Iterate over spectral hazard curve field files computed with OpenQuake
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+
+		:return:
+			generator object, yielding full path to xml file (str)
+		"""
+		gmpe_system_def = self.gmpe_lt.gmpe_system_def
+		for source_model in self.source_models:
+			for src in source_model.sources:
+				trt = src.tectonic_region_type
+				for (modified_src, branch_path, branch_weight) in self.source_model_lt.enumerate_source_realizations(source_model.name, src):
+					branch_path = [b.split('--')[-1] for b in branch_path]
+					curve_name = '--'.join(branch_path)
+					for gmpe_name in gmpe_system_def[trt].gmpe_names:
+						xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model.name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
+						yield xml_filespec
+
+	def iter_oq_sdc_files(self, calc_id="oqhazlib"):
+		"""
+		Iterate over spectral deaggregation curve files computed with OpenQuake
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+
+		:return:
+			generator object, yielding full path to xml file (str)
+		"""
+		gmpe_system_def = self.gmpe_lt.gmpe_system_def
+		for source_model in self.source_models:
+			for src in source_model.sources:
+				trt = src.tectonic_region_type
+				for (modified_src, branch_path, branch_weight) in self.source_model_lt.enumerate_source_realizations(source_model.name, src):
+					branch_path = [b.split('--')[-1] for b in branch_path]
+					curve_name = '--'.join(branch_path)
+					for gmpe_name in gmpe_system_def[trt].gmpe_names:
+						xml_filespec = self.get_oq_sdc_filespec_decomposed(source_model.name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
+						yield xml_filespec
+
+	def get_oq_shcf_computation_time(self, calc_id="oqhazlib"):
+		"""
+		Determine computation time of OpenQuake hazard-curve computation
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+
+		:return:
+			datetime.timedelta object
+		"""
+		from datetime import datetime
+
+		for i, xml_filespec in enumerate(self.iter_oq_shcf_files(calc_id=calc_id)):
+			mtime = os.path.getmtime(xml_filespec)
+			if i == 0:
+				min_time = max_time = mtime
+			else:
+				min_time = min(mtime, min_time)
+				max_time = max(mtime, max_time)
+
+		time_delta = datetime.fromtimestamp(max_time) - datetime.fromtimestamp(min_time)
+		return time_delta
+
+	def get_oq_sdc_computation_time(self, calc_id="oqhazlib"):
+		"""
+		Determine computation time of OpenQuake deaggregation-curve computation
+
+		:param calc_id:
+			int or str, OpenQuake calculation ID (default: "oqhazlib")
+
+		:return:
+			datetime.timedelta object
+		"""
+		from datetime import datetime
+
+		for i, xml_filespec in enumerate(self.iter_oq_sdc_files(calc_id=calc_id)):
+			mtime = os.path.getmtime(xml_filespec)
+			if i == 0:
+				min_time = max_time = mtime
+			else:
+				min_time = min(mtime, min_time)
+				max_time = max(mtime, max_time)
+
+		time_delta = datetime.fromtimestamp(max_time) - datetime.fromtimestamp(min_time)
+		return time_delta
+
 	def to_psha_model_tree(self):
 		"""
 		Convert back to standard PSHA model tree
