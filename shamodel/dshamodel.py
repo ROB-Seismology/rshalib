@@ -14,6 +14,7 @@ from openquake.hazardlib.imt import *
 from ..result import HazardMap, HazardMapSet, UHSField
 from base import SHAModelBase
 from ..site.ref_soil_params import REF_SOIL_PARAMS
+from ..calc import mp
 
 
 # NOTE: for each IMT a hazard map set is returned with for each realization a max hazard map.
@@ -152,7 +153,6 @@ class DSHAModel(SHAModelBase):
 		num_sites = len(soil_site_model)
 		imt_list = self._get_imts()
 		fake_tom = oqhazlib.tom.PoissonTOM(1)
-		# TODO: check if inter + intra = total
 		if stddev_type == "total":
 			total_residual_epsilons = np.ones_like(num_sites)
 			total_residual_epsilons *= self.truncation_level
@@ -184,12 +184,12 @@ class DSHAModel(SHAModelBase):
 					for rup in src.iter_ruptures(fake_tom):
 						total_rupture_probability += rup.occurrence_rate
 						# TODO: check if CharacteristicFaultSources return only 1 rupture
-						gmf = oqhazlib.calc.gmf.ground_motion_field_with_residuals(
-							rup, soil_site_model, imt, gsim, self.truncation_level,
+						gmf = mp.calc_gmf_with_fixed_epsilon(
+							rup, soil_site_model, tuple(imt), gsim, self.truncation_level,
 							total_residual_epsilons=total_residual_epsilons,
 							intra_residual_epsilons=intra_residual_epsilons,
 							inter_residual_epsilons=inter_residual_epsilons,
-							rupture_site_filter=self.rupture_site_filter)
+							integration_distance=self.integration_distance)
 						## Aggregate gmf's corresponding to different nodal planes
 						if np_aggregation == "avg":
 							gmpe_gmf += (gmf * rup.occurrence_rate)
@@ -203,6 +203,84 @@ class DSHAModel(SHAModelBase):
 				gmf_envelope[:,k] = np.max([gmf_envelope[:,k], src_gmf], axis=0)
 		print gmf_envelope.min(), gmf_envelope.max()
 		print amax
+
+		periods = self._get_periods()
+		sites = soil_site_model.get_sha_sites()
+		return UHSField(self.name, "", sites, periods, "SA", gmf_envelope, intensity_unit="g", timespan=1, return_period=1)
+
+	def calc_gmf_envelope_mp(self, num_cores=None, stddev_type="total",
+							np_aggregation="avg", verbose=False):
+		"""
+		:param num_cores:
+			int, number of CPUs to be used. Actual number of cores used
+			may be lower depending on available cores and memory
+			(default: None, will determine automatically)
+		"""
+		soil_site_model = self.get_soil_site_model()
+		num_sites = len(soil_site_model)
+		imt_list = self._get_imts()
+		fake_tom = oqhazlib.tom.PoissonTOM(1)
+		if stddev_type == "total":
+			total_residual_epsilons = np.ones_like(num_sites)
+			total_residual_epsilons *= self.truncation_level
+			inter_residual_epsilons = total_residual_epsilons
+			intra_residual_epsilons = total_residual_epsilons
+		elif stddev_type == "inter-event":
+			total_residual_epsilons = None
+			inter_residual_epsilons = np.ones_like(num_sites)
+			inter_residual_epsilons *= self.truncation_level
+			intra_residual_epsilons = np.ones_like(num_sites)
+		elif stddev_type == "intra-event":
+			total_residual_epsilons = None
+			inter_residual_epsilons = np.ones_like(num_sites)
+			intra_residual_epsilons = np.ones_like(num_sites)
+			intra_residual_epsilons *= self.truncation_level
+
+		gmf_envelope = np.zeros((num_sites, len(imt_list)))
+
+		## Create list with arguments for each job
+		job_args = []
+		for k, imt in enumerate(imt_list):
+			for src in self.source_model:
+				trt = src.tectonic_region_type
+				gmpe_pmf = self.gmpe_system_def[trt]
+				for (gmpe_name, gmpe_weight) in gmpe_pmf:
+					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
+					gmpe_gmf = np.zeros(len(soil_site_model))
+					for rup in src.iter_ruptures(fake_tom):
+						# TODO: check if CharacteristicFaultSources return only 1 rupture
+						job_args.append((rup, soil_site_model, tuple(imt), gsim, self.truncation_level,
+										total_residual_epsilons, intra_residual_epsilons,
+										inter_residual_epsilons, self.integration_distance))
+
+		## Launch multiprocessing
+		if len(job_args) > 0:
+			gmf_list = mp.run_parallel(mp.calc_gmf_with_fixed_epsilon, job_args, num_cores, verbose=verbose)
+
+		i = 0
+		for k, imt in enumerate(imt_list):
+			for src in self.source_model:
+				src_gmf = np.zeros(len(soil_site_model))
+				trt = src.tectonic_region_type
+				gmpe_pmf = self.gmpe_system_def[trt]
+				for (gmpe_name, gmpe_weight) in gmpe_pmf:
+					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
+					gmpe_gmf = np.zeros(len(soil_site_model))
+					total_rupture_probability = 0
+					for rup in src.iter_ruptures(fake_tom):
+						total_rupture_probability += rup.occurrence_rate
+						gmf = gmf_list[i]
+						i += 1
+						## Aggregate gmf's corresponding to different nodal planes
+						if np_aggregation == "avg":
+							gmpe_gmf += (gmf * rup.occurrence_rate)
+						elif np_aggregation == "max":
+							gmpe_gmf = np.max([gmpe_gmf, gmf], axis=0)
+					## Weighted average of gmf's due to different GMPEs
+					assert np.allclose(total_rupture_probability, 1)
+					src_gmf += (gmpe_gmf * float(gmpe_weight))
+				## Take envelope of different source gmf's
+				gmf_envelope[:,k] = np.max([gmf_envelope[:,k], src_gmf], axis=0)
 
 		periods = self._get_periods()
 		sites = soil_site_model.get_sha_sites()
