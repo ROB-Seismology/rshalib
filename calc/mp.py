@@ -29,6 +29,7 @@ def run_parallel(func, job_arg_list, num_processes, shared_arr=None, verbose=Tru
 		- objects inheriting from classes with _slots_ loose any
 			new attributes set in the inherited class
 		- IMT objects are mangled up (don't know why)
+		- class methods and ad-hoc functions
 		- ...
 	:param num_processes:
 		int, number of parallel processes. Actual number of processes
@@ -415,6 +416,105 @@ def deaggregate_psha_model(psha_model, curve_name, curve_path, deagg_sites, deag
 
 		## Don't return deaggregation results to preserve memory
 		return 0
+
+
+def calc_gmf_with_fixed_epsilon(
+		rupture, sites, imt_tuple, gsim, truncation_level,
+		total_residual_epsilons=None,
+		intra_residual_epsilons=None,
+		inter_residual_epsilons=None,
+		integration_distance=None):
+	"""
+	Standalone function that computes ground-motion field for a single rupture.
+	Modified from function ground_motion_field_with_residuals in old version of
+	oq-hazardlib. In newer versions, this function has been removed.
+
+	Original documentation
+	A simplified version of ``ground_motion_fields`` where: the values
+	due to uncertainty (total, intra-event or inter-event residual
+	epsilons) are given in input; only one intensity measure type is
+	considered.
+
+	See :func:``openquake.hazardlib.calc.gmf.ground_motion_fields`` for
+	the description of most of the input parameters.
+
+	:param total_residual_epsilons:
+		a 2d numpy array of floats with the epsilons needed to compute the
+		total residuals in the case the GSIM provides only total standard
+		deviation.
+	:param intra_residual_epsilons:
+		a 2d numpy array of floats with the epsilons needed to compute the
+		intra event residuals
+	:param inter_residual_epsilons:
+		a 2d numpy array of floats with the epsilons needed to compute the
+		intra event residuals
+		Note that intra- and inter-event residuals should not be opposite
+		in sign.
+
+	:returns:
+		a 1d numpy array of floats, representing ground shaking intensity
+		for all sites in the collection.
+	"""
+	## Reconstruct imt from tuple
+	imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
+
+	if integration_distance:
+		rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(integration_distance)
+	else:
+		rupture_site_filter = oqhazlib.calc.filters.rupture_site_noop_filter
+
+	ruptures_sites = list(rupture_site_filter([(rupture, sites)]))
+	if not ruptures_sites:
+		return np.zeros(len(sites))
+
+	total_sites = len(sites)
+	[(rupture, sites)] = ruptures_sites
+
+	sctx, rctx, dctx = gsim.make_contexts(sites, rupture)
+
+	if truncation_level == 0:
+		mean, _stddevs = gsim.get_mean_and_stddevs(sctx, rctx, dctx, imt,
+												   stddev_types=[])
+		gmf = gsim.to_imt_unit_values(mean)
+
+	elif gsim.DEFINED_FOR_STANDARD_DEVIATION_TYPES == set([StdDev.TOTAL]):
+		assert total_residual_epsilons is not None
+
+		mean, [stddev_total] = gsim.get_mean_and_stddevs(
+			sctx, rctx, dctx, imt, [StdDev.TOTAL]
+		)
+		#stddev_total = stddev_total.reshape(stddev_total.shape + (1, ))
+		total_residual = stddev_total * total_residual_epsilons
+		gmf = gsim.to_imt_unit_values(mean + total_residual)
+	else:
+		assert inter_residual_epsilons is not None
+		assert intra_residual_epsilons is not None
+		mean, [stddev_inter, stddev_intra] = gsim.get_mean_and_stddevs(
+			sctx, rctx, dctx, imt, [StdDev.INTER_EVENT, StdDev.INTRA_EVENT]
+		)
+
+		intra_residual = stddev_intra * intra_residual_epsilons
+		inter_residual = stddev_inter * inter_residual_epsilons
+
+		## We have to take into account the sign of epsilon,
+		## otherwise, residuals will always be positive!
+		## Assume sign of intra_residual_epsilons and inter_residual_epsilons
+		## cannot be opposite
+		#intra_sign = np.sign(intra_residual_epsilons)
+		#inter_sign = np.sign(inter_residual_epsilons)
+		assert (intra_sign != -inter_sign).any()
+		#sign = np.sign(intra_sign + inter_sign)
+
+		## Convert residuals to imaginary part of complex numbers
+		intra_residual = 0 + 1j * intra_residual
+		inter_residual = 0 + 1j * inter_residual
+
+		gmf = gsim.to_imt_unit_values(
+			#mean + sign * np.sqrt(intra_residual**2 + inter_residual)**2)
+			mean + np.imag(np.sqrt(intra_residual**2 + inter_residual)**2))
+
+	gmf = sites.expand(gmf, total_sites, placeholder=0)
+	return gmf
 
 
 def square(x):
