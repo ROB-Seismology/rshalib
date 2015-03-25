@@ -204,6 +204,7 @@ class MFD(object):
 					inter_event_times[-1].append(next_event_time)
 				if method == "poisson":
 					#prob = rnd.random()
+					## From http://preshing.com/20111007/how-to-generate-random-timings-for-a-poisson-process/
 					#next_event_time = -np.log(1.0 - prob) / rate
 					next_event_time = rnd.expovariate(rate)
 				elif method == "random":
