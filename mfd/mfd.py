@@ -197,10 +197,10 @@ class MFD(object):
 				sigma = 1. / np.sqrt(rate)
 			## Should we re-initialize random number generator for each bin?
 			inter_event_times.append([])
-			total_time, next_event_time = 0, 0
+			total_time, next_event_time = 0, -1
 			#while total_time <= timespan:
 			while total_time < timespan:
-				if next_event_time:
+				if next_event_time >= 0:
 					inter_event_times[-1].append(next_event_time)
 				if method == "poisson":
 					#prob = rnd.random()
