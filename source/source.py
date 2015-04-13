@@ -1467,6 +1467,57 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		return CharacteristicFaultSource(self.source_id, self.name,
 			self.tectonic_region_type, self.mfd, surface, self.rake)
 
+	def get_subfaults(self, as_num=1, ad_num=1):
+		"""
+		Divide fault into subfaults (to be used for dislocation modeling).
+
+		:param as_num:
+			int, number of subfaults along strike (default: 1)
+		:param ad_num:
+			int, number of subfaults along dip (default: 1)
+
+		:return:
+			list with instances of :class:`eqgeology.FocMec.ElasticSubFault`
+		"""
+		from eqgeology.FocMec.okada import ElasticSubFault
+		from thirdparty.PyVisvalingamWhyatt.polysimplify import VWSimplifier
+
+		subfault_width = self.get_width() / ad_num
+
+		lons, lats = self.fault_trace.lons, self.fault_trace.lats
+		pts = zip(lons, lats)
+		simplifier = VWSimplifier(pts)
+		reduced_pts = simplifier.from_number(as_num+1)
+
+		perpendicular_direction = self.get_mean_strike() + 90.
+
+		subfaults = []
+		for i in range(as_num):
+			start, end = reduced_pts[i:i+2]
+			center_lon = np.mean([start[0], end[0]])
+			center_lat = np.mean([start[1], end[1]])
+			[subfault_length] = oqhazlib.geo.geodetic.geodetic_distance(start[0:1], start[-1:], end[0:1], end[-1:])
+			[subfault_strike] = oqhazlib.geo.geodetic.azimuth(start[0:1], start[-1:], end[0:1], end[-1:])
+			for j in range(ad_num):
+				top_depth = j * (subfault_width * np.sin(np.radians(self.dip)))
+				top_dist = j * (subfault_width * np.cos(np.radians(self.dip)))
+				top_lon, top_lat = oqhazlib.geo.geodetic.point_at(center_lon, center_lat, perpendicular_direction, top_dist)
+
+				subfault = ElasticSubFault()
+				subfault.strike = subfault_strike
+				subfault.dip = self.dip
+				subfault.rake = self.rake
+				subfault.length = subfault_length * 1E+3
+				subfault.width = subfault_width * 1E+3
+				subfault.depth = top_depth * 1E+3
+				subfault.slip = self.get_Mmax_slip()
+				subfault.longitude = top_lon
+				subfault.latitude = top_lat
+				subfault.coordinate_specification = "top center"
+				subfaults.append(subfault)
+
+		return subfaults
+
 
 class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 	"""
