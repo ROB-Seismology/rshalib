@@ -1486,8 +1486,13 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 
 		lons, lats = self.fault_trace.lons, self.fault_trace.lats
 		pts = zip(lons, lats)
-		simplifier = VWSimplifier(pts)
-		reduced_pts = simplifier.from_number(as_num+1)
+		if as_num >= len(pts):
+			print("Warning: maximum possible number of subfaults along strike is %d" % (len(pts)-1))
+			reduced_pts = pts
+			as_num = len(pts) - 1
+		else:
+			simplifier = VWSimplifier(pts)
+			reduced_pts = simplifier.from_number(as_num+1)
 
 		perpendicular_direction = self.get_mean_strike() + 90.
 
