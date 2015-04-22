@@ -95,8 +95,6 @@ class MFD(object):
 		:return:
 			Bool
 		"""
-		magnitude_bin_edges = other_mfd.get_magnitude_bin_edges()
-		occurrence_rates = other_mfd.occurrence_rates
 		if other_mfd.Mtype != self.Mtype:
 			return False
 		if not np.allclose(other_mfd.bin_width, self.bin_width):
@@ -120,12 +118,12 @@ class MFD(object):
 			occurrence_rates = self.occurrence_rates
 		else:
 			if max_mag <= self.max_mag:
-				occurrence_rates = self.occurrence_rates[self.get_magnitude_bin_centers() < max_mag]
+				occurrence_rates = np.array(self.occurrence_rates)[self.get_magnitude_bin_centers() < max_mag]
 			else:
 				dmag = max_mag - self.max_mag
 				num_zeros = int(np.round(dmag / self.bin_width))
 				occurrence_rates = np.append(self.occurrence_rates, np.zeros(num_zeros))
-		return EvenlyDiscretizedMFD(self.get_min_mag_center(), self.bin_width, list(occurrence_rates), Mtype=self.Mtype)
+		return EvenlyDiscretizedMFD(self.get_min_mag_center(), self.bin_width, occurrence_rates, Mtype=self.Mtype)
 
 	def get_num_earthquakes(self, completeness, end_date):
 		"""
@@ -143,7 +141,7 @@ class MFD(object):
 		"""
 		magnitudes = self.get_magnitude_bin_edges()
 		timespans = completeness.get_completeness_timespans(magnitudes, end_date)
-		return self.occurrence_rates * timespans
+		return np.array(self.occurrence_rates) * timespans
 
 	def export_csv(self, filespec, cumul=True):
 		"""
@@ -318,25 +316,27 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		The list of non-negative float values representing the actual
 		annual occurrence rates. The resulting histogram has as many bins
 		as this list length.
+		Note that the property is always stored as a python list, even
+		if a numpy array is specified!
 	:param Mtype:
 		String, magnitude type, either "MW" or "MS" (default: "MW")
 	"""
 	def __init__(self, min_mag, bin_width, occurrence_rates, Mtype="MW"):
+		## Note: Convert occurrence_rates to list to avoid problems in oqhazlib!
 		nhlib.mfd.EvenlyDiscretizedMFD.__init__(self, min_mag, bin_width, list(occurrence_rates))
-		self.occurrence_rates = np.array(self.occurrence_rates)
 		self.Mtype = Mtype
 
 	def __div__(self, other):
 		if isinstance(other, (int, float)):
 			occurrence_rates = np.array(self.occurrence_rates) / other
-			return EvenlyDiscretizedMFD(self.min_mag, self.bin_width, list(occurrence_rates), self.Mtype)
+			return EvenlyDiscretizedMFD(self.min_mag, self.bin_width, occurrence_rates, self.Mtype)
 		else:
 			raise TypeError("Divisor must be integer or float")
 
 	def __mul__(self, other):
 		if isinstance(other, (int, float)):
 			occurrence_rates = np.array(self.occurrence_rates) * other
-			return EvenlyDiscretizedMFD(self.min_mag, self.bin_width, list(occurrence_rates), self.Mtype)
+			return EvenlyDiscretizedMFD(self.min_mag, self.bin_width, occurrence_rates, self.Mtype)
 		else:
 			raise TypeError("Multiplier must be integer or float")
 
@@ -352,11 +352,11 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			if not self.is_compatible(other):
 				raise Exception("MFD's not compatible")
 			if self.get_min_mag() <= other.get_min_mag() and self.max_mag >= other.max_mag:
-				occurrence_rates = self.occurrence_rates.copy()
+				occurrence_rates = np.array(self.occurrence_rates)
 				start_index = self.get_magnitude_index(other.get_min_mag())
-				occurrence_rates[start_index:start_index+len(other)] -= other.occurrence_rates
+				occurrence_rates[start_index:start_index+len(other)] -= np.array(other.occurrence_rates)
 				# Replace negative values with zeros
-				occurrence_rates[np.where(occurrence_rates <0)] = 0
+				occurrence_rates[np.where(occurrence_rates < 0)] = 0
 				return EvenlyDiscretizedMFD(self.min_mag, self.bin_width, occurrence_rates)
 			else:
 				raise Exception("Second MFD must fully overlap with first one!")
@@ -429,7 +429,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		mfd_list = []
 		for w in weights:
 			occurrence_rates = np.array(self.occurrence_rates) * w
-			mfd = EvenlyDiscretizedMFD(self.min_mag, self.bin_width, list(occurrence_rates), self.Mtype)
+			mfd = EvenlyDiscretizedMFD(self.min_mag, self.bin_width, occurrence_rates, self.Mtype)
 			mfd_list.append(mfd)
 		return mfd_list
 
@@ -447,8 +447,8 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			raise Exception("Magnitude value not compatible!")
 		elif self.get_min_mag_edge() < M < self.max_mag:
 			index = int(round((M - self.get_min_mag_edge()) / self.bin_width))
-			occurrence_rates1 = list(self.occurrence_rates[:index])
-			occurrence_rates2 = list(self.occurrence_rates[index:])
+			occurrence_rates1 = self.occurrence_rates[:index]
+			occurrence_rates2 = self.occurrence_rates[index:]
 			mfd1 = EvenlyDiscretizedMFD(self.min_mag, self.bin_width, occurrence_rates1, self.Mtype)
 			mfd2 = EvenlyDiscretizedMFD(M+self.bin_width/2, self.bin_width, occurrence_rates2, self.Mtype)
 			return [mfd1, mfd2]
@@ -479,7 +479,8 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 
 		num_empty_bins = gap + 1
 		if num_empty_bins >= 0:
-			self.occurrence_rates = np.concatenate([self.occurrence_rates, np.zeros(num_empty_bins, dtype='d'), occurrence_rates])
+			occurrence_rates = np.concatenate([self.occurrence_rates, np.zeros(num_empty_bins, dtype='d'), occurrence_rates])
+			self.occurrence_rates = list(occurrence_rates)
 		else:
 			raise Exception("Magnitudes must not overlap with MFD magnitude range. Sum MFD's instead")
 
@@ -550,7 +551,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		occurrence_rate)
 		"""
 		mag_bin_centers = self.get_magnitude_bin_centers()
-		Mmax = mag_bin_centers[self.occurrence_rates > 0][-1]
+		Mmax = mag_bin_centers[np.array(self.occurrence_rates) > 0][-1]
 		return Mmax
 
 	def get_Bayesian_Mmax_pdf(self, prior_model="CEUS_COMP", Mmax_obs=None, n=None, Mmin_n=4.5, b_val=None, bin_width=None, truncation=(5.5, 8.25), completeness=None, end_date=None, verbose=True):
@@ -1468,8 +1469,8 @@ def sum_MFDs(mfd_list, weights=[]):
 	for i, mfd in enumerate(mfd_list):
 		start_index = int(round((mfd.get_min_mag_edge() - min_mag) / bin_width))
 		end_index = start_index + len(mfd.occurrence_rates)
-		occurrence_rates[start_index:end_index] += (mfd.occurrence_rates * weights[i])
-	return EvenlyDiscretizedMFD(min_mag+bin_width/2, bin_width, list(occurrence_rates), Mtype)
+		occurrence_rates[start_index:end_index] += (np.array(mfd.occurrence_rates) * weights[i])
+	return EvenlyDiscretizedMFD(min_mag+bin_width/2, bin_width, occurrence_rates, Mtype)
 
 
 def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_inc=[], completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", legend_location=1, fig_filespec=None, fig_width=0, dpi=300):
@@ -1519,6 +1520,8 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 	:param dpi:
 		Int, image resolution in dots per inch (default: 300)
 	"""
+	pylab.clf()
+
 	if not colors:
 		colors = ("r", "g", "b", "c", "m", "k")
 
@@ -1661,7 +1664,6 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 		pylab.savefig(fig_filespec, dpi=dpi)
 	else:
 		pylab.show()
-	pylab.clf()
 
 
 def alphabetalambda(a, b, M=0):
@@ -1762,7 +1764,7 @@ def split_mfd_fault_bg(aValue, bValue, Mmin, Mmin_fault, Mmax, bin_width=0.1):
 	rates_bg = rates_summed.copy()
 	#rates_bg = rates_bg[:index] - rates_bg[index]
 	rates_bg = rates_bg[:index]
-	mfd_bg = EvenlyDiscretizedMFD(Mbins[0], bin_width, list(rates_bg))
+	mfd_bg = EvenlyDiscretizedMFD(Mbins[0], bin_width, rates_bg)
 
 	## Note that this is equivalent to
 	# mfd_bg = TruncatedGRMFD(Mmin, Mmin_fault, bin_width, aValue, bValue)
@@ -1826,8 +1828,8 @@ def divide_mfd_fault_bg(aValue, bValue, Mmin, Mmin_fault, Mmax_fault, Mmax, bin_
 	rates_bg[start_index : end_index] *= 0.
 	#rates_bg[:start_index] -= rates_fault[0]
 
-	mfd_bg = EvenlyDiscretizedMFD(Mbins[0], bin_width, list(rates_bg))
-	mfd_fault = EvenlyDiscretizedMFD(Mbins[start_index], bin_width, list(rates_fault))
+	mfd_bg = EvenlyDiscretizedMFD(Mbins[0], bin_width, rates_bg)
+	mfd_fault = EvenlyDiscretizedMFD(Mbins[start_index], bin_width, rates_fault)
 
 	## Check that 2 MFD's sum up to overall MFD
 	# TODO: try with bin values instead of cumulative values
@@ -1886,7 +1888,7 @@ def divide_mfd_faults(aValue, bValue, Mmin, Mmax_catalog, Mmax_faults, Mmax_rate
 		Mbins = np.concatenate((Mbins1, Mbins2)) + (bin_width / 2)
 		#print Mbins
 		#print rates
-		mfd = EvenlyDiscretizedMFD(Mmin + (bin_width / 2), bin_width, list(rates))
+		mfd = EvenlyDiscretizedMFD(Mmin + (bin_width / 2), bin_width, rates)
 		mfd_list.append(mfd)
 
 	return mfd_list
