@@ -47,7 +47,7 @@ class ElasticLayer:
 		Return impedance
 		"""
 		# TODO: watch out for units (N s m-1) !
-		return self.Rho * 1000 * self.VS
+		return self.Rho * 1000. * self.VS
 
 
 class ElasticLayerModel:
