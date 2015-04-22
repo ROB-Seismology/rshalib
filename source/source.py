@@ -1493,6 +1493,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		else:
 			simplifier = VWSimplifier(pts)
 			reduced_pts = simplifier.from_number(as_num+1)
+			## In some cases, as_num is not honored by VWSimplifier
+			as_num = len(reduced_pts) - 1
 
 		perpendicular_direction = self.get_mean_strike() + 90.
 
