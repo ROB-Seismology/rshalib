@@ -76,7 +76,8 @@ class ComplexTransferFunction:
 			of.write("%E, %E, %E, %E, %E\n" % (self.freqs[k], TRr[k], TRi[k], TR_amp[k], TR_phase[k]))
 		of.close()
 
-	def plot_magnitude(self, color='b', line_style='-', line_width=2, label=""):
+	def plot_magnitude(self, color='b', line_style='-', line_width=2, label="",
+						want_freq=True):
 		"""
 		Plot magnitude
 
@@ -88,8 +89,13 @@ class ComplexTransferFunction:
 			float, line width (default: 2)
 		:param label:
 			str, plot label
+		:param want_freq:
+			bool, whether X axis should show frequencies (True) or periods
+			(False)
+			(default: True)
 		"""
-		plot_TF_magnitude([self], colors=[color], line_styles=[line_style], line_widths=[line_width], labels=[label])
+		plot_TF_magnitude([self], colors=[color], line_styles=[line_style],
+				line_widths=[line_width], labels=[label], want_freq=want_freq)
 
 	def get_response_spectrum(self, accelerogram):
 		"""
@@ -281,7 +287,7 @@ class TransferFunction:
 
 
 
-def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels=[]):
+def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels=[], want_freq=True):
 	"""
 	Magnitude plot of transfer functions
 
@@ -296,12 +302,23 @@ def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels
 		list of line widths
 	:param labels:
 		list of plot labels
+	:param want_freq:
+		bool, whether X axis should show frequencies (True) or periods
+		(False)
+		(default: True)
 	"""
 	# TODO: add more options, and implement empty lists
 	for i in range(len(TF_list)):
 		TF = TF_list[i]
-		pylab.semilogx(TF.freqs, TF.magnitudes, color=colors[i], linestyle=line_styles[i], linewidth=line_widths[i], label=labels[i])
-	pylab.xlabel("Frequency (Hz)", fontsize="x-large")
+		if want_freq:
+			x_values = TF.freqs
+		else:
+			x_values = TF.periods
+		pylab.semilogx(x_values, TF.magnitudes, color=colors[i], linestyle=line_styles[i], linewidth=line_widths[i], label=labels[i])
+	if want_freq:
+		pylab.xlabel("Frequency (Hz)", fontsize="x-large")
+	else:
+		pylab.xlabel("Period (s)", fontsize="x-large")
 	pylab.ylabel("Spectral Amplification", fontsize="x-large")
 	font = FontProperties(size='large')
 	pylab.legend(loc="upper right", prop=font)
