@@ -455,6 +455,8 @@ def calc_gmf_with_fixed_epsilon(
 		a 1d numpy array of floats, representing ground shaking intensity
 		for all sites in the collection.
 	"""
+	from openquake.hazardlib.const import StdDev
+
 	## Reconstruct imt from tuple
 	imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
 
@@ -500,8 +502,8 @@ def calc_gmf_with_fixed_epsilon(
 		## otherwise, residuals will always be positive!
 		## Assume sign of intra_residual_epsilons and inter_residual_epsilons
 		## cannot be opposite
-		#intra_sign = np.sign(intra_residual_epsilons)
-		#inter_sign = np.sign(inter_residual_epsilons)
+		intra_sign = np.sign(intra_residual_epsilons)
+		inter_sign = np.sign(inter_residual_epsilons)
 		assert (intra_sign != -inter_sign).any()
 		#sign = np.sign(intra_sign + inter_sign)
 
