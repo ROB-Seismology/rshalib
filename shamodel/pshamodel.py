@@ -4778,11 +4778,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				for period in hc_periods:
 					hc_list, labels, colors = [], [], []
 					for s, source_model in enumerate(self.source_models):
-						hc = mean_somo_shc_list[s].getHazardCurve(period_spec=period)
+						hc = mean_somo_shc_list[s].getHazardCurve(period_spec=float(period))
 						hc_list.append(hc)
 						labels.append(source_model.name)
 						colors.append(somo_colors[source_model.name])
-					mean_hc = mean_shc.getHazardCurve(period_spec=period)
+					mean_hc = mean_shc.getHazardCurve(period_spec=float(period))
 					hc_list.append(mean_hc)
 					labels.append("Weighted mean")
 					colors.append("red")
@@ -4918,12 +4918,12 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				for site in sites:
 					mean_somo_shc = mean_somo_shcf.getSpectralHazardCurve(site_spec=site.name)
 					for period in hc_periods:
-						mean_somo_hc = mean_somo_shc.getHazardCurve(period_spec=period)
+						mean_somo_hc = mean_somo_shc.getHazardCurve(period_spec=float(period))
 						hc_list = [mean_somo_hc]
 						labels = ["All sources"]
 						colors = ["red"]
 						for s, combined_src_id in enumerate(sorted(mean_src_shcf_dict.keys())):
-							mean_src_shc = mean_src_shcf_dict[combined_src_id].getHazardCurve(site_spec=site.name, period_spec=period)
+							mean_src_shc = mean_src_shcf_dict[combined_src_id].getHazardCurve(site_spec=site.name, period_spec=float(period))
 							hc_list.append(mean_src_shc)
 							labels.append(combined_src_id)
 							colors.append(src_colors[s])
@@ -5117,11 +5117,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					for period in hc_periods:
 						hc_list, labels, colors = [], [], []
 						for g, gmpe_name in enumerate(trt_gmpes):
-							hc = gmpe_shc_list[g].getHazardCurve(period_spec=period)
+							hc = gmpe_shc_list[g].getHazardCurve(period_spec=float(period))
 							hc_list.append(hc)
 							labels.append(gmpe_name)
 							colors.append(gmpe_colors[gmpe_name])
-						mean_trt_hc = mean_trt_shc.getHazardCurve(period_spec=period)
+						mean_trt_hc = mean_trt_shc.getHazardCurve(period_spec=float(period))
 						hc_list.append(mean_trt_hc)
 						labels.append("Weighted mean")
 						colors.append("red")
@@ -5198,11 +5198,11 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						for period in hc_periods:
 							hc_list, labels, colors = [], [], []
 							for g, gmpe_name in enumerate(trt_gmpes):
-								hc = gmpe_shc_list[g].getHazardCurve(period_spec=period)
+								hc = gmpe_shc_list[g].getHazardCurve(period_spec=float(period))
 								hc_list.append(hc)
 								labels.append(gmpe_name)
 								colors.append(gmpe_colors[gmpe_name])
-							trt_hc = trt_shc.getHazardCurve(period_spec=period)
+							trt_hc = trt_shc.getHazardCurve(period_spec=float(period))
 							hc_list.append(trt_hc)
 							labels.append("Weighted mean")
 							colors.append("red")
