@@ -4692,12 +4692,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		"""
 		return PSHAModelTree(self.name, self.source_model_lt, self.gmpe_lt, self.root_folder, self.sites, self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance, self.num_lt_samples, self.random_seed)
 
-	def plot_source_model_sensitivity(self, fig_folder, somo_colors={}, somo_shortnames={}, plot_hc=True, plot_uhs=True, plot_barchart=True, hc_periods=[0, 0.2, 1], barchart_periods=[0, 0.2, 2], Tmax=10, amax={}, calc_id=None, recompute=False, fig_site_id="name"):
+	def plot_source_model_sensitivity(self, fig_folder, sites=[], somo_colors={}, somo_shortnames={}, plot_hc=True, plot_uhs=True, plot_barchart=True, hc_periods=[0, 0.2, 1], barchart_periods=[0, 0.2, 2], Tmax=10, amax={}, calc_id=None, recompute=False, fig_site_id="name"):
 		"""
 		Generate plots showing source-model sensitivity
 
 		:param fig_folder:
 			str, full path to folder where figures will be saved
+		:param sites:
+			list with instances of :class:`SHASite`, sites for which
+			to plot sensitivity
+			(default: [], will plot sensitivity for all sites)
 		:param somo_colors:
 			dict, mapping source model names to matplotlib color definitions
 			If empty, will be generated automatically. Note that the color red
@@ -4756,6 +4760,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		for source_model in self.source_models:
 			bc_colors[somo_shortnames[source_model.name]] = somo_colors[source_model.name]
 
+		if sites in (None, []):
+			sites = self.get_sites()
+
 		## Read or compute mean spectral hazard curve field
 		mean_somo_shcf_list = []
 		for source_model in self.source_models:
@@ -4765,7 +4772,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		## Plot hazard curves
 		if plot_hc:
-			for site in self.get_sites():
+			for site in sites:
 				mean_somo_shc_list = [shcf.getSpectralHazardCurve(site_spec=site.name) for shcf in mean_somo_shcf_list]
 				mean_shc = mean_shcf.getSpectralHazardCurve(site_spec=site.name)
 				for period in hc_periods:
@@ -4793,7 +4800,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			mean_somo_uhsf_list = [uhsfs.getUHSField(return_period=return_period) for uhsfs in mean_somo_uhsfs_list]
 			mean_uhsf = mean_uhsfs.getUHSField(return_period=return_period)
 
-			for site in self.get_sites():
+			for site in sites:
 				uhs_list, labels, colors = [], [], []
 				for s, source_model in enumerate(self.source_models):
 					mean_somo_uhs = mean_somo_uhsf_list[s].getUHS(site_spec=site.name)
@@ -4835,12 +4842,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					title = "Source-model sensitivity, %s, Tr=%.E yr" % (site.name, return_period)
 					plot_nested_variation_barchart(0, category_value_dict, ylabel, title, color=bc_colors, fig_filespec=fig_filespec)
 
-	def plot_source_sensitivity(self, fig_folder, sources_to_combine={}, plot_hc=True, plot_uhs=True, hc_periods=[0, 0.2, 1], Tmax=10, amax={}, calc_id=None, recompute=False, fig_site_id="name"):
+	def plot_source_sensitivity(self, fig_folder, sites=[], sources_to_combine={}, plot_hc=True, plot_uhs=True, hc_periods=[0, 0.2, 1], Tmax=10, amax={}, calc_id=None, recompute=False, fig_site_id="name"):
 		"""
 		Generate plots showing source sensitivity
 
 		:param fig_folder:
 			str, full path to folder where figures will be saved
+		:param sites:
+			list with instances of :class:`SHASite`, sites for which
+			to plot sensitivity
+			(default: [], will plot sensitivity for all sites)
 		:param sources_to_combine:
 			dict mapping source model names to dicts mapping in turn
 			names to lists of source ids that should be combined in
@@ -4876,6 +4887,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		src_colors = ["aqua", "blue", "fuchsia", "green", "lime", "maroon", "navy", "olive", "orange", "purple", "silver", "teal", "yellow", "slateblue", "saddlebrown", "forestgreen"]
 
+		if sites in (None, []):
+			sites = self.get_sites()
+
 		## Read or compute mean spectral hazard curve fields
 		for source_model in self.source_models:
 			mean_somo_shcf = self.get_oq_mean_shcf_by_source_model(source_model, calc_id=calc_id, write_xml=recompute)
@@ -4901,7 +4915,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 			## Plot hazard curves
 			if plot_hc:
-				for site in self.get_sites():
+				for site in sites:
 					mean_somo_shc = mean_somo_shcf.getSpectralHazardCurve(site_spec=site.name)
 					for period in hc_periods:
 						mean_somo_hc = mean_somo_shc.getHazardCurve(period_spec=period)
@@ -4933,7 +4947,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					for combined_src_id in mean_src_uhsfs_dict.keys():
 						mean_src_uhsf_dict[combined_src_id] = mean_src_uhsfs_dict[combined_src_id].getUHSField(return_period=return_period)
 
-					for site in self.get_sites():
+					for site in sites:
 						mean_somo_uhs = mean_somo_uhsf.getUHS(site_spec=site.name)
 						uhs_list = [mean_somo_uhs]
 						labels = ["All sources"]
@@ -4952,12 +4966,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						fig_filespec = os.path.join(fig_folder, fig_filename)
 						uhsc.plot(title=title, Tmax=Tmax, amax=amax.get(return_period, None), legend_location=1, fig_filespec=fig_filespec)
 
-	def plot_gmpe_sensitivity(self, fig_folder, gmpe_colors={}, gmpe_shortnames={}, somo_colors={}, somo_shortnames={}, plot_hc=True, plot_uhs=True, plot_barchart=True, plot_by_source_model=False, hc_periods=[0, 0.2, 1], barchart_periods=[0, 0.2, 2], Tmax=10, amax={}, calc_id=None, recompute=False, fig_site_id="name"):
+	def plot_gmpe_sensitivity(self, fig_folder, sites=[], gmpe_colors={}, gmpe_shortnames={}, somo_colors={}, somo_shortnames={}, plot_hc=True, plot_uhs=True, plot_barchart=True, plot_by_source_model=False, hc_periods=[0, 0.2, 1], barchart_periods=[0, 0.2, 2], Tmax=10, amax={}, calc_id=None, recompute=False, fig_site_id="name"):
 		"""
 		Generate plots showing GMPE sensitiviy
 
 		:param fig_folder:
 			str, full path to folder where figures will be saved
+		:param sites:
+			list with instances of :class:`SHASite`, sites for which
+			to plot sensitivity
+			(default: [], will plot sensitivity for all sites)
 		:param gmpe_colors:
 			dict, mapping GMPE names to matplotlib color definitions
 			If empty, will be generated automatically. Note that the color red
@@ -5043,6 +5061,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			bc_colors[somo_shortnames[source_model.name]] = somo_colors[source_model.name]
 		bc_colors["Avg"] = "red"
 
+		if sites in (None, []):
+			sites = self.get_sites()
+
 		all_trts = self.gmpe_lt.tectonicRegionTypes
 		if len(all_trts) == 2 and self.gmpe_lt.gmpe_system_def[all_trts[0]] == self.gmpe_lt.gmpe_system_def[all_trts[1]]:
 			# TODO: ideally, this should also work if more than 2 trt's have same GMPE system def
@@ -5059,7 +5080,6 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			gmpe_system_def = self.gmpe_lt.gmpe_system_def
 
 		return_periods = self.return_periods
-		sites = self.get_sites()
 
 		## Initialize category_value_dict for barchart plot
 		category_value_dict = {}
