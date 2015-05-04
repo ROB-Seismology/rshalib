@@ -42,14 +42,7 @@ class SHAModelBase(object):
 			assert soil_site_model
 			self.sha_site_model = None
 		else:
-			self.sha_site_model = SHASiteModel(
-				sites=sites,
-				grid_outline=grid_outline,
-				grid_spacing=grid_spacing,
-				)
-		self.sites = sites
-		self.grid_outline = grid_outline
-		self.grid_spacing = grid_spacing
+			self._set_sha_sites(sites, grid_outline, grid_spacing)
 		self.soil_site_model = soil_site_model
 		self.ref_soil_params = ref_soil_params
 		self.imt_periods = imt_periods
@@ -110,6 +103,27 @@ class SHAModelBase(object):
 				periods.append(0)
 		return periods
 
+	def _set_sha_sites(self, sites, grid_outline, grid_spacing):
+		"""
+		Set SHA sites from list of sites or grid outline and grid spacing.
+		Note: Use this method only if :param:`soil_site_model` is None.
+
+		:param sites:
+			list with instances of class:`SHASite`
+		:param grid_outline:
+			(lon_min, lon_max, lat_min, lat_max) tuple
+		:param grid_spacing:
+			float, grid spacing
+		"""
+		self.sites = sites
+		self.grid_outline = grid_outline
+		self.grid_spacing = grid_spacing
+		self.sha_site_model = SHASiteModel(
+				sites=sites,
+				grid_outline=grid_outline,
+				grid_spacing=grid_spacing,
+				)
+
 	def get_sites(self):
 		"""
 		Get sites.
@@ -153,7 +167,7 @@ class SHAModelBase(object):
 			else:
 				return self.soil_site_model
 		else:
-			return self.sha_site_model.to_soil_site_model(self.ref_soil_params)
+			return self.sha_site_model.to_soil_site_model(ref_soil_params=self.ref_soil_params)
 
 
 if __name__ == "__main__":
