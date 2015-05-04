@@ -55,7 +55,7 @@ class MFD(object):
 		:return:
 			Int, index
 		"""
-		return int(round((M - self.get_min_mag()) / self.bin_width))
+		return int(round((M - self.get_min_mag_edge()) / self.bin_width))
 
 	def get_cumulative_rates(self):
 		"""
@@ -404,6 +404,18 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		magnitudes = np.arange(len(self.occurrence_rates), dtype='f')
 		magnitudes = self.get_min_mag_center() + magnitudes * self.bin_width
 		return magnitudes
+
+	def set_min_mag(self, min_mag):
+		"""
+		Set minimum magnitude
+
+		:param min_mag:
+			float, new minimum magnitude (left edge, not center of bin !)
+		"""
+		assert self.get_min_mag_edge() <= min_mag <= self.max_mag
+		mag_idx = self.get_magnitude_index(min_mag)
+		self.occurrence_rates = self.occurrence_rates[mag_idx:]
+		self.min_mag = min_mag + self.bin_width / 2
 
 	#def get_magnitude_bin_edges(self):
 	#	return np.array(zip(*self.get_annual_occurrence_rates())[0])
@@ -936,6 +948,16 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		"""
 		magnitudes = np.arange(self.get_min_mag_center(), self.max_mag, self.bin_width)
 		return magnitudes
+
+	def set_min_mag(self, min_mag):
+		"""
+		Set minimum magnitude
+
+		:param min_mag:
+			float, new minimum magnitude (left edge)
+		"""
+		assert min_mag <= self.max_mag
+		self.min_mag = min_mag
 
 	def get_cumulative_rates(self):
 		"""
