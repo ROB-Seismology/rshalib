@@ -167,7 +167,7 @@ class SHAModelBase(object):
 			else:
 				return self.soil_site_model
 		else:
-			return self.sha_site_model.to_soil_site_model(ref_soil_params=self.ref_soil_params)
+			return self.sha_site_model.to_soil_site_model(name="", ref_soil_params=self.ref_soil_params)
 
 
 if __name__ == "__main__":
