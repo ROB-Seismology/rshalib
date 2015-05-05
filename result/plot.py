@@ -313,12 +313,12 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 	if amax is None:
 		amax = ymax
 	if plot_freq:
-		pylab.xlabel({"en": "Frequency (Hz)", "nl": "Frequentie: Hz"}[lang], fontsize='x-large')
+		pylab.xlabel({"en": "Frequency (Hz)", "nl": "Frequentie (Hz)", "fr": u"Fréquence (Hz)"}[lang], fontsize='x-large')
 		pylab.axis((1.0/Tmax, 1.0/Tmin, amin, amax))
 	else:
-		pylab.xlabel({"en": "Period (s)", "nl": "Periode (s)"}[lang], fontsize='x-large')
+		pylab.xlabel({"en": "Period (s)", "nl": "Periode (s)", "fr": "Période (s)"}[lang], fontsize='x-large')
 		pylab.axis((Tmin, Tmax, amin, amax))
-	ylabel = {"en": "Acceleration", "nl": "Versnelling"}[lang]
+	ylabel = {"en": "Acceleration", "nl": "Versnelling", "fr": u"Accélération"}[lang]
 	ylabel += " (%s)" % intensity_unit
 	pylab.ylabel(ylabel, fontsize='x-large')
 	pylab.grid(True)
