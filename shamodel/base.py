@@ -41,6 +41,9 @@ class SHAModelBase(object):
 		if not sites and not grid_outline:
 			assert soil_site_model
 			self.sha_site_model = None
+			self.sites = sites
+			self.grid_outline = grid_outline
+			self.grid_spacing = grid_spacing
 		else:
 			self._set_sha_sites(sites, grid_outline, grid_spacing)
 		self.soil_site_model = soil_site_model
