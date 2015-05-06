@@ -4483,6 +4483,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					for gmpe_name in gmpe_names:
 						xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model.name, trt, "", gmpe_name, curve_name, calc_id=calc_id)
 						xml_filespecs.append(xml_filespec)
+						## If there is only one TRT
+						xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model.name, "", "", gmpe_name, curve_name, calc_id=calc_id)
+						xml_filespecs.append(xml_filespec)
 						for src_list in self.enumerate_correlated_sources(source_model, trt):
 							for src in src_list:
 								xml_filespec = self.get_oq_shcf_filespec_decomposed(source_model.name, trt, src.source_id, gmpe_name, curve_name, calc_id=calc_id)
@@ -4494,6 +4497,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				gmpe_names = self.gmpe_lt.gmpe_system_def[trt].gmpe_names
 				for gmpe_name in gmpe_names:
 					xml_filespec = self.get_oq_shcf_filespec_decomposed("", trt, "", gmpe_name, curve_name, calc_id=calc_id)
+					xml_filespecs.append(xml_filespec)
+					## If there is only one TRT
+					xml_filespec = self.get_oq_shcf_filespec_decomposed("", "", "", gmpe_name, curve_name, calc_id=calc_id)
 					xml_filespecs.append(xml_filespec)
 
 
