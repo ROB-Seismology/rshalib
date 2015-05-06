@@ -19,6 +19,30 @@ from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from ..utils import interpolate
 
 
+def get_intensity_unit_label(intensity_unit="g"):
+	"""
+	Get intensity unit label to use in plots
+
+	:param intensity_unit:
+		str, intensity unit (default: "g")
+
+	:return:
+		str, intensity unit label
+	"""
+	if intensity_unit == "ms2":
+		intensity_unit_label = "$m/s^2$"
+	elif intensity_unit == "cms2":
+		intensity_unit_label = "$cm/s^2$"
+	elif intensity_unit == "ms":
+		intensity_unit_label = "m/s"
+	elif intensity_unit == "cms":
+		intensity_unit_label = "cm/s"
+	else:
+		intensity_unit_label = "%s" % intensity_unit
+
+	return intensity_unit_label
+
+
 def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", want_recurrence=False, fixed_life_time=None, interpol_rp=None, interpol_prob=0, interpol_rp_range=None, amax=None, intensity_unit="g", tr_max=1E+07, legend_location=0, lang="en"):
 	"""
 	Generic function to plot a hazard curve (exceedance rate or probability of exceedance)
@@ -159,7 +183,7 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 
 	## Plot decoration
 	xlabel = {"en": "Acceleration", "nl": "Versnelling", "fr": u"Accélération"}[lang]
-	xlabel += " (%s)" % intensity_unit
+	xlabel += " (%s)" % get_intensity_unit_label(intensity_unit)
 	pylab.xlabel(xlabel, fontsize='x-large')
 	if want_recurrence:
 		pylab.ylabel({"en": "Return period (yr)", "nl": "Terugkeerperiode (jaar)"}[lang], fontsize='x-large')
@@ -174,21 +198,22 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 	pylab.legend(loc=legend_location, prop=font)
 	if fixed_life_time:
 		title += "\n%s: %d %s" % ({"en": "Fixed life time", "nl": "Vaste levensduur"}[lang], fixed_life_time, {"en": "yr", "nl": "jaar"}[lang])
-	majorFormatter = FormatStrFormatter('%.1f')
-	if amax <= 1.:
-		tick_interval = 0.1
-	elif amax <= 2:
-		tick_interval = 0.2
-	elif amax <= 3:
-		tick_interval = 0.25
-		majorFormatter = FormatStrFormatter('%.2f')
-	else:
-		tick_interval = 0.5
-	majorLocator = MultipleLocator(tick_interval)
-	minorLocator = MultipleLocator(tick_interval / 10.)
-	ax.xaxis.set_major_locator(majorLocator)
-	ax.xaxis.set_major_formatter(majorFormatter)
-	ax.xaxis.set_minor_locator(minorLocator)
+	if intensity_unit == "g":
+		majorFormatter = FormatStrFormatter('%.1f')
+		if amax <= 1.:
+			tick_interval = 0.1
+		elif amax <= 2:
+			tick_interval = 0.2
+		elif amax <= 3:
+			tick_interval = 0.25
+			majorFormatter = FormatStrFormatter('%.2f')
+		else:
+			tick_interval = 0.5
+		majorLocator = MultipleLocator(tick_interval)
+		minorLocator = MultipleLocator(tick_interval / 10.)
+		ax.xaxis.set_major_locator(majorLocator)
+		ax.xaxis.set_major_formatter(majorFormatter)
+		ax.xaxis.set_minor_locator(minorLocator)
 	pylab.title(title)
 	pylab.grid(True)
 	ax = pylab.gca()
@@ -316,10 +341,10 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 		pylab.xlabel({"en": "Frequency (Hz)", "nl": "Frequentie (Hz)", "fr": u"Fréquence (Hz)"}[lang], fontsize='x-large')
 		pylab.axis((1.0/Tmax, 1.0/Tmin, amin, amax))
 	else:
-		pylab.xlabel({"en": "Period (s)", "nl": "Periode (s)", "fr": "Période (s)"}[lang], fontsize='x-large')
+		pylab.xlabel({"en": "Period (s)", "nl": "Periode (s)", "fr": u"Période (s)"}[lang], fontsize='x-large')
 		pylab.axis((Tmin, Tmax, amin, amax))
 	ylabel = {"en": "Acceleration", "nl": "Versnelling", "fr": u"Accélération"}[lang]
-	ylabel += " (%s)" % intensity_unit
+	ylabel += " (%s)" % get_intensity_unit_label(intensity_unit)
 	pylab.ylabel(ylabel, fontsize='x-large')
 	pylab.grid(True)
 	pylab.grid(True, which="minor")

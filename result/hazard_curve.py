@@ -243,21 +243,11 @@ class ProbabilityArray(HazardCurveArray):
 		return self.__class__(1 - np.exp(percentiles))
 
 
-class HazardResult:
+class IntensityResult:
 	"""
-	Generic class providing common methods related to poE's, exceedance rates,
-	and return periods
-	Arguments:
-		timespan: time span for probabilities of exceedance (default: 50)
-		poes: list or array with probabilities of exceedance (default: None)
-		exceedance_rates: list or array with exceedance rates (default: None)
-		return_periods: list or array with return periods (default: None)
+	Generic class providing common methods related to intensities
 	"""
-	def __init__(self, hazard_values, timespan=50, IMT="PGA", intensities=None, intensity_unit="g"):
-		if not isinstance(hazard_values, HazardCurveArray):
-			raise Exception("hazard_values should be instance of HazardCurveArray!")
-		self._hazard_values = hazard_values
-		self.timespan = float(timespan)
+	def __init__(self, IMT, intensities, intensity_unit="g"):
 		self.IMT = IMT
 		self.intensities = as_array(intensities)
 		self.intensity_unit = intensity_unit
@@ -265,27 +255,6 @@ class HazardResult:
 	@property
 	def num_intensities(self):
 		return self.intensities.shape[-1]
-
-	@property
-	def exceedance_rates(self):
-		"""
-		Return property exceedance_rates or compute from poes and timespan
-		"""
-		return self._hazard_values.to_exceedance_rates(self.timespan)
-
-	@property
-	def return_periods(self):
-		"""
-		Return property return_periods or compute from poes and timespan
-		"""
-		return self._hazard_values.to_return_periods(self.timespan)
-
-	@property
-	def poes(self):
-		"""
-		Return property poes or compute from exceedance rates and timespan
-		"""
-		return self._hazard_values.to_probabilities(self.timespan)
 
 	def get_intensities(self, intensity_unit="g"):
 		"""
@@ -324,6 +293,45 @@ class HazardResult:
 			raise Exception("Unable to convert intensity units!")
 
 		return self.intensities * conv_factor
+
+
+class HazardResult(IntensityResult):
+	"""
+	Generic class providing common methods related to poE's, exceedance rates,
+	and return periods
+	Arguments:
+		timespan: time span for probabilities of exceedance (default: 50)
+		poes: list or array with probabilities of exceedance (default: None)
+		exceedance_rates: list or array with exceedance rates (default: None)
+		return_periods: list or array with return periods (default: None)
+	"""
+	def __init__(self, hazard_values, timespan=50, IMT="PGA", intensities=None, intensity_unit="g"):
+		if not isinstance(hazard_values, HazardCurveArray):
+			raise Exception("hazard_values should be instance of HazardCurveArray!")
+		IntensityResult.__init__(self, IMT, intensities, intensity_unit)
+		self._hazard_values = hazard_values
+		self.timespan = float(timespan)
+
+	@property
+	def exceedance_rates(self):
+		"""
+		Return property exceedance_rates or compute from poes and timespan
+		"""
+		return self._hazard_values.to_exceedance_rates(self.timespan)
+
+	@property
+	def return_periods(self):
+		"""
+		Return property return_periods or compute from poes and timespan
+		"""
+		return self._hazard_values.to_return_periods(self.timespan)
+
+	@property
+	def poes(self):
+		"""
+		Return property poes or compute from exceedance rates and timespan
+		"""
+		return self._hazard_values.to_probabilities(self.timespan)
 
 
 class HazardSpectrum():
@@ -1386,7 +1394,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		intensities = shc_out.intensities
 		return SpectralHazardCurveFieldTree(self.model_name, out_hazard_values, self.branch_names, self.filespecs, self.weights, self.sites, out_periods, self.IMT, intensities, self.intensity_unit, self.timespan, variances=out_variances)
 
-	def plot(self, site_spec=0, period_spec=0, branch_specs=[], fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+	def plot(self, site_spec=0, period_spec=0, branch_specs=[], fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, intensity_unit="g", rp_max=1E+07, legend_location=0, lang="en"):
 		"""
 		Plot hazard curves (individual branches, mean, and percentiles) for a
 			particular site and spectral period.
@@ -1404,7 +1412,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			branch_indexes = range(self.num_branches)
 		else:
 			branch_indexes = [self.branch_index(branch_spec) for branch_spec in branch_specs]
-		x = self.intensities[period_index]
+		x = self.get_intensities(intensity_unit)[period_index]
 		datasets, labels, colors, linewidths, linestyles = [], [], [], [], []
 
 		if title is None:
@@ -1468,12 +1476,11 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			linestyles.append('--')
 			datasets.append((x, percentiles[:,p].to_exceedance_rates(self.timespan)))
 		fixed_life_time = {True: self.timespan, False: None}[want_poe]
-		intensity_unit = self.intensity_unit
 		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=rp_max, legend_location=legend_location, lang=lang)
 
 	plot.__doc__ += common_plot_docstring
 
-	def plot_subsets(self, subset_label_patterns, site_spec=0, period_spec=0, labels=[], agr_filespecs=[], percentile_levels=[84], combined_uncertainty=True, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+	def plot_subsets(self, subset_label_patterns, site_spec=0, period_spec=0, labels=[], agr_filespecs=[], percentile_levels=[84], combined_uncertainty=True, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, intensity_unit="g", rp_max=1E+07, legend_location=0, lang="en"):
 		"""
 		Plot mean and percentiles of different subsets
 		Parameters:
@@ -1518,7 +1525,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 					perc_labels[perc] = "_nolegend_"
 					perc_linestyles[perc] = perc_colors[100 - perc]
 
-		x = self.intensities[period_index]
+		x = self.get_intensities(intensity_unit)[period_index]
 
 		datasets, labels, colors, linewidths, linestyles = [], [], [], [], []
 		for i, subset in enumerate(subsets):
@@ -1565,7 +1572,6 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 
 		## Call plot function
 		fixed_life_time = {True: self.timespan, False: None}[want_poe]
-		intensity_unit = self.intensity_unit
 		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, amax=amax, tr_max=rp_max, legend_location=legend_location, lang=lang)
 
 	plot_subsets.__doc__ += common_plot_docstring
@@ -1893,7 +1899,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		intensities = shc_out.intensities
 		return SpectralHazardCurveField(self.model_name, out_hazard_values, self.filespecs, self.sites, out_periods, self.IMT, intensities, self.intensity_unit, self.timespan, variances=out_variances)
 
-	def plot(self, site_specs=[], period_specs=[], labels=None, colors=None, linestyles=None, linewidth=2, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+	def plot(self, site_specs=[], period_specs=[], labels=None, colors=None, linestyles=None, linewidth=2, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, intensity_unit="g", rp_max=1E+07, legend_location=0, lang="en"):
 		"""
 		Plot hazard curves for some sites and/or some spectral periods.
 		Parameters:
@@ -1959,12 +1965,11 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			site_index = self.site_index(site)
 			for period in periods:
 				period_index = self.period_index(period)
-				x = self.intensities[period_index]
+				x = self.get_intensities(intensity_unit)[period_index]
 				y = exceedance_rates[site_index, period_index]
 				datasets.append((x, y))
 
 		fixed_life_time = {True: self.timespan, False: None}[want_poe]
-		intensity_unit = self.intensity_unit
 		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=rp_max, legend_location=legend_location, lang=lang)
 
 	plot.__doc__ += common_plot_docstring
@@ -2234,7 +2239,7 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 			variances = None
 		return SpectralHazardCurveField(self.model_name, hazard_values, [self.filespec], [self.site], self.period, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
 
-	def plot(self, colors=[], linestyle="-", linewidth=2, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+	def plot(self, colors=[], linestyle="-", linewidth=2, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, intensity_unit="g", rp_max=1E+07, legend_location=0, lang="en"):
 		"""
 		Plot hazard curves for all spectral periods
 		Parameters:
@@ -2245,10 +2250,9 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 		if title is None:
 			title = "Spectral Hazard Curve"
 			title += "\nSite: %s" % self.site.name
-		datasets = [(self.intensities[k], self.exceedance_rates[k]) for k in range(self.num_periods)]
+		datasets = [(self.get_intensities(intensity_unit)[k], self.exceedance_rates[k]) for k in range(self.num_periods)]
 		labels = ["T = %s s" % period for period in self.periods]
 		fixed_life_time = {True: self.timespan, False: None}[want_poe]
-		intensity_unit = self.intensity_unit
 		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=[linestyle], linewidths=[linewidth], fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=rp_max, legend_location=legend_location, lang=lang)
 
 	plot.__doc__ += common_plot_docstring
@@ -2471,7 +2475,7 @@ class HazardCurveField(HazardResult, HazardField):
 			variances = None
 		return SpectralHazardCurveField(self.model_name, hazard_values, [self.filespec], self.sites, [self.period], self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
 
-	def plot(self, site_specs=[], labels=None, colors=None, linestyles=None, linewidth=2, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+	def plot(self, site_specs=[], labels=None, colors=None, linestyles=None, linewidth=2, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, intensity_unit="g", rp_max=1E+07, legend_location=0, lang="en"):
 		"""
 		Plot hazard curves for one or more sites.
 		Parameters:
@@ -2507,12 +2511,11 @@ class HazardCurveField(HazardResult, HazardField):
 		exceedance_rates = self.exceedance_rates
 		for site in sites:
 			site_index = self.site_index(site)
-			x = self.intensities
+			x = self.get_intensities(intensity_unit)
 			y = exceedance_rates[site_index]
 			datasets.append((x, y))
 
 		fixed_life_time = {True: self.timespan, False: None}[want_poe]
-		intensity_unit = self.intensity_unit
 		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=rp_max, legend_location=legend_location, lang=lang)
 
 	plot.__doc__ += common_plot_docstring
@@ -2667,7 +2670,7 @@ class HazardCurve(HazardResult):
 			variances = None
 		return HazardCurveField(self.model_name, hazard_values, self.filespec, [self.site], self.period, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
 
-	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, rp_max=1E+07, legend_location=0, lang="en"):
+	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, intensity_unit="g", rp_max=1E+07, legend_location=0, lang="en"):
 		"""
 		Plot hazard curve
 		Parameters:
@@ -2678,10 +2681,9 @@ class HazardCurve(HazardResult):
 		if title is None:
 			title = "Hazard Curve"
 			title += "\nSite: %s, T: %s s" % (self.site_name, self.period)
-		datasets = [(self.intensities, self.exceedance_rates)]
+		datasets = [(self.get_intensities(intensity_unit), self.exceedance_rates)]
 		labels = [self.model_name]
 		fixed_life_time = {True: self.timespan, False: None}[want_poe]
-		intensity_unit = self.intensity_unit
 		plot_hazard_curve(datasets, labels=labels, colors=[color], linestyles=[linestyle], linewidths=[linewidth], fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=rp_max, legend_location=legend_location, lang=lang)
 
 	plot.__doc__ += common_plot_docstring
@@ -2739,13 +2741,12 @@ class HazardCurveCollection:
 	def intensity_unit(self):
 		return self.hazard_curves[0].intensity_unit
 
-	def plot(self, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, tr_max=1E+07, legend_location=0, lang="en"):
+	def plot(self, fig_filespec=None, title=None, want_recurrence=False, want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None, amax=None, intensity_unit="g", tr_max=1E+07, legend_location=0, lang="en"):
 		if title is None:
 			title = "Hazard Curve Collection"
-		datasets = [(hc.intensities, hc.exceedance_rates) for hc in self.hazard_curves]
+		datasets = [(hc.get_intensities(intensity_unit), hc.exceedance_rates) for hc in self.hazard_curves]
 		hc0 = self.hazard_curves[0]
 		fixed_life_time = {True: hc0.timespan, False: None}[want_poe]
-		intensity_unit = hc0.intensity_unit
 		plot_hazard_curve(datasets, labels=self.labels, colors=self.colors, linestyles=self.linestyles, linewidths=self.linewidths, fig_filespec=fig_filespec, title=title, want_recurrence=want_recurrence, fixed_life_time=fixed_life_time, interpol_rp=interpol_rp, interpol_prob=interpol_prob, interpol_rp_range=interpol_rp_range, amax=amax, intensity_unit=intensity_unit, tr_max=tr_max, legend_location=legend_location, lang=lang)
 
 	plot.__doc__ = common_plot_docstring
@@ -3234,16 +3235,14 @@ class UHSField(HazardResult, HazardField, HazardSpectrum):
 		plot_hazard_spectrum(datasets, pgm=pgm, pgm_period=pgm_period, labels=labels, colors=colors, linestyles=linestyles, linewidths=linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
 
 
-class ResponseSpectrum(HazardSpectrum):
+class ResponseSpectrum(HazardSpectrum, IntensityResult):
 	"""
 	Generic response spectrum
 	"""
 	def __init__(self, model_name, periods, IMT, intensities, intensity_unit="g"):
 		HazardSpectrum.__init__(self, periods)
+		IntensityResult.__init__(self, IMT, intensities, intensity_unit)
 		self.model_name = model_name
-		self.IMT = IMT
-		self.intensities = as_array(intensities)
-		self.intensity_unit = intensity_unit
 
 	def __mul__(self, other):
 		"""
@@ -3323,18 +3322,18 @@ class ResponseSpectrum(HazardSpectrum):
 		return ResponseSpectrum(model_name, out_periods, self.IMT, intensities,
 								self.intensity_unit)
 
-	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
+	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", pgm_period=0.02, legend_location=0, lang="en"):
 		if title is None:
 			title = "Response Spectrum"
+		intensities = self.get_intensities(intensity_unit)
 		## Plot PGM separately if present
 		if 0 in self.periods:
-			pgm = [self.pgm]
-			datasets = [(self.periods[self.periods>0], self.intensities[self.periods>0])]
+			pgm = [intensities[self.periods==0]]
+			datasets = [(self.periods[self.periods>0], intensities[self.periods>0])]
 		else:
 			pgm = None
-			datasets = [(self.periods, self.intensities)]
+			datasets = [(self.periods, intensities)]
 		labels = [self.model_name]
-		intensity_unit = self.intensity_unit
 		plot_hazard_spectrum(datasets, pgm=pgm, pgm_period=pgm_period, labels=labels, colors=[color], linestyles=[linestyle], linewidths=[linewidth], fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
 
 	def get_fas_irvt(self, pgm_freq=50. , mag=6.0, distance=10, region="ENA"):
@@ -3469,11 +3468,11 @@ class UHS(HazardResult, ResponseSpectrum):
 	def site_name(self):
 		return self.site.name
 
-	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
+	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", pgm_period=0.02, legend_location=0, lang="en"):
 		if title is None:
 			title = "UHS"
 			title += "\nSite: %s, Return period: %d yr" % (self.site_name, self.return_periods[0])
-		ResponseSpectrum.plot(self, color, linestyle, linewidth, fig_filespec, title, plot_freq, plot_style, Tmin, Tmax, amin, amax, pgm_period, legend_location, lang)
+		ResponseSpectrum.plot(self, color, linestyle, linewidth, fig_filespec, title, plot_freq, plot_style, Tmin, Tmax, amin, amax, intensity_unit, pgm_period, legend_location, lang)
 
 	@classmethod
 	def from_csv(self, csv_filespec, site, col_spec=1, intensity_unit="g", model_name="", timespan=50, poe=None, return_period=None):
@@ -3717,16 +3716,17 @@ class UHSCollection:
 
 		return UHSCollection(uhs_list)
 
-	def plot(self, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, pgm_period=0.02, legend_location=0, lang="en"):
+	def plot(self, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", pgm_period=0.02, legend_location=0, lang="en"):
 		if title is None:
 			title = "UHS Collection"
 		pgm, datasets = [], []
 		for uhs in self.UHSlist:
+			intensities = uhs.get_intensities(intensity_unit)
 			if 0 in uhs.periods:
-				pgm.append(uhs.pgm)
+				pgm.append(intensities[uhs.periods == 0])
 			else:
 				pgm.append(np.nan)
-			datasets.append((uhs.periods[uhs.periods>0], uhs.intensities[uhs.periods>0]))
+			datasets.append((uhs.periods[uhs.periods>0], intensities[uhs.periods>0]))
 		#uhs0 = self.UHSlist[0]
 		#if 0 in uhs0.periods:
 		#	pgm = [uhs.intensities[uhs.periods==0] for uhs in self.UHSlist]
@@ -3735,8 +3735,6 @@ class UHSCollection:
 		#	pgm = None
 		#	datasets = [(uhs.periods, uhs.intensities) for uhs in self.UHSlist]
 
-
-		intensity_unit = self.intensity_unit
 		plot_hazard_spectrum(datasets, pgm=pgm, pgm_period=pgm_period, labels=self.labels, colors=self.colors, linestyles=self.linestyles, linewidths=self.linewidths, fig_filespec=fig_filespec, title=title, plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax, intensity_unit=intensity_unit, legend_location=legend_location, lang=lang)
 
 
@@ -4051,6 +4049,7 @@ class HazardMap(HazardResult, HazardField):
 			Int, image resolution in dots per inch (default: 300)
 		"""
 		import mapping.Basemap as lbm
+		from plot import get_intensity_unit_label
 
 		## Construct default styles:
 		if site_style == "default":
@@ -4118,14 +4117,13 @@ class HazardMap(HazardResult, HazardField):
 
 		## Intensity grid
 		if self.IMT == "SA":
-			imt_label = "%s (%s s)" % (self.IMT, self.period)
+			if self.period == 0:
+				imt_label = "PGA"
+			else:
+				imt_label = "%s (%s s)" % (self.IMT, self.period)
 		else:
 			imt_label = self.IMT
-		intensity_unit_label = "%s" % intensity_unit
-		if intensity_unit == "ms2":
-			intensity_unit_label = "$m/s^2$"
-		elif intensity_unit == "cms2":
-			intensity_unit_label = "$cm/s^2$"
+		intensity_unit_label = get_intensity_unit_label(intensity_unit)
 		cbar_label = imt_label
 		if intensity_unit:
 			cbar_label += ' (%s)' % intensity_unit_label
