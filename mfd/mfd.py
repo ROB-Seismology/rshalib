@@ -548,7 +548,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			if method == "LSQc":
 				occurrence_rates = self.get_cumulative_rates()
 			elif method == "LSQi":
-				occurrence_rates = self.occurrence_rates
+				occurrence_rates = np.array(self.occurrence_rates)
 			a, b, stda, stdb = calcGR_LSQ(magnitudes, occurrence_rates, b_val=b_val, verbose=verbose)
 			if method == "LSQi":
 				## Compute a value for cumulative MFD from discrete a value
