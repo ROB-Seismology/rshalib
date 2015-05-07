@@ -707,7 +707,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		occur_rates_elem.text = " ".join(map(str, self.occurrence_rates))
 		return edi_elem
 
-	def plot(self, color='k', style="o", label="", discrete=True, cumul_or_inc="both", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, fig_width=0, dpi=300):
+	def plot(self, color='k', style="o", label="", discrete=True, cumul_or_inc="both", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, ax=None, fig_width=0, dpi=300):
 		"""
 		Plot magnitude-frequency distribution
 
@@ -742,13 +742,20 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		:param fig_filespec:
 			String, full path to output image file, if None plot to screen
 			(default: None)
+		:param ax:
+			instance of :class:`~matplotlib.axes.Axes` in which plot will
+			be made (default: None, will create new figure and axes)
 		:param fig_width:
 			Float, figure width in cm, used to recompute :param:`dpi` with
 			respect to default figure width (default: 0)
 		:param dpi:
 			Int, image resolution in dots per inch (default: 300)
+
+		:return:
+			if both :param:`ax` and :param:`fig_filespec` are None, a
+			(ax, fig) tuple will be returned
 		"""
-		plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, fig_width=fig_width, dpi=dpi)
+		return plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, ax=ax, fig_width=fig_width, dpi=dpi)
 
 
 
@@ -1056,7 +1063,7 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 
 		return tgr_elem
 
-	def plot(self, color='k', style="-", label="", discrete=False, cumul_or_inc="cumul", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, fig_width=0, dpi=300):
+	def plot(self, color='k', style="-", label="", discrete=False, cumul_or_inc="cumul", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, ax=None, fig_width=0, dpi=300):
 		"""
 		Plot magnitude-frequency distribution
 
@@ -1091,13 +1098,20 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 		:param fig_filespec:
 			String, full path to output image file, if None plot to screen
 			(default: None)
+		:param ax:
+			instance of :class:`~matplotlib.axes.Axes` in which plot will
+			be made (default: None, will create new figure and axes)
 		:param fig_width:
 			Float, figure width in cm, used to recompute :param:`dpi` with
 			respect to default figure width (default: 0)
 		:param dpi:
 			Int, image resolution in dots per inch (default: 300)
+
+		:return:
+			if both :param:`ax` and :param:`fig_filespec` are None, a
+			(ax, fig) tuple will be returned
 		"""
-		plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, fig_width=fig_width, dpi=dpi)
+		return plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, ax=ax, fig_width=fig_width, dpi=dpi)
 
 	def to_truncated_GR_mfd(self, min_mag=None, max_mag=None, bin_width=None):
 		"""
@@ -1387,7 +1401,7 @@ class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, EvenlyDiscret
 		"""
 		return self.min_mag + self.bin_width / 2
 
-	def plot(self, color='k', style="-", label="", discrete=True, cumul_or_inc="both", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, fig_width=0, dpi=300):
+	def plot(self, color='k', style="-", label="", discrete=True, cumul_or_inc="both", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, ax=None, fig_width=0, dpi=300):
 		"""
 		Plot magnitude-frequency distribution
 
@@ -1422,13 +1436,20 @@ class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, EvenlyDiscret
 		:param fig_filespec:
 			String, full path to output image file, if None plot to screen
 			(default: None)
+		:param ax:
+			instance of :class:`~matplotlib.axes.Axes` in which plot will
+			be made (default: None, will create new figure and axes)
 		:param fig_width:
 			Float, figure width in cm, used to recompute :param:`dpi` with
 			respect to default figure width (default: 0)
 		:param dpi:
 			Int, image resolution in dots per inch (default: 300)
+
+		:return:
+			if both :param:`ax` and :param:`fig_filespec` are None, a
+			(ax, fig) tuple will be returned
 		"""
-		plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, fig_width=fig_width, dpi=dpi)
+		return plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, ax=ax, fig_width=fig_width, dpi=dpi)
 
 
 def sum_MFDs(mfd_list, weights=[]):
@@ -1495,7 +1516,7 @@ def sum_MFDs(mfd_list, weights=[]):
 	return EvenlyDiscretizedMFD(min_mag+bin_width/2, bin_width, occurrence_rates, Mtype)
 
 
-def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_inc=[], completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", legend_location=1, fig_filespec=None, fig_width=0, dpi=300):
+def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_inc=[], completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", legend_location=1, fig_filespec=None, ax=None, fig_width=0, dpi=300):
 	"""
 	Plot one or more magnitude-frequency distributions
 
@@ -1536,13 +1557,30 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 	:param fig_filespec:
 		String, full path to output image file, if None plot to screen
 		(default: None)
+	:param ax:
+		instance of :class:`~matplotlib.axes.Axes` in which plot will
+		be made (default: None, will create new figure and axes)
 	:param fig_width:
 		Float, figure width in cm, used to recompute :param:`dpi` with
 		respect to default figure width (default: 0)
 	:param dpi:
 		Int, image resolution in dots per inch (default: 300)
+
+	:return:
+		if both :param:`ax` and :param:`fig_filespec` are None, a
+		(ax, fig) tuple will be returned
 	"""
-	pylab.clf()
+	if ax is None:
+		## Note: clf call seems to create a figure as well
+		pylab.clf()
+		fig = pylab.gcf()
+		#fig = pylab.figure()
+		ax = fig.add_subplot(1, 1, 1)
+		interactive = True
+	else:
+		ax.cla()
+		fig = pylab.gcf()
+		interactive = False
 
 	if not colors:
 		colors = ("r", "g", "b", "c", "m", "k")
@@ -1607,14 +1645,14 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 				label = labels[i]
 				if want_incremental:
 					label += " (cumul.)"
-				ax = pylab.semilogy(mfd.get_magnitude_bin_edges(), mfd.get_cumulative_rates(), symbol, label=label)
-				pylab.setp(ax, markersize=10.0, markeredgewidth=1.0, markeredgecolor='k', markerfacecolor=color)
+				obj_list = ax.semilogy(mfd.get_magnitude_bin_edges(), mfd.get_cumulative_rates(), symbol, label=label)
+				pylab.setp(obj_list, markersize=10.0, markeredgewidth=1.0, markeredgecolor='k', markerfacecolor=color)
 
 			## Incremental
 			if want_incremental:
 				label = labels[i] + " (inc.)"
-				ax = pylab.semilogy(mfd.get_magnitude_bin_centers(), mfd.occurrence_rates, symbol, label=label)
-				pylab.setp(ax, markersize=10.0, markeredgewidth=1.0, markeredgecolor=color, markerfacecolor="None")
+				obj_list = ax.semilogy(mfd.get_magnitude_bin_centers(), mfd.occurrence_rates, symbol, label=label)
+				pylab.setp(obj_list, markersize=10.0, markeredgewidth=1.0, markeredgecolor=color, markerfacecolor="None")
 
 		## Continuous MFD
 		else:
@@ -1631,12 +1669,12 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 				label = labels[i]
 				if want_incremental:
 					label += " (cumul.)"
-				ax = pylab.semilogy(mfd.get_magnitude_bin_edges(), mfd.get_cumulative_rates(), color, linestyle=linestyle, lw=3, label=label)
+				ax.semilogy(mfd.get_magnitude_bin_edges(), mfd.get_cumulative_rates(), color, linestyle=linestyle, lw=3, label=label)
 
 			## Incremental
 			if want_incremental:
 				label = labels[i] + " (inc.)"
-				ax = pylab.semilogy(mfd.get_magnitude_bin_centers(), mfd.occurrence_rates, color, linestyle=linestyle, lw=1, label=label)
+				ax.semilogy(mfd.get_magnitude_bin_centers(), mfd.occurrence_rates, color, linestyle=linestyle, lw=1, label=label)
 
 	if not Mrange:
 		Mrange = pylab.axis()[:2]
@@ -1647,14 +1685,13 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 	if completeness:
 		annoty = Freq_range[0] * 10**0.5
 		bbox_props = dict(boxstyle="round,pad=0.4", fc="w", ec="k", lw=1)
-		ax = pylab.gca()
 		## Make sure min_mags is not sorted in place,
 		## otherwise completeness object may misbehave
 		min_mags = np.sort(completeness.min_mags)
 		if not end_year:
 			end_year = datetime.date.today().year
 		for i in range(1, len(min_mags)):
-			pylab.plot([min_mags[i], min_mags[i]], Freq_range, 'k--', lw=1, label="_nolegend_")
+			ax.plot([min_mags[i], min_mags[i]], Freq_range, 'k--', lw=1, label="_nolegend_")
 			ax.annotate("", xy=(min_mags[i-1], annoty), xycoords='data', xytext=(min_mags[i], annoty), textcoords='data', arrowprops=dict(arrowstyle="<->"),)
 			label = "%s - %s" % (completeness.get_completeness_year(min_mags[i-1]), end_year)
 			ax.text(np.mean([min_mags[i-1], min_mags[i]]), annoty*10**-0.25, label, ha="center", va="center", size=12, bbox=bbox_props)
@@ -1663,16 +1700,15 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 		ax.text(np.mean([min_mags[i], mfd.max_mag]), annoty*10**-0.25, label, ha="center", va="center", size=12, bbox=bbox_props)
 
 	## Apply plot limits
-	pylab.axis((Mrange[0], Mrange[1], Freq_range[0], Freq_range[1]))
+	ax.axis((Mrange[0], Mrange[1], Freq_range[0], Freq_range[1]))
 
-	pylab.xlabel("Magnitude ($M_%s$)" % mfd.Mtype[1].upper(), fontsize="x-large")
+	ax.set_xlabel("Magnitude ($M_%s$)" % mfd.Mtype[1].upper(), fontsize="x-large")
 	label = {"en": "Annual number of earthquakes", "nl": "Aantal aardbevingen per jaar", "fr": "Nombre de seismes par annee"}[lang.lower()]
-	pylab.ylabel(label, fontsize="x-large")
-	pylab.title(title, fontsize='x-large')
-	pylab.grid(True)
+	ax.set_ylabel(label, fontsize="x-large")
+	ax.set_title(title, fontsize='x-large')
+	ax.grid(True)
 	font = FontProperties(size='medium')
-	pylab.legend(loc=legend_location, prop=font)
-	ax = pylab.gca()
+	ax.legend(loc=legend_location, prop=font)
 	for label in ax.get_xticklabels() + ax.get_yticklabels():
 		label.set_size('large')
 
@@ -1683,9 +1719,11 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 			fig_width /= 2.54
 			dpi = dpi * (fig_width / default_figsize[0])
 
-		pylab.savefig(fig_filespec, dpi=dpi)
-	else:
+		fig.savefig(fig_filespec, dpi=dpi)
+	elif interactive:
 		pylab.show()
+	else:
+		return ax, fig
 
 
 def alphabetalambda(a, b, M=0):
