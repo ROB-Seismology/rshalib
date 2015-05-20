@@ -3372,6 +3372,33 @@ class FaccioliEtAl2010(NhlibGMPE):
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
 
 
+class FaccioliEtAl2010Ext(NhlibGMPE):
+	def __init__(self):
+		name, short_name = "FaccioliEtAl2010Ext", "F_2010X"
+		distance_metric = "Rupture"
+		Mmin, Mmax = 4.5, 7.6
+		# TODO: check valid distance range!
+		dmin, dmax = 1., 150.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5):
+		"""
+		"""
+		if vs30 is None:
+			if soil_type in ("rock", "typeA"):
+				vs30 = 801
+			elif soil_type == "typeB":
+				vs30 = 600
+			elif soil_type == "typeC":
+				vs30 = 270
+			elif soil_type == "typeD":
+				vs30 = 150
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, mechanism=mechanism, damping=damping)
+
+
 class ToroEtAl2002(NhlibGMPE):
 	def __init__(self):
 		name, short_name = "ToroEtAl2002", "T_2002"
