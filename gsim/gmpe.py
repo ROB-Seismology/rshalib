@@ -2694,6 +2694,45 @@ class NhlibGMPE(GMPE):
 
 		See :meth:`__call__` for params.
 		"""
+
+		from openquake.hazardlib.scalerel import PointMSR
+		from hazard.rshalib.source.rupture import Rupture
+
+		## Create rupture
+		lon, lat = 0., 0.
+		depth = max(0.1, h)
+		mag = M
+		strike, dip = 0., 45.
+		rake = {'normal': -90., 'reverse': 90., 'strike-slip': 0.}[mechanism]
+		trt = ""
+		rms, rar = 1., 1.
+		usd, lsd = 0., depth*2
+		msr = PointMSR()
+
+		rupture = Rupture.from_hypocenter(lon, lat, depth, mag, strike, dip, rake,
+											trt, rms, rar, usd, lsd, msr)
+
+		## Create site collection
+		from ..site import SHASiteModel
+
+		azimuth = 90
+		lons, lats = nhlib.geo.geodetic.point_at(lon, lat, azimuth, d)
+		depths = np.zeros_like(d)
+		sha_site_model = SHASiteModel(lons=lons, lats=lats, depths=depths)
+
+		if not vs30:
+			vs30 = 800.
+		if not z1pt0:
+			z1pt0 = 1.
+		if not z2pt5:
+			z2pt5 = 1.
+		ref_soil_params = {"vs30": vs30, "vs30measured": vs30measured, "z1pt0": z1pt0, "z2pt5": z2pt5, "kappa": kappa}
+		soil_site_model = sha_site_model.to_soil_site_model(ref_soil_params=ref_soil_params)
+
+		## Create contexts
+		sctx, rctx, dctx = self.gmpe().make_contexts(soil_site_model, rupture)
+
+		"""
 		## set site context
 		sctx = nhlib.gsim.base.SitesContext()
 		if not vs30:
@@ -2717,11 +2756,11 @@ class NhlibGMPE(GMPE):
 		## set rupture context
 		rctx = nhlib.gsim.base.RuptureContext()
 		rctx.mag = M
-#		rctx.dip = None
+		#rctx.dip = None
 		rctx.rake = {'normal': -90., 'reverse': 90., 'strike-slip': 0.}[mechanism]
-#		rctx.ztor = None
+		#rctx.ztor = None
 		rctx.hypo_depth = h
-#		rctx.width = None
+		#rctx.width = None
 
 		## set distance context
 		dctx = nhlib.gsim.base.DistancesContext()
@@ -2740,9 +2779,11 @@ class NhlibGMPE(GMPE):
 			## Other required parameters
 			setattr(rctx, "ztor", 5.)
 			## The following parameters probably only concern site effects
-#			setattr(sctx, "z1pt0", np.array([0.034]))
+			#setattr(sctx, "z1pt0", np.array([0.034]))
 			# TODO: check whether vs30measured should be a boolean
-#			setattr(sctx, "vs30measured", np.zeros_like(sctx.vs30, dtype=bool))
+			#setattr(sctx, "vs30measured", np.zeros_like(sctx.vs30, dtype=bool))
+		"""
+
 		## set imt
 		if imt == "SA":
 			imt_object = self.IMT_DICT[imt](T, damping)
