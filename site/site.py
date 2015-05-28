@@ -124,7 +124,7 @@ class SHASiteModel(nhlib.geo.Mesh):
 			or str, grid spacing in km (string must end with "km")
 			(default: None)
 		"""
-		if lons and lats: ## (1) lons and lats (and depths)
+		if not None in (lons, lats): ## (1) lons and lats (and depths)
 			super(SHASiteModel, self).__init__(lons, lats, depths)
 			self.sites = None
 			self.names = None
