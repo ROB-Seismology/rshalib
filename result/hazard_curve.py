@@ -290,7 +290,8 @@ class IntensityResult:
 			conv_factor = 1.
 
 		if conv_factor is None:
-			raise Exception("Unable to convert intensity units!")
+			raise Exception("Unable to convert intensity unit %s for %s!"
+							% (intensity_unit, self.IMT))
 
 		return self.intensities * conv_factor
 
