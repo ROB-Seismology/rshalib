@@ -1704,6 +1704,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 			float, lower probability value below which to clip output
 			(default: 1E-8)
 		"""
+		# TODO: use nrml.ns where possible!
 		import time
 		from lxml import etree
 		from ..nrml import ns
@@ -1730,7 +1731,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		for dc in self:
 			#print dc, time.time()
 			dc_elem = etree.SubElement(sdc_elem, "deaggregationCurve")
-			dc_elem.set("imt", str(dc.imt))
+			dc_elem.set("IMT", str(dc.imt))
 			dc_elem.set("saPeriod", str(dc.period))
 			for ds_idx, ds in enumerate(dc):
 				#print ds, time.time()
