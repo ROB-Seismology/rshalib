@@ -432,6 +432,8 @@ def parse_spectral_deaggregation_curve(xml_filespec, site_name=None, ignore_coor
 	dcs = []
 	for dc_elem in sdc_elem.findall(ns.DEAGGREGATION_CURVE):
 		imt = dc_elem.get(ns.IMT)
+		if imt is None:
+			imt = dc_elem.get(ns.IMT.lower())
 		period = float(dc_elem.get(ns.PERIOD, 0.))
 		dss = []
 		for iml_idx, ds_elem in enumerate(dc_elem.findall(ns.DEAGGREGATION_SLICE)):
@@ -699,7 +701,7 @@ def write_disaggregation_slice(site, imt, period, iml, poe, timespan, bin_edges,
 		lon, lat = site[0], site[1]
 		diss.set(ns.LON, str(lon))
 		diss.set(ns.LAT, str(lat))
-		diss.set(ns.IMT, str(iml))
+		diss.set(ns.IMT, str(imt))
 		diss.set(ns.PERIOD, str(period))
 		diss.set(ns.IML, str(iml))
 		diss.set(ns.POE, str(poe))
