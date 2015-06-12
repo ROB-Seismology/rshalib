@@ -4062,22 +4062,22 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				num_intensities = len(sdc.return_periods)
 				summed_deagg_matrix = SpectralDeaggregationCurve.construct_empty_deagg_matrix(num_periods, num_intensities, bin_edges, sdc.deagg_matrix.__class__, dtype)
 
-				max_mag_idx = min(sdc.nmags, len(mag_bins) - 1)
-				min_lon_idx = int((sdc.min_lon - lon_bins[0]) / sdc.lon_bin_width)
-				max_lon_idx = min_lon_idx + sdc.nlons
-				min_lat_idx = int((sdc.min_lat - lat_bins[0]) / sdc.lat_bin_width)
-				max_lat_idx = min_lat_idx + sdc.nlats
-				try:
-					trt_idx = trts.index(src.source_id)
-				except:
-					trt_idx = trts.index(src.tectonic_region_type)
+			max_mag_idx = min(sdc.nmags, len(mag_bins) - 1)
+			min_lon_idx = int((sdc.min_lon - lon_bins[0]) / sdc.lon_bin_width)
+			max_lon_idx = min_lon_idx + sdc.nlons
+			min_lat_idx = int((sdc.min_lat - lat_bins[0]) / sdc.lat_bin_width)
+			max_lat_idx = min_lat_idx + sdc.nlats
+			try:
+				trt_idx = trts.index(src.source_id)
+			except:
+				trt_idx = trts.index(src.tectonic_region_type)
 
-				summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:max_mag_idx,:,:,:,:,0]
-				del sdc.deagg_matrix
-				gc.collect()
-			#intensities = np.zeros(sdc.intensities.shape)
-			summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
-			summed_sdc.model_name = "%s weighted mean" % source_model_name
+			summed_deagg_matrix[:,:,:max_mag_idx,:,min_lon_idx:max_lon_idx,min_lat_idx:max_lat_idx,:,trt_idx] += sdc.deagg_matrix[:,:,:max_mag_idx,:,:,:,:,0]
+			del sdc.deagg_matrix
+			gc.collect()
+		#intensities = np.zeros(sdc.intensities.shape)
+		summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix, sdc.site, sdc.imt, sdc.intensities, sdc.periods, sdc.return_periods, sdc.timespan)
+		summed_sdc.model_name = "%s weighted mean" % source_model_name
 
 		return summed_sdc
 
