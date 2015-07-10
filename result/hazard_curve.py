@@ -3986,7 +3986,7 @@ class HazardMap(HazardResult, HazardField):
 			vmgrd.WriteRow(row, (nrows-1)-rownr)
 		vmgrd.Close()
 
-	def export_GeoTiff(self, base_filespec, num_cells=100, cell_size=None, interpol_method='cubic', intensity_unit='g', nodata_value=np.nan):
+	def export_GeoTiff(self, base_filespec, num_cells=None, cell_size=None, interpol_method='cubic', intensity_unit='g', nodata_value=np.nan):
 		"""
 		Export hazard map to GeoTiff raster
 
@@ -3996,7 +3996,7 @@ class HazardMap(HazardResult, HazardField):
 		:param num_cells:
 			int or tuple of ints, number of grid cells in X and Y direction
 			If None, :param:`cell_size` must be set
-			(default: 100, will create 100x100 raster)
+			(default: None)
 		:param cell_size:
 			float or tuple of floats, cell size (in decimal degrees)
 			in X and Y direction.
@@ -4014,6 +4014,8 @@ class HazardMap(HazardResult, HazardField):
 			(default: np.nan)
 		"""
 		import gdal, osr
+
+		assert num_cells or cell_size
 
 		if self.IMT in ("PGA", "PGV", "PGV"):
 			imt_label = self.IMT
@@ -4040,19 +4042,26 @@ class HazardMap(HazardResult, HazardField):
 			lonmax = np.ceil(lonmax / cell_size[0]) * cell_size[0]
 			latmin = np.floor(latmin / cell_size[1]) * cell_size[1]
 			latmax = np.ceil(latmax / cell_size[1]) * cell_size[1]
-			nlons = int((lonmax - lonmin) / cell_size[0] + 1)
-			nlats = int((latmax - latmin) / cell_size[1] + 1)
+			nlons = int(round((lonmax - lonmin) / cell_size[0] + 1))
+			nlats = int(round((latmax - latmin) / cell_size[1] + 1))
 			num_cells = (nlons, nlats)
 
 		extent = (lonmin, lonmax, latmin, latmax)
+		#print extent, cell_size, num_cells
 
 		intensities = self.get_grid_intensities(extent=extent, num_cells=num_cells,
 							method=interpol_method, intensity_unit=intensity_unit,
 							nodata_value=nodata_value)
+		## Order of rows should be north to south, otherwise image is upside down
+		intensities = intensities[::-1,:]
 
 		driver = gdal.GetDriverByName("Gtiff")
 		ds = driver.Create(grd_filespec, nlons, nlats, 1, gdal.GDT_Float32)
-		ds.SetGeoTransform((lonmin, cell_size[0], 0, latmin, 0, cell_size[1]))
+		## Affine transform takes 6 parameters:
+		## top left x, cell size x, rotation, top left y, rotation, cell size y
+		## Note that x, y coordinates refer to top left corner of top left pixel!
+		## For north-up images, rotation coefficients are zero
+		ds.SetGeoTransform((lonmin-cell_size[0]/2., cell_size[0], 0, latmax+cell_size[1]/2., 0, -cell_size[1]))
 		srs = osr.SpatialReference()
 		srs.SetWellKnownGeogCS("WGS84")
 		ds.SetProjection(srs.ExportToWkt())
