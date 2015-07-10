@@ -500,7 +500,7 @@ class HazardField:
 			num_cells = (num_cells, num_cells)
 		return np.meshgrid(self.get_grid_longitudes(lonmin, lonmax, num_cells[0]), self.get_grid_latitudes(latmin, latmax, num_cells[1]))
 
-	def get_grid_intensities(self, extent=(None, None, None, None), num_cells=100, method="cubic", intensity_unit="g"):
+	def get_grid_intensities(self, extent=(None, None, None, None), num_cells=100, method="cubic", intensity_unit="g", nodata_value=np.nan):
 		"""
 		Convert intensities to a spatial grid (2-D array)
 
@@ -521,10 +521,10 @@ class HazardField:
 #		z = self.get_intensities(intensity_unit=intensity_unit)
 		#zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method='cubic')
 #		zi = griddata((x, y), z, (xi, yi), method=method)
-		zi = self.get_site_intensities(xi, yi, method, intensity_unit)
+		zi = self.get_site_intensities(xi, yi, method, intensity_unit, nodata_value=nodata_value)
 		return zi
 
-	def get_site_intensities(self, lons, lats, method="cubic", intensity_unit="g"):
+	def get_site_intensities(self, lons, lats, method="cubic", intensity_unit="g", nodata_value=np.nan):
 		"""
 		Interpolate intensities for given sites.
 
@@ -539,7 +539,7 @@ class HazardField:
 		from scipy.interpolate import griddata
 		x, y = self.longitudes, self.latitudes
 		z = self.get_intensities(intensity_unit=intensity_unit)
-		zi = griddata((x, y), z, (lons, lats), method=method)
+		zi = griddata((x, y), z, (lons, lats), method=method, fill_value=nodata_value)
 		return zi
 
 	def get_grid_properties(self):
@@ -3985,6 +3985,81 @@ class HazardMap(HazardResult, HazardField):
 		for rownr, row in enumerate(intensity_grid):
 			vmgrd.WriteRow(row, (nrows-1)-rownr)
 		vmgrd.Close()
+
+	def export_GeoTiff(self, base_filespec, num_cells=100, cell_size=None, interpol_method='cubic', intensity_unit='g', nodata_value=np.nan):
+		"""
+		Export hazard map to GeoTiff raster
+
+		:param base_filespec:
+			str, base output file specification, spectral period,
+			return period and TIF extension will be appended to filename
+		:param num_cells:
+			int or tuple of ints, number of grid cells in X and Y direction
+			If None, :param:`cell_size` must be set
+			(default: 100, will create 100x100 raster)
+		:param cell_size:
+			float or tuple of floats, cell size (in decimal degrees)
+			in X and Y direction.
+			If None, :param:`num_cells` must be set
+			(default: None)
+		:param interpol_method:
+			str, interpolation method supported by griddata, one of
+			"nearest", "linear" or "cubic"
+			(default: "cubic")
+		:param intensity_unit:
+			string, intensity unit to scale result,
+			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
+		:param nodata_value:
+			float, value to use for "no data"
+			(default: np.nan)
+		"""
+		import gdal, osr
+
+		if self.IMT in ("PGA", "PGV", "PGV"):
+			imt_label = self.IMT
+		else:
+			imt_label = "T=%.3fs" % self.period
+		rp_label = "%.3Gyr" % self.return_period
+		grd_filespec = os.path.splitext(base_filespec)[0] + "_%s_%s.TIF" % (imt_label, rp_label)
+
+		if isinstance(num_cells, int):
+			num_cells = (num_cells, num_cells)
+		if isinstance(cell_size, int):
+			cell_size = (cell_size, cell_size)
+
+		lonmin, lonmax = self.lonmin(), self.lonmax()
+		latmin, latmax = self.latmin(), self.latmax()
+
+		if num_cells:
+			nlons, nlats = num_cells
+			cell_size_x = (lonmax - lonmin) / (num_cells[0] - 1)
+			cell_size_y = (latmax - latmin) / (num_cells[1] - 1)
+			cell_size = (cell_size_x, cell_size_y)
+		else:
+			lonmin = np.floor(lonmin / cell_size[0]) * cell_size[0]
+			lonmax = np.ceil(lonmax / cell_size[0]) * cell_size[0]
+			latmin = np.floor(latmin / cell_size[1]) * cell_size[1]
+			latmax = np.ceil(latmax / cell_size[1]) * cell_size[1]
+			nlons = int((lonmax - lonmin) / cell_size[0] + 1)
+			nlats = int((latmax - latmin) / cell_size[1] + 1)
+			num_cells = (nlons, nlats)
+
+		extent = (lonmin, lonmax, latmin, latmax)
+
+		intensities = self.get_grid_intensities(extent=extent, num_cells=num_cells,
+							method=interpol_method, intensity_unit=intensity_unit,
+							nodata_value=nodata_value)
+
+		driver = gdal.GetDriverByName("Gtiff")
+		ds = driver.Create(grd_filespec, nlons, nlats, 1, gdal.GDT_Float32)
+		ds.SetGeoTransform((lonmin, cell_size[0], 0, latmin, 0, cell_size[1]))
+		srs = osr.SpatialReference()
+		srs.SetWellKnownGeogCS("WGS84")
+		ds.SetProjection(srs.ExportToWkt())
+		band = ds.GetRasterBand(1)
+		band.WriteArray(intensities.astype(np.float32))
+		band.SetNoDataValue(nodata_value)
+		ds.FlushCache()
 
 	def export_kml(self):
 		# TODO!
