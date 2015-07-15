@@ -1669,12 +1669,12 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 				label = labels[i]
 				if want_incremental:
 					label += " (cumul.)"
-				ax.semilogy(mfd.get_magnitude_bin_edges(), mfd.get_cumulative_rates(), color, linestyle=linestyle, lw=3, label=label)
+				ax.semilogy(mfd.get_magnitude_bin_edges(), mfd.get_cumulative_rates(), color=color, linestyle=linestyle, lw=3, label=label)
 
 			## Incremental
 			if want_incremental:
 				label = labels[i] + " (inc.)"
-				ax.semilogy(mfd.get_magnitude_bin_centers(), mfd.occurrence_rates, color, linestyle=linestyle, lw=1, label=label)
+				ax.semilogy(mfd.get_magnitude_bin_centers(), mfd.occurrence_rates, color=color, linestyle=linestyle, lw=1, label=label)
 
 	if not Mrange:
 		Mrange = pylab.axis()[:2]
