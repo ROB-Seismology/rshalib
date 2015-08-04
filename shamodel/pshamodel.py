@@ -4651,7 +4651,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			int or str, OpenQuake calculation ID (default: "oqhazlib")
 
 		:return:
-			datetime.timedelta object
+			(datetime.datetime, datetime.datetime, datetime.timedelta) tuple,
+			representing start time, end time and time interval
 		"""
 		from datetime import datetime
 
@@ -4663,8 +4664,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				min_time = min(mtime, min_time)
 				max_time = max(mtime, max_time)
 
-		time_delta = datetime.fromtimestamp(max_time) - datetime.fromtimestamp(min_time)
-		return time_delta
+		max_time, min_time = datetime.fromtimestamp(max_time), datetime.fromtimestamp(min_time)
+		time_delta = max_time - min_time
+		return (min_time, max_time, time_delta)
 
 	def get_oq_sdc_computation_time(self, calc_id="oqhazlib"):
 		"""
