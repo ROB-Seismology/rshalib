@@ -277,7 +277,7 @@ class IntensityResult:
 			elif self.intensity_unit == "ms2":
 				conv_factor = {"g": 1./g, "mg": 1E+3/g, "ms2": 1., "gal": 100.0, "cms2": 100.0}[intensity_unit]
 		elif self.IMT == "PGV":
-			if self.intensity_unit == "ms2":
+			if self.intensity_unit == "ms":
 				conv_factor = {"ms": 1., "cms": 1E+2}[intensity_unit]
 			elif self.intensity_unit == "cms":
 				conv_factor = {"ms": 1E-2, "cms": 1.0}[intensity_unit]
@@ -3416,6 +3416,13 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		return uhs
 
 	def export_csv(self, csv_filespec=None):
+		"""
+		Export to csv (comma-separated values) file
+
+		:param csv_filespec:
+			str, full path to output file
+			(default: None, will output to screen)
+		"""
 		if csv_filespec:
 			f = open(csv_filespec, "w")
 		else:
@@ -3424,6 +3431,102 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		for period, intensity in zip(self.periods, self.intensities):
 			f.write("%.3E, %.3E\n" % (period, intensity))
 		f.close()
+
+	@classmethod
+	def from_csv(self, csv_filespec, col_spec=1, intensity_unit="g", model_name=""):
+		"""
+		Read response spectrum from a csv file.
+		First line should contain column names
+		First column should contain periods or frequencies,
+		subsequent column()s should contain intensities, only one of which
+		will be read.
+
+		:param csv_filespec:
+			str, full path to csv file
+		:param col_spec:
+			str or int, name or index of column containing intensities to be read
+			(default: 1)
+		:param intensity_unit:
+			str, unit of intensities in csv file (default: "g")
+		:param model_name:
+			str, name or description of model
+
+		:return:
+			instance of :class:`ResponseSpectrum`
+		"""
+		periods, intensities = [], []
+		csv = open(csv_filespec)
+		for i, line in enumerate(csv):
+			if i == 0:
+				col_names = [s.strip() for s in line.split(',')]
+				if col_names[0].lower().split()[0] in ("frequency", "freq"):
+					freqs = True
+				else:
+					freqs = False
+				if isinstance(col_spec, str):
+					col_index = col_names.index(col_spec)
+				else:
+					col_index = col_spec
+			else:
+				col_values = line.split(',')
+				T = float(col_values[0])
+				a = float(col_values[col_index])
+				periods.append(T)
+				intensities.append(a)
+		csv.close()
+		periods = np.array(periods)
+		if freqs:
+			periods = 1./periods
+		intensities = np.array(intensities)
+		if model_name is None:
+			model_name = csv_filespec
+
+		if intensity_unit in ("g", "mg", "ms2", "cms2", "gal"):
+			imt = "SA"
+		elif intensity_unit in ("ms", "cms"):
+			imt = "SV"
+		elif intensity_unit in ("m", "cm"):
+			imt = "SD"
+		else:
+			imt = ""
+
+		return ResponseSpectrum(model_name, periods, imt, intensities, intensity_unit)
+
+	def get_vertical_spectrum(self, guidance="RG1.60"):
+		"""
+		Derive vertical response spectrum, assuming rs is horizontal acceleration
+
+		:param guidance:
+			str, guidance to follow (one of "RG1.60", "ASCE4-98", "EC8_TYPE1", "EC8_TYPE2")
+			(default: "RG1.60")
+
+		:return:
+			instance of :class:`ResponseSpectrum`
+		"""
+		if guidance.upper() == "RG1.60":
+			f1, f2 = 0.25, 3.5
+			T1, T2 = 1./f1, 1./f2
+			cnv_factor = np.ones_like(self.intensities)
+			cnv_factor[self.periods > T1] = 2./3
+			idxs = np.where((self.periods >= T2) & (self.periods <= T1))
+			freqs = 1./self.periods[idxs]
+			cnv_factor[idxs] = interpolate(np.log([f1, f2]), [2./3, 1], np.log(freqs))
+		elif guidance.upper() == "ASCE4-98":
+			cnv_factor = np.ones_like(self.intensities) * 2./3
+		elif guidance.upper()[:-1] == "EC8_TYPE":
+			from ..siteresponse import get_refspec_EC8
+			resp_type = int(guidance[-1])
+			hrefspec = get_refspec_EC8(1., "A", resp_type=resp_type, orientation="horizontal")
+			vrefspec = get_refspec_EC8(1., "A", resp_type=resp_type, orientation="vertical")
+			vh_ratio_ec8 = vrefspec / hrefspec
+			cnv_factor = interpolate(hrefspec.periods, vh_ratio_ec8.intensities, self.periods)
+		else:
+			raise NotImplementedError("Guidance %s not implemented" % guidance)
+
+		intensities = self.intensities * cnv_factor
+		model_name = self.model_name + " (V)"
+		return ResponseSpectrum(model_name, self.periods, self.IMT, intensities,
+								self.intensity_unit)
 
 
 class UHS(HazardResult, ResponseSpectrum):
@@ -3507,32 +3610,12 @@ class UHS(HazardResult, ResponseSpectrum):
 
 		Note: either poe or return_period should be specified
 		"""
-		periods, intensities = [], []
-		csv = open(csv_filespec)
-		for i, line in enumerate(csv):
-			if i == 0:
-				col_names = [s.strip() for s in line.split(',')]
-				if col_names[0].lower().split()[0] in ("frequency", "freq"):
-					freqs = True
-				else:
-					freqs = False
-				if isinstance(col_spec, str):
-					col_index = col_names.index(col_spec)
-				else:
-					col_index = col_spec
-			else:
-				col_values = line.split(',')
-				T = float(col_values[0])
-				a = float(col_values[col_index])
-				periods.append(T)
-				intensities.append(a)
-		csv.close()
-		periods = np.array(periods)
-		if freqs:
-			periods = 1./periods
-		intensities = np.array(intensities)
+		rs = ResponseSpectrum.from_csv(csv_filespec, col_spec, intensity_unit,
+										model_name=model_name)
 
-		return UHS(model_name, csv_filespec, site, periods, "SA", intensities, intensity_unit="g", timespan=timespan, poe=poe, return_period=return_period)
+		return UHS(model_name, csv_filespec, site, rs.periods, rs.imt, rs.intensities,
+					intensity_unit=intensity_unit, timespan=timespan, poe=poe,
+					return_period=return_period)
 
 
 class UHSFieldSet(HazardResult, HazardField, HazardSpectrum):
@@ -3709,10 +3792,21 @@ class UHSCollection:
 		if freqs:
 			periods = 1./periods
 
+		if intensity_unit in ("g", "mg", "ms2", "cms2", "gal"):
+			imt = "SA"
+		elif intensity_unit in ("ms", "cms"):
+			imt = "SV"
+		elif intensity_unit in ("m", "cm"):
+			imt = "SD"
+		else:
+			imt = ""
+
 		intensities = np.array(intensities).transpose()
 		for i, uhs_intensities in enumerate(intensities):
 			model_name = col_names[i+1]
-			uhs = UHS(model_name, csv_filespec, site, periods, "SA", uhs_intensities, intensity_unit="g", timespan=timespan, poe=poe, return_period=return_period)
+			uhs = UHS(model_name, csv_filespec, site, periods, imt, uhs_intensities,
+						intensity_unit=intensity_unit, timespan=timespan, poe=poe,
+						return_period=return_period)
 			uhs_list.append(uhs)
 
 		return UHSCollection(uhs_list)
