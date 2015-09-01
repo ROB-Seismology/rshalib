@@ -2898,6 +2898,37 @@ class PSHAModelTree(PSHAModelBase):
 		"""
 		return DecomposedPSHAModelTree(self.name, self.source_model_lt, self.gmpe_lt, self.root_folder, self.sites, self.grid_outline, self.grid_spacing, self.soil_site_model, self.ref_soil_params, self.imt_periods, self.intensities, self.min_intensities, self.max_intensities, self.num_intensities, self.return_periods, self.time_span, self.truncation_level, self.integration_distance, self.num_lt_samples, self.random_seed)
 
+	def get_max_return_period(self, site_idx=0, calc_id="decomposed", verbose=True):
+		"""
+		Determine maximum return period covered by hazard curves
+		"""
+		periods = self._get_periods()
+		imt_exceedance_rates = np.zeros_like(periods)
+		if verbose:
+			print("Reading hazard curves")
+		for source_model in self.source_models:
+			print("  %s" % source_model.name)
+			sm_imt_exceedance_rates = np.zeros_like(periods)
+			for src in source_model.sources:
+				if verbose:
+					print("    %s" % src.source_id)
+				src_shcft = self.read_oq_source_shcft(source_model.name, src, calc_id=calc_id)
+				src_imt_exceedance_rates = src_shcft.exceedance_rates[site_idx,:,:,-1].max(axis=0)
+				sm_imt_exceedance_rates += src_imt_exceedance_rates
+			imt_exceedance_rates = np.max([imt_exceedance_rates, sm_imt_exceedance_rates], axis=0)
+
+		if verbose:
+			print
+		for i in range(len(periods)):
+			T = src_shcft.periods[i]
+			TR = 1./imt_exceedance_rates[i]
+			if verbose:
+				print("T = %s s: TR = %.1f yr" % (T, TR))
+		if verbose:
+			print("Max TR: %.1f yr" % (1./imt_exceedance_rates.max()))
+
+		return 1./imt_exceedance_rates
+
 
 	# TODO: the following methods are probably obsolete
 
