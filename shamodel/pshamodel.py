@@ -3349,7 +3349,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		if shcf is None:
 			## Compute mean hazard curve
 			print("Computing mean hazard curve...")
-			shcf = self.read_oq_mean_shcf(calc_id=calc_id)
+			shcf = self.get_oq_mean_shcf(calc_id=calc_id)
 
 		for im in sorted(imt_periods.keys()):
 			for T in sorted(imt_periods[im]):
