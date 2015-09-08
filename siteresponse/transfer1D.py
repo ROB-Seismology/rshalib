@@ -49,6 +49,15 @@ class ElasticLayer:
 		# TODO: watch out for units (N s m-1) !
 		return self.Rho * 1000. * self.VS
 
+	@property
+	def unit_weight(self):
+		"""
+		Unit weight (kN / cubic m)
+		"""
+		from scipy.constants import g
+
+		return self.Rho * g
+
 
 class ElasticLayerModel:
 	"""
