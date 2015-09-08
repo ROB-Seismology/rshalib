@@ -251,7 +251,8 @@ class TransferFunction:
 		phases = self.reconstruct_phase()
 		reals = self.magnitudes * np.cos(phases)
 		imags = self.magnitudes * np.sin(phases)
-		data = np.complex(reals, imags)
+		#data = np.complex(reals, imags)
+		data = reals + 1j * imags
 		return ComplexTransferFunction(self.freqs, data)
 
 	def interpolate(self, freqs):

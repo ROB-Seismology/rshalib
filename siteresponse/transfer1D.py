@@ -54,7 +54,8 @@ class ElasticLayerModel:
 	"""
 	Class representing model of elastic sediment layers (= piecewise
 	constant profile), described from top to bottom.
-	Bottom layer is assumed to be bedrock (half space).
+	Bottom layer is assumed to be bedrock (half space), its thickness
+	is not important.
 
 	:param Th:
 		list or array of floats, thickness (m)
@@ -338,7 +339,8 @@ def reflectivity(layer_model, theta=0., FrMax=50, NFr=2048):
 		DD = TUH / QQ1
 
 		## Calculation of the incident field
-		A1 = np.exp(wzb[NLa-1] * np.sum(TH))
+		## Ignore halfspace thickness!
+		A1 = np.exp(wzb[NLa-1] * np.sum(TH[:-1]))
 		## The obtained transfer function W of one iteration (complex data)
 		#W[NFri] = 2 * DD * A1 / 2
 		W[NFri] = DD * A1
