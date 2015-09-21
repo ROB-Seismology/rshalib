@@ -17,8 +17,8 @@ if __name__ == "__main__":
 
 	## Read from database
 	#eq_id = 1306  ## Alsdorf
-	#eq_id = 987  ## Roermond
-	eq_id = 5329  ## Ramsgate
+	eq_id = 987  ## Roermond
+	#eq_id = 5329  ## Ramsgate
 	eq = eqcatalog.seismodb.query_ROB_LocalEQCatalogByID(eq_id)
 	catalog = eqcatalog.EQCatalog([eq])
 
@@ -40,17 +40,17 @@ if __name__ == "__main__":
 	#src.nodal_plane_distribution = npd
 
 	## Import GMPEs defined in a recent hazard project
-	from hazard.psha.Projects.cAt_Rev.September2014.logictree.gmpe_lt import construct_gmpe_lt
-	rock_type = "soft"
-	gmpe_system_def = construct_gmpe_lt(rock_type).gmpe_system_def
-	gmpe_spec = "GMPE logic tree (%s rock)" % rock_type
+	#from hazard.psha.Projects.cAt_Rev.September2014.logictree.gmpe_lt import construct_gmpe_lt
+	#rock_type = "soft"
+	#gmpe_system_def = construct_gmpe_lt(rock_type).gmpe_system_def
+	#gmpe_spec = "GMPE logic tree (%s rock)" % rock_type
 
 	## Or define a single GMPE
-	#gmpe_system_def = {}
-	#gmpe_name = "RietbrockEtAl2013MD"
-	#gmpe_pmf = rshalib.pmf.GMPEPMF([gmpe_name], [1])
-	#gmpe_system_def[trt] = gmpe_pmf
-	#gmpe_spec = gmpe_name + " GMPE"
+	gmpe_system_def = {}
+	gmpe_name = "RietbrockEtAl2013MD"
+	gmpe_pmf = rshalib.pmf.GMPEPMF([gmpe_name], [1])
+	gmpe_system_def[trt] = gmpe_pmf
+	gmpe_spec = gmpe_name + " GMPE"
 
 	## Compute ground_motion field
 	print("Computing ground-motion field...")
@@ -82,10 +82,15 @@ if __name__ == "__main__":
 	norm = PiecewiseLinearNorm(breakpoints)
 	title = "%s (%s)\nGround-motion field, %s" % (eq.name.title(), eq.date.isoformat(), gmpe_spec)
 	hm = uhs_field.getHazardMap(period_spec=T)
-	map = hm.get_plot(grid_interval=(2,1), cmap="jet", norm=norm, contour_interval=contour_interval, num_grid_cells=num_sites, title=title)
+	map = hm.get_plot(grid_interval=(2,1), cmap="jet", norm=norm, contour_interval=contour_interval, num_grid_cells=num_sites, title=title, projection="tmerc")
 	map.plot()
+
+	## Export grid layer to geotiff
+	## Note: do not plot map before or map area will be shifted due to colorbar!
 	layers = [lyr for lyr in map.layers if isinstance(lyr.data, lbm.GridData)]
+	layers[0].style.color_map_theme.colorbar_style = None
 	map.layers = layers
+	#map.export_geotiff(r"C:\Temp\gmf.tif", dpi=300, verbose=True)
 
 	## Plot UHS
 	lon, lat = 4.367777777777778, 50.79499999999999
