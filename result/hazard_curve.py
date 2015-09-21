@@ -573,6 +573,26 @@ class HazardField:
 			raise Exception("Invalid site specification: %s" % site_spec)
 		return site_index
 
+	def get_nearest_site_index(self, site_spec):
+		"""
+		Determine index of nearest site
+
+		:param site_spec:
+			instance of :class:`SHASite` or (lon, lat) tuple
+
+		:return:
+			int, index of nearest site
+		"""
+		from openquake.hazardlib.geo.geodetic import geodetic_distance
+
+		if isinstance(site_spec, SHASite):
+			lon, lat = site_spec.longitude, site_spec.latitude
+		elif isinstance(site_spec, (list, tuple)) and len(site_spec) >= 2:
+			lon, lat = site_spec[:2]
+
+		distances = geodetic_distance([lon], [lat], self.longitudes, self.latitudes)
+		return int(np.argmin(distances))
+
 	## Note: the following functions are obsolete
 	def get_grid_index(self, site):
 		"""
