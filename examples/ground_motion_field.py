@@ -82,15 +82,16 @@ if __name__ == "__main__":
 	norm = PiecewiseLinearNorm(breakpoints)
 	title = "%s (%s)\nGround-motion field, %s" % (eq.name.title(), eq.date.isoformat(), gmpe_spec)
 	hm = uhs_field.getHazardMap(period_spec=T)
-	map = hm.get_plot(grid_interval=(2,1), cmap="jet", norm=norm, contour_interval=contour_interval, num_grid_cells=num_sites, title=title, projection="tmerc")
-	map.plot()
+	map = hm.get_plot(grid_interval=(2,1), cmap="jet", norm=norm, contour_interval=contour_interval, num_grid_cells=num_sites, title=title, projection="merc")
+	#map.plot(fig_filespec=r"C:\Temp\gmf.png")
 
 	## Export grid layer to geotiff
 	## Note: do not plot map before or map area will be shifted due to colorbar!
 	layers = [lyr for lyr in map.layers if isinstance(lyr.data, lbm.GridData)]
 	layers[0].style.color_map_theme.colorbar_style = None
 	map.layers = layers
-	#map.export_geotiff(r"C:\Temp\gmf.tif", dpi=300, verbose=True)
+	map.export_geotiff(r"C:\Temp\gmf.tif", dpi=300)
+	hm.export_GeoTiff(r"C:\Temp\gmf2", num_cells=num_sites)
 
 	## Plot UHS
 	lon, lat = 4.367777777777778, 50.79499999999999
