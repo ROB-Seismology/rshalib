@@ -3286,7 +3286,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 			model_name = "%s * %s" % (self.model_name, other.model_name)
 		elif isinstance(other, (int, float)):
 			intensities = self.intensities * other
-			model_name = "%s x %s" % (model_name, other)
+			model_name = "%s x %s" % (self.model_name, other)
 		else:
 			raise TypeError
 
