@@ -43,7 +43,7 @@ def get_intensity_unit_label(intensity_unit="g"):
 	return intensity_unit_label
 
 
-def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", want_recurrence=False, fixed_life_time=None, interpol_rp=None, interpol_prob=0, interpol_rp_range=None, amax=None, intensity_unit="g", tr_max=1E+07, legend_location=0, lang="en"):
+def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", want_recurrence=False, fixed_life_time=None, interpol_rp=None, interpol_prob=0, interpol_rp_range=None, amax=None, intensity_unit="g", tr_max=1E+07, legend_location=0, lang="en", dpi=300):
 	"""
 	Generic function to plot a hazard curve (exceedance rate or probability of exceedance)
 	Parameters:
@@ -84,6 +84,7 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 			"upper center" 	9
 			"center" 	10
 		lang: language to use for labels: en=English, nl=Dutch (default: en)
+		dpi: Int, image resolution in dots per inch (default: 300)
 	"""
 	if not labels:
 		labels = ["Set %d" % (i+1) for i in range(len(datasets))]
@@ -220,14 +221,14 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 	for label in ax.get_xticklabels() + ax.get_yticklabels():
 		label.set_size('large')
 	if fig_filespec:
-		pylab.savefig(fig_filespec, dpi=300)
+		pylab.savefig(fig_filespec, dpi=dpi)
 	else:
 		pylab.show()
 
 	#pylab.clf()
 
 
-def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", legend_location=0, lang="en"):
+def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", legend_location=0, lang="en", dpi=300):
 	"""
 	Generic function to plot a (usually uniform) hazard spectrum
 	Parameters:
@@ -263,6 +264,7 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 			"upper center" 	9
 			"center" 	10
 		lang: language to use for labels: en=English, nl=Dutch (default: en)
+        dpi: Int, image resolution in dots per inch (default: 300)
 	"""
 	if not labels:
 		labels = ["Set %d" % (i+1) for i in range(len(datasets))]
@@ -356,14 +358,14 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 		label.set_size('large')
 
 	if fig_filespec:
-		pylab.savefig(fig_filespec, dpi=300)
+		pylab.savefig(fig_filespec, dpi=dpi)
 	else:
 		pylab.show()
 
 	#pylab.clf()
 
 
-def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_color='g', amax=0, da=0.005, intensity_unit="g", lang="en"):
+def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_color='g', amax=0, da=0.005, intensity_unit="g", lang="en", dpi=300):
 	"""
 	Plot histogram of intensities of a number of GRA files at a single site and a single
 	structural period interpolated for the specified return period
@@ -377,6 +379,7 @@ def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_c
 		da: intensity bin width (default: 0.005)
 		intensity_unit: intensity unit (default: "g")
 		lang: language to use for labels: en=English, nl=Dutch (default: en)
+        dpi: Int, image resolution in dots per inch (default: 300)
 	"""
 	if not amax:
 		amax = max(intensities) + da
@@ -421,7 +424,7 @@ def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_c
 		label.set_size('large')
 
 	if fig_filespec:
-		pylab.savefig(fig_filespec, dpi=300)
+		pylab.savefig(fig_filespec, dpi=dpi)
 	else:
 		pylab.show()
 
