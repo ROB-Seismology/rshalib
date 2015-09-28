@@ -102,7 +102,10 @@ class ElasticLayerModel:
 
 	@property
 	def total_thickness(self):
-		return np.sum(self.Th)
+		"""
+		Total thickness excluding bedrock halfspace
+		"""
+		return np.sum(self.Th[:-1])
 
 	def initial_critical_damping_ratio(self):
 		"""

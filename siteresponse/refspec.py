@@ -86,7 +86,7 @@ def get_refspec_EC8(ag, ground_type, resp_type, orientation="horizontal", dampin
 
 	eta = np.sqrt(10.0 / (5 + damping))
 
-	periods = np.concatenate([[0.0] + np.arange(0.04, 4.02, 0.02)])
+	periods = np.concatenate([[0.0], np.arange(0.04, 4.02, 0.02)])
 	values = np.zeros(len(periods), 'd')
 
 	if orientation == "horizontal":
