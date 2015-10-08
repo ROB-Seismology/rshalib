@@ -217,7 +217,6 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 		ax.xaxis.set_minor_locator(minorLocator)
 	pylab.title(title)
 	pylab.grid(True)
-	ax = pylab.gca()
 	for label in ax.get_xticklabels() + ax.get_yticklabels():
 		label.set_size('large')
 	if fig_filespec:
