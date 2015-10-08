@@ -526,7 +526,7 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 
 	def get_centroid(self):
 		"""
-		Compute centroid of area source
+		Compute centroid
 
 		:return:
 			(Float, Float) tuple: longitude, latitude of centroid
