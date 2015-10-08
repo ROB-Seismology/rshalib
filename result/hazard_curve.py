@@ -4189,64 +4189,96 @@ class HazardMap(HazardResult, HazardField):
 		# TODO!
 		pass
 
-	def get_plot(self, region=None, projection="merc", resolution="i", grid_interval=(1., 1.), cmap="usgs", norm=None, contour_interval=None, amin=None, amax=None, num_grid_cells=100, plot_style="cont", contour_line_style="default", site_style="default", source_model="", source_model_style="default", countries_style="default", coastline_style="default", intensity_unit="g", hide_sea=False, title=None):
-		# TODO: update docstring
+	def get_plot(self, region=None, projection="merc", resolution="i", grid_interval=(1., 1.),
+				cmap="usgs", norm=None, contour_interval=None, amin=None, amax=None,
+				num_grid_cells=100, plot_style="cont", contour_line_style="default",
+				site_style="default", source_model="", source_model_style="default",
+				countries_style="default", coastline_style="default", intensity_unit="g",
+				hide_sea=False, title=None):
 		"""
 		Plot hazard map
 
+		:param region:
+			(west, east, south, north) tuple specifying rectangular region
+			to plot in geographic coordinates
+			(default: None)
+		:param projection:
+			string, map projection. See Basemap documentation
+			(default: "merc")
+		:param resolution:
+			char, resolution of builtin shorelines / country borders:
+			'c' (crude), 'l' (low), 'i' (intermediate), 'h' (high), 'f' (full)
+			(default: 'i')
+		:param grid_interval:
+			(dlon, dlat) tuple of floats, spacing of grid lines (meridians,
+			parallels) to draw over the map
+			(default: (1., 1.)
 		:param cmap:
-			String or matplotlib.cm.colors.Colormap instance: Color map
-			Some nice color maps are: jet, spectral, gist_rainbow_r, Spectral_r, usgs
+			str of matplotlib colormap specification: color map to be used
+			for ground-motion values
+			Some nice color maps are: jet, spectral, gist_rainbow_r,
+				Spectral_r, usgs
 			(default: "usgs")
+		:param norm:
+			instance of :class:`matplotlib.colors.Normalize` used to
+			map a range of values to the range of colors in :param:`cmap`
+			(default: None, will use norm corresponding to named color map
+			or linear normalization between the minimum and maximum
+			ground-motion values)
 		:param contour_interval:
-			Float, ground-motion contour interval (default: None = auto)
-		:param intensity_levels:
-			List or array of intensity values (in ascending order) that will
-			be uniformly spaced in color space. If None or empty list, linear
-			normalization will be applied.
-			(default: [0., 0.02, 0.06, 0.14, 0.30, 0.90])
+			float, ground-motion contour interval (default: None = auto)
+		:param amin:
+			float, minimum ground-motion level to color/contour
+			(default: None)
+		:param amax:
+			float, maximum ground-motion level to color/contour
+			(default: None)
 		:param num_grid_cells:
-			Int, number of grid cells used for interpolating intensity grid
+			int or tuple, number of grid cells for interpolating
+			intensity grid in X and Y direction
 			(default: 100)
 		:param plot_style:
 			String, either "disc" for discrete or "cont" for continuous
 			(default: "cont")
-		:param site_symbol:
-			Char, matplotlib symbol specification for plotting site points
-			(default: ".")
-		:param site_color:
-			matplotlib color specification for plotting site point symbols
-			(default: "w")
-		:param site_size:
-			Int, size of site point symbols (default: 6)
-		:param region:
-			(w, e, s, n) tuple specifying rectangular region to plot in
-			geographic coordinates (default: None)
-		:param projection:
-			String, map projection. See Basemap documentation
-			(default: "cyl")
-		:param resolution:
-			String, map resolution (coastlines and country borders):
-			'c' (crude), 'l' (low), 'i' (intermediate), 'h' (high), 'f' (full)
-			(default: 'i')
-		:param dlon:
-			Float, meridian interval in degrees (default: 1.)
-		:param dlat:
-			Float, parallel interval in degrees (default: 1.)
+		:param contour_line_style:
+			instance of :class:`LayeredBasemap.LineStyle`, defining style
+			for plotting contour lines
+			(default: "default")
+		:param site_style:
+			instance of :class:`LayeredBasemap.PointStyle`, defining style
+			for plotting sites where hazard was computed
+			(default: "default")
 		:param source_model:
-			String, name of source model to overlay on the plot
-			(default: None)
+			str or instance of :class:`SourceModel`: name of known source
+			model or SourceModel object to plot on top of hazard map
+			(default: "")
+		:param source_model_style:
+			instance of :class:`LayeredBasemap.CompositeStyle`, defining
+			style for plotting source model
+			(default: "default")
+		:param countries_style:
+			instance of :class:`LayeredBasemap.LineStyle`, defining
+			style for plotting country borders
+			(default: "default")
+		:param coastline_style:
+			instance of :class:`LayeredBasemap.LineStyle`, defining
+			style for plotting coastlines
+			(default: "default")
+		:param intensity_unit:
+			str, unit in which ground-motion values need to be expressed
+			(default: "g")
+		:param hide_sea:
+			bool, whether or not hazard map should be masked over seas
+			and oceans
+			(default: False)
 		:param title:
-			String, plot title. If None, title will be generated automatically,
-			if empty string, title will not be plotted (default: None)
-		:param fig_filespec:
-			String, full path of image to be saved.
-			If None (default), map is displayed on screen.
-		:param fig_width:
-			Float, figure width in cm, used to recompute :param:`dpi` with
-			respect to default figure width (default: 0)
-		:param dpi:
-			Int, image resolution in dots per inch (default: 300)
+			str, map title. If empty string, no title will be plotted.
+			If None, default title will be used
+			(default: None)
+
+		:return:
+			instance of :class:`LayeredBasemap.LayeredBasemap`, where
+			additional layers may be added before final plotting.
 		"""
 		import mapping.Basemap as lbm
 		from plot import get_intensity_unit_label
@@ -4272,6 +4304,7 @@ class HazardMap(HazardResult, HazardField):
 
 		## Prepare intensity grid and contour levels
 		longitudes, latitudes = self.longitudes, self.latitudes
+		# TODO: use site lons and lats if they are already a meshed grid
 		grid_lons, grid_lats = self.meshgrid(num_cells=num_grid_cells)
 		intensity_grid = self.get_grid_intensities(num_cells=num_grid_cells, intensity_unit=intensity_unit)
 		# TODO: option to use contour levels as defined in norm
@@ -4392,217 +4425,6 @@ class HazardMap(HazardResult, HazardField):
 
 		map = lbm.LayeredBasemap(map_layers, title, projection, region=region, grid_interval=grid_interval, resolution=resolution, annot_axes="SE", legend_style=legend_style)
 		return map
-
-	def plot(self, cmap="usgs", contour_interval=None, intensity_levels=[0., 0.02, 0.06, 0.14, 0.30, 0.90], num_grid_cells=100, plot_style="cont", site_symbol=".", site_color="w", site_size=6, source_model="", region=None, projection="cyl", resolution="i", dlon=1., dlat=1., hide_sea=False, title=None, fig_filespec=None, fig_width=0, dpi=300):
-		"""
-		Plot hazard map
-
-		:param cmap:
-			String or matplotlib.cm.colors.Colormap instance: Color map
-			Some nice color maps are: jet, spectral, gist_rainbow_r, Spectral_r, usgs
-			(default: "usgs")
-		:param contour_interval:
-			Float, ground-motion contour interval (default: None = auto)
-		:param intensity_levels:
-			List or array of intensity values (in ascending order) that will
-			be uniformly spaced in color space. If None or empty list, linear
-			normalization will be applied.
-			(default: [0., 0.02, 0.06, 0.14, 0.30, 0.90])
-		:param num_grid_cells:
-			Int, number of grid cells used for interpolating intensity grid
-			(default: 100)
-		:param plot_style:
-			String, either "disc" for discrete or "cont" for continuous
-			(default: "cont")
-		:param site_symbol:
-			Char, matplotlib symbol specification for plotting site points
-			(default: ".")
-		:param site_color:
-			matplotlib color specification for plotting site point symbols
-			(default: "w")
-		:param site_size:
-			Int, size of site point symbols (default: 6)
-		:param region:
-			(w, e, s, n) tuple specifying rectangular region to plot in
-			geographic coordinates (default: None)
-		:param projection:
-			String, map projection. See Basemap documentation
-			(default: "cyl")
-		:param resolution:
-			String, map resolution (coastlines and country borders):
-			'c' (crude), 'l' (low), 'i' (intermediate), 'h' (high), 'f' (full)
-			(default: 'i')
-		:param dlon:
-			Float, meridian interval in degrees (default: 1.)
-		:param dlat:
-			Float, parallel interval in degrees (default: 1.)
-		:param source_model:
-			String, name of source model to overlay on the plot
-			(default: None)
-		:param title:
-			String, plot title. If None, title will be generated automatically,
-			if empty string, title will not be plotted (default: None)
-		:param fig_filespec:
-			String, full path of image to be saved.
-			If None (default), map is displayed on screen.
-		:param fig_width:
-			Float, figure width in cm, used to recompute :param:`dpi` with
-			respect to default figure width (default: 0)
-		:param dpi:
-			Int, image resolution in dots per inch (default: 300)
-		"""
-		from mpl_toolkits.basemap import Basemap
-		import matplotlib.cm as cm
-
-		## Prepare intensity grid and contour levels
-		longitudes, latitudes = self.longitudes, self.latitudes
-		grid_lons, grid_lats = self.meshgrid(num_cells=num_grid_cells)
-		intensity_grid = self.get_grid_intensities(num_cells=num_grid_cells)
-		if not contour_interval:
-			arange = self.max() - self.min()
-			candidates = np.array([0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.08, 0.1, 0.2, 0.25, 0.4, 0.5, 0.6, 0.75, 0.8, 1.0])
-			try:
-				index = np.where(arange / candidates <= 10)[0][0]
-			except IndexError:
-				index = 0
-			contour_interval = candidates[index]
-
-		#if intensity_levels in (None, []):
-		#	amin, amax = 0., self.max()
-		#else:
-		#	amin, amax = intensity_levels[0], intensity_levels[-1]
-		amin = np.floor(self.min() / contour_interval) * contour_interval
-		amax = np.ceil(self.max() / contour_interval) * contour_interval
-
-		contour_levels = np.arange(amin, amax+contour_interval, contour_interval)
-		## Sometimes, there is an empty contour interval at the end
-		if len(contour_levels) > 1 and contour_levels[-2] > self.max():
-			contour_levels = contour_levels[:-1]
-
-		## Compute map limits
-		if not region:
-			llcrnrlon, llcrnrlat = min(longitudes), min(latitudes)
-			urcrnrlon, urcrnrlat = max(longitudes), max(latitudes)
-		else:
-			llcrnrlon=region[0]
-			llcrnrlat=region[2]
-			urcrnrlon=region[1]
-			urcrnrlat=region[3]
-		lon_0 = (llcrnrlon + urcrnrlon) / 2.
-		lat_0 = (llcrnrlat + urcrnrlat) / 2.
-
-		map = Basemap(projection=projection, resolution=resolution, llcrnrlon=llcrnrlon, llcrnrlat=llcrnrlat, urcrnrlon=urcrnrlon, urcrnrlat=urcrnrlat, lon_0=lon_0, lat_0=lat_0)
-		if hide_sea:
-			rgba_land, rgba_ocean = (255, 255, 255, 0), (255, 255, 255, 255)
-			map.drawlsmask(rgba_land, rgba_ocean)
-
-		## Color map
-		if cmap == "usgs":
-			usgs_rgb = [(255, 255, 255),
-						(230, 230, 230),
-						(200, 200, 200),
-						(231, 255, 255),
-						(215, 255, 255),
-						(198, 255, 255),
-						(151, 255, 241),
-						(151, 254, 199),
-						(200, 255, 153),
-						(202, 254, 83),
-						(251, 250, 100),
-						(255, 238, 0),
-						(254, 225, 1),
-						(255, 200, 1),
-						(255, 94, 0),
-						(254, 0, 2),
-						(200, 121, 20),
-						(151, 74, 20)]
-			num_colors = len(usgs_rgb)
-			cmap_limits = np.linspace(0, 1, num_colors)
-			usgs_cdict = {'red': [], 'green': [], 'blue': []}
-			for i in range(num_colors):
-				r, g, b = np.array(usgs_rgb[i]) / 255.
-				usgs_cdict['red'].append((cmap_limits[i], r, r))
-				usgs_cdict['green'].append((cmap_limits[i], g, g))
-				usgs_cdict['blue'].append((cmap_limits[i], b, b))
-			cmap = matplotlib.colors.LinearSegmentedColormap('usgs', usgs_cdict, 256)
-		elif isinstance(cmap, str):
-			cmap = cm.get_cmap(cmap)
-
-		## Intensity grid
-		if intensity_levels in (None, []):
-			norm = matplotlib.colors.Normalize(amin, amax)
-		else:
-			norm = LevelNorm(intensity_levels)
-		x, y = map(grid_lons, grid_lats)
-		if plot_style == "disc":
-			cs = map.contourf(x, y, intensity_grid, levels=contour_levels, cmap=cmap, norm=norm)
-		elif plot_style == "cont":
-			cs = map.pcolor(x, y, intensity_grid, vmin=amin, vmax=amax, cmap=cmap, norm=norm)
-		cl = map.contour(x, y, intensity_grid, levels=contour_levels, colors='k', linewidths=1)
-		pylab.clabel(cl, inline=True, fontsize=10, fmt='%.2f')
-		cbar = map.colorbar(cs, location='bottom', pad="10%", format='%.2f', spacing="uniform", ticks=contour_levels)
-
-		## Intensity data points
-		if site_symbol:
-			x, y = map(longitudes, latitudes)
-			map.scatter(x, y, s=site_size, marker=site_symbol, facecolors=site_color, label=None)
-
-		## Coastlines and national boundaries
-		map.drawcoastlines(linewidth=2, color="w")
-		map.drawcountries(linewidth=2, color="w")
-
-		## Source model
-		if source_model:
-			from eqcatalog.source_models import read_source_model
-			model_data = read_source_model(source_model)
-			for i, zone_data in enumerate(model_data.values()):
-				geom = zone_data['obj']
-				lines = []
-				if geom.GetGeometryName() == "LINESTRING":
-					lines.append(geom.GetPoints())
-				elif geom.GetGeometryName() == "POLYGON":
-					for linear_ring in geom:
-						lines.append(linear_ring.GetPoints())
-				for line in lines:
-					lons, lats = zip(*line)
-					x, y = map(lons, lats)
-					if i == 0:
-						label = source_model
-					else:
-						label = "_nolegend_"
-					map.plot(x, y, ls='-', lw=2, color='k')
-
-		## Meridians and parallels
-		first_meridian = np.ceil(llcrnrlon / dlon) * dlon
-		last_meridian = np.floor(urcrnrlon / dlon) * dlon + dlon
-		meridians = np.arange(first_meridian, last_meridian, dlon)
-		map.drawmeridians(meridians, labels=[0,1,0,1])
-		first_parallel = np.ceil(llcrnrlat / dlat) * dlat
-		last_parallel = np.floor(urcrnrlat / dlat) * dlat + dlat
-		parallels = np.arange(first_parallel, last_parallel, dlat)
-		map.drawparallels(parallels, labels=[0,1,0,1])
-		map.drawmapboundary()
-
-		## Title
-		if title is None:
-			title = "%s\n%.4G yr return period" % (self.model_name, self.return_period)
-		pylab.title(title)
-		if self.IMT == "SA":
-			imt_label = "%s (%s s)" % (self.IMT, self.period)
-		else:
-			imt_label = self.IMT
-		cbar.set_label('%s (%s)' % (imt_label, self.intensity_unit))
-
-		if fig_filespec:
-			default_figsize = pylab.rcParams['figure.figsize']
-			default_dpi = pylab.rcParams['figure.dpi']
-			if fig_width:
-				fig_width /= 2.54
-				dpi = dpi * (fig_width / default_figsize[0])
-			pylab.savefig(fig_filespec, dpi=dpi)
-			pylab.clf()
-		else:
-			pylab.show()
 
 
 class HazardMapSet(HazardResult, HazardField):
