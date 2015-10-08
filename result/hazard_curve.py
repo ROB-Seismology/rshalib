@@ -4255,7 +4255,13 @@ class HazardMap(HazardResult, HazardField):
 		if site_style == "default":
 			site_style = lbm.PointStyle(shape="x", line_color="w", size=2.5)
 		if source_model_style == "default":
-			source_model_style = lbm.PolygonStyle(line_width=2, fill_color="none")
+			polygon_style = lbm.PolygonStyle(line_width=2, fill_color="none")
+			line_style = lbm.LineStyle(line_width=3, line_color='r')
+			point_style = lbm.PointStyle(shape='*', fill_color='r')
+			source_model_style = lbm.CompositeStyle(line_style=line_style, polygon_style=polygon_style, point_style=point_style)
+		elif isinstance(source_model_style, lbm.PolygonStyle):
+			polygon_style = source_model_style
+			source_model_style = lbm.CompositeStyle(polygon_style=polygon_style, line_style=polygon_style.to_line_style())
 		if countries_style == "default":
 			countries_style = lbm.LineStyle(line_width=2, line_color="w")
 		if coastline_style == "default":
@@ -4333,7 +4339,7 @@ class HazardMap(HazardResult, HazardField):
 		color_map_theme = lbm.ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax, colorbar_style=colorbar_style)
 		color_gradient = {"cont": "continuous", "disc": "discontinuous"}[plot_style]
 		grid_style = lbm.GridStyle(color_map_theme=color_map_theme, color_gradient=color_gradient, line_style=contour_line_style, contour_levels=contour_levels)
-		grid_data = lbm.GridData(grid_lons, grid_lats, intensity_grid)
+		grid_data = lbm.MeshGridData(grid_lons, grid_lats, intensity_grid)
 		layer = lbm.MapLayer(grid_data, grid_style)
 		map_layers.append(layer)
 
@@ -4355,11 +4361,28 @@ class HazardMap(HazardResult, HazardField):
 
 		## Source model
 		if source_model and source_model_style:
-			from eqcatalog.source_models import rob_source_models_dict
-			gis_filespec = rob_source_models_dict[source_model].gis_filespec
-			gis_data = lbm.GisData(gis_filespec)
-			gis_style = lbm.CompositeStyle(polygon_style=source_model_style, line_style=source_model_style.to_line_style())
-			map_layers.append(lbm.MapLayer(gis_data, gis_style, legend_label={"polygons": "Source model"}))
+			from ..source import SourceModel, AreaSource, SimpleFaultSource
+			if isinstance(source_model, (str, unicode)):
+				from eqcatalog.source_models import rob_source_models_dict
+				gis_filespec = rob_source_models_dict[source_model].gis_filespec
+				sm_data = lbm.GisData(gis_filespec)
+			elif isinstance(source_model, SourceModel):
+				# TODO: add ComplexFaultSource
+				polygon_data = lbm.MultiPolygonData([], [])
+				line_data = lbm.MultiLineData([], [])
+				point_data = lbm.MultiPointData([], [])
+				for source in source_model:
+					if isinstance(source, AreaSource):
+						polygon_data.append(lbm.PolygonData(source.longitudes, source.latitudes))
+					elif isinstance(source, SimpleFaultSource):
+						pg = source.get_polygon()
+						polygon_data.append(lbm.PolygonData(pg.lons, pg.lats))
+						line_data.append(lbm.LineData(source.longitudes, source.latitudes))
+					elif isinstance(source, PointSource):
+						point_data.append(lbm.PointData(source.location.longitude, source.location.longitude))
+				sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data)
+			sm_style = source_model_style
+			map_layers.append(lbm.MapLayer(sm_data, sm_style, legend_label={"polygons": "Source model"}))
 
 		## Title
 		if title is None:
