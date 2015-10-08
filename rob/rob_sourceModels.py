@@ -185,8 +185,8 @@ def create_rob_area_source(
 	coordTrans = osr.CoordinateTransformation(wgs84, lambert1972)
 
 	## ID and name
-	source_id = source_rec.get(column_map['id'], column_map['id'])
-	name = source_rec.get(column_map['name'], column_map['name'])
+	source_id = str(source_rec.get(column_map['id'], column_map['id']))
+	name = str(source_rec.get(column_map['name'], column_map['name']))
 	name = name.decode('latin1')
 	if verbose:
 		print source_id
@@ -195,15 +195,15 @@ def create_rob_area_source(
 	tectonic_region_type = source_rec.get(column_map['tectonic_region_type'], column_map['tectonic_region_type'])
 
 	## upper and lower seismogenic depth
-	upper_seismogenic_depth = source_rec.get(column_map['upper_seismogenic_depth'], column_map['upper_seismogenic_depth'])
-	lower_seismogenic_depth = source_rec.get(column_map['lower_seismogenic_depth'], column_map['lower_seismogenic_depth'])
+	upper_seismogenic_depth = float(source_rec.get(column_map['upper_seismogenic_depth'], column_map['upper_seismogenic_depth']))
+	lower_seismogenic_depth = float(source_rec.get(column_map['lower_seismogenic_depth'], column_map['lower_seismogenic_depth']))
 
 	## nodal plane distribution
 	if not nodal_plane_distribution:
 		## Strike
 		# TODO: This may fail when e.g., min_strike=355 and max_strike=5
-		min_strike = source_rec.get(column_map['min_strike'], column_map['min_strike'])
-		max_strike = source_rec.get(column_map['max_strike'], column_map['max_strike'])
+		min_strike = float(source_rec.get(column_map['min_strike'], column_map['min_strike']))
+		max_strike = float(source_rec.get(column_map['max_strike'], column_map['max_strike']))
 		if min_strike > max_strike:
 			min_strike, max_strike = max_strike, min_strike
 		if min_strike == 0. and max_strike == 360.:
@@ -215,10 +215,10 @@ def create_rob_area_source(
 		strikes, strike_weights = get_uniform_distribution(min_strike, max_strike, strike_delta)
 
 		## Dip
-		min_dip = source_rec.get(column_map['min_dip'], column_map['min_dip'])
+		min_dip = float(source_rec.get(column_map['min_dip'], column_map['min_dip']))
 		if min_dip == 0:
 			min_dip = 1E-6
-		max_dip = source_rec.get(column_map['max_dip'], column_map['max_dip'])
+		max_dip = float(source_rec.get(column_map['max_dip'], column_map['max_dip']))
 		if max_dip == 0:
 			max_dip = 1E-6
 		if min_dip > max_dip:
@@ -226,9 +226,9 @@ def create_rob_area_source(
 		dips, dip_weights = get_uniform_distribution(min_dip, max_dip, dip_delta)
 
 		## Rake
-		Ss = source_rec.get(column_map['Ss'], column_map['Ss'])
-		Nf = source_rec.get(column_map['Nf'], column_map['Nf'])
-		Tf = source_rec.get(column_map['Tf'], column_map['Tf'])
+		Ss = float(source_rec.get(column_map['Ss'], column_map['Ss']))
+		Nf = float(source_rec.get(column_map['Nf'], column_map['Nf']))
+		Tf = float(source_rec.get(column_map['Tf'], column_map['Tf']))
 		rake_weights = np.array([Ss, Nf, Tf], 'i') / Decimal(100.)
 		rakes = np.array([0, -90, 90])[rake_weights > 0]
 		rake_weights = rake_weights[rake_weights > 0]
@@ -244,9 +244,9 @@ def create_rob_area_source(
 
 	## hypocenter distribution
 	if not hypocentral_distribution:
-		min_hypo_depth = source_rec.get(column_map['min_hypo_depth'], column_map['min_hypo_depth'])
+		min_hypo_depth = float(source_rec.get(column_map['min_hypo_depth'], column_map['min_hypo_depth']))
 		min_hypo_depth = max(min_hypo_depth, upper_seismogenic_depth)
-		max_hypo_depth = source_rec.get(column_map['max_hypo_depth'], column_map['max_hypo_depth'])
+		max_hypo_depth = float(source_rec.get(column_map['max_hypo_depth'], column_map['max_hypo_depth']))
 		max_hypo_depth = min(max_hypo_depth, lower_seismogenic_depth)
 		num_bins = (max_hypo_depth - min_hypo_depth) / hypo_bin_width + 1
 		hypo_depths, weights = get_normal_distribution(min_hypo_depth, max_hypo_depth, num_bins=num_bins)
@@ -400,8 +400,8 @@ def create_rob_simple_fault_source(
 		SimpleFaultSource object.
 	"""
 	## ID and name
-	source_id = source_rec.get(column_map['id'], column_map['id'])
-	name = source_rec.get(column_map['name'], column_map['name'])
+	source_id = str(source_rec.get(column_map['id'], column_map['id']))
+	name = str(source_rec.get(column_map['name'], column_map['name']))
 	name = name.decode('latin1')
 	if verbose:
 		print source_id
@@ -412,10 +412,10 @@ def create_rob_simple_fault_source(
 	## MFD
 	if not mfd:
 		# TODO: it could be dangerous to construct MFD from default values in column map
-		a_val = source_rec.get(column_map['a_val'], column_map['a_val'])
-		b_val = source_rec.get(column_map['b_val'], column_map['b_val'])
-		min_mag = source_rec.get(column_map['min_mag'], column_map['min_mag'])
-		max_mag = source_rec.get(column_map['max_mag'], column_map['max_mag'])
+		a_val = float(source_rec.get(column_map['a_val'], column_map['a_val']))
+		b_val = float(source_rec.get(column_map['b_val'], column_map['b_val']))
+		min_mag = float(source_rec.get(column_map['min_mag'], column_map['min_mag']))
+		max_mag = float(source_rec.get(column_map['max_mag'], column_map['max_mag']))
 		max_mag_rounded = np.ceil(max_mag / mfd_bin_width) * mfd_bin_width
 		## Make sure maximum magnitude is smaller than MFD.max_mag
 		if np.allclose(max_mag, max_mag_rounded):
@@ -426,9 +426,9 @@ def create_rob_simple_fault_source(
 			mfd = None
 
 	## Upper seismogenic depth
-	upper_seismogenic_depth = source_rec.get(column_map['upper_seismogenic_depth'], column_map['upper_seismogenic_depth'])
+	upper_seismogenic_depth = float(source_rec.get(column_map['upper_seismogenic_depth'], column_map['upper_seismogenic_depth']))
 	## Lower seismogenic depth
-	lower_seismogenic_depth = source_rec.get(column_map['lower_seismogenic_depth'], column_map['lower_seismogenic_depth'])
+	lower_seismogenic_depth = float(source_rec.get(column_map['lower_seismogenic_depth'], column_map['lower_seismogenic_depth']))
 
 	## Fault trace
 	if not fault_trace:
@@ -440,16 +440,16 @@ def create_rob_simple_fault_source(
 		fault_trace = Line([Point(*pt) for pt in points])
 
 	## Dip
-	max_dip = source_rec.get(column_map['min_dip'], column_map['min_dip'])
-	min_dip = source_rec.get(column_map['max_dip'], column_map['max_dip'])
+	max_dip = float(source_rec.get(column_map['min_dip'], column_map['min_dip']))
+	min_dip = float(source_rec.get(column_map['max_dip'], column_map['max_dip']))
 	if None in (min_dip, max_dip):
 		raise Exception("Dip not defined")
 	else:
 		dip = (min_dip + max_dip) / 2.
 
 	## Rake
-	max_rake = source_rec.get(column_map['min_rake'], column_map['min_rake'])
-	min_rake = source_rec.get(column_map['max_rake'], column_map['max_rake'])
+	max_rake = float(source_rec.get(column_map['min_rake'], column_map['min_rake']))
+	min_rake = float(source_rec.get(column_map['max_rake'], column_map['max_rake']))
 	if None in (min_rake, max_rake):
 		raise Exception("Rake not defined")
 	else:
@@ -459,8 +459,8 @@ def create_rob_simple_fault_source(
 			rake -= 360.
 
 	## Slip rate
-	max_slip_rate = source_rec.get(column_map['min_slip_rate'], column_map['min_slip_rate'])
-	min_slip_rate = source_rec.get(column_map['max_slip_rate'], column_map['max_slip_rate'])
+	max_slip_rate = float(source_rec.get(column_map['min_slip_rate'], column_map['min_slip_rate']))
+	min_slip_rate = float(source_rec.get(column_map['max_slip_rate'], column_map['max_slip_rate']))
 	if None in (min_slip_rate, max_slip_rate):
 		print("Warning: Slip rate not defined")
 	else:
