@@ -224,6 +224,10 @@ class RuptureSource():
 		x, y = np.array(x) / 1000, np.array(y) / 1000
 		ax.plot3D(x, y, -src_depths, 'k', lw=3)
 
+		## Upper and lower seismogenic depth
+		ax.plot3D(x, y, np.ones_like(x) * -self.upper_seismogenic_depth, 'k--', lw=3)
+		ax.plot3D(x, y, np.ones_like(x) * -self.lower_seismogenic_depth, 'k--', lw=3)
+
 		## Highlight first rupture if source is a fault
 		if isinstance(self, (SimpleFaultSource, ComplexFaultSource)):
 			lons, lats, depths = self.get_rupture_bounds(ruptures[0])
@@ -936,6 +940,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 	:param bg_zone:
 		String, ID of background zone (default: None)
 	"""
+	# TODO: SlipratePMF
+	# TODO: add aseismic_coef and strain_drop parameters (see get_MFD_Anderson_Luco method)
 	def __init__(self, source_id, name, tectonic_region_type, mfd, rupture_mesh_spacing, magnitude_scaling_relationship, rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth, fault_trace, dip, rake, slip_rate=numpy.NaN, bg_zone=None):
 		super(SimpleFaultSource, self).__init__(source_id=source_id,
 				name=name,
