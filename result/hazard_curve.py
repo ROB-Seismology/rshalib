@@ -3634,7 +3634,7 @@ class UHS(HazardResult, ResponseSpectrum):
 		rs = ResponseSpectrum.from_csv(csv_filespec, col_spec, intensity_unit,
 										model_name=model_name)
 
-		return UHS(model_name, csv_filespec, site, rs.periods, rs.imt, rs.intensities,
+		return UHS(model_name, csv_filespec, site, rs.periods, rs.IMT, rs.intensities,
 					intensity_unit=intensity_unit, timespan=timespan, poe=poe,
 					return_period=return_period)
 
