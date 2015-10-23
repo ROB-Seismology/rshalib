@@ -57,7 +57,7 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	from mapping.geo.readGIS import read_GIS_file
 
 	rob_source_model = rob_source_models_dict[source_model_name]
-	source_records = read_GIS_file(rob_source_model['gis_filespec'], verbose=verbose)
+	source_records = read_GIS_file(rob_source_model['gis_filespec'], encoding=None, verbose=verbose)
 
 	## Override default column map
 	## Copy dict to avoid side effects in calling function
