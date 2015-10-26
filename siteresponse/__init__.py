@@ -19,7 +19,7 @@ reload(transfer1D)
 
 from transfer1D import (ElasticLayer, ElasticLayerModel, ElasticContinuousModel,
 						reflectivity, randomized_reflectivity, randomized_reflectivity_mp,
-						transfer1D, parse_layer_model)
+						transfer1D, parse_layer_model, nrattle, roll)
 
 import refspec
 reload(refspec)

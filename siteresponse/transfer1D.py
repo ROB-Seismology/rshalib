@@ -21,12 +21,20 @@ class ElasticLayer:
 		float, density (kg / cubic dm)
 	:param QS:
 		float, quality factor for shear waves
+	:param VP:
+		float, P-wave velocity (m/s)
+		(default: 0.)
+	:param QP:
+		float, quality factor for P-waves
+		(default: 0.)
 	"""
-	def __init__(self, Th, VS, Rho, QS):
+	def __init__(self, Th, VS, Rho, QS, VP=0., QP=0.):
 		self.Th = Th
 		self.VS = VS
 		self.Rho = Rho
 		self.QS = QS
+		self.VP = VP
+		self.QP = QP
 
 	def initial_critical_damping_ratio(self):
 		"""
@@ -74,14 +82,28 @@ class ElasticLayerModel:
 		list or array of floats, density (kg / cubic dm)
 	:param QS:
 		list or array of floats, quality factor for shear waves
+	:param VP:
+		list or array of floats, P-wave velocity (m/s)
+		(default: [])
+	:param QP:
+		list or array of floats, quality factor for P-waves
+		(default: [])
 	"""
-	def __init__(self, Th, VS, Rho, QS):
+	def __init__(self, Th, VS, Rho, QS, VP=[], QP=[]):
 		if len(Th) != len(VS) != len(Rho) != len(QS):
 			raise Exception("Length of input arrays should be the same!")
 		self.Th = np.asarray(Th)
 		self.VS = np.asarray(VS)
 		self.Rho = np.asarray(Rho)
 		self.QS = np.asarray(QS)
+		if len(VP) == 0:
+			self.VP = np.zeros_like(self.VS)
+		else:
+			self.VP = np.asarray(VP)
+		if len(QP) == 0:
+			self.QP = np.zeros_like(self.QS)
+		else:
+			self.QP = np.asarray(QP)
 
 	def __iter__(self):
 		for i in range(self.num_layers):
@@ -363,10 +385,393 @@ def reflectivity(layer_model, theta=0., FrMax=50, NFr=2048):
 	return ComplexTransferFunction(FrArray, W)
 
 
-def randomized_reflectivity(layer_model, theta=0., FrMax=50, NFr=2048, num_samples=10, CVarVS=0.08, CVarRho=0.05, CVarTh=0.03, CVarQS=0.3, num_sigma=2, random_seed=None):
+def nrattle(layer_model, zdepth=0, theta=0., FrMax=50, NFr=2048):
+	"""
+	Compute 1-D linear transfer function between lower layer in layer
+	model (assumed to be outcropping) and the surface.
+	Haskell-Thomson transfer function (SH) for horizontally stratified medium
+	This is a transcription of the Fortran program NRATTLE by Chuck Mueller,
+	which is part of Dave Boore's SITE_AMP package
+
+	:param layer_model:
+		instance of :class:`ElasticLayerModel`
+	:param zdepth:
+		float, depth at which response has to be computed (in m)
+		(default: 0)
+	:param theta:
+		float, angle of incidence of SH waves (default: 0.)
+	:param FrMax:
+		float, max. frequency of spectrum (default: 50)
+	:param NFr:
+		int, number of frequencies (default: 2048)
+
+	:return:
+		instance of :class:`ComplexTransferFunction`
+	"""
+	## Constant
+	CI = 0.0 + 1.0j
+
+	## Frequencies
+	INYQ = NFr
+	SAMP = 2 * FrMax
+	T = 2 * (INYQ - 1) / SAMP
+	DELF = 1.0 / T
+
+	zdepth /= 1000.
+
+	## Layer properties
+	VS = layer_model.VS / 1000.
+	QiS = 1.0 / layer_model.QS[:-1]
+	RHO = layer_model.Rho
+	H = layer_model.Th / 1000.
+	Z = layer_model.get_layer_bases()[:-1] / 1000.
+	NLAY = layer_model.num_layers - 1
+
+	## Halfspace = bottom layer
+	NLAY_SRC = n = NLAY
+	BETAN = VS[n]
+	RHON = RHO[n]
+
+	THETA = np.radians(theta)
+	HSLOW = np.sin(THETA) / BETAN
+	HS2 = HSLOW ** 2
+
+	## Complex rigidity of layer
+	XMU = np.zeros(NLAY+1, dtype=np.complex128)
+	## Complex vertical slowness of layer for given angle of incidence
+	XXX = np.zeros(NLAY+1, dtype=np.complex128)
+
+	XMU[n] = RHON * BETAN * BETAN
+	XXX[n] = np.sqrt((RHON / XMU[n] - HS2) * np.complex(1, 0))
+
+	for i in range(NLAY):
+		XMU[i] = (RHO[i] * VS[i] * VS[i] *
+					(1.0 + 0.5 * CI * QiS[i]) * (1.0 + 0.5 * CI * QiS[i]))
+		XXX[i] = np.sqrt(RHO[i] / XMU[i] - HS2)
+
+	## Loop over frequency
+	TSTAR = 0.0
+	VV = np.zeros(NFr, dtype=np.complex128)
+	F = np.zeros(NFr)
+	for IFRQ in range(INYQ):
+		F[IFRQ] = IFRQ * DELF
+		W = 2 * np.pi * F[IFRQ]
+
+		## Loop over the number of layers (propagate)
+		## Complex wave propagation coefficients for the layer
+		A = np.zeros(NLAY+1, dtype=np.complex128)
+		B = np.zeros(NLAY+1, dtype=np.complex128)
+		## Exponent for extended floating point
+		EXE = np.zeros(NLAY+1, dtype=np.complex128)
+
+		A[0] = 1.0 + 0.0j
+		B[0] = 1.0 + 0.0j
+		for i in range(NLAY):
+			j = i + 1
+			CY = (XMU[i] / XMU[j]) * (XXX[i] / XXX[j])
+			CZ = CI * W * H[i]
+			FACC = CZ * XXX[i]
+			FACR = np.real(FACC)
+			FACI = np.imag(FACC)
+			FACZ = np.complex(np.cos(FACI), np.sin(FACI))
+
+			EXPP = 1.0
+			EXPM = -FACR - FACR
+
+			Q11 = 0.5 * (1.0 + CY) * FACZ
+			Q21 = 0.5 * (1.0 - CY) * FACZ
+			if EXPM < -50:
+				Q12 = 0.0
+				Q22 = 0.0
+			else:
+				Q12 = 0.5 * (1.0 - CY) * np.conj(FACZ) * np.exp(EXPM)
+				Q22 = 0.5 * (1.0 + CY) * np.conj(FACZ) * np.exp(EXPM)
+
+			A[j] = Q11 * A[i] + Q12 * B[i]
+			B[j] = Q21 * A[i] + Q22 * B[i]
+			EXE[j] = EXE[i] + FACR
+
+			if IFRQ == 0 and i < NLAY:
+				TSTAR = TSTAR - 2.0 * np.imag(XXX[i]) * H[i]
+
+		i = n
+
+		## Compute layer stack response at desired depth
+		if zdepth < 0:
+			raise Exception("Depth must be positive!")
+
+		elif zdepth >= Z[NLAY-1]:
+			## Desire motion in half space
+			ii = NLAY
+			DS = zdepth - Z[NLAY-1]
+			CZ = CI * W * DS
+			DEXPP = EXE[ii] - EXE[n]
+			if DEXPP < -50:
+				VV[IFRQ] = np.complex(0.0, 0.0)
+			else:
+				VV[IFRQ] = ((0.5 * (A[ii] * np.exp(CZ * XXX[ii])
+						+ B[ii] * np.exp(-CZ * XXX[ii])) / A[n])
+						* np.exp(DEXPP))
+
+		elif zdepth == 0.0:
+			## Desire motion at the surface
+			ii = 0
+			VV[IFRQ] = A[0] / A[n]
+			DEXPP = EXE[ii] - EXE[n]
+			if DEXPP < -50:
+				VV[IFRQ] = np.complex(0.0, 0.0)
+			else:
+				VV[IFRQ] = (A[0] / A[n]) * np.exp(DEXPP)
+
+		else:
+			## Desire motion within a layer
+			for i in range(NLAY):
+				DS = zdepth - Z[i]
+				if DS < 0:
+					DS = -DS
+					CZ = CI * W * DS
+					ii = i
+					DEXPP = EXE[ii] - EXE[n]
+					if DEXPP < -50:
+						VV[IFRQ] = np.complex(0.0, 0.0)
+					else:
+						VV[IFRQ] = ((0.5 * (A[ii] * np.exp(CZ * XXX[ii])
+								+ B[ii] * np.exp(-CZ * XXX[ii])) / A[n])
+								* np.exp(DEXPP))
+					break
+
+	return ComplexTransferFunction(F, VV)
+
+
+def roll(layer_model, zdepth=0, theta=0., PorS="S", HorV="H", FrMax=50, NFr=2048):
+	"""
+	Requires both VP and VS
+	"""
+	## Constant
+	CI = 0.0 + 1.0j
+
+	## Frequencies
+	INYQ = NFr
+	SAMP = 2 * FrMax
+	T = 2 * (INYQ - 1) / SAMP
+	DELF = 1.0 / T
+
+	#zdepth /= 1000.
+
+	## Layer properties
+	VP = layer_model.VP
+	QP = layer_model.QP
+	VS = layer_model.VS
+	QS = layer_model.QS
+	RHO = layer_model.Rho
+	Z = layer_model.get_layer_bases()
+	NLAY = layer_model.num_layers - 1
+
+	## Halfspace = bottom layer
+	n = NLAY
+	BETAN = VS[n]
+	VPN = VP[n]
+	RHON = RHO[n]
+
+	if PorS == "P":
+		RAT = np.sin(np.radians(theta)) / VPN
+	else:
+		RAT = np.sin(np.radians(theta)) / BETAN
+	RAT2 = RAT * RAT
+
+	A2 = VP * VP * (1.0 + CI / QP)
+	A = np.sqrt(A2)
+	XLA = np.sqrt(1.0 / A2 - RAT2)
+	B2 = VS * VS * (1.0 + CI / QS)
+	B = np.sqrt(B2)
+	XLB = np.sqrt(1.0 / B2 - RAT2)
+
+	A[n] = VPN
+	A2[n] = A[n] * A[n]
+	XLA[n] = np.sqrt(1.0 / A2[n] - RAT2)
+	B[n] = BETAN
+	B2[n] = B[n] * B[n]
+	XLB[n] = np.sqrt(1.0 / B2[n] - RAT2)
+
+	P11 = np.ones(NLAY+1, dtype=np.complex128)
+	P12 = np.zeros(NLAY+1, dtype=np.complex128)
+	P13 = np.zeros(NLAY+1, dtype=np.complex128)
+	P14 = np.zeros(NLAY+1, dtype=np.complex128)
+	P21 = np.zeros(NLAY+1, dtype=np.complex128)
+	P22 = np.ones(NLAY+1, dtype=np.complex128)
+	P23 = np.zeros(NLAY+1, dtype=np.complex128)
+	P24 = np.zeros(NLAY+1, dtype=np.complex128)
+	P31 = np.zeros(NLAY+1, dtype=np.complex128)
+	P32 = np.zeros(NLAY+1, dtype=np.complex128)
+	P33 = np.ones(NLAY+1, dtype=np.complex128)
+	P34 = np.zeros(NLAY+1, dtype=np.complex128)
+	P41 = np.zeros(NLAY+1, dtype=np.complex128)
+	P42 = np.zeros(NLAY+1, dtype=np.complex128)
+	P43 = np.zeros(NLAY+1, dtype=np.complex128)
+	P44 = np.ones(NLAY+1, dtype=np.complex128)
+
+	R31 = RHO[0] * A2[0] * (1.0 - 2.0 * RAT2 * B2[0])
+	R34 = 4.0 * RHO[0] * RAT * XLB[0] * B2[0] * B2[0]
+	R42 = -2.0 * RHO[0] * RAT * XLA[0] * A2[0] * B2[0]
+	R43 = 2.0 * RHO[0] * B2[0] * B2[0] * (XLB[0] * XLB[0] - RAT2)
+	RN31 = RHO[n] * A2[n] * (1.0 - 2.0 * RAT2 * B2[n])
+	RN34 = 4.0 * RHO[n] * RAT * XLB[n] * B2[n] * B2[n]
+	RN42 = -2.0 * RHO[n] * RAT * XLA[n] * A2[n] * B2[n]
+	RN43 = 2.0 * RHO[n] * B2[n] * B2[n] * (XLB[n] * XLB[n] - RAT2)
+
+	if PorS == "P":
+		BNR = (RN43 * RN31 + RN34 * RN42) / (RN34 * RN42 - RN43 * RN31)
+		DNR = 2.0 * RN42 * RN31 / (RN42 * RN34 - RN31 * RN43)
+	else:
+		BNR = 2.0 * RN43 * RN34 / (RN34 * RN42 - RN43 * RN31)
+		DNR = (RN42 * RN34 + RN31 * RN43) / (RN42 * RN34 - RN31 * RN43)
+
+	## Loop over frequency
+	VV = np.zeros(NFr, dtype=np.complex128)
+	F = np.zeros(NFr)
+	for IFRQ in range(INYQ):
+		if IFRQ == 0:
+			F[IFRQ] = 0.0
+			#PER = 1.0E+6
+			VV[IFRQ] = np.complex(1.0, 0.0)
+			continue
+
+		F[IFRQ] = (IFRQ - 1) * DELF
+		P = 2.0 * np.pi * F[IFRQ]
+		CIP = CI * P
+
+		## Loop over the number of layers (propagate)
+		for i in range(NLAY-1, -1, -1):
+			k = i + 1
+			CX = RHO[k] / RHO[i]
+			CY = (RHO[k] * B2[k] - RHO[i] * B2[i]) / RHO[i]
+			CZ = 2.0 * RAT2 * CY
+
+			T11 = (A2[k] / A2[i]) * (CX - CZ)
+			T14 = (4.0 * RAT * XLB[k] * B2[k] / A2[i]) * CY
+			T41 = ((RAT * A2[k]) / (2.0 * XLB[i] * B2[i])) * (CX - 1.0 - CZ)
+			T44 = ((XLB[k] * B2[k]) / (XLB[i] * B2[i])) * (1.0 + CZ)
+			T22 = ((XLA[k] * A2[k]) / (XLA[i] * A2[i])) * (1.0 + CZ)
+			T23 = ((2.0 * RAT * B2[k]) / (XLA[i] * A2[i])) * (1.0 - CX + CZ)
+			T32 = ((-RAT * XLA[k] * A2[k]) / B2[i]) * CY
+			T33 = (B2[k] / B2[i]) * (CX - CZ)
+
+			CX = CIP * Z[i]
+			Q11 = 0.5 * (T11 + T22) * np.exp(CX * (XLA[k] - XLA[i]))
+			Q12 = 0.5 * (T11 - T22) * np.exp(-CX * (XLA[k] + XLA[i]))
+			Q13 = 0.5 * (T14 + T23) * np.exp(CX * (XLB[k] - XLA[i]))
+			Q14 = 0.5 * (T23 - T14) * np.exp(-CX * (XLB[k] + XLA[i]))
+			Q21 = 0.5 * (T11 - T22) * np.exp(CX * (XLA[i] + XLA[k]))
+			Q22 = 0.5 * (T11 + T22) * np.exp(CX * (XLA[i] - XLA[k]))
+			Q23 = 0.5 * (T14 - T23) * np.exp(CX * (XLA[i] + XLB[k]))
+			Q24 = 0.5 * (-T14 - T23) * np.exp(CX * (XLA[i] - XLB[k]))
+			Q31 = 0.5 * (T32 + T41) * np.exp(CX * (XLA[k] - XLB[i]))
+			Q32 = 0.5 * (T41 - T32) * np.exp(-CX * (XLA[k] + XLB[i]))
+			Q33 = 0.5 * (T33 + T44) * np.exp(CX * (XLB[k] - XLB[i]))
+			Q34 = 0.5 * (T33 - T44) * np.exp(-CX * (XLB[k] + XLB[i]))
+			Q41 = 0.5 * (T32 - T41) * np.exp(CX * (XLB[i] + XLA[k]))
+			Q42 = 0.5 * (-T32 - T41) * np.exp(CX * (XLB[i] - XLA[k]))
+			Q43 = 0.5 * (T33 - T44) * np.exp(CX * (XLB[i] + XLB[k]))
+			Q44 = 0.5 * (T33 + T44) * np.exp(CX * (XLB[i] - XLB[k]))
+			P11[i] = Q11 * P11[k] + Q12 * P21[k] + Q13 * P31[k] + Q14 * P41[k]
+			P12[i] = Q11 * P12[k] + Q12 * P22[k] + Q13 * P32[k] + Q14 * P42[k]
+			P13[i] = Q11 * P13[k] + Q12 * P23[k] + Q13 * P33[k] + Q14 * P43[k]
+			P14[i] = Q11 * P14[k] + Q12 * P24[k] + Q13 * P34[k] + Q14 * P44[k]
+			P21[i] = Q21 * P11[k] + Q22 * P21[k] + Q23 * P31[k] + Q24 * P41[k]
+			P22[i] = Q21 * P12[k] + Q22 * P22[k] + Q23 * P32[k] + Q24 * P42[k]
+			P23[i] = Q21 * P13[k] + Q22 * P23[k] + Q23 * P33[k] + Q24 * P43[k]
+			P24[i] = Q21 * P14[k] + Q22 * P24[k] + Q23 * P34[k] + Q24 * P44[k]
+			P31[i] = Q31 * P11[k] + Q32 * P21[k] + Q33 * P31[k] + Q34 * P41[k]
+			P32[i] = Q31 * P12[k] + Q32 * P22[k] + Q33 * P32[k] + Q34 * P42[k]
+			P33[i] = Q31 * P13[k] + Q32 * P23[k] + Q33 * P33[k] + Q34 * P43[k]
+			P34[i] = Q31 * P14[k] + Q32 * P24[k] + Q33 * P34[k] + Q34 * P44[k]
+			P41[i] = Q41 * P11[k] + Q42 * P21[k] + Q43 * P31[k] + Q44 * P41[k]
+			P42[i] = Q41 * P12[k] + Q42 * P22[k] + Q43 * P32[k] + Q44 * P42[k]
+			P43[i] = Q41 * P13[k] + Q42 * P23[k] + Q43 * P33[k] + Q44 * P43[k]
+			P44[i] = Q41 * P14[k] + Q42 * P24[k] + Q43 * P34[k] + Q44 * P44[k]
+
+		G11 = R31 *(P12[0] + P22[0]) + R34 *(P32[0] - P42[0])
+		G21 = R42 *(P12[0] - P22[0]) + R43 *(P32[0] + P42[0])
+		G12 = R31 *(P14[0] + P24[0]) + R34 *(P34[0] - P44[0])
+		G22 = R42 *(P14[0] - P24[0]) + R43 *(P34[0] + P44[0])
+
+		if np.abs(G22 * G11 - G12 * G21) == 0.0:
+			## Matrix singular
+			VV[IFRQ] = np.nan
+			break
+
+		if PorS == "P":
+			F1 = R31 * (P11[0] + P21[0]) + R34 *(P31[0] - P41[0])
+			F2 = R42 * (P11[0] - P21[0]) + R43 *(P31[0] + P41[0])
+		else:
+			F1 = R31 * (P13[0] + P23[0]) + R34 * (P33[0] - P43[0])
+			F2 = R42 * (P13[0] - P23[0]) + R43 * (P33[0] + P43[0])
+
+		BN = (G12 * F2 - G22 * F1) / (G22 * G11 - G12 * G21)
+		DN = (G11 * F2 - G21 * F1) / (G21 * G12 - G11 * G22)
+
+		found_zdepth = False
+		for i4loop in range(NLAY):
+			if zdepth <= Z[i4loop]:
+				found_zdepth = True
+				break
+
+		if found_zdepth:
+			i = i4loop
+		else:
+			i = n
+
+		R11 = -RAT * A2[i]
+		R14 = 2.0 * XLB[i] * B2[i]
+		R22 = XLA[i] * A2[i]
+		R23 = 2.0 * RAT * B2[i]
+		CA = CIP * XLA[i] * zdepth
+		CB = CIP * XLB[i] * zdepth
+
+		if PorS == "P":
+			if HorV == "V":
+				VV[IFRQ] = ((R22 * ((P11[i] + P12[i] * BN + P14[i] * DN) * np.exp(CA)
+					- (P21[i] + P22[i] * BN + P24[i] * DN) * np.exp(-CA))
+					+ R23 *((P31[i] + P32[i] * BN + P34[i] * DN) * np.exp(CB)
+					+ (P41[i] + P42[i] * BN + P44[i] * DN) * np.exp(-CB)))
+					/ (XLA[n] * A2[n] * (1.0 - BNR) +2.0 * RAT * B2[n] * DNR))
+			elif HorV == "H":
+				if theta == 0.0:
+					VV[IFRQ] = 0.0
+				else:
+					VV[IFRQ] = ((R11 * ((P11[i] + P12[i] * BN + P14[i] * DN) * np.exp(CA)
+						+ (P21[i] + P22[i] * BN + P24[i] * DN) * np.exp(-CA))
+						+ R14 * ((P31[i] + P32[i] * BN + P34[i] * DN) * np.exp(CB)
+						- (P41[i] + P42[i] * BN + P44[i] * DN) * np.exp(-CB)))
+						/ (-RAT * A2[n] * (1.0 + BNR) -2.0 * XLB[n] * B2[n] * DNR))
+		elif PorS == "S":
+			if HorV == "V":
+				if theta == 0.0:
+					VV[IFRQ] = 0.0
+				else:
+					VV[IFRQ] = ((R22 * ((P12[i] * BN + P13[i] + P14[i] * DN) * np.exp(CA)
+						- (P22[i] * BN + P23[i] + P24[i] * DN) * np.exp(-CA))
+						+ R23 * ((P32[i] * BN + P33[i] + P34[i] * DN) * np.exp(CB)
+						+ (P42[i] * BN + P43[i] + P44[i] * DN) * np.exp(-CB)))
+						/ (-XLA[n] * A2[n] * BNR + 2.0 * RAT * B2[n] * (1.0 + DNR)))
+			elif HorV == "H":
+					VV[IFRQ] = ((R11 * ((P12[i] * BN + P13[i] + P14[i] * DN) * np.exp(CA)
+						+ (P22[i] * BN + P23[i] + P24[i] * DN) * np.exp(-CA))
+						+ R14 * ((P32[i] * BN + P33[i] + P34[i] * DN) * np.exp(CB)
+						- (P42[i] * BN + P43[i] + P44[i] * DN) * np.exp(-CB)))
+						/ (-RAT * A2[n] * BNR + 2.0 * XLB[n] * B2[n] * (1.0 - DNR)))
+
+	return ComplexTransferFunction(F, VV)
+
+
+def randomized_reflectivity(layer_model, zdepth=0, theta=0., FrMax=50, NFr=2048, num_samples=10, method="nrattle", CVarVS=0.08, CVarRho=0.05, CVarTh=0.03, CVarQS=0.3, num_sigma=2, random_seed=None):
 	"""
 	:param layer_model:
 		instance of :class:`ElasticLayerModel`
+	:param zdepth:
+		float, depth at which response has to be computed (in m)
+		Only applies wheh :param:`method` is set to "nrattle"
+		(default: 0)
 	:param theta:
 		float, angle of incidence of SH waves (default: 0.)
 	:param FrMax:
@@ -375,6 +780,13 @@ def randomized_reflectivity(layer_model, theta=0., FrMax=50, NFr=2048, num_sampl
 		int, number of frequencies (default: 2048)
 	:param num_samples:
 		int, number of random samples (default: 10)
+	:param method:
+		str, name of function to compute transfer function, one of:
+		- "nrattle": using NRATTLE code by Chuck Mueller from Dave Boore's
+			SITE_AMP package
+		- "reflectivity": using Philip Rosset's implementation of Kennet's
+			reflectivity method
+		(default: "nrattle")
 	:param CVarVS:
 		float, coefficient of variation of input shear-wave velocity
 		(default: 0.08)
@@ -396,20 +808,24 @@ def randomized_reflectivity(layer_model, theta=0., FrMax=50, NFr=2048, num_sampl
 	:return:
 		instance of :class:`ComplexTransferFunctionSet`
 	"""
+	# TODO: add CVarVP and CVarQP for roll
 	TRco = np.zeros((num_samples, NFr), dtype=np.complex)
 	i = 0
 	for lm in layer_model.sample(num_samples, CVarVS=CVarVS, CVarRho=CVarRho, CVarTh=CVarTh, CVarQS=CVarQS, num_sigma=num_sigma, random_seed=random_seed):
 		#lm.plot()
-		TFi = reflectivity(lm, theta=theta, FrMax=FrMax, NFr=NFr)
+		if method.lower() == "reflectivity":
+			TFi = reflectivity(lm, theta=theta, FrMax=FrMax, NFr=NFr)
+		elif method.lower() == "nrattle":
+			TFi = nrattle(lm, zdepth=zdepth, theta=theta, FrMax=FrMax, NFr=NFr)
 		TRco[i] = TFi.data
 		i += 1
 
 	return ComplexTransferFunctionSet(TFi.freqs, TRco)
 
 
-def randomized_reflectivity_mp(layer_model, theta=0., FrMax=50, NFr=2048, num_samples=10, CVarVS=0.08, CVarRho=0.05, CVarTh=0.03, CVarQS=0.3, num_sigma=2, random_seed=None):
+def randomized_reflectivity_mp(layer_model, zdepth=0., theta=0., FrMax=50, NFr=2048, num_samples=10, method="nrattle", CVarVS=0.08, CVarRho=0.05, CVarTh=0.03, CVarQS=0.3, num_sigma=2, random_seed=None):
 	"""
-	Multiprocessing version of randomized_reflectivity.
+	Multiprocessing version of :func:`randomized_reflectivity`.
 	"""
 	import multiprocessing
 	from ..calc.mp import mp_func_wrapper
@@ -421,7 +837,13 @@ def randomized_reflectivity_mp(layer_model, theta=0., FrMax=50, NFr=2048, num_sa
 
 	job_arg_list = []
 	for i, lm in enumerate(layer_model.sample(num_samples, CVarVS=CVarVS, CVarRho=CVarRho, CVarTh=CVarTh, CVarQS=CVarQS, num_sigma=num_sigma, random_seed=random_seed)):
-		job_arg_list.append((reflectivity, (lm, theta, FrMax, NFr)))
+		if method == "reflectivity":
+			tf_func = reflectivity
+			params = (lm, theta, FrMax, NFr)
+		elif method == "nrattle":
+			tf_func = nrattle
+			params = (lm, zdepth, theta, FrMax, NFr)
+		job_arg_list.append((tf_func, params))
 
 	pool = multiprocessing.Pool(processes=num_processes)
 	TFi_list = pool.map(mp_func_wrapper, job_arg_list, chunksize=1)
