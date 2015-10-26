@@ -3412,8 +3412,8 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		from ..siteresponse import ComplexTransferFunction
 
 		irvt = self.get_fas_irvt(pgm_freq=pgm_freq, mag=mag, distance=distance, region=region)
-		print irvt.freqs.min(), irvt.freqs.max()
-		print tf.freqs.min(), tf.freqs.max()
+		#print irvt.freqs.min(), irvt.freqs.max()
+		#print tf.freqs.min(), tf.freqs.max()
 		if isinstance(tf, ComplexTransferFunction):
 			tf = tf.to_transfer_function()
 		tf2 = tf.interpolate(irvt.freqs)
@@ -3431,7 +3431,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		model_name = self.model_name + " (SRS)"
 		#periods[np.allclose(tf.freqs, pgm_freq)] = 0
 		#periods = periods[tf.freqs <= pgm_freq]
-		print periods.min(), periods.max()
+		#print periods.min(), periods.max()
 		#srs_motion = srs_motion[tf.freqs <= pgm_freq]
 		uhs = UHS(model_name, "", self.site, periods, self.IMT, srs_motion, self.intensity_unit, self.timespan, poe=self.poe, return_period=self.return_period)
 		return uhs
