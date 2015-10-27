@@ -288,7 +288,7 @@ class TransferFunction:
 
 
 
-def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels=[], want_freq=True):
+def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels=[], want_freq=True, title="", fig_filespec=None, dpi=300):
 	"""
 	Magnitude plot of transfer functions
 
@@ -307,6 +307,16 @@ def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels
 		bool, whether X axis should show frequencies (True) or periods
 		(False)
 		(default: True)
+	:param title:
+		str, figure title
+		(default: "")
+	:param fig_filespec:
+		str, full path to output file. If None, figure will be plotted
+		on screen
+		(default: None)
+	:param dpi:
+		int, figure resolution in dots per inch
+		(default: 300)
 	"""
 	# TODO: add more options, and implement empty lists
 	for i in range(len(TF_list)):
@@ -324,10 +334,15 @@ def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels
 	font = FontProperties(size='large')
 	pylab.legend(loc="upper right", prop=font)
 	pylab.grid(True, which="both")
+	pylab.title(title)
 	ax = pylab.gca()
 	for label in ax.get_xticklabels() + ax.get_yticklabels():
 		label.set_size('large')
-	pylab.show()
+
+	if fig_filespec:
+		pylab.savefig(fig_filespec, dpi=dpi)
+	else:
+		pylab.show()
 
 
 def read_TF_transfer1D(csv_filespec):
