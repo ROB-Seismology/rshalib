@@ -799,7 +799,7 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 			#occurrence_rates = cumul_rates[:-1] - cumul_rates[1:]
 			#occurrence_rates = np.append(occurrence_rates, cumul_rates[-1:])
 		else:
-			Mmin = M
+			Mmin = char_mag
 			occurrence_rates = [1./return_period]
 		EvenlyDiscretizedMFD.__init__(self, Mmin+bin_width/2, bin_width, occurrence_rates, Mtype="MW")
 		self.char_mag = char_mag
