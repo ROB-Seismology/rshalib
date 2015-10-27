@@ -3404,6 +3404,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 			float, distance in km (default: 10)
 		:param region:
 			str, region, either "ENA" or "WNA"
+			(default: "ENA")
 
 		:return:
 			instance of :class:`UHS`
