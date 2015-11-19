@@ -3550,6 +3550,45 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		return ResponseSpectrum(model_name, self.periods, self.IMT, intensities,
 								self.intensity_unit)
 
+	def get_segmented_envelope(self, corner_freqs=[0.25, 2.5, 9, 33]):
+		"""
+		Compute segmented envelop in the frequency domain
+		"""
+		from scipy import stats, polyval
+		from scipy.optimize import curve_fit
+
+		## First compute interpolated spectrum that includes corner freqs
+		x = np.array((list(self.frequencies) + list(corner_freqs)).sort())
+		idxs = np.where((x >= min(corner_freqs)) & (x <= max(corner_freqs)))
+		x = x[idxs]
+		int_spec = self.interpolate_periods(1./x[::-1])
+
+		## Split spectrum in segments
+		freqs = int_spec.frequencies
+		intensities = int_spec.intensities
+		for i in range(len(corner_freqs) - 1):
+			fmin, fmax = corner_freqs[i], corner_freqs[i+1]
+			idxs = np.where((freqs >= fmin) & (freqs <= fmax))
+			x, y = np.log(freqs[idxs]), np.log(intensities[idxs])
+
+			## Compute slope in (log, log) domain using linear regression
+			b, a, r, tt, stderr = stats.linregress(x, y)
+
+		def piecewise_linear(x, x0, y0, k1, k2):
+			cond_list, func_list = [], []
+			for i in range(len(corner_freqs) - 1):
+				fmin, fmax = corner_freqs[i], corner_freqs[i+1]
+				cond_list.append(fmin <= x <= fmax)
+				func_list.append(lambda x: x)
+			return np.piecewise(x, cond_list, [lambda x:k1*x + y0-k1*x0, lambda x:k2*x + y0-k2*x0])
+
+		x, y = np.log(freqs), np.log(intensities)
+		popt, pcov = curve_fit(piecewise_linear, x, y)
+
+
+
+
+
 
 class UHS(HazardResult, ResponseSpectrum):
 	"""
