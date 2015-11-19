@@ -3566,14 +3566,26 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		## Split spectrum in segments
 		freqs = int_spec.frequencies
 		intensities = int_spec.intensities
+
+		envelope = np.zeros_like(corner_freqs)
 		for i in range(len(corner_freqs) - 1):
 			fmin, fmax = corner_freqs[i], corner_freqs[i+1]
 			idxs = np.where((freqs >= fmin) & (freqs <= fmax))
 			x, y = np.log(freqs[idxs]), np.log(intensities[idxs])
 
 			## Compute slope in (log, log) domain using linear regression
-			b, a, r, tt, stderr = stats.linregress(x, y)
+			b, _a, r, tt, stderr = stats.linregress(x, y)
+			a = np.max(y - b * x)
+			y0, y1 = a + b * x[0], a + b * x[-1]
+			if i == 0:
+				envelope[i:i+1] = [y0, y1]
+			elif i == len(corner_freqs) - 1:
+				envelope[i] = (envelope[i] + y0) / 2.
+				envelope[i+1] = y1
+			else:
+				envelope[i:i+1] = (envelope[i:i+1] + np.array([y0, y1])) / 2.
 
+		"""
 		def piecewise_linear(x, x0, y0, k1, k2):
 			cond_list, func_list = [], []
 			for i in range(len(corner_freqs) - 1):
@@ -3584,10 +3596,13 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 
 		x, y = np.log(freqs), np.log(intensities)
 		popt, pcov = curve_fit(piecewise_linear, x, y)
+		"""
 
-
-
-
+		model_name = self.model_name + " (envelope)"
+		periods = 1. / np.array(corner_freqs)
+		intensities = np.exp(envelope)
+		return ResponseSpectrum(model_name, periods, self.IMT, intensities,
+								intensity_unit=self.intensity_unit)
 
 
 class UHS(HazardResult, ResponseSpectrum):
