@@ -3500,8 +3500,15 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		if freqs:
 			periods = 1./periods
 		intensities = np.array(intensities)
-		if model_name is None:
-			model_name = csv_filespec
+
+		## Fix position of PGA with respect to spectrum if necessary
+		if periods[0] == 0 and periods[1] > periods[2]:
+			print("Moving PGA to end of array")
+			periods = np.roll(periods, -1)
+			intensities = np.roll(intensities, -1)
+
+		if not model_name:
+			model_name = os.path.splitext(os.path.split(csv_filespec)[-1])[0]
 
 		if intensity_unit in ("g", "mg", "ms2", "cms2", "gal"):
 			imt = "SA"
@@ -3558,15 +3565,20 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		from scipy.optimize import curve_fit
 
 		## First compute interpolated spectrum that includes corner freqs
-		x = np.array((list(self.frequencies) + list(corner_freqs)).sort())
+		corner_freqs = np.array(corner_freqs)
+		x = np.array((list(self.frequencies) + list(corner_freqs)))
+		x.sort()
 		idxs = np.where((x >= min(corner_freqs)) & (x <= max(corner_freqs)))
 		x = x[idxs]
-		int_spec = self.interpolate_periods(1./x[::-1])
+		print 1./x
+		int_spec = self.interpolate_periods(1./x)
+		print int_spec.intensities
 
 		## Split spectrum in segments
 		freqs = int_spec.frequencies
 		intensities = int_spec.intensities
 
+		"""
 		envelope = np.zeros_like(corner_freqs)
 		for i in range(len(corner_freqs) - 1):
 			fmin, fmax = corner_freqs[i], corner_freqs[i+1]
@@ -3576,29 +3588,56 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 			## Compute slope in (log, log) domain using linear regression
 			b, _a, r, tt, stderr = stats.linregress(x, y)
 			a = np.max(y - b * x)
+			print b, a
 			y0, y1 = a + b * x[0], a + b * x[-1]
 			if i == 0:
-				envelope[i:i+1] = [y0, y1]
+				envelope[i:i+2] = [y0, y1]
 			elif i == len(corner_freqs) - 1:
 				envelope[i] = (envelope[i] + y0) / 2.
 				envelope[i+1] = y1
 			else:
-				envelope[i:i+1] = (envelope[i:i+1] + np.array([y0, y1])) / 2.
-
+				envelope[i:i+2] = (envelope[i:i+1] + np.array([y0, y1])) / 2.
 		"""
-		def piecewise_linear(x, x0, y0, k1, k2):
+
+		corner_spec = self.interpolate_periods(1./corner_freqs)
+		Yc0 = np.log(corner_spec.intensities)
+		print corner_spec.intensities
+		print Yc0
+
+		Xc = np.log(corner_freqs)
+		def piecewise_linear(x, *y):
+			#Yc = np.concatenate([Yc0[:1], y, Yc0[-1:]])
+			Yc = np.array(y)
+			#Yc = [y0, y1, y2, y3]
+			"""
 			cond_list, func_list = [], []
-			for i in range(len(corner_freqs) - 1):
-				fmin, fmax = corner_freqs[i], corner_freqs[i+1]
-				cond_list.append(fmin <= x <= fmax)
-				func_list.append(lambda x: x)
-			return np.piecewise(x, cond_list, [lambda x:k1*x + y0-k1*x0, lambda x:k2*x + y0-k2*x0])
+			for i in range(len(Xc) - 1):
+				xmin, xmax = Xc[i], Xc[i+1]
+				fmin, fmax = np.exp(xmin), np.exp(xmax)
+				print fmin, fmax
+				cond_list.append((xmin <= x) & (x <= xmax))
+				func_list.append(lambda xx: Yc[i] + ((xx - Xc[i]) / (Xc[i+1] - Xc[i])) * ((Yc[i+1] - Yc[i])))
+			return np.piecewise(x, cond_list, func_list)
+			"""
+			ans = np.zeros_like(x)
+			for i in range(len(Xc) - 1):
+				xmin, xmax = Xc[i], Xc[i+1]
+				condition = (xmin <= x) & (x <= xmax)
+				ans[condition] = Yc[i] + ((x[condition] - Xc[i]) / (Xc[i+1] - Xc[i])) * ((Yc[i+1] - Yc[i]))
+			return ans
+
 
 		x, y = np.log(freqs), np.log(intensities)
-		popt, pcov = curve_fit(piecewise_linear, x, y)
-		"""
+		#popt, pcov = curve_fit(piecewise_linear, x, y, p0=Yc0[1:-1])
+		popt, pcov = curve_fit(piecewise_linear, x, y, p0=Yc0)
+		print popt
+		print np.exp(popt)
+		#envelope = np.concatenate([Yc0[:1], popt, Yc0[-1:]])
+		envelope = piecewise_linear(Xc, *popt)
+		#envelope = popt
 
 		model_name = self.model_name + " (envelope)"
+		#periods = 1. / freqs
 		periods = 1. / np.array(corner_freqs)
 		intensities = np.exp(envelope)
 		return ResponseSpectrum(model_name, periods, self.IMT, intensities,
