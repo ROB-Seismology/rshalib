@@ -3557,12 +3557,26 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		return ResponseSpectrum(model_name, self.periods, self.IMT, intensities,
 								self.intensity_unit)
 
-	def get_segmented_envelope(self, corner_freqs=[0.25, 2.5, 9, 33]):
+	def get_piecewise_linear_envelope(self, corner_freqs=[0.25, 2.5, 9, 33],
+										num_iterations=100):
 		"""
-		Compute segmented envelop in the frequency domain
+		Compute best-fitting piecewise linear envelope in the frequency domain
+
+		:param corner_freqs:
+			list or array of floats, corner frequencies (in Hz)
+			(default: [0.25, 2.5, 9, 33], frequencies specified in RG1.60)
+		:param num_iterations:
+			int, number of iterations for fitting algorithm
+			If set to 1, result will be best piecewise linear fit rather
+			than envelope
+			(default: 100)
+
+		:return:
+			instance of :class:`ResponseSpectrum`
 		"""
-		from scipy import stats, polyval
 		from scipy.optimize import curve_fit
+
+		assert num_iterations > 0
 
 		## First compute interpolated spectrum that includes corner freqs
 		corner_freqs = np.array(corner_freqs)
@@ -3570,78 +3584,88 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		x.sort()
 		idxs = np.where((x >= min(corner_freqs)) & (x <= max(corner_freqs)))
 		x = x[idxs]
-		print 1./x
 		int_spec = self.interpolate_periods(1./x)
-		print int_spec.intensities
-
-		## Split spectrum in segments
 		freqs = int_spec.frequencies
 		intensities = int_spec.intensities
 
-		"""
-		envelope = np.zeros_like(corner_freqs)
-		for i in range(len(corner_freqs) - 1):
-			fmin, fmax = corner_freqs[i], corner_freqs[i+1]
-			idxs = np.where((freqs >= fmin) & (freqs <= fmax))
-			x, y = np.log(freqs[idxs]), np.log(intensities[idxs])
-
-			## Compute slope in (log, log) domain using linear regression
-			b, _a, r, tt, stderr = stats.linregress(x, y)
-			a = np.max(y - b * x)
-			print b, a
-			y0, y1 = a + b * x[0], a + b * x[-1]
-			if i == 0:
-				envelope[i:i+2] = [y0, y1]
-			elif i == len(corner_freqs) - 1:
-				envelope[i] = (envelope[i] + y0) / 2.
-				envelope[i+1] = y1
-			else:
-				envelope[i:i+2] = (envelope[i:i+1] + np.array([y0, y1])) / 2.
-		"""
-
+		## Use interpolated values at corner frequencies as initial guess
+		## for curve-fitting algorithm ...
 		corner_spec = self.interpolate_periods(1./corner_freqs)
+		## ... and convert to logarithmic domain
 		Yc0 = np.log(corner_spec.intensities)
-		print corner_spec.intensities
-		print Yc0
-
 		Xc = np.log(corner_freqs)
+
 		def piecewise_linear(x, *y):
-			#Yc = np.concatenate([Yc0[:1], y, Yc0[-1:]])
+			"""
+			Piecewise linear function
+
+			:param x:
+				numpy array, X values
+			:param y:
+				numpy array, Y values at corner frequencies
+
+			:return:
+				numpy array, predicted values corresponding to :param:`x`
+			"""
 			Yc = np.array(y)
-			#Yc = [y0, y1, y2, y3]
-			"""
-			cond_list, func_list = [], []
+			yfit = np.zeros_like(x)
+			## Note: Explicit loop because np.piecewise didn't seem to work
 			for i in range(len(Xc) - 1):
-				xmin, xmax = Xc[i], Xc[i+1]
-				fmin, fmax = np.exp(xmin), np.exp(xmax)
-				print fmin, fmax
-				cond_list.append((xmin <= x) & (x <= xmax))
-				func_list.append(lambda xx: Yc[i] + ((xx - Xc[i]) / (Xc[i+1] - Xc[i])) * ((Yc[i+1] - Yc[i])))
-			return np.piecewise(x, cond_list, func_list)
-			"""
-			ans = np.zeros_like(x)
-			for i in range(len(Xc) - 1):
+				## Note: Xc defined outside of this function
 				xmin, xmax = Xc[i], Xc[i+1]
 				condition = (xmin <= x) & (x <= xmax)
-				ans[condition] = Yc[i] + ((x[condition] - Xc[i]) / (Xc[i+1] - Xc[i])) * ((Yc[i+1] - Yc[i]))
-			return ans
 
+				## Best-fitting line
+				bfit = (Yc[i+1] - Yc[i]) / (Xc[i+1] - Xc[i])
+				yfit[condition] = Yc[i] + bfit * (x[condition] - Xc[i])
+
+				## Envelope, doesn't work inside fitting function
+				"""
+				yreal = np.log(intensities[condition])
+				afit = Yc[i] - bfit * Xc[i]
+				aenv = np.max(yreal - bfit * x[condition])
+				da = aenv - afit
+				yfit[condition] = afit - da + bfit * x[condition]
+				"""
+			return yfit
 
 		x, y = np.log(freqs), np.log(intensities)
-		#popt, pcov = curve_fit(piecewise_linear, x, y, p0=Yc0[1:-1])
-		popt, pcov = curve_fit(piecewise_linear, x, y, p0=Yc0)
-		print popt
-		print np.exp(popt)
-		#envelope = np.concatenate([Yc0[:1], popt, Yc0[-1:]])
-		envelope = piecewise_linear(Xc, *popt)
-		#envelope = popt
+
+		for l in range(num_iterations):
+			## Find best-fitting piecewise linear function
+			popt, pcov = curve_fit(piecewise_linear, x, y, p0=Yc0)
+			envelope = piecewise_linear(x, *popt)
+
+			# Set Y values which are lower than envelope to predicted Y
+			idxs = y < envelope
+			y[idxs] = envelope[idxs]
+
+		#corner_envelope = piecewise_linear(Xc, *popt)
+		corner_envelope = popt
 
 		model_name = self.model_name + " (envelope)"
-		#periods = 1. / freqs
 		periods = 1. / np.array(corner_freqs)
-		intensities = np.exp(envelope)
+		intensities = np.exp(corner_envelope)
 		return ResponseSpectrum(model_name, periods, self.IMT, intensities,
 								intensity_unit=self.intensity_unit)
+
+	def get_damped_spectrum(self, damping_ratio):
+		"""
+		Assuming current spectrum corresponds to 5% damping ratio
+
+		:param damping_ratio:
+			float, damping ratio in percent, one of 0.5, 2, 7 or 10
+
+		:return:
+			instance of :class:`ResponseSpectrum`
+
+		0.5	1.00	1.90	1.90	1.56
+		2	1.00	1.36	1.36	1.22
+		7	1.00	0.87	0.87	0.92
+		10	1.00	0.73	0.73	0.83
+
+		"""
+		pass
 
 
 class UHS(HazardResult, ResponseSpectrum):
