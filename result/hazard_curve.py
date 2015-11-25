@@ -3266,6 +3266,60 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		IntensityResult.__init__(self, IMT, intensities, intensity_unit)
 		self.model_name = model_name
 
+	def __add__(self, other):
+		"""
+		Sum response spectrum with another spectrum or a fixed value
+
+		:param other:
+			int, float or instance of :class:`ResponseSpectrum`
+			If other response spectrum has different periods, interpolation
+			will occur.
+
+		:return:
+			instance of :class:`ResponseSpectrum`
+		"""
+		if isinstance(other, ResponseSpectrum):
+			if not np.array_equal(self.periods, other.periods):
+				print("Warning: Periods incompatible, need to interpolate")
+				other = other.interpolate_periods(self.periods)
+			intensities = self.intensities + other.intensities
+			model_name = "%s + %s" % (self.model_name, other.model_name)
+		elif isinstance(other, (int, float)):
+			intensities = self.intensities + other
+			model_name = "%s + %s" % (self.model_name, other)
+		else:
+			raise TypeError
+
+		return ResponseSpectrum(model_name, self.periods, self.IMT, intensities,
+								self.intensity_unit)
+
+	def __sub__(self, other):
+		"""
+		Subtract response spectrum or fixed value from current spectrum
+
+		:param other:
+			int, float or instance of :class:`ResponseSpectrum`
+			If other response spectrum has different periods, interpolation
+			will occur.
+
+		:return:
+			instance of :class:`ResponseSpectrum`
+		"""
+		if isinstance(other, ResponseSpectrum):
+			if not np.array_equal(self.periods, other.periods):
+				print("Warning: Periods incompatible, need to interpolate")
+				other = other.interpolate_periods(self.periods)
+			intensities = self.intensities - other.intensities
+			model_name = "%s - %s" % (self.model_name, other.model_name)
+		elif isinstance(other, (int, float)):
+			intensities = self.intensities - other
+			model_name = "%s - %s" % (self.model_name, other)
+		else:
+			raise TypeError
+
+		return ResponseSpectrum(model_name, self.periods, self.IMT, intensities,
+								self.intensity_unit)
+
 	def __mul__(self, other):
 		"""
 		Multiply response spectrum with another spectrum or a fixed value
@@ -3286,7 +3340,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 			model_name = "%s * %s" % (self.model_name, other.model_name)
 		elif isinstance(other, (int, float)):
 			intensities = self.intensities * other
-			model_name = "%s x %s" % (self.model_name, other)
+			model_name = "%s * %s" % (self.model_name, other)
 		else:
 			raise TypeError
 
@@ -3548,7 +3602,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 			hrefspec = get_refspec_EC8(1., "A", resp_type=resp_type, orientation="horizontal")
 			vrefspec = get_refspec_EC8(1., "A", resp_type=resp_type, orientation="vertical")
 			vh_ratio_ec8 = vrefspec / hrefspec
-			cnv_factor = interpolate(hrefspec.periods, vh_ratio_ec8.intensities, self.periods)
+			cnv_factor = interpolate(np.log(hrefspec.frequencies), vh_ratio_ec8.intensities, np.log(self.frequencies))
 		else:
 			raise NotImplementedError("Guidance %s not implemented" % guidance)
 
@@ -3768,6 +3822,16 @@ class UHS(HazardResult, ResponseSpectrum):
 		return UHS(model_name, csv_filespec, site, rs.periods, rs.IMT, rs.intensities,
 					intensity_unit=intensity_unit, timespan=timespan, poe=poe,
 					return_period=return_period)
+
+	def to_generic_response_spectrum(self):
+		"""
+		Convert UHS to generic response spectrum
+
+		:return:
+			instance of :class:`ResponseSpectrum`
+		"""
+		return ResponseSpectrum(self.model_name, self.periods, self.IMT,
+						self.intensities, intensity_unit=self.intensity_unit)
 
 
 class UHSFieldSet(HazardResult, HazardField, HazardSpectrum):
