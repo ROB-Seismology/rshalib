@@ -3597,7 +3597,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 
 		def piecewise_linear(x, *y):
 			"""
-			Piecewise linear function
+			Piecewise linear function for fixed x values (corner frequencies)
 
 			:param x:
 				numpy array, X values
@@ -3651,21 +3651,34 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 
 	def get_damped_spectrum(self, damping_ratio):
 		"""
-		Assuming current spectrum corresponds to 5% damping ratio
+		Compute response spectrum for different damping ratio following
+		RG1.60, and assuming current spectrum corresponds to 5% damping
 
 		:param damping_ratio:
 			float, damping ratio in percent, one of 0.5, 2, 7 or 10
 
 		:return:
 			instance of :class:`ResponseSpectrum`
-
-		0.5	1.00	1.90	1.90	1.56
-		2	1.00	1.36	1.36	1.22
-		7	1.00	0.87	0.87	0.92
-		10	1.00	0.73	0.73	0.83
-
 		"""
-		pass
+		corner_freqs = [33, 9, 2.5, 0.25]
+
+		if damping_ratio == 0.5:
+			conv_coeffs = np.array([1.00, 1.90, 1.90, 1.56])
+		elif damping_ratio == 2:
+			conv_coeffs = np.array([1.00, 1.36, 1.36, 1.22])
+		elif damping_ratio == 7:
+			conv_coeffs = np.array([1.00, 0.87, 0.87, 0.92])
+		elif damping_ratio == 10:
+			conv_coeffs = np.array([1.00, 0.73, 0.73, 0.83])
+		## Note: PGA implicitly taken into account
+
+		conv_factor = interpolate(np.log(corner_freqs), conv_coeffs,
+									np.log(self.frequencies))
+
+		model_name = self.model_name + " (%.1f %% damping)" % damping_ratio
+		intensities = self.intensities * conv_factor
+		return ResponseSpectrum(model_name, self.periods, self.IMT, intensities,
+								intensity_unit=self.intensity_unit)
 
 
 class UHS(HazardResult, ResponseSpectrum):
