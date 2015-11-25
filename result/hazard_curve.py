@@ -3262,6 +3262,16 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 	Generic response spectrum
 	"""
 	def __init__(self, model_name, periods, IMT, intensities, intensity_unit="g"):
+		## Fix position of PGA with respect to spectrum if necessary
+		if periods[0] == 0 and periods[1] > periods[2]:
+			print("Moving PGA to end of array")
+			periods = np.roll(periods, -1)
+			intensities = np.roll(intensities, -1)
+		elif periods[-1] == 0 and periods[0] < periods[1]:
+			print("Moving PGA to beginning of array")
+			periods = np.roll(periods, 1)
+			intensities = np.roll(intensities, 1)
+
 		HazardSpectrum.__init__(self, periods)
 		IntensityResult.__init__(self, IMT, intensities, intensity_unit)
 		self.model_name = model_name
@@ -3554,12 +3564,6 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		if freqs:
 			periods = 1./periods
 		intensities = np.array(intensities)
-
-		## Fix position of PGA with respect to spectrum if necessary
-		if periods[0] == 0 and periods[1] > periods[2]:
-			print("Moving PGA to end of array")
-			periods = np.roll(periods, -1)
-			intensities = np.roll(intensities, -1)
 
 		if not model_name:
 			model_name = os.path.splitext(os.path.split(csv_filespec)[-1])[0]
