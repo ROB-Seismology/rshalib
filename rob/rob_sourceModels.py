@@ -21,7 +21,7 @@ from ..source import AreaSource, SimpleFaultSource, SourceModel
 #decimal.getcontext().prec = 4
 
 
-def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, column_map={}, source_catalogs={}, catalog_params={}, verbose=True, **kwargs):
+def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, column_map={}, source_catalogs={}, catalog_params={}, fix_mi_lambert=True, verbose=True, **kwargs):
 	"""
 	Create OQ/nhlib source model from one of the known ROB source models
 	(stored in MapInfo tables).
@@ -44,6 +44,10 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	:param catalog_params:
 		Dict, defining catalog parameters, in particular the keys
 		'Mtype', 'Mrelation', and 'completeness' (default: {})
+	:param fix_mi_lambert:
+		bool, whether or not to apply spatial reference system fix for
+		old MapInfo files in Lambert 1972 system
+		(default: True)
 	:param verbose:
 		Boolean, whether or not to print information (default: True)
 	:param kwargs:
@@ -57,7 +61,7 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	from mapping.geo.readGIS import read_GIS_file
 
 	rob_source_model = rob_source_models_dict[source_model_name]
-	source_records = read_GIS_file(rob_source_model['gis_filespec'], encoding=None, verbose=verbose)
+	source_records = read_GIS_file(rob_source_model['gis_filespec'], encoding=None, fix_mi_lambert=fix_mi_lambert, verbose=verbose)
 
 	## Override default column map
 	## Copy dict to avoid side effects in calling function
