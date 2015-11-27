@@ -413,8 +413,9 @@ def nrattle(layer_model, zdepth=0, theta=0., FrMax=50, NFr=2048):
 
 	## Frequencies
 	INYQ = NFr
-	SAMP = 2 * FrMax
-	T = 2 * (INYQ - 1) / SAMP
+	#SAMP = 2 * FrMax
+	#T = 2 * (INYQ - 1) / SAMP
+	T = float(NFr) / FrMax
 	DELF = 1.0 / T
 
 	zdepth /= 1000.
@@ -449,12 +450,15 @@ def nrattle(layer_model, zdepth=0, theta=0., FrMax=50, NFr=2048):
 					(1.0 + 0.5 * CI * QiS[i]) * (1.0 + 0.5 * CI * QiS[i]))
 		XXX[i] = np.sqrt(RHO[i] / XMU[i] - HS2)
 
+	## Frequency array (omitting zero frequency)
+	F = np.linspace(DELF, FrMax, NFr)
+
 	## Loop over frequency
 	TSTAR = 0.0
 	VV = np.zeros(NFr, dtype=np.complex128)
-	F = np.zeros(NFr)
+	#F = np.zeros(NFr)
 	for IFRQ in range(INYQ):
-		F[IFRQ] = IFRQ * DELF
+		#F[IFRQ] = IFRQ * DELF
 		W = 2 * np.pi * F[IFRQ]
 
 		## Loop over the number of layers (propagate)
@@ -626,17 +630,20 @@ def roll(layer_model, zdepth=0, theta=0., PorS="S", HorV="H", FrMax=50, NFr=2048
 		BNR = 2.0 * RN43 * RN34 / (RN34 * RN42 - RN43 * RN31)
 		DNR = (RN42 * RN34 + RN31 * RN43) / (RN42 * RN34 - RN31 * RN43)
 
+	## Frequency array (omitting zero frequency)
+	F = np.linspace(DELF, FrMax, NFr)
+
 	## Loop over frequency
 	VV = np.zeros(NFr, dtype=np.complex128)
-	F = np.zeros(NFr)
+	#F = np.zeros(NFr)
 	for IFRQ in range(INYQ):
 		if IFRQ == 0:
-			F[IFRQ] = 0.0
+			#F[IFRQ] = 0.0
 			#PER = 1.0E+6
 			VV[IFRQ] = np.complex(1.0, 0.0)
 			continue
 
-		F[IFRQ] = (IFRQ - 1) * DELF
+		#F[IFRQ] = (IFRQ - 1) * DELF
 		P = 2.0 * np.pi * F[IFRQ]
 		CIP = CI * P
 

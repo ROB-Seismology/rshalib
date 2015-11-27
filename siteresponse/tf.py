@@ -220,6 +220,10 @@ class TransferFunction:
 		return len(self.freqs)
 
 	@property
+	def num_freqs(self):
+		return len(self.freqs)
+
+	@property
 	def periods(self):
 		return 1. / self.freqs
 
@@ -236,7 +240,7 @@ class TransferFunction:
 			wrapped between -pi and pi
 		"""
 		import scipy.fftpack as fftpack
-		phases = fftpack.hilbert(numpy.log(self.magnitudes))
+		phases = fftpack.hilbert(np.log(self.magnitudes))
 		if wrap:
 			phases = (phases + np.pi) % (2 * np.pi ) - np.pi
 		return phases
@@ -285,6 +289,18 @@ class TransferFunction:
 		"""
 		plot_TF_magnitude([self], colors=[color], line_styles=[line_style], line_widths=[line_width], labels=[label])
 
+	def export_csv(self, out_filespec):
+		"""
+		Export to csv file
+
+		:param out_filespec:
+			str, full path to output file
+		"""
+		of = open(out_filespec, "w")
+		of.write("Freq, Mag\n")
+		for k in range(self.num_freqs):
+			of.write("%E, %E\n" % (self.freqs[k], self.magnitudes[k]))
+		of.close()
 
 
 
@@ -318,6 +334,7 @@ def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels
 		int, figure resolution in dots per inch
 		(default: 300)
 	"""
+	pylab.clf()
 	# TODO: add more options, and implement empty lists
 	for i in range(len(TF_list)):
 		TF = TF_list[i]
