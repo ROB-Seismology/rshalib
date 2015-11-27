@@ -3487,18 +3487,15 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 
 		sa_periods = self.periods[self.periods > 0]
 		sa_freqs = 1./ sa_periods
-		freqs = tf.freqs[tf.freqs > sa_freqs.min()]
-		freqs = freqs[freqs < sa_freqs.max()]
-		freqs = np.concatenate([[pgm_freq], freqs])
-		periods = np.concatenate([[0], 1./freqs[1:]])
+		out_freqs = tf.freqs[(tf.freqs >= sa_freqs.min()) & (tf.freqs <= sa_freqs.max())]
+		out_freqs = np.concatenate([out_freqs, [pgm_freq]])
+		out_periods = 1./out_freqs
+		out_periods[out_freqs == pgm_freq] = 0
 
-		srs_motion = rvt.compute_osc_resp(freqs)
+		srs_motion = rvt.compute_osc_resp(out_freqs)
+
 		model_name = self.model_name + " (SRS)"
-		#periods[np.allclose(tf.freqs, pgm_freq)] = 0
-		#periods = periods[tf.freqs <= pgm_freq]
-		#print periods.min(), periods.max()
-		#srs_motion = srs_motion[tf.freqs <= pgm_freq]
-		uhs = UHS(model_name, "", self.site, periods, self.IMT, srs_motion, self.intensity_unit, self.timespan, poe=self.poe, return_period=self.return_period)
+		uhs = UHS(model_name, "", self.site, out_periods, self.IMT, srs_motion, self.intensity_unit, self.timespan, poe=self.poe, return_period=self.return_period)
 		return uhs
 
 	def export_csv(self, csv_filespec=None):
