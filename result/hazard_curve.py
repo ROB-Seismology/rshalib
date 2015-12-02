@@ -2668,6 +2668,18 @@ class HazardCurve(HazardResult):
 		rp_intensities = interpolate(self.exceedance_rates, self.intensities, interpol_exceedance_rates)
 		return rp_intensities
 
+	def get_return_periods(self, intensities):
+		"""
+		Interpolate return periods for given intensities
+
+		:param intensities:
+			1-D float array, intensity in g
+
+		:return:
+			1-D float array, return period in yr
+		"""
+		return interpolate(self.intensities, self.return_periods, intensities)
+
 	def toSpectral(self):
 		"""
 		Promote to a SpectralHazardCurve object (1 site, multiple spectral periods)
