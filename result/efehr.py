@@ -2,6 +2,7 @@
 Functions to download SHARE results from EFEHR website
 """
 
+import numpy as np
 import os
 import urllib
 from lxml import etree
@@ -10,7 +11,7 @@ from collections import OrderedDict
 import hazard.rshalib as rshalib
 
 
-def query_efehr(params, verbose=False):
+def query_efehr(params, endpoint='map', verbose=False):
 	"""
 	Query EFEHR website
 
@@ -23,8 +24,8 @@ def query_efehr(params, verbose=False):
 		list with lines of data returned by the server
 	"""
 	## Construct URL
-	base_url = "http://appsrvr.share-eu.org:8080/share/map"
-	url = "%s?%s" % (base_url, urllib.urlencode(params))
+	base_url = "http://appsrvr.share-eu.org:8080/share/"
+	url = "%s/%s?%s" % (base_url, endpoint, urllib.urlencode(params))
 	if verbose:
 		print url
 
@@ -363,27 +364,68 @@ def get_hazard_curve():
 	pass
 
 
-def get_hazard_spectrum():
-	pass
+def get_hazard_spectrum(lon, lat, poe=0.1, verbose=False):
+	"""
+	Get mean rock UHS for poe in 50 years from SHARE Mean Hazard Model (id=68)
 
+	:param lon:
+		float, longitude
+	:param lat:
+		float, latitude
+	:param poe:
+		float, probability of exceedance in 50 years (0.01, 0.02, 0.05, 0.1, 0.39, 0.5)
+		(default: 0.1)
+	:param verbose:
+		bool, prints url if set to True (default: False)
+
+	:return:
+		instance of :class:`rshalib.result.UHS`
+	"""
+	efehr_params = OrderedDict()
+	efehr_params['lon'] = lon
+	efehr_params['lat'] = lat
+	efehr_params['id'] = 68
+	efehr_params['imt'] = 'SA'
+	efehr_params['poe'] = poe
+	efehr_params['timespanpoe'] = 50
+	efehr_params['soiltype'] = soil_type = 'rock_vs30_800ms-1'
+	efehr_params['aggregationtype'] = 'arithmetic'
+	efehr_params['aggregationlevel'] = 0.5
+
+	xml_data = query_efehr(efehr_params, endpoint='spectra')
+	tree = etree.fromstring(''.join(xml_data))
+
+	for e in tree.iter():
+		if e.tag.endswith("spectraPeriodList"):
+			periods = np.array(e.text.split(" "), dtype=float)
+		if e.tag.endswith("IML"):
+			intensities = np.array(e.text.split(" "), dtype=float)
+	model_name = "SHARE Mean Hazard Model - %s" % soil_type
+	site = rshalib.site.SHASite(lon, lat)
+	return rshalib.result.UHS(model_name, "", site, periods, 'SA', intensities, intensity_unit="g", timespan=50, poe=poe)
 
 
 if __name__ == "__main__":
 	lon, lat = 4, 51
-	verbose = False
-	map_models = get_map_models(lon, lat, verbose=verbose)
-	for map_id, map_name in map_models.items():
-		print map_id,map_name
-		for imt, imt_unit in get_map_imts(map_id, verbose=verbose):
-			print imt, imt_unit
-			for poe, timespan in get_map_poes(map_id, imt, verbose=verbose):
-				print poe, timespan
-				for soil_class in get_map_soil_classes(map_id, imt, poe, timespan, verbose=verbose):
-					print soil_class
-					for agg_type, agg_level in get_map_aggregation_types(map_id, imt, poe, timespan, soil_class, verbose=verbose):
-						print agg_type, agg_level
-						#print get_map_wms_id(map_id, imt, poe, timespan, soil_class, agg_type, agg_level, verbose=verbose)
-						print get_map_wms_url(map_id, imt, poe, timespan, soil_class, agg_type, agg_level, verbose=verbose)
+	# verbose = False
+	# map_models = get_map_models(lon, lat, verbose=verbose)
+	# print map_models
+	# for map_id, map_name in map_models.items():
+		# print map_id,map_name
+		# for imt, imt_unit in get_map_imts(map_id, verbose=verbose):
+			# print imt, imt_unit
+			# for poe, timespan in get_map_poes(map_id, imt, verbose=verbose):
+				# print poe, timespan
+				# for soil_class in get_map_soil_classes(map_id, imt, poe, timespan, verbose=verbose):
+					# print soil_class
+					# for agg_type, agg_level in get_map_aggregation_types(map_id, imt, poe, timespan, soil_class, verbose=verbose):
+						# print agg_type, agg_level
+						# #print get_map_wms_id(map_id, imt, poe, timespan, soil_class, agg_type, agg_level, verbose=verbose)
+						# print get_map_wms_url(map_id, imt, poe, timespan, soil_class, agg_type, agg_level, verbose=verbose)
+
+
+	uhs = get_hazard_spectrum(lon, lat, verbose=True)
+	uhs.plot()
 
 
 	"""
