@@ -89,7 +89,8 @@ class NumericPMF(PMF):
 		"""
 		Return weighted mean of PMF
 		"""
-		return np.average(self.values, weights=self.weights)
+		weights = self.weights.astype('d')
+		return np.average(self.values, weights=weights)
 
 	def get_median(self):
 		"""
