@@ -67,7 +67,7 @@ def import_param(
 	column_map,
 	param_name,
 	type=None,
-	encoding='latin1'):
+	encoding='latin-1'):
 	"""
 	Read a particular parameter from a GIS record, optionally coerced
 	into a particular type
@@ -84,7 +84,7 @@ def import_param(
 		(default: None, will return values as type stored in GIS record)
 	:param encoding:
 		str, encoding to use for decoding unicode strings
-		(default: 'latin1')
+		(default: 'latin-1')
 
 	:return:
 		value read from GIS record or scalar value provided in
@@ -269,6 +269,7 @@ def import_point_or_area_source_from_gis_record(
 	b_sigma=None,
 	catalog=None,
 	catalog_params={},
+	encoding="latin-1",
 	verbose=True,
 	**kwargs):
 	"""
@@ -385,6 +386,9 @@ def import_point_or_area_source_from_gis_record(
 	:param bg_zone:
 		str, name of background zone
 		(default: "")
+	:param encoding:
+		str, unicode encoding in GIS record
+		(default: "latin-1")
 	:param verbose:
 		bool, whether or not to print information during reading
 		(default: True)
@@ -395,15 +399,15 @@ def import_point_or_area_source_from_gis_record(
 		instance of :class:`PointSource` or :class:`AreaSource`
 	"""
 	## ID and name
-	source_id = import_param(source_rec, column_map, 'id', str)
-	name = import_param(source_rec, column_map, 'name', str)
+	source_id = import_param(source_rec, column_map, 'id', str, encoding=encoding)
+	name = import_param(source_rec, column_map, 'name', str, encoding=encoding)
 	if verbose:
 		print source_id
 
 	## Tectonic region type
 	if not tectonic_region_type:
 		tectonic_region_type = import_param(source_rec, column_map,
-										'tectonic_region_type', str)
+								'tectonic_region_type', str, encoding=encoding)
 
 	## Upper and lower seismogenic depth
 	if upper_seismogenic_depth is None:
@@ -587,6 +591,7 @@ def import_simple_fault_source_from_gis_record(
 	catalog=None,
 	catalog_params={},
 	bg_zone="",
+	encoding="latin-1",
 	verbose=True,
 	**kwargs
 	):
@@ -679,6 +684,9 @@ def import_simple_fault_source_from_gis_record(
 	:param bg_zone:
 		str, name of background zone
 		(default: "")
+	:param encoding:
+		str, unicode encoding in GIS record
+		(default: "latin-1")
 	:param verbose:
 		bool, whether or not to print information during reading
 		(default: True)
@@ -689,15 +697,15 @@ def import_simple_fault_source_from_gis_record(
 		instance of :class:`SimpleFaultSource`
 	"""
 	## ID and name
-	source_id = import_param(source_rec, column_map, 'id', str)
-	name = import_param(source_rec, column_map, 'name', str)
+	source_id = import_param(source_rec, column_map, 'id', str, encoding=encoding)
+	name = import_param(source_rec, column_map, 'name', str, encoding=encoding)
 	if verbose:
 		print source_id
 
 	## Tectonic region type
 	if not tectonic_region_type:
 		tectonic_region_type = import_param(source_rec, column_map,
-										'tectonic_region_type', str)
+								'tectonic_region_type', str, encoding=encoding)
 
 	## Upper and lower seismogenic depth
 	if upper_seismogenic_depth is None:
@@ -813,6 +821,7 @@ def import_source_from_gis_record(
 	catalog=None,
 	catalog_params={},
 	verbose=True,
+	encoding="latin-1",
 	**kwargs):
 	"""
 	Wrapper function to create various types of sources from GIS records
@@ -829,6 +838,9 @@ def import_source_from_gis_record(
 		dict, defining catalog processing parameters, in particular the keys
 		'Mtype', 'Mrelation', and 'completeness'
 		(default: {})
+	:param encoding:
+		str, unicode encoding in GIS record
+		(default: "latin-1")
 	:param verbose:
 		bool, whether or not to print information during reading
 		(default: True)
@@ -856,7 +868,8 @@ def import_source_from_gis_record(
 		kwargs = dict((k,w) for (k,w) in kwargs.items() if k in default_column_map)
 
 	return func(source_rec, column_map=column_map, catalog=catalog,
-					catalog_params=catalog_params, verbose=verbose, **kwargs)
+					catalog_params=catalog_params, encoding=encoding,
+					verbose=verbose, **kwargs)
 
 
 def import_source_model_from_gis(
@@ -866,6 +879,7 @@ def import_source_model_from_gis(
 	source_catalogs={},
 	overall_catalog=None,
 	catalog_params={},
+	encoding="latin-1",
 	verbose=True,
 	**kwargs):
 	"""
@@ -878,7 +892,7 @@ def import_source_model_from_gis(
 		(default: "")
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
-		(default: None, will use default column map for given type of source)
+		(default: "latin-1")
 	:param source_catalogs:
 		dict, mapping source ID's to instances of :class:`eqcatalog.EQCatalog`
 		(default: {})
@@ -891,6 +905,9 @@ def import_source_model_from_gis(
 		dict, defining catalog processing parameters, in particular the keys
 		'Mtype', 'Mrelation', and 'completeness'
 		(default: {})
+	:param encoding:
+		str, unicode encoding in GIS file
+		(default: "guess", will try to guess, but this may fail)
 	:param verbose:
 		bool, whether or not to print information during reading
 		(default: True)
@@ -903,7 +920,7 @@ def import_source_model_from_gis(
 		instance of :class:`..source.SourceModel`
 	"""
 	sources = []
-	source_records = read_GIS_file(gis_filespec, verbose=verbose)
+	source_records = read_GIS_file(gis_filespec, encoding=None, verbose=verbose)
 	for source_rec in source_records:
 		source_id = import_param(source_rec, column_map, 'id', str)
 		catalog = source_catalogs.get(source_id)
@@ -929,6 +946,7 @@ def read_rob_source_model(
 	source_catalogs={},
 	overall_catalog=None,
 	catalog_params={},
+	encoding="latin-1",
 	verbose=True,
 	**kwargs):
 	"""
@@ -951,6 +969,9 @@ def read_rob_source_model(
 		dict, defining catalog processing parameters, in particular the keys
 		'Mtype', 'Mrelation', and 'completeness'
 		(default: {})
+	:param encoding:
+		str, unicode encoding in GIS file
+		(default: "latin-1")
 	:param verbose:
 		bool, whether or not to print information during reading
 		(default: True)
@@ -979,4 +1000,4 @@ def read_rob_source_model(
 	return import_source_model_from_gis(gis_filespec, name=source_model_name,
 				column_map=column_map, source_catalogs=source_catalogs,
 				overall_catalog=overall_catalog, catalog_params=catalog_params,
-				verbose=verbose, **kwargs)
+				encoding=encoding, verbose=verbose, **kwargs)
