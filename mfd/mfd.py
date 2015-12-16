@@ -301,6 +301,27 @@ class MFD(object):
 		"""
 		return np.add.reduce(self.get_incremental_moment_rates())
 
+	def get_return_periods(self):
+		"""
+		Return return periods for each magnitude bin
+
+		:return:
+			float array, return periods in yr
+		"""
+		return 1. / np.array(self.occurrence_rates)
+
+	def get_return_period(self, M):
+		"""
+		Report return period for particular magnitude
+
+		:param M:
+			float, magnitude value (left edge of bin)
+
+		:return:
+			float, return period in yr
+		"""
+		idx = self.get_magnitude_index(M)
+		return 1. / self.occurrence_rates[idx]
 
 
 class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
@@ -778,17 +799,42 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		(default: 0)
 	"""
 	def __init__(self, char_mag, return_period, bin_width, M_sigma=0.3, num_sigma=0):
+		self.char_mag = char_mag
+		self.char_return_period = return_period
+		self.M_sigma = M_sigma
+		self.num_sigma = num_sigma
+
+		Mmin, occurrence_rates = self._get_evenly_discretized_mfd_params(num_sigma, bin_width=bin_width)
+		EvenlyDiscretizedMFD.__init__(self, Mmin, bin_width, occurrence_rates, Mtype="MW")
+
+	def _get_evenly_discretized_mfd_params(self, num_sigma, bin_width=None):
+		"""
+		Compute parameters for constructing evenly discretized MFD
+
+		:param num_sigma:
+			Float, number of standard deviations to spread occurrence rates over
+		:param bin_width:
+			Float,  magnitude bin width
+			(default: None, will use currently set bin_width)
+
+		:return:
+			(Mmin, occurrence_rates) tuple
+			Note: Mmin corresponds to magnitude bin center!
+		"""
 		from matplotlib import mlab
 		from scipy.stats import norm
-		if M_sigma and num_sigma:
-			Mmin = char_mag - M_sigma * num_sigma
-			Mmax = char_mag + M_sigma * num_sigma
+
+		if not bin_width:
+			bin_width = self.bin_width
+		if self.M_sigma and num_sigma:
+			Mmin = self.char_mag - self.M_sigma * num_sigma
+			Mmax = self.char_mag + self.M_sigma * num_sigma
 			Mmin = np.floor(Mmin / bin_width) * bin_width
 			Mmax = np.ceil(Mmax / bin_width) * bin_width
 			magnitudes = np.arange(Mmin, Mmax, bin_width)
-			probs = mlab.normpdf(magnitudes + bin_width/2, char_mag, M_sigma)
+			probs = mlab.normpdf(magnitudes + bin_width/2, self.char_mag, self.M_sigma)
 			probs /= np.sum(probs)
-			occurrence_rates = (1./return_period) * probs
+			occurrence_rates = (1./self.char_return_period) * probs
 			## CRISIS formula
 			#EM = char_mag
 			#s = M_sigma * num_sigma
@@ -799,12 +845,20 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 			#occurrence_rates = cumul_rates[:-1] - cumul_rates[1:]
 			#occurrence_rates = np.append(occurrence_rates, cumul_rates[-1:])
 		else:
-			Mmin = char_mag
-			occurrence_rates = [1./return_period]
-		EvenlyDiscretizedMFD.__init__(self, Mmin+bin_width/2, bin_width, occurrence_rates, Mtype="MW")
-		self.char_mag = char_mag
-		self.M_sigma = M_sigma
-		self.num_sigma = num_sigma
+			Mmin = self.char_mag
+			occurrence_rates = np.array([1./self.char_return_period])
+		return Mmin + bin_width/2, occurrence_rates
+
+	def set_num_sigma(self, num_sigma):
+		"""
+		Set number of standard deviations around characteristic magnitude
+
+		:param num_sigma:
+			Float, number of standard deviations to spread occurrence rates over
+		"""
+		Mmin, occurrence_rates = self._get_evenly_discretized_mfd_params(num_sigma)
+		self.min_mag = Mmin
+		self.modify_set_occurrence_rates(occurrence_rates)
 
 	def __div__(self, other):
 		if isinstance(other, (int, float)):
