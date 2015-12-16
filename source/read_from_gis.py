@@ -102,6 +102,68 @@ def import_param(
 	return val
 
 
+def read_gr_mfd_params(
+	source_rec,
+	column_map,
+	min_mag=None,
+	max_mag=None,
+	mfd_bin_width=None,
+	a_val=None,
+	b_val=None,
+	a_sigma=None,
+	b_sigma=None):
+	"""
+	Read truncated Gutenberg-Richter MFD from GIS record
+
+	:param source_rec:
+		GIS record as returned by :func:`mapping.geo.readGIS`
+	:param column_map:
+		dict, mapping source parameter names to GIS columns or scalars
+	:param min_mag:
+		float, minimum magnitude
+		(default: None)
+	:param max_mag:
+		float, maximum magnitude
+		(default: None)
+	:param mfd_bin_width:
+		float, magnitude bin width for MFD
+		(default: None)
+	:param a_val:
+		float, a-value
+		(default: None)
+	:param b_val:
+		float, b-value
+		(default: None)
+	:param a_sigma:
+		float, standard deviation on a-value
+		(default: None)
+	:param b_sigma:
+		float, standard deviation on b-value
+		(default: None)
+
+	:return:
+		(min_mag, max_mag, mfd_bin_width, a_val, b_val, a_sigma, b_sigma)
+	"""
+	if mfd_bin_width is None:
+		mfd_bin_width = import_param(source_rec, column_map, 'mfd_bin_width', float)
+	if min_mag is None:
+		min_mag = import_param(source_rec, column_map, 'min_mag', float)
+	if max_mag is None:
+		max_mag = import_param(source_rec, column_map, 'max_mag', float)
+	if max_mag and mfd_bin_width:
+		max_mag = np.ceil(max_mag / mfd_bin_width) * mfd_bin_width
+	if a_val is None:
+		a_val = import_param(source_rec, column_map, 'a_val', float)
+	if b_val is None:
+		b_val = import_param(source_rec, column_map, 'b_val', float)
+	if a_sigma is None:
+		a_sigma = import_param(source_rec, column_map, 'a_sigma', float)
+	if b_sigma is None:
+		b_sigma = import_param(source_rec, column_map, 'b_sigma', float)
+
+	return (min_mag, max_mag, mfd_bin_width, a_val, b_val, a_sigma, b_sigma)
+
+
 def read_gr_mfd(
 	source_rec,
 	column_map,
@@ -145,26 +207,11 @@ def read_gr_mfd(
 		instance of :class:`TruncatedGRMFD`
 	"""
 	source_id = import_param(source_rec, column_map, 'id', str)
-	if mfd_bin_width is None:
-		mfd_bin_width = import_param(source_rec, column_map, 'mfd_bin_width', float)
-	if min_mag is None:
-		min_mag = import_param(source_rec, column_map, 'min_mag', float)
-	if max_mag is None:
-		max_mag = import_param(source_rec, column_map, 'max_mag', float)
-	if max_mag and mfd_bin_width:
-		max_mag = np.ceil(max_mag / mfd_bin_width) * mfd_bin_width
+	(min_mag, max_mag, mfd_bin_width, a_val, b_val, a_sigma, b_sigma) = read_gr_mfd_params(
+		source_rec, column_map, min_mag, max_mag, mfd_bin_width, a_val, b_val, a_sigma, b_sigma)
 	if max_mag <= min_mag:
 		print("Warning: Mmax (%s) of source %s not higher than Mmin!" % (max_mag, source_id))
 		max_mag = min_mag + mfd_bin_width
-	if a_val is None:
-		a_val = import_param(source_rec, column_map, 'a_val', float)
-	if b_val is None:
-		b_val = import_param(source_rec, column_map, 'b_val', float)
-	if a_sigma is None:
-		a_sigma = import_param(source_rec, column_map, 'a_sigma', float)
-	if b_sigma is None:
-		b_sigma = import_param(source_rec, column_map, 'b_sigma', float)
-
 	mfd = TruncatedGRMFD(min_mag, max_mag, mfd_bin_width, a_val, b_val, a_sigma, b_sigma)
 	return mfd
 
@@ -803,6 +850,19 @@ def import_simple_fault_source_from_gis_record(
 		if not mfd:
 			try:
 				## Fall back to characteristic MFD
+				mfd_params = read_gr_mfd_params(source_rec, column_map, min_mag=min_mag,
+						max_mag=max_mag, mfd_bin_width=mfd_bin_width,
+						a_val=a_val, b_val=b_val, a_sigma=a_sigma, b_sigma=b_sigma)
+
+				if mfd_bin_width is None:
+					mfd_bin_width = mfd_params[2]
+				if max_mag is None:
+					max_mag = mfd_params[1]
+				if not max_mag:
+					max_mag = simple_fault_source.calc_Mmax_Wells_Coppersmith()
+				if max_mag and mfd_bin_width:
+					max_mag = np.ceil(max_mag / mfd_bin_width) * mfd_bin_width
+				simple_fault_source.mfd.max_mag = max_mag
 				mfd = simple_fault_source.get_MFD_characteristic(bin_width=mfd_bin_width)
 			except:
 				mfd = None
