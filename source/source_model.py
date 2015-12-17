@@ -10,6 +10,7 @@ as well as to generate input files for OpenQuake.
 
 from lxml import etree
 
+import openquake.hazardlib as oqhazlib
 from openquake.hazardlib.scalerel import WC1994
 
 from ..nrml import ns
@@ -134,7 +135,8 @@ class SourceModel():
 				tectonic_region_type="Stable Shallow Crust",
 				magnitude_scaling_relationship=WC1994(),
 				rupture_mesh_spacing=1., rupture_aspect_ratio=1.,
-				upper_seismogenic_depth=5., lower_seismogenic_depth=25.):
+				upper_seismogenic_depth=5., lower_seismogenic_depth=25.,
+				nodal_plane_distribution=None):
 		"""
 		Construct point source model from earthquake catalog
 
@@ -146,6 +148,8 @@ class SourceModel():
 		:return:
 			instance of :class:`SourceModel`
 		"""
+		if isinstance(magnitude_scaling_relationship, (str, unicode)):
+			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)
 		src_list = []
 		if area_source_model_name:
 			from ..rob import create_rob_source_model
@@ -173,7 +177,8 @@ class SourceModel():
 				pt_src = PointSource.from_eq_record(eq, Mtype, Mrelation,
 					tectonic_region_type, magnitude_scaling_relationship,
 					rupture_mesh_spacing, rupture_aspect_ratio,
-					upper_seismogenic_depth, lower_seismogenic_depth)
+					upper_seismogenic_depth, lower_seismogenic_depth,
+					nodal_plane_distribution)
 				src_list.append(pt_src)
 
 		return SourceModel(eq_catalog.name, src_list)

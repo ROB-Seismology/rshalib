@@ -382,6 +382,8 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		of the hypocenter is always set to ones of ``location``.
 	"""
 	def __init__(self, source_id, name, tectonic_region_type, mfd, rupture_mesh_spacing, magnitude_scaling_relationship, rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth, location, nodal_plane_distribution, hypocenter_distribution):
+		if isinstance(magnitude_scaling_relationship, (str, unicode)):
+			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)
 		super(PointSource, self).__init__(source_id=source_id,
 				name=name,
 				tectonic_region_type=tectonic_region_type,
@@ -603,6 +605,8 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 	"""
 
 	def __init__(self, source_id, name, tectonic_region_type, mfd, rupture_mesh_spacing, magnitude_scaling_relationship, rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth, nodal_plane_distribution, hypocenter_distribution, polygon, area_discretization):
+		if isinstance(magnitude_scaling_relationship, (str, unicode)):
+			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)
 		super(AreaSource, self).__init__(source_id=source_id,
 				name=name,
 				tectonic_region_type=tectonic_region_type,
@@ -943,6 +947,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 	# TODO: SlipratePMF
 	# TODO: add aseismic_coef and strain_drop parameters (see get_MFD_Anderson_Luco method)
 	def __init__(self, source_id, name, tectonic_region_type, mfd, rupture_mesh_spacing, magnitude_scaling_relationship, rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth, fault_trace, dip, rake, slip_rate=numpy.NaN, bg_zone=None):
+		if isinstance(magnitude_scaling_relationship, (str, unicode)):
+			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)
 		super(SimpleFaultSource, self).__init__(source_id=source_id,
 				name=name,
 				tectonic_region_type=tectonic_region_type,
@@ -1568,6 +1574,8 @@ class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 	"""
 	# TODO: add bg_zone parameter as for SimpleFaultSource
 	def __init__(self, source_id, name, tectonic_region_type, mfd, rupture_mesh_spacing, magnitude_scaling_relationship, rupture_aspect_ratio, edges, rake):
+		if isinstance(magnitude_scaling_relationship, (str, unicode)):
+			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)
 		super(ComplexFaultSource, self).__init__(source_id=source_id,
 				name=name,
 				tectonic_region_type=tectonic_region_type,
