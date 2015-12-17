@@ -257,6 +257,50 @@ class IntensityResult:
 	def num_intensities(self):
 		return self.intensities.shape[-1]
 
+	def _convert_intensities(self, intensities, src_intensity_unit, target_intensity_unit):
+		"""
+		Convert intensities from one intensity unit to another
+
+		:param intensities:
+			float array, intensities
+		:param src_intensity_unit:
+			string, intensity unit corresponding to :param:`intensities`
+		:param target_intensity_unit:
+			string, desired output intensity unit
+
+		:return:
+			float array, converted intensities
+		"""
+		from scipy.constants import g
+		conv_factor = None
+		if self.IMT in ("PGA", "SA"):
+			if src_intensity_unit == "g":
+				conv_factor = {"g": 1.0, "mg": 1E+3, "ms2": g, "gal": g*100, "cms2": g*100}[target_intensity_unit]
+			elif src_intensity_unit == "mg":
+				conv_factor = {"g": 1E-3, "mg": 1.0, "ms2": g*1E-3, "gal": g*1E-1, "cms2": g*1E-1}[target_intensity_unit]
+			elif src_intensity_unit in ("gal", "cms2"):
+				conv_factor = {"g": 0.01/g, "mg": 10./g, "ms2": 1E-2, "gal": 1.0, "cms2": 1.0}[target_intensity_unit]
+			elif src_intensity_unit == "ms2":
+				conv_factor = {"g": 1./g, "mg": 1E+3/g, "ms2": 1., "gal": 100.0, "cms2": 100.0}[target_intensity_unit]
+		elif self.IMT == "PGV":
+			if src_intensity_unit == "ms":
+				conv_factor = {"ms": 1., "cms": 1E+2}[target_intensity_unit]
+			elif src_intensity_unit == "cms":
+				conv_factor = {"ms": 1E-2, "cms": 1.0}[target_intensity_unit]
+		elif self.IMT == "PGD":
+			if src_intensity_unit == "m":
+				conv_factor = {"m": 1., "cm": 1E+2}[target_intensity_unit]
+			elif src_intensity_unit == "cm":
+				conv_factor = {"m": 1E-2, "cm": 1.0}[target_intensity_unit]
+		elif self.IMT == "MMI":
+			conv_factor = 1.
+
+		if conv_factor is None:
+			raise Exception("Unable to convert intensity unit %s for %s!"
+							% (intensity_unit, self.IMT))
+
+		return intensities * conv_factor
+
 	def get_intensities(self, intensity_unit="g"):
 		"""
 		Get intensity array, optionally converted to a different intensity unit
@@ -265,36 +309,25 @@ class IntensityResult:
 			string, intensity unit to scale result,
 			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
 		"""
-		# TODO: take into account self.intensity_unit
-		from scipy.constants import g
-		conv_factor = None
-		if self.IMT in ("PGA", "SA"):
-			if self.intensity_unit == "g":
-				conv_factor = {"g": 1.0, "mg": 1E+3, "ms2": g, "gal": g*100, "cms2": g*100}[intensity_unit]
-			elif self.intensity_unit == "mg":
-				conv_factor = {"g": 1E-3, "mg": 1.0, "ms2": g*1E-3, "gal": g*1E-1, "cms2": g*1E-1}[intensity_unit]
-			elif self.intensity_unit in ("gal", "cms2"):
-				conv_factor = {"g": 0.01/g, "mg": 10./g, "ms2": 1E-2, "gal": 1.0, "cms2": 1.0}[intensity_unit]
-			elif self.intensity_unit == "ms2":
-				conv_factor = {"g": 1./g, "mg": 1E+3/g, "ms2": 1., "gal": 100.0, "cms2": 100.0}[intensity_unit]
-		elif self.IMT == "PGV":
-			if self.intensity_unit == "ms":
-				conv_factor = {"ms": 1., "cms": 1E+2}[intensity_unit]
-			elif self.intensity_unit == "cms":
-				conv_factor = {"ms": 1E-2, "cms": 1.0}[intensity_unit]
-		elif self.IMT == "PGD":
-			if self.intensity_unit == "m":
-				conv_factor = {"m": 1., "cm": 1E+2}
-			elif self.intensity_unit == "cm":
-				conv_factor = {"m": 1E-2, "cm": 1.0}
-		elif self.IMT == "MMI":
-			conv_factor = 1.
+		return self._convert_intensities(self.intensities, self.intensity_unit,
+										intensity_unit)
 
-		if conv_factor is None:
-			raise Exception("Unable to convert intensity unit %s for %s!"
-							% (intensity_unit, self.IMT))
+	def set_intensity_unit(self, target_intensity_unit):
+		"""
+		Convert intensities to a different intensity unit in place
 
-		return self.intensities * conv_factor
+		:param new_intensity_unit:
+			string, new intensity unit
+		"""
+		if new_intensity_unit != self.intensity_unit:
+			try:
+				intensities = self._convert_intensities(self.intensities,
+									self.intensity_unit, target_intensity_unit)
+			except:
+				raise
+			else:
+				self.intensities = intensities
+				self.intensity_unit = new_intensity_unit
 
 
 class HazardResult(IntensityResult):
@@ -3744,6 +3777,24 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 
 		model_name = self.model_name + " (%.1f %% damping)" % damping_ratio
 		intensities = self.intensities * conv_factor
+		return ResponseSpectrum(model_name, self.periods, self.IMT, intensities,
+								intensity_unit=self.intensity_unit)
+
+	def scale_to_pga(self, target_pga):
+		"""
+		Scale response spectrum to different target PGA
+
+		:param target_pga:
+			float, target PGA (in g)
+
+		:return:
+			instance of :class:`ResponseSpectrum`
+		"""
+		current_pga = self.pgm
+		if current_pga:
+			target_pga = self._convert_intensities(target_pga, "g", self.intensity_unit)
+			intensities = self.intensities * target_pga / current_pga
+			model_name = self.model_name + " (scaled to PGA=%s g)" % target_pga
 		return ResponseSpectrum(model_name, self.periods, self.IMT, intensities,
 								intensity_unit=self.intensity_unit)
 
