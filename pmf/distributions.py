@@ -470,7 +470,7 @@ class NodalPlaneDistribution(PMF):
 			print "   %3d  %2d %4d %s" % (nodal_plane.strike, nodal_plane.dip, nodal_plane.rake, weight)
 
 
-class HypocentralDepthDistribution(PMF):
+class HypocentralDepthDistribution(NumericPMF):
 	"""
 	Class representing a hypocentral depth distribution
 
@@ -485,49 +485,9 @@ class HypocentralDepthDistribution(PMF):
 		data = zip(weights, hypo_depths)
 		super(HypocentralDepthDistribution, self).__init__(data)
 
-	def __iter__(self):
-		for hypo_depth, weight in zip(self.hypo_depths, self.weights):
-			yield (hypo_depth, weight)
-
-	def __len__(self):
-		return len(self.hypo_depths)
-
 	@property
 	def hypo_depths(self):
 		return np.array(self.values)
-
-	def get_mean_depth(self, weighted=True):
-		"""
-		Return mean depth.
-
-		:param weighted:
-			Boolean, indicating whether mean should be weighted (default: True).
-
-		:return:
-			Float, mean depth
-		"""
-		if weighted:
-			return np.average(self.hypo_depths, weights=self.weights)
-		else:
-			return np.mean(self.hypo_depths)
-
-	def get_min_depth(self):
-		"""
-		Return minimum (shallowest) depth
-
-		:return:
-			Float, minimum depth
-		"""
-		return self.hypo_depths.min()
-
-	def get_max_depth(self):
-		"""
-		Return maximum (deepest) depth
-
-		:return:
-			Float, maximum depth
-		"""
-		return self.hypo_depths.max()
 
 	def create_xml_element(self, encoding='latin1'):
 		"""

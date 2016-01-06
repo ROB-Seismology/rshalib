@@ -220,7 +220,7 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					min_distances = []
 					for src in src_list:
 						if isinstance(src, (PointSource, AreaSource)):
-							min_distances.append(src.hypocenter_distribution.get_min_depth())
+							min_distances.append(src.hypocenter_distribution.min())
 						elif isinstance(src, (SimpleFaultSource, ComplexFaultSource)):
 							min_distances.append(src.upper_seismogenic_depth)
 					if len(min_distances) > 0:
@@ -529,7 +529,7 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 
 					of.write(" %d\n" % len(vertexes))
 					if isinstance(source, AreaSource):
-						#z = source.hypocenter_distribution.get_mean_depth()
+						#z = source.hypocenter_distribution.mean()
 						for point in vertexes:
 							of.write("%s,%s,%.1f\n" % (point.longitude, point.latitude, hypo_depth))
 					elif isinstance(source, SimpleFaultSource):
