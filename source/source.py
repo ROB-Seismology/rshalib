@@ -403,7 +403,7 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 				magnitude_scaling_relationship=oqhazlib.scalerel.WC1994(),
 				rupture_mesh_spacing=1., rupture_aspect_ratio=1.,
 				upper_seismogenic_depth=5., lower_seismogenic_depth=25.,
-				nodal_plane_distribution=None):
+				nodal_plane_distribution=None, synthetic=False):
 		"""
 		Construct point source from earthquake object
 
@@ -415,6 +415,10 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 
 		...
 
+		:param synthetic:
+			bool, whether catalog is synthetic or not
+			(default: False)
+
 		:return:
 			instance of :class:`PointSource`
 		"""
@@ -425,7 +429,10 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		mfd = EvenlyDiscretizedMFD(M, 0.1, [1.], Mtype)
 		depth = min(lower_seismogenic_depth, max(5, eq.depth))
 		hdd = HypocentralDepthDistribution([depth], [1.])
-		focmec_rec = eq.get_focal_mechanism()
+		if not synthetic:
+			focmec_rec = eq.get_focal_mechanism()
+		else:
+			focmec_rec = False
 		if focmec_rec:
 			focmec = focmec_rec.get_focmec()
 			np1 = NodalPlane(*[round(angle.deg()) for angle in focmec.sdr1()])

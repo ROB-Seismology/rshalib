@@ -136,7 +136,7 @@ class SourceModel():
 				magnitude_scaling_relationship=WC1994(),
 				rupture_mesh_spacing=1., rupture_aspect_ratio=1.,
 				upper_seismogenic_depth=5., lower_seismogenic_depth=25.,
-				nodal_plane_distribution=None):
+				nodal_plane_distribution=None, synthetic=False):
 		"""
 		Construct point source model from earthquake catalog
 
@@ -144,6 +144,10 @@ class SourceModel():
 			instance of :class:`EQCatalog`
 
 		...
+
+		:param synthetic:
+			bool, whether catalog is synthetic or not
+			(default: False)
 
 		:return:
 			instance of :class:`SourceModel`
@@ -169,7 +173,7 @@ class SourceModel():
 						tectonic_region_type, magnitude_scaling_relationship,
 						rupture_mesh_spacing, rupture_aspect_ratio,
 						upper_seismogenic_depth, lower_seismogenic_depth,
-						nodal_plane_distribution)
+						nodal_plane_distribution, synthetic=synthetic)
 					src_list.append(pt_src)
 
 		else:
