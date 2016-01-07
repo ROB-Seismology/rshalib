@@ -416,7 +416,8 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		...
 
 		:param synthetic:
-			bool, whether catalog is synthetic or not
+			bool, whether catalog is synthetic or not, to avoid lookup
+			in focal mechanisms database
 			(default: False)
 
 		:return:

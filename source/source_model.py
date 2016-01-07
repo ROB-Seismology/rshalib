@@ -146,14 +146,15 @@ class SourceModel():
 		...
 
 		:param synthetic:
-			bool, whether catalog is synthetic or not
+			bool, whether catalog is synthetic or not, to avoid lookup
+			in focal mechanisms database
 			(default: False)
 
 		:return:
 			instance of :class:`SourceModel`
 		"""
 		if isinstance(magnitude_scaling_relationship, (str, unicode)):
-			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)
+			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)()
 		src_list = []
 		if area_source_model_name:
 			from ..rob import create_rob_source_model
