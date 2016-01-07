@@ -96,6 +96,7 @@ def parse_hazard_curves_multi(xml_filespec, site_names={}):
 	intensities = []
 	poes = []
 	for hazard_curves in nrml.findall(ns.HAZARD_CURVES):
+		#TODO: sites not defined at this point!
 		model_name, sites, period, imt, intensities_, timespan, poes_ = _parse_hazard_curves(hazard_curves, site_names)
 		assert imt in ("PGA", "SA")
 		if period not in periods:
