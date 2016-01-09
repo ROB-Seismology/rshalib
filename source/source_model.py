@@ -183,7 +183,7 @@ class SourceModel():
 					tectonic_region_type, magnitude_scaling_relationship,
 					rupture_mesh_spacing, rupture_aspect_ratio,
 					upper_seismogenic_depth, lower_seismogenic_depth,
-					nodal_plane_distribution)
+					nodal_plane_distribution, synthetic=synthetic)
 				src_list.append(pt_src)
 
 		return SourceModel(eq_catalog.name, src_list)
