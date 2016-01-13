@@ -40,6 +40,7 @@ def run_parallel(func, job_arg_list, num_processes, shared_arr=None, verbose=Tru
 	:return:
 		list with values returned by func for each job in order
 	"""
+	# TODO: logging with mp.get_logger().info(), mp.get_logger().error(), ...
 	num_processes = min(multiprocessing.cpu_count(), num_processes)
 	num_processes = min(num_processes, len(job_arg_list))
 	if verbose:
@@ -66,6 +67,7 @@ def mp_func_wrapper((func, args)):
 	:return:
 		return value of :param:`func`
 	"""
+	# TODO: use functools.partial instead??
 	return func(*args)
 
 
@@ -74,7 +76,7 @@ def init_shared_arr(shared_arr_):
 	Make shared array available
 	"""
 	global shared_arr
-	shared_arr = shared_arr_ # must be inhereted, not passed as an argument
+	shared_arr = shared_arr_ # must be inherited, not passed as an argument
 
 
 def calc_shcf_by_source(psha_model, source, cav_min, verbose):
