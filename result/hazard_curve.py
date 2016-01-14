@@ -4358,6 +4358,8 @@ class HazardMap(HazardResult, HazardField):
 		return_period = self.return_period
 		if self.vs30s != None:
 			vs30s = self.vs30s[site_idxs]
+		else:
+			vs30s = self.vs30s
 
 		return HazardMap(model_name, filespec, sites, period, IMT, intensities,
 						intensity_unit, timespan, poe, return_period, vs30s)
