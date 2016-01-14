@@ -4335,31 +4335,45 @@ class HazardMap(HazardResult, HazardField):
 
 		return HazardMap(model_name, filespec, sites, period, IMT, residuals, intensity_unit, timespan, poe, return_period, vs30s)
 
-	def extract_partial_map(self, sites):
+	def extract_partial_map(self, sites, interpolate=False):
 		"""
 		Extract partial map
 
 		:param sites:
 			list with instances of SHASite or (lon, lat) tuples
+		:param interpolate:
+			bool, if False, sites must match exactly, otherwise
+			they intensities will be interpolated
+			(default: False)
 
 		:return:
 			instance of :class:`HazardMap`
 		"""
-		site_idxs = [self.site_index(site) for site in sites]
+		if interpolate:
+			if isinstance(site, SHASite):
+				lons = [site.lon for site in sites]
+				lats = [site.lat for site in sites]
+			else:
+				## (lon, lat) tuples
+				lons, lats = zip(*sites)
+			intensities = self.get_site_intensities(lons, lats, method="cubic")
+			vs30s = None
+		else:
+			site_idxs = [self.site_index(site) for site in sites]
+			intensities = self.intensities[site_idxs]
+			if self.vs30s != None:
+				vs30s = self.vs30s[site_idxs]
+			else:
+				vs30s = self.vs30s
 
 		model_name = self.model_name + " (partial)"
 		filespec = self.filespec
 		period = self.period
 		IMT = self.IMT
-		intensities = self.intensities[site_idxs]
 		intensity_unit = self.intensity_unit
 		timespan = self.timespan
 		poe = self.poe
 		return_period = self.return_period
-		if self.vs30s != None:
-			vs30s = self.vs30s[site_idxs]
-		else:
-			vs30s = self.vs30s
 
 		return HazardMap(model_name, filespec, sites, period, IMT, intensities,
 						intensity_unit, timespan, poe, return_period, vs30s)
