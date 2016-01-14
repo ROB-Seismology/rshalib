@@ -4347,7 +4347,7 @@ class HazardMap(HazardResult, HazardField):
 		"""
 		site_idxs = [self.site_index(site) for site in sites]
 
-		model_name = self.model_name + " (subselect)"
+		model_name = self.model_name + " (partial)"
 		filespec = self.filespec
 		period = self.period
 		IMT = self.IMT
@@ -4356,7 +4356,8 @@ class HazardMap(HazardResult, HazardField):
 		timespan = self.timespan
 		poe = self.poe
 		return_period = self.return_period
-		vs30s = self.vs30s[site_idxs]
+		if self.vs30s != None:
+			vs30s = self.vs30s[site_idxs]
 
 		return HazardMap(model_name, filespec, sites, period, IMT, intensities,
 						intensity_unit, timespan, poe, return_period, vs30s)
