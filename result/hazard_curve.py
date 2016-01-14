@@ -4335,6 +4335,32 @@ class HazardMap(HazardResult, HazardField):
 
 		return HazardMap(model_name, filespec, sites, period, IMT, residuals, intensity_unit, timespan, poe, return_period, vs30s)
 
+	def extract_partial_map(self, sites):
+		"""
+		Extract partial map
+
+		:param sites:
+			list with instances of SHASite or (lon, lat) tuples
+
+		:return:
+			instance of :class:`HazardMap`
+		"""
+		site_idxs = [self.site_index(site) for site in sites]
+
+		model_name = self.model_name + " (subselect)"
+		filespec = self.filespec
+		period = self.period
+		IMT = self.IMT
+		intensities = self.intensities[site_idxs]
+		intensity_unit = self.intensity_unit
+		timespan = self.timespan
+		poe = self.poe
+		return_period = self.return_period
+		vs30s = self.vs30s[site_idxs]
+
+		return HazardMap(model_name, filespec, sites, period, IMT, intensities,
+						intensity_unit, timespan, poe, return_period, vs30s)
+
 	def export_VM(self, base_filespec, num_cells=100):
 		"""
 		Export hazard map to a Vertical Mapper grid
