@@ -4200,6 +4200,19 @@ class HazardMap(HazardResult, HazardField):
 		"""
 		return np.median(self.get_intensities(intensity_unit))
 
+	def scoreatpercentile(self, perc):
+		"""
+		Return intensity corresponding to given percentile
+
+		:param perc:
+			float, percentile in range [0, 100]
+
+		:param intensity_unit:
+			string, intensity unit to scale result,
+			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
+		"""
+		return scoreatpercentile(self.get_intensities(intensity_unit), perc)
+
 	def argmin(self):
 		"""
 		Return site index corresponding to minimum intensity value
