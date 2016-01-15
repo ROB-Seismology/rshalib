@@ -4200,7 +4200,7 @@ class HazardMap(HazardResult, HazardField):
 		"""
 		return np.median(self.get_intensities(intensity_unit))
 
-	def scoreatpercentile(self, perc):
+	def scoreatpercentile(self, perc, intensity_unit="g"):
 		"""
 		Return intensity corresponding to given percentile
 
@@ -4383,7 +4383,7 @@ class HazardMap(HazardResult, HazardField):
 			instance of :class:`HazardMap`
 		"""
 		if interpolate:
-			if isinstance(site, SHASite):
+			if isinstance(sites[0], SHASite):
 				lons = [site.lon for site in sites]
 				lats = [site.lat for site in sites]
 			else:
