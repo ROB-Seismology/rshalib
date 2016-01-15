@@ -4180,6 +4180,26 @@ class HazardMap(HazardResult, HazardField):
 		"""
 		return self.get_intensities(intensity_unit).max()
 
+	def mean(self, intensity_unit="g"):
+		"""
+		Return mean intensity in the map
+
+		:param intensity_unit:
+			string, intensity unit to scale result,
+			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
+		"""
+		return self.get_intensities(intensity_unit).mean()
+
+	def median(self, intensity_unit="g"):
+		"""
+		Return median intensity in the map
+
+		:param intensity_unit:
+			string, intensity unit to scale result,
+			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
+		"""
+		return np.median(self.get_intensities(intensity_unit))
+
 	def argmin(self):
 		"""
 		Return site index corresponding to minimum intensity value
