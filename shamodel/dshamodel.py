@@ -133,11 +133,14 @@ class DSHAModel(SHAModelBase):
 		self.correlation_model = correlation_model
 
 	def calc_gmf(self, num_realizations=1, correlation_model=None):
+		# TODO!
 		pass
 
 	def calc_gmf_envelope(self, stddev_type="total", np_aggregation="avg"):
 		"""
 		Historical ground motion check
+
+		Fixed epsilon!
 
 		:param stddev_type:
 			str, standard deviation type, one of "total", "inter-event" or "intra-event"
