@@ -6,6 +6,10 @@ Example of ground-motion field due to an earthquake
 # - Define selection for standard-rock and hard-rock
 # - Move source models to seismo-gis
 
+# Advantages:
+# - runs on server (but lot of requirements)
+# - export to GeoTiff (image or single-band), which can be manipulated in web app
+
 
 if __name__ == "__main__":
 	import numpy as np
@@ -40,17 +44,17 @@ if __name__ == "__main__":
 	#src.nodal_plane_distribution = npd
 
 	## Import GMPEs defined in a recent hazard project
-	#from hazard.psha.Projects.cAt_Rev.September2014.logictree.gmpe_lt import construct_gmpe_lt
-	#rock_type = "soft"
-	#gmpe_system_def = construct_gmpe_lt(rock_type).gmpe_system_def
-	#gmpe_spec = "GMPE logic tree (%s rock)" % rock_type
+	from hazard.psha.Projects.cAt_Rev.September2014.logictree.gmpe_lt import construct_gmpe_lt
+	rock_type = "soft"
+	gmpe_system_def = construct_gmpe_lt(rock_type).gmpe_system_def
+	gmpe_spec = "GMPE logic tree (%s rock)" % rock_type
 
 	## Or define a single GMPE
-	gmpe_system_def = {}
-	gmpe_name = "RietbrockEtAl2013MD"
-	gmpe_pmf = rshalib.pmf.GMPEPMF([gmpe_name], [1])
-	gmpe_system_def[trt] = gmpe_pmf
-	gmpe_spec = gmpe_name + " GMPE"
+	#gmpe_system_def = {}
+	#gmpe_name = "RietbrockEtAl2013MD"
+	#gmpe_pmf = rshalib.pmf.GMPEPMF([gmpe_name], [1])
+	#gmpe_system_def[trt] = gmpe_pmf
+	#gmpe_spec = gmpe_name + " GMPE"
 
 	## Compute ground_motion field
 	print("Computing ground-motion field...")
@@ -83,14 +87,16 @@ if __name__ == "__main__":
 	title = "%s (%s)\nGround-motion field, %s" % (eq.name.title(), eq.date.isoformat(), gmpe_spec)
 	hm = uhs_field.getHazardMap(period_spec=T)
 	map = hm.get_plot(grid_interval=(2,1), cmap="jet", norm=norm, contour_interval=contour_interval, num_grid_cells=num_sites, title=title, projection="merc")
-	#map.plot(fig_filespec=r"C:\Temp\gmf.png")
+	fig_filespec = "C:\Temp\gmf.png"
+	#fig_filespec = None
+	#map.plot(fig_filespec=rfig_filespec)
 
 	## Export grid layer to geotiff
 	## Note: do not plot map before or map area will be shifted due to colorbar!
 	layers = [lyr for lyr in map.layers if isinstance(lyr.data, lbm.GridData)]
 	layers[0].style.color_map_theme.colorbar_style = None
 	map.layers = layers
-	map.export_geotiff(r"C:\Temp\gmf.tif", dpi=300)
+	#map.export_geotiff(r"C:\Temp\gmf.tif", dpi=300)
 	hm.export_GeoTiff(r"C:\Temp\gmf2", num_cells=num_sites)
 
 	## Plot UHS
