@@ -32,7 +32,7 @@ class SHAModelBase(object):
 			{str: list of floats} dict, mapping intensity measure types (e.g. "PGA", "SA", "PGV", "PGD") to periods in seconds (default: {'PGA': [0]}).
 			Periods must be monotonically increasing or decreasing.
 		:param truncation_level:
-			float, truncation level of gsims in times standard deviation
+			float >= 0, truncation level of gsims in times standard deviation
 			(default: 3.)
 		:param integration_distance:
 			Float, defining integration distance in km (default: 200.).
@@ -49,6 +49,7 @@ class SHAModelBase(object):
 		self.soil_site_model = soil_site_model
 		self.ref_soil_params = ref_soil_params
 		self.imt_periods = imt_periods
+		assert truncation_level >= 0
 		self.truncation_level = truncation_level
 		self.integration_distance = integration_distance
 

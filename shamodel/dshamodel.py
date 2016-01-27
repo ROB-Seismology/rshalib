@@ -6,12 +6,12 @@
 import numpy as np
 
 import openquake.hazardlib as oqhazlib
-#from openquake.hazardlib.calc import ground_motion_fields
+from openquake.hazardlib.calc import ground_motion_fields
 #from openquake.hazardlib.calc.filters import rupture_site_distance_filter, rupture_site_noop_filter
 from openquake.hazardlib.gsim import get_available_gsims
 from openquake.hazardlib.imt import *
 
-from ..result import HazardMap, HazardMapSet, UHSField
+from ..result import HazardMap, HazardMapSet, UHSField, UHSFieldTree
 from base import SHAModelBase
 from ..site.ref_soil_params import REF_SOIL_PARAMS
 from ..calc import mp
@@ -119,21 +119,163 @@ class RuptureDSHAModel(SHAModelBase):
 
 
 class DSHAModel(SHAModelBase):
+	"""
+	Class defining deterministic seismic hazard model.
+	Note that a DSHAModel should only consist of point sources or
+	characteristic fault sources
+
+	:param name:
+		str, model name
+	:param source_model:
+		SourceModel object.
+	:param gmpe_system_def:
+		dict, mapping tectonic region types to GMPEPMF objects
+	:param sites:
+	:param grid_outline:
+	:param grid_spacing:
+	:param soil_site_model:
+	:param ref_soil_params:
+	:param imt_periods:
+		dict, mapping IMTs to lists of periods
+		(default: {'PGA': [0]})
+	:param truncation_level:
+		float, number of standard deviations to consider on GMPE uncertainty
+		(default: 0 = mean ground motion)
+	:param integration_distance:
+		float, maximum distance with respect to source to compute ground
+		motion
+		(default: 200)
+	"""
 	def __init__(self, name, source_model, gmpe_system_def, sites=None,
 				grid_outline=None, grid_spacing=None, soil_site_model=None,
 				ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]},
-				truncation_level=0., integration_distance=200.,
-				correlation_model=None):
+				truncation_level=0., integration_distance=200.):
 
-		# TODO: evaluate whether truncation_level and correlation_model have to be class properties
+		#TODO: gmpe_system_def or ground_motion_model?
 
-		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, truncation_level, integration_distance)
+		SHAModelBase.__init__(self, name, sites, grid_outline, grid_spacing,
+							soil_site_model, ref_soil_params, imt_periods,
+							truncation_level, integration_distance)
 		self.source_model = source_model
 		self.gmpe_system_def = gmpe_system_def
-		self.correlation_model = correlation_model
+		self._check_sources()
 
-	def calc_gmf(self, num_realizations=1, correlation_model=None):
-		# TODO!
+	def _check_sources(self):
+		"""
+		Make sure that DSHAModel only contains point sources or
+		characteristic fault sources
+		"""
+		from ..source import PointSource, CharacteristicFaultSource
+
+		for src in self.source_model.sources:
+			if not isinstance(src, (PointSource, CharacteristicFaultSource)):
+				msg = "Source type (%s) of source %s not allowed!"
+				msg %= (src.type, src.source_id)
+				raise Exception(msg)
+
+	def calc_gmf(self, num_realizations=1, correlation_model=None,
+				np_aggregation="avg", gmpe_aggregation="avg", src_aggregation="max",
+				random_seed=None):
+		"""
+		Compute random ground-motion fields.
+		Note: randomness depends on class property `truncation_level`
+
+		:param num_realizations:
+			int, number of random realizations
+			(default: 1)
+		:param correlation_model:
+			instance of :class:`oqhazlib.correlation.BaseCorrelationModel`:
+			spatial correlation model. For this to work, the GMPEs used
+			should have inter-event and intra-event uncertainties defined!
+			(default: None)
+		:param np_aggregation:
+			str, how to aggregate nodal planes for a given point rupture,
+			either "avg" (weighted average), "min" (minimum) or "max" (maximum)
+			(default: "avg")
+		:param gmpe_aggregation:
+			str, how to aggregate different GMPEs, either "avg", "min" or "max"
+			(default: "avg")
+		:param src_aggregation:
+			str, how to aggregate different sources, either "sum", "min" or "max"
+			(default: "sum")
+		:param random_seed:
+			int, seed for the random number generator (default: None)
+
+		:return:
+			instance of :class`UHSFieldTree`
+		"""
+		if self.truncation_level > 0:
+			np.random.seed(seed=random_seed)
+
+		soil_site_model = self.get_soil_site_model()
+		num_sites = len(soil_site_model)
+		imt_list = self._get_imts()
+		fake_tom = oqhazlib.tom.PoissonTOM(1)
+
+		if self.truncation_level == 0:
+			print("Correlation model ignored because truncation_level = 0!")
+			correlation_model = None
+
+		GMF = np.zeros((num_sites, num_realizations, len(imt_list)))
+		for src in self.source_model:
+			src_gmf = np.zeros((num_sites, num_realizations, len(imt_list)))
+			trt = src.tectonic_region_type
+			gmpe_pmf = self.gmpe_system_def[trt]
+			for (gmpe_name, gmpe_weight) in gmpe_pmf:
+				gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
+				gmpe_gmf = np.zeros((num_sites, num_realizations, len(imt_list)))
+				total_rupture_probability = 0
+				for r, rup in enumerate(src.iter_ruptures(fake_tom)):
+					total_rupture_probability += rup.occurrence_rate
+					gmf_dict = ground_motion_fields(rup, soil_site_model, imt_list, gsim,
+						self.truncation_level, num_realizations, correlation_model,
+						self.rupture_site_filter)
+
+					for imt, rup_gmf in gmf_dict.items():
+						rup_gmf = gmf
+						#TODO: check if the following lines are needed
+						#if correlation_model:
+						#	rup_gmf = gmf.getA()
+						#else:
+						#	rup_gmf = gmf
+
+						k = imt_list.index(imt)
+						## Aggregate gmf's corresponding to different nodal planes
+						if np_aggregation == "avg":
+							gmpe_gmf[:,:,k] += (rup_gmf * rup.occurrence_rate)
+						elif np_aggregation == "min":
+							gmpe_gmf[:,:,k] = np.minimum(gmpe_gmf[:,:,k], rup_gmf)
+						elif np_aggregation == "max":
+							gmpe_gmf[:,:,k] = np.maximum(gmpe_gmf[:,:,k], rup_gmf)
+
+				## Aggregate gmf's corresponding to different GMPEs
+				if gmpe_aggregation == "avg":
+					assert np.allclose(total_rupture_probability, 1)
+					src_gmf += (gmpe_gmf * float(gmpe_weight))
+				elif gmpe_aggregation == "min":
+					src_gmf = np.minimum(src_gmf, gmpe_gmf)
+				elif gmpe_aggregation == "max":
+					src_gmf = np.maximum(src_gmf, gmpe_gmf)
+
+			## Aggregate gmf's corresponding to different sources
+			if src_aggregation == "sum":
+				GMF += src_gmf
+			elif src_aggregation == "min":
+				GMF = np.minimum(GMF, src_gmf)
+			elif src_aggregation == "max":
+				GMF = np.maximum(GMF, src_gmf)
+
+		periods = self._get_periods()
+		sites = soil_site_model.get_sha_sites()
+		branch_names = ["Realization #%d" % (i+1) for i in range(num_realizations)]
+		filespecs = ["" for i in range(num_realizations)]
+		weights = []
+		return UHSFieldTree(self.name, branch_names, filespecs, weights, sites,
+							periods, "SA", GMF, intensity_unit="g", timespan=1,
+							return_period=1)
+
+	def calc_gmf_mp(self):
+		# TODO
 		pass
 
 	def calc_gmf_envelope(self, stddev_type="total", np_aggregation="avg"):
@@ -152,6 +294,7 @@ class DSHAModel(SHAModelBase):
 			either "avg" (weighted average) or "max" (maximum)
 			(default: "avg")
 		"""
+		# TODO: change name, add gmpe_aggregation, src_aggregation!
 		soil_site_model = self.get_soil_site_model()
 		num_sites = len(soil_site_model)
 		imt_list = self._get_imts()
