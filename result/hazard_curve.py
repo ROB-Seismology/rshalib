@@ -4729,7 +4729,7 @@ class HazardMap(HazardResult, HazardField):
 
 		## Source model
 		if source_model and source_model_style:
-			from ..source import SourceModel, AreaSource, SimpleFaultSource
+			from ..source import SourceModel, PointSource, AreaSource, SimpleFaultSource
 			if isinstance(source_model, (str, unicode)):
 				from eqcatalog.source_models import rob_source_models_dict
 				gis_filespec = rob_source_models_dict[source_model].gis_filespec
@@ -4739,24 +4739,36 @@ class HazardMap(HazardResult, HazardField):
 				polygon_data = lbm.MultiPolygonData([], [])
 				line_data = lbm.MultiLineData([], [])
 				point_data = lbm.MultiPointData([], [])
+				legend_label = {}
 				for source in source_model:
 					if isinstance(source, AreaSource):
 						polygon_data.append(lbm.PolygonData(source.longitudes, source.latitudes))
+						if not legend_label.has_key("polygons"):
+							legend_label["polygons"] = "Area sources"
 					elif isinstance(source, SimpleFaultSource):
 						pg = source.get_polygon()
 						polygon_data.append(lbm.PolygonData(pg.lons, pg.lats))
 						line_data.append(lbm.LineData(source.longitudes, source.latitudes))
+						if not legend_label.has_key("lines"):
+							legend_label["lines"] = "Fault sources"
 					elif isinstance(source, PointSource):
 						point_data.append(lbm.PointData(source.location.longitude, source.location.longitude))
+						if not legend_label.has_key("points"):
+							legend_label["points"] = "Point sources"
+					else:
+						print("Warning: Skipped plotting source %s, source type not supported" % source.source_id)
 				sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data)
 			sm_style = source_model_style
-			map_layers.append(lbm.MapLayer(sm_data, sm_style, legend_label={"polygons": "Source model"}))
+			map_layers.append(lbm.MapLayer(sm_data, sm_style, legend_label=legend_label))
 
 		## Title
 		if title is None:
 			title = "%s\n%.4G yr return period" % (self.model_name, self.return_period)
 
-		legend_style = lbm.LegendStyle(location=0)
+		if source_model:
+			legend_style = lbm.LegendStyle(location=0)
+		else:
+			legend_style = None
 
 		map = lbm.LayeredBasemap(map_layers, title, projection, region=region, grid_interval=grid_interval, resolution=resolution, annot_axes="SE", legend_style=legend_style)
 		return map
