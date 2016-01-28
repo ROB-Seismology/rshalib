@@ -204,6 +204,7 @@ class DSHAModel(SHAModelBase):
 		:return:
 			instance of :class`UHSFieldTree`
 		"""
+		assert self.truncation_level >= 0
 		if self.truncation_level > 0:
 			np.random.seed(seed=random_seed)
 
@@ -247,6 +248,8 @@ class DSHAModel(SHAModelBase):
 							gmpe_gmf[:,:,k] = np.minimum(gmpe_gmf[:,:,k], rup_gmf)
 						elif np_aggregation == "max":
 							gmpe_gmf[:,:,k] = np.maximum(gmpe_gmf[:,:,k], rup_gmf)
+						else:
+							raise Exception("aggregation:%s not supported for nodal planes!" % np_aggregation)
 
 				## Aggregate gmf's corresponding to different GMPEs
 				if gmpe_aggregation == "avg":
@@ -256,6 +259,8 @@ class DSHAModel(SHAModelBase):
 					src_gmf = np.minimum(src_gmf, gmpe_gmf)
 				elif gmpe_aggregation == "max":
 					src_gmf = np.maximum(src_gmf, gmpe_gmf)
+				else:
+					raise Exception("aggregation:%s not supported for GMPEs!" % gmpe_aggregation)
 
 			## Aggregate gmf's corresponding to different sources
 			if src_aggregation == "sum":
@@ -264,6 +269,8 @@ class DSHAModel(SHAModelBase):
 				GMF = np.minimum(GMF, src_gmf)
 			elif src_aggregation == "max":
 				GMF = np.maximum(GMF, src_gmf)
+			else:
+				raise Exception("aggregation:%s not supported for sources!" % src_aggregation)
 
 		periods = self._get_periods()
 		sites = soil_site_model.get_sha_sites()

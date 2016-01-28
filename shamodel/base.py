@@ -49,7 +49,6 @@ class SHAModelBase(object):
 		self.soil_site_model = soil_site_model
 		self.ref_soil_params = ref_soil_params
 		self.imt_periods = imt_periods
-		assert truncation_level >= 0
 		self.truncation_level = truncation_level
 		self.integration_distance = integration_distance
 
