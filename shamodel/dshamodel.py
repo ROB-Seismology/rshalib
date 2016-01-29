@@ -233,13 +233,6 @@ class DSHAModel(SHAModelBase):
 						self.rupture_site_filter)
 
 					for imt, rup_gmf in gmf_dict.items():
-						rup_gmf = gmf
-						#TODO: check if the following lines are needed
-						#if correlation_model:
-						#	rup_gmf = gmf.getA()
-						#else:
-						#	rup_gmf = gmf
-
 						k = imt_list.index(imt)
 						## Aggregate gmf's corresponding to different nodal planes
 						if np_aggregation == "avg":
