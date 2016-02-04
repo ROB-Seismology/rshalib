@@ -173,20 +173,23 @@ class DSHAModel(SHAModelBase):
 				msg %= (src.type, src.source_id)
 				raise Exception(msg)
 
-	def calc_gmf(self, num_realizations=1, correlation_model=None,
+	def calc_random_gmf(self, num_realizations=1, correlation_model=None,
 				np_aggregation="avg", gmpe_aggregation="avg", src_aggregation="max",
 				random_seed=None):
 		"""
 		Compute random ground-motion fields.
-		Note: randomness depends on class property `truncation_level`
+		Note: uncertainty range depends on class property `truncation_level`
+		Note: uncertainties between different IMTs are not correlated,
+			at least not in currently used version of OQ.
 
 		:param num_realizations:
-			int, number of random realizations
+			int, number of random fields to generate
 			(default: 1)
 		:param correlation_model:
-			instance of :class:`oqhazlib.correlation.BaseCorrelationModel`:
-			spatial correlation model. For this to work, the GMPEs used
-			should have inter-event and intra-event uncertainties defined!
+			str or instance of :class:`oqhazlib.correlation.BaseCorrelationModel`:
+			spatial correlation model for intra-event residuals.
+			For this to work, the GMPEs used should have inter-event and
+			intra-event uncertainties defined!
 			(default: None)
 		:param np_aggregation:
 			str, how to aggregate nodal planes for a given point rupture,
@@ -204,6 +207,7 @@ class DSHAModel(SHAModelBase):
 		:return:
 			instance of :class`UHSFieldTree`
 		"""
+		# TODO: should uncertainties for different IMTs be correlated?
 		assert self.truncation_level >= 0
 		if self.truncation_level > 0:
 			np.random.seed(seed=random_seed)
@@ -216,6 +220,11 @@ class DSHAModel(SHAModelBase):
 		if self.truncation_level == 0:
 			print("Correlation model ignored because truncation_level = 0!")
 			correlation_model = None
+
+		if isinstance(correlation_model, str):
+			if not "CorrelationModel" in correlation_model:
+				correlation_model += "CorrelationModel"
+			correlation_model = getattr(oqhazlib.correlation, correlation_model)()
 
 		GMF = np.zeros((num_sites, num_realizations, len(imt_list)))
 		for src in self.source_model:
@@ -274,11 +283,151 @@ class DSHAModel(SHAModelBase):
 							periods, "SA", GMF, intensity_unit="g", timespan=1,
 							return_period=1)
 
-	def calc_gmf_mp(self):
-		# TODO
-		pass
+	def calc_random_gmf_mp(self, num_realizations=1, correlation_model=None,
+				np_aggregation="avg", gmpe_aggregation="avg", src_aggregation="max",
+				random_seed=None, correlate_imt_uncertainties=False, num_cores=None,
+				verbose=False):
+		"""
+		Compute random ground-motion fields on multiple cores.
 
-	def calc_gmf_envelope(self, stddev_type="total", np_aggregation="avg"):
+		:param correlate_imt_uncertainties:
+			bool, whether or not to correlate uncertainties between
+			different IMTs for given rupture and GMPE
+			(default: False)
+		:param num_cores:
+			int, number of CPUs to be used. Actual number of cores used
+			may be lower depending on available cores and memory
+			(default: None, will determine automatically)
+		:param verbose:
+			bool, whether or not to print some progress information
+			(default: True)
+
+		See :meth:`calc_random_gmf` for remaining parameters
+
+		:return:
+			instance of :class`UHSFieldTree`
+		"""
+		import random
+
+		MAX_SINT_32 = (2**31) - 1
+		rnd = random.Random()
+		rnd.seed(random_seed)
+
+		assert self.truncation_level >= 0
+		if self.truncation_level > 0:
+			np.random.seed(seed=random_seed)
+
+		soil_site_model = self.get_soil_site_model()
+		num_sites = len(soil_site_model)
+		num_gmpes = max([len(gmpe_pmf) for gmpe_pmf in self.gmpe_system_def.values()])
+		imt_list = self._get_imts()
+		num_periods = len(imt_list)
+		fake_tom = oqhazlib.tom.PoissonTOM(1)
+
+		if self.truncation_level == 0:
+			print("Correlation model ignored because truncation_level = 0!")
+			correlation_model = None
+
+		if isinstance(correlation_model, str):
+			if not "CorrelationModel" in correlation_model:
+				correlation_model += "CorrelationModel"
+			correlation_model = getattr(oqhazlib.correlation, correlation_model)()
+
+		## Create list with arguments for each job
+		job_args = []
+		num_ruptures_by_source = []
+		for src in self.source_model:
+			src_num_ruptures = 0
+			trt = src.tectonic_region_type
+			gmpe_pmf = self.gmpe_system_def[trt]
+			total_rupture_probability = 0
+			for r, rup in enumerate(src.iter_ruptures(fake_tom)):
+				total_rupture_probability += rup.occurrence_rate
+				for g, gmpe_name in enumerate(gmpe_pmf.gmpe_names):
+					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
+					for k, imt in enumerate(imt_list):
+						if k == 0 or not correlate_imt_uncertainties:
+							random_seed2 = rnd.randint(0, MAX_SINT_32)
+						r = np.sum(num_ruptures_by_source) + src_num_ruptures
+						shared_arr_idx = (r, g, k)
+						shared_arr_shape = []
+						job_args.append([rup, soil_site_model, tuple(imt), gsim,
+							self.truncation_level, num_realizations, shared_arr_idx,
+							shared_arr_shape, correlation_model, self.integration_distance,
+							random_seed2])
+				src_num_ruptures += 1
+			num_ruptures_by_source.append(src_num_ruptures)
+			assert np.allclose(total_rupture_probability, 1)
+		tot_num_ruptures = np.sum(num_ruptures_by_source)
+		shared_arr_shape = (tot_num_ruptures, num_gmpes, num_sites, num_realizations, num_periods)
+		shared_arr_len = np.prod(shared_arr_shape)
+
+		## Create shared-memory array, and expose it as a numpy array
+		shared_gmf_array = mp.multiprocessing.Array('d', shared_arr_len, lock=True)
+
+		## Launch multiprocessing
+		if len(job_args) > 0:
+			for i in range(len(job_args)):
+				job_args[i][7] = shared_arr_shape
+
+			mp.run_parallel(mp.calc_random_gmf, job_args, num_cores, shared_arr=shared_gmf_array, verbose=verbose)
+
+		## Compute aggregated ground-motion fields
+		gmf_matrix = np.frombuffer(shared_gmf_array.get_obj())
+		gmf_matrix = gmf_matrix.reshape(shared_arr_shape)
+
+		GMF = np.zeros((num_sites, num_realizations, len(imt_list)))
+		rup_idx = 0
+		for s, src in enumerate(self.source_model):
+			src_gmf = np.zeros((num_sites, num_realizations, len(imt_list)))
+			trt = src.tectonic_region_type
+			gmpe_pmf = self.gmpe_system_def[trt]
+			for g, gmpe_weight in enumerate(gmpe_pmf.weights):
+				gmpe_gmf = np.zeros((num_sites, num_realizations, len(imt_list)))
+				for r in range(num_ruptures_by_source[s]):
+					for k in range(num_periods):
+						rup_gmf = gmf_matrix[rup_idx, g, :, :, k]
+						## Aggregate gmf's corresponding to different nodal planes
+						if np_aggregation == "avg":
+							gmpe_gmf[:,:,k] += (rup_gmf * rup.occurrence_rate)
+						elif np_aggregation == "min":
+							gmpe_gmf[:,:,k] = np.minimum(gmpe_gmf[:,:,k], rup_gmf)
+						elif np_aggregation == "max":
+							gmpe_gmf[:,:,k] = np.maximum(gmpe_gmf[:,:,k], rup_gmf)
+						else:
+							raise Exception("aggregation:%s not supported for nodal planes!" % np_aggregation)
+					rup_idx += 1
+
+				## Aggregate gmf's corresponding to different GMPEs
+				if gmpe_aggregation == "avg":
+					src_gmf += (gmpe_gmf * float(gmpe_weight))
+				elif gmpe_aggregation == "min":
+					src_gmf = np.minimum(src_gmf, gmpe_gmf)
+				elif gmpe_aggregation == "max":
+					src_gmf = np.maximum(src_gmf, gmpe_gmf)
+				else:
+					raise Exception("aggregation:%s not supported for GMPEs!" % gmpe_aggregation)
+
+			## Aggregate gmf's corresponding to different sources
+			if src_aggregation == "sum":
+				GMF += src_gmf
+			elif src_aggregation == "min":
+				GMF = np.minimum(GMF, src_gmf)
+			elif src_aggregation == "max":
+				GMF = np.maximum(GMF, src_gmf)
+			else:
+				raise Exception("aggregation:%s not supported for sources!" % src_aggregation)
+
+		periods = self._get_periods()
+		sites = soil_site_model.get_sha_sites()
+		branch_names = ["Realization #%d" % (i+1) for i in range(num_realizations)]
+		filespecs = ["" for i in range(num_realizations)]
+		weights = []
+		return UHSFieldTree(self.name, branch_names, filespecs, weights, sites,
+							periods, "SA", GMF, intensity_unit="g", timespan=1,
+							return_period=1)
+
+	def calc_gmf_fixed_epsilon(self, stddev_type="total", np_aggregation="avg"):
 		"""
 		Historical ground motion check
 
@@ -354,8 +503,8 @@ class DSHAModel(SHAModelBase):
 		sites = soil_site_model.get_sha_sites()
 		return UHSField(self.name, "", sites, periods, "SA", gmf_envelope, intensity_unit="g", timespan=1, return_period=1)
 
-	def calc_gmf_envelope_mp(self, num_cores=None, stddev_type="total",
-							np_aggregation="avg", verbose=False):
+	def calc_gmf_fixed_epsilon_mp(self, stddev_type="total", np_aggregation="avg",
+							num_cores=None, verbose=False):
 		"""
 		:param num_cores:
 			int, number of CPUs to be used. Actual number of cores used
