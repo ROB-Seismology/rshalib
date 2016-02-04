@@ -314,8 +314,6 @@ class DSHAModel(SHAModelBase):
 		rnd.seed(random_seed)
 
 		assert self.truncation_level >= 0
-		if self.truncation_level > 0:
-			np.random.seed(seed=random_seed)
 
 		soil_site_model = self.get_soil_site_model()
 		num_sites = len(soil_site_model)
