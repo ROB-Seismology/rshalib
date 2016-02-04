@@ -521,6 +521,78 @@ def calc_gmf_with_fixed_epsilon(
 	return gmf
 
 
+def calc_random_gmf(
+		rupture,
+		sites,
+		imt_tuple,
+		gsim,
+		truncation_level,
+		num_realizations,
+		shared_arr_idx,
+		shared_arr_shape,
+		correlation_model=None,
+		integration_distance=None,
+		random_seed=None):
+	"""
+	Compute random ground-motion field for a single rupture and IMT.
+	Results are stored in a shared array.
+
+	:param imt_tuple:
+		(string IMT, float period) tuple
+	:param truncation_level:
+		float, uncertainty range in number of standard deviations
+	:param num_realizations:
+		int, number of random fields to generate
+	:param shared_arr_idx:
+		(r,g,k) tuple containing rupture index (r), gmpe index (g) and
+		imt index (k) in shared array
+	:param shared_arr_shape:
+		tuple containing shape of shared array
+	:param integration_distance:
+		float, integratiion distance in km
+		(default: None)
+	:param random_seed:
+		int, random seed (default: None)
+
+	See :func:``openquake.hazardlib.calc.gmf.ground_motion_fields`` for
+	the description of remaining input parameters.
+
+	:return:
+		0 (successful execution) or 1 (error occurred)
+	"""
+	from openquake.hazardlib.calc import ground_motion_fields
+
+	if truncation_level > 0:
+		np.random.seed(seed=random_seed)
+
+	## Reconstruct imt from tuple
+	imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
+
+	if integration_distance:
+		rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(integration_distance)
+	else:
+		rupture_site_filter = oqhazlib.calc.filters.rupture_site_noop_filter
+
+	try:
+		gmf_dict = ground_motion_fields(rupture, sites, [imt], gsim,
+			truncation_level, num_realizations, correlation_model,
+			rupture_site_filter)
+
+		with shared_arr.get_lock(): # synchronize access
+			shared_gmf_matrix = np.frombuffer(shared_arr.get_obj()) # no data copying
+			shared_gmf_matrix = shared_gmf_matrix.reshape(shared_arr_shape)
+			r, g, k = shared_arr_idx
+			shared_gmf_matrix[r,g,:,:,k] = gmf_dict[imt]
+
+	except Exception, err:
+		msg = 'Warning: An error occurred with field #%s. Error: %s'
+		msg %= (shared_arr_idx, err.message)
+		#raise RuntimeError(msg)
+		print(msg)
+		return 1
+	else:
+		return 0
+
 def square(x):
 	"""
 	Example function
