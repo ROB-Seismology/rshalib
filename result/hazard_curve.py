@@ -4524,7 +4524,7 @@ class HazardMap(HazardResult, HazardField):
 		# TODO!
 		pass
 
-	def get_plot(self, region=None, projection="merc", resolution="i", grid_interval=(1., 1.),
+	def get_plot(self, region=None, projection="merc", resolution="i", graticule_interval=(1., 1.),
 				cmap="usgs", norm=None, contour_interval=None, amin=None, amax=None,
 				num_grid_cells=100, plot_style="cont", contour_line_style="default",
 				site_style="default", source_model="", source_model_style="default",
@@ -4544,7 +4544,7 @@ class HazardMap(HazardResult, HazardField):
 			char, resolution of builtin shorelines / country borders:
 			'c' (crude), 'l' (low), 'i' (intermediate), 'h' (high), 'f' (full)
 			(default: 'i')
-		:param grid_interval:
+		:param graticule_interval:
 			(dlon, dlat) tuple of floats, spacing of grid lines (meridians,
 			parallels) to draw over the map
 			(default: (1., 1.)
@@ -4770,7 +4770,8 @@ class HazardMap(HazardResult, HazardField):
 		else:
 			legend_style = None
 
-		map = lbm.LayeredBasemap(map_layers, title, projection, region=region, grid_interval=grid_interval, resolution=resolution, annot_axes="SE", legend_style=legend_style)
+		graticule_style = lbm.GraticuleStyle(annot_axes="SE")
+		map = lbm.LayeredBasemap(map_layers, title, projection, region=region, graticule_interval=graticule_interval, resolution=resolution, graticule_style=graticule_style, legend_style=legend_style)
 		return map
 
 
