@@ -334,6 +334,18 @@ def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels
 		int, figure resolution in dots per inch
 		(default: 300)
 	"""
+	if not labels:
+		labels = ["Set %d" % (i+1) for i in range(len(TF_list))]
+
+	if not colors:
+		colors = ("r", "g", "b", "c", "m", "k")
+
+	if not line_styles:
+		line_styles = ["-"]
+
+	if not line_widths:
+		line_widths = [2]
+
 	pylab.clf()
 	# TODO: add more options, and implement empty lists
 	for i in range(len(TF_list)):
@@ -342,7 +354,11 @@ def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels
 			x_values = TF.freqs
 		else:
 			x_values = TF.periods
-		pylab.semilogx(x_values, TF.magnitudes, color=colors[i], linestyle=line_styles[i], linewidth=line_widths[i], label=labels[i])
+		label = labels[i]
+		color = colors[i%len(colors)]
+		linestyle = line_styles[i%len(line_styles)]
+		linewidth = line_widths[i%len(line_widths)]
+		pylab.semilogx(x_values, TF.magnitudes, color=color, linestyle=linestyle, linewidth=linewidth, label=label)
 	if want_freq:
 		pylab.xlabel("Frequency (Hz)", fontsize="x-large")
 	else:
