@@ -97,10 +97,10 @@ if __name__ == "__main__":
 							soil_site_model=soil_site_model, imt_periods=imt_periods,
 							truncation_level=truncation_level, integration_distance=integration_distance)
 
-			#uhs_field = dsha_model.calc_gmf_envelope_mp(num_cores=4, stddev_type="total")
+			#uhs_field = dsha_model.calc_gmf_fixed_epsilon_mp(num_cores=4, stddev_type="total")
 			#correlation_model = oqhazlib.correlation.JB2009CorrelationModel(vs30_clustering=True)
 			correlation_model = None
-			uhs_field = dsha_model.calc_gmf(correlation_model=correlation_model, random_seed=42)[0]
+			uhs_field = dsha_model.calc_random_gmf(correlation_model=correlation_model, random_seed=42)[0]
 			num_sites = uhs_field.num_sites
 
 
@@ -114,7 +114,7 @@ if __name__ == "__main__":
 				title = "%s, %s (mean + %s sigma)" % (src_model.name, gmpe_name, truncation_level)
 				hm = uhs_field.getHazardMap(period_spec=T)
 				site_style = lbm.PointStyle(shape=".", line_color="k", size=0.5)
-				map = hm.get_plot(grid_interval=(1,1), cmap="usgs", norm=norm,
+				map = hm.get_plot(graticule_interval=(1,1), cmap="usgs", norm=norm,
 								contour_interval=contour_interval, num_grid_cells=num_sites,
 								title=title, projection="merc", site_style=site_style,
 								source_model=src_model)
