@@ -199,13 +199,13 @@ class DSHAModel(SHAModelBase):
 			str, how to aggregate different GMPEs, either "avg", "min" or "max"
 			(default: "avg")
 		:param src_aggregation:
-			str, how to aggregate different sources, either "sum", "min" or "max"
-			(default: "sum")
+			str, how to aggregate different sources, either "sum", "min", "max" or "avg"
+			(default: "max")
 		:param random_seed:
 			int, seed for the random number generator (default: None)
 
 		:return:
-			instance of :class`UHSFieldTree`
+			instance of :class:`UHSFieldTree`
 		"""
 		# TODO: should uncertainties for different IMTs be correlated?
 		assert self.truncation_level >= 0
@@ -271,6 +271,8 @@ class DSHAModel(SHAModelBase):
 				GMF = np.minimum(GMF, src_gmf)
 			elif src_aggregation == "max":
 				GMF = np.maximum(GMF, src_gmf)
+			elif src_aggregation == "avg":
+				GMF += (src_gmf / float(len(self.source_model)))
 			else:
 				raise Exception("aggregation:%s not supported for sources!" % src_aggregation)
 
@@ -305,7 +307,7 @@ class DSHAModel(SHAModelBase):
 		See :meth:`calc_random_gmf` for remaining parameters
 
 		:return:
-			instance of :class`UHSFieldTree`
+			instance of :class:`UHSFieldTree`
 		"""
 		import random
 
@@ -413,6 +415,8 @@ class DSHAModel(SHAModelBase):
 				GMF = np.minimum(GMF, src_gmf)
 			elif src_aggregation == "max":
 				GMF = np.maximum(GMF, src_gmf)
+			elif src_aggregation == "avg":
+				GMF += (src_gmf / float(len(self.source_model)))
 			else:
 				raise Exception("aggregation:%s not supported for sources!" % src_aggregation)
 
@@ -425,11 +429,12 @@ class DSHAModel(SHAModelBase):
 							periods, "SA", GMF, intensity_unit="g", timespan=1,
 							return_period=1)
 
-	def calc_gmf_fixed_epsilon(self, stddev_type="total", np_aggregation="avg"):
+	def calc_gmf_fixed_epsilon(self, stddev_type="total", np_aggregation="avg",
+								gmpe_aggregation="avg", src_aggregation="max"):
 		"""
-		Historical ground motion check
-
-		Fixed epsilon!
+		Compute ground-motion field considering a fixed epsilon of the
+		GMPE uncertainty.
+		Note: epsilon value corresponds to class property `truncation_level`
 
 		:param stddev_type:
 			str, standard deviation type, one of "total", "inter-event" or "intra-event"
@@ -440,8 +445,16 @@ class DSHAModel(SHAModelBase):
 			str, how to aggregate nodal planes for a given point rupture,
 			either "avg" (weighted average) or "max" (maximum)
 			(default: "avg")
+		:param gmpe_aggregation:
+			str, how to aggregate different GMPEs, either "avg", "min" or "max"
+			(default: "avg")
+		:param src_aggregation:
+			str, how to aggregate different sources, either "sum", "min", "max" or "avg"
+			(default: "max")
+
+		:return:
+			instance of :class:`UHSField`
 		"""
-		# TODO: change name, add gmpe_aggregation, src_aggregation!
 		soil_site_model = self.get_soil_site_model()
 		num_sites = len(soil_site_model)
 		imt_list = self._get_imts()
@@ -483,31 +496,62 @@ class DSHAModel(SHAModelBase):
 							intra_residual_epsilons=intra_residual_epsilons,
 							inter_residual_epsilons=inter_residual_epsilons,
 							integration_distance=self.integration_distance)
+
 						## Aggregate gmf's corresponding to different nodal planes
 						if np_aggregation == "avg":
 							gmpe_gmf += (gmf * rup.occurrence_rate)
+						elif np_aggregation == "min":
+							gmpe_gmf = np.minimum(gmpe_gmf, gmf)
 						elif np_aggregation == "max":
-							gmpe_gmf = np.max([gmpe_gmf, gmf], axis=0)
-					## Weighted average of gmf's due to different GMPEs
-					assert np.allclose(total_rupture_probability, 1)
-					src_gmf += (gmpe_gmf * float(gmpe_weight))
-				amax = max(amax, src_gmf.max())
-				## Take envelope of different source gmf's
-				gmf_envelope[:,k] = np.max([gmf_envelope[:,k], src_gmf], axis=0)
-		print gmf_envelope.min(), gmf_envelope.max()
-		print amax
+							gmpe_gmf = np.maximum(gmpe_gmf, gmf)
+						else:
+							raise Exception("aggregation:%s not supported for nodal planes!" % np_aggregation)
+
+					## Aggregate gmf's corresponding to different GMPEs
+					if gmpe_aggregation == "avg":
+						assert np.allclose(total_rupture_probability, 1)
+						src_gmf += (gmpe_gmf * float(gmpe_weight))
+					elif gmpe_aggregation == "min":
+						src_gmf = np.minimum(src_gmf, gmpe_gmf)
+					elif gmpe_aggregation == "max":
+						src_gmf = np.maximum(src_gmf, gmpe_gmf)
+					else:
+						raise Exception("aggregation:%s not supported for GMPEs!" % gmpe_aggregation)
+
+				#amax = max(amax, src_gmf.max())
+
+				## Aggregate gmf's corresponding to different sources
+				if src_aggregation == "sum":
+					gmf_envelope[:,k] += src_gmf
+				elif src_aggregation == "min":
+					gmf_envelope[:,k] = np.minimum(gmf_envelope[:,k], src_gmf)
+				elif src_aggregation == "max":
+					gmf_envelope[:,k] = np.maximum(gmf_envelope[:,k], src_gmf)
+				elif src_aggregation == "avg":
+					gmf_envelope[:,k] += (src_gmf / float(len(self.source_model)))
+				else:
+					raise Exception("aggregation:%s not supported for sources!" % src_aggregation)
 
 		periods = self._get_periods()
 		sites = soil_site_model.get_sha_sites()
 		return UHSField(self.name, "", sites, periods, "SA", gmf_envelope, intensity_unit="g", timespan=1, return_period=1)
 
 	def calc_gmf_fixed_epsilon_mp(self, stddev_type="total", np_aggregation="avg",
-							num_cores=None, verbose=False):
+								gmpe_aggregation="avg", src_aggregation="max",
+								num_cores=None, verbose=False):
 		"""
 		:param num_cores:
 			int, number of CPUs to be used. Actual number of cores used
 			may be lower depending on available cores and memory
 			(default: None, will determine automatically)
+		:param verbose:
+			bool, whether or not to print some progress information
+			(default: True)
+
+		See :meth:`calc_gmf_fixed_epsilon` for remaining parameters
+
+		:return:
+			instance of :class:`UHSField`
 		"""
 		soil_site_model = self.get_soil_site_model()
 		num_sites = len(soil_site_model)
@@ -564,16 +608,39 @@ class DSHAModel(SHAModelBase):
 						total_rupture_probability += rup.occurrence_rate
 						gmf = gmf_list[i]
 						i += 1
+
 						## Aggregate gmf's corresponding to different nodal planes
 						if np_aggregation == "avg":
 							gmpe_gmf += (gmf * rup.occurrence_rate)
+						elif np_aggregation == "min":
+							gmpe_gmf = np.minimum(gmpe_gmf, gmf)
 						elif np_aggregation == "max":
-							gmpe_gmf = np.max([gmpe_gmf, gmf], axis=0)
-					## Weighted average of gmf's due to different GMPEs
-					assert np.allclose(total_rupture_probability, 1)
-					src_gmf += (gmpe_gmf * float(gmpe_weight))
-				## Take envelope of different source gmf's
-				gmf_envelope[:,k] = np.max([gmf_envelope[:,k], src_gmf], axis=0)
+							gmpe_gmf = np.maximum(gmpe_gmf, gmf)
+						else:
+							raise Exception("aggregation:%s not supported for nodal planes!" % np_aggregation)
+
+					## Aggregate gmf's corresponding to different GMPEs
+					if gmpe_aggregation == "avg":
+						assert np.allclose(total_rupture_probability, 1)
+						src_gmf += (gmpe_gmf * float(gmpe_weight))
+					elif gmpe_aggregation == "min":
+						src_gmf = np.minimum(src_gmf, gmpe_gmf)
+					elif gmpe_aggregation == "max":
+						src_gmf = np.maximum(src_gmf, gmpe_gmf)
+					else:
+						raise Exception("aggregation:%s not supported for GMPEs!" % gmpe_aggregation)
+
+				## Aggregate gmf's corresponding to different sources
+				if src_aggregation == "sum":
+					gmf_envelope[:,k] += src_gmf
+				elif src_aggregation == "min":
+					gmf_envelope[:,k] = np.minimum(gmf_envelope[:,k], src_gmf)
+				elif src_aggregation == "max":
+					gmf_envelope[:,k] = np.maximum(gmf_envelope[:,k], src_gmf)
+				elif src_aggregation == "avg":
+					gmf_envelope[:,k] += (src_gmf / float(len(self.source_model)))
+				else:
+					raise Exception("aggregation:%s not supported for sources!" % src_aggregation)
 
 		periods = self._get_periods()
 		sites = soil_site_model.get_sha_sites()
