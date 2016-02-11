@@ -593,6 +593,7 @@ def calc_random_gmf(
 	else:
 		return 0
 
+
 def square(x):
 	"""
 	Example function
