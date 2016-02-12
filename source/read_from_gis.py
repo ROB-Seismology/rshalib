@@ -925,7 +925,7 @@ def import_source_from_gis_record(
 		column_map = default_column_map.copy()
 	else:
 		column_map = dict((k,w) for (k,w) in column_map.items() if k in default_column_map)
-		kwargs = dict((k,w) for (k,w) in kwargs.items() if k in default_column_map)
+		kwargs = dict((k,w) for (k,w) in kwargs.items())
 
 	return func(source_rec, column_map=column_map, catalog=catalog,
 					catalog_params=catalog_params, encoding=encoding,
