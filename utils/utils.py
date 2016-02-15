@@ -8,6 +8,18 @@ def interpolate(xin, yin, xout):
 	"""
 	Wrapper for linear interpolation function
 	"""
+	## Ignore inf values
+	if np.isinf(xin).any():
+		print("Warning: inf values in xin ignored for interpolation!")
+		idxs = -np.isinf(xin)
+		xin = xin[idxs]
+		yin = yin[idxs]
+	if np.isinf(yin).any():
+		print("Warning: inf values in yin ignored for interpolation!")
+		idxs = -np.isinf(yin)
+		xin = xin[idxs]
+		yin = yin[idxs]
+
 	## Scipy and numpy interpolation don't work as exceedance rates
 	## are in decreasing order,
 	if np.all(np.diff(xin) <= 0):
