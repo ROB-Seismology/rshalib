@@ -221,6 +221,7 @@ def get_gr_mfd_from_catalog(
 	catalog_params,
 	min_mag,
 	max_mag,
+	mfd_bin_width=0.1,
 	b_val=None,
 	verbose=False
 	):
@@ -239,6 +240,9 @@ def get_gr_mfd_from_catalog(
 		float, maximum magnitude
 		If None, will be taken as median value of Bayesian Mmax
 		distribution determined from catalog
+	:param mfd_bin_width:
+		float, magnitude bin width of MFD
+		(default: 0.1)
 	:param b_val:
 		float, b-value to impose
 		(default: None)
@@ -279,6 +283,7 @@ def get_gr_mfd_from_catalog(
 		print("Warning: Weichert MFD computation: %s" % err.args[0])
 		raise
 	else:
+		mfd.min_mag = min_mag
 		return mfd
 
 
@@ -580,7 +585,7 @@ def import_point_or_area_source_from_gis_record(
 			## We do not read from GIS record (or column_map) in this case
 			try:
 				mfd = get_gr_mfd_from_catalog(catalog, catalog_params, min_mag,
-												max_mag, b_val, verbose)
+											max_mag, mfd_bin_width, b_val, verbose)
 			except ValueError:
 				pass
 
@@ -834,7 +839,7 @@ def import_simple_fault_source_from_gis_record(
 			## We do not read from GIS record (or column_map) in this case
 			try:
 				mfd = get_gr_mfd_from_catalog(catalog, catalog_params, min_mag,
-												max_mag, b_val, verbose)
+											max_mag, mfd_bin_width, b_val, verbose)
 			except ValueError:
 				pass
 		else:
@@ -988,8 +993,7 @@ def import_source_model_from_gis(
 			## Extract source catalog from overall catalog
 			geom = source_rec['obj']
 			if geom.GetGeometryName() == "POLYGON":
-				linear_ring = geom.GetGeometryRef(0)
-				catalog = overall_catalog.subselect_polygon(linear_ring)
+				catalog = overall_catalog.subselect_polygon(geom)
 
 		source = import_source_from_gis_record(source_rec, column_map, catalog=catalog,
 						catalog_params=catalog_params, verbose=verbose, **kwargs)
