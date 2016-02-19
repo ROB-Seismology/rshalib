@@ -205,9 +205,15 @@ class RuptureSource():
 
 		## Plot source outline
 		if isinstance(self, PointSource):
-			src_longitudes = [self.location.longitude]
-			src_latitudes = [self.location.latitude]
-			src_depths = np.array([0.])
+			origin = (self.location.longitude, self.location.latitude)
+			src_longitudes, src_latitudes = [], []
+			dist = 10
+			num_azimuths = 37
+			for azimuth in np.linspace(0, 360, num_azimuths):
+				lon, lat = oqhazlib.geo.geodetic.point_at(origin[0], origin[1], azimuth, dist)
+				src_longitudes.append(lon)
+				src_latitudes.append(lat)
+			src_depths = np.zeros(num_azimuths)
 		elif isinstance(self, AreaSource):
 			src_longitudes = self.polygon.lons
 			src_latitudes = self.polygon.lats
