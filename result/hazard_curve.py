@@ -3540,8 +3540,9 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		srs_motion = rvt.compute_osc_resp(out_freqs)
 
 		model_name = self.model_name + " (SRS)"
-		uhs = UHS(model_name, "", self.site, out_periods, self.IMT, srs_motion, self.intensity_unit, self.timespan, poe=self.poe, return_period=self.return_period)
-		return uhs
+		#return UHS(model_name, "", self.site, out_periods, self.IMT, srs_motion, self.intensity_unit, self.timespan, poe=self.poe, return_period=self.return_period)
+		return ResponseSpectrum(model_name, out_periods, self.IMT, srs_motion,
+								self.intensity_unit)
 
 	def export_csv(self, csv_filespec=None):
 		"""
