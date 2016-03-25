@@ -360,7 +360,7 @@ class DSHAModel(SHAModelBase):
 			assert np.allclose(total_rupture_probability, 1)
 		tot_num_ruptures = np.sum(num_ruptures_by_source)
 		shared_arr_shape = (tot_num_ruptures, num_gmpes, num_sites, num_realizations, num_periods)
-		shared_arr_len = np.prod(shared_arr_shape)
+		shared_arr_len = int(np.prod(shared_arr_shape))
 
 		## Create shared-memory array, and expose it as a numpy array
 		shared_gmf_array = mp.multiprocessing.Array('d', shared_arr_len, lock=True)
