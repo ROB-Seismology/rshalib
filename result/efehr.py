@@ -24,7 +24,7 @@ def query_efehr(params, endpoint='map', verbose=False):
 		list with lines of data returned by the server
 	"""
 	## Construct URL
-	base_url = "http://appsrvr.share-eu.org:8080/share/"
+	base_url = "http://appsrvr.share-eu.org:8080/share"
 	url = "%s/%s?%s" % (base_url, endpoint, urllib.urlencode(params))
 	if verbose:
 		print url
@@ -156,7 +156,8 @@ def get_map_soil_classes(map_id, imt_string, poe, timespan, verbose=False):
 	efehr_params['hmapexceedyears'] = timespan
 
 	xml_data = query_efehr(efehr_params, verbose=verbose)
-	xml = etree.fromstring('<soiltypes>' + xml_data[0] + '</soiltypes>')
+	#xml = etree.fromstring('<soiltypes>' + xml_data[0] + '</soiltypes>')
+	xml = etree.fromstring(xml_data[0])
 
 	soil_classes = []
 	for soil_elem in xml.findall('soiltype'):
@@ -326,7 +327,7 @@ def get_hazard_map(region, period=0, poe=0.1, perc=None, verbose=False):
 	efehr_params['hmapexceedprob'] = poe
 	efehr_params['hmapexceedyears'] = timespan = 50
 
-	efehr_params['soiltype'] = soil_type = "rock"
+	efehr_params['soiltype'] = soil_type = "rock_vs30_800ms-1"
 
 	if perc is None:
 		efehr_params['aggregationtype'] = "arithmetic"
@@ -392,7 +393,7 @@ def get_hazard_spectrum(lon, lat, poe=0.1, verbose=False):
 	efehr_params['aggregationtype'] = 'arithmetic'
 	efehr_params['aggregationlevel'] = 0.5
 
-	xml_data = query_efehr(efehr_params, endpoint='spectra')
+	xml_data = query_efehr(efehr_params, endpoint='spectra', verbose=verbose)
 	tree = etree.fromstring(''.join(xml_data))
 
 	for e in tree.iter():
@@ -407,25 +408,25 @@ def get_hazard_spectrum(lon, lat, poe=0.1, verbose=False):
 
 if __name__ == "__main__":
 	lon, lat = 4, 51
-	# verbose = False
-	# map_models = get_map_models(lon, lat, verbose=verbose)
-	# print map_models
-	# for map_id, map_name in map_models.items():
-		# print map_id,map_name
-		# for imt, imt_unit in get_map_imts(map_id, verbose=verbose):
-			# print imt, imt_unit
-			# for poe, timespan in get_map_poes(map_id, imt, verbose=verbose):
-				# print poe, timespan
-				# for soil_class in get_map_soil_classes(map_id, imt, poe, timespan, verbose=verbose):
-					# print soil_class
-					# for agg_type, agg_level in get_map_aggregation_types(map_id, imt, poe, timespan, soil_class, verbose=verbose):
-						# print agg_type, agg_level
-						# #print get_map_wms_id(map_id, imt, poe, timespan, soil_class, agg_type, agg_level, verbose=verbose)
-						# print get_map_wms_url(map_id, imt, poe, timespan, soil_class, agg_type, agg_level, verbose=verbose)
+	verbose = False
+	map_models = get_map_models(lon, lat, verbose=verbose)
+	print map_models
+	for map_id, map_name in map_models.items():
+		print map_id, map_name
+		for imt, imt_unit in get_map_imts(map_id, verbose=verbose):
+			print imt, imt_unit
+			for poe, timespan in get_map_poes(map_id, imt, verbose=verbose):
+				print poe, timespan
+				for soil_class in get_map_soil_classes(map_id, imt, poe, timespan, verbose=verbose):
+					print soil_class
+					for agg_type, agg_level in get_map_aggregation_types(map_id, imt, poe, timespan, soil_class, verbose=verbose):
+						print agg_type, agg_level
+						#print get_map_wms_id(map_id, imt, poe, timespan, soil_class, agg_type, agg_level, verbose=verbose)
+						print get_map_wms_url(map_id, imt, poe, timespan, soil_class, agg_type, agg_level, verbose=verbose)
 
 
-	uhs = get_hazard_spectrum(lon, lat, verbose=True)
-	uhs.plot()
+	#uhs = get_hazard_spectrum(lon, lat, verbose=True)
+	#uhs.plot()
 
 
 	"""
