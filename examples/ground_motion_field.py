@@ -44,17 +44,17 @@ if __name__ == "__main__":
 	#src.nodal_plane_distribution = npd
 
 	## Import GMPEs defined in a recent hazard project
-	from hazard.psha.Projects.cAt_Rev.September2014.logictree.gmpe_lt import construct_gmpe_lt
-	rock_type = "soft"
-	gmpe_system_def = construct_gmpe_lt(rock_type).gmpe_system_def
-	gmpe_spec = "GMPE logic tree (%s rock)" % rock_type
+	#from hazard.psha.Projects.cAt_Rev.September2014.logictree.gmpe_lt import construct_gmpe_lt
+	#rock_type = "soft"
+	#gmpe_system_def = construct_gmpe_lt(rock_type).gmpe_system_def
+	#gmpe_spec = "GMPE logic tree (%s rock)" % rock_type
 
 	## Or define a single GMPE
-	#gmpe_system_def = {}
-	#gmpe_name = "RietbrockEtAl2013MD"
-	#gmpe_pmf = rshalib.pmf.GMPEPMF([gmpe_name], [1])
-	#gmpe_system_def[trt] = gmpe_pmf
-	#gmpe_spec = gmpe_name + " GMPE"
+	gmpe_system_def = {}
+	gmpe_name = "RietbrockEtAl2013MD"
+	gmpe_pmf = rshalib.pmf.GMPEPMF([gmpe_name], [1])
+	gmpe_system_def[trt] = gmpe_pmf
+	gmpe_spec = gmpe_name + " GMPE"
 
 	## Compute ground_motion field
 	print("Computing ground-motion field...")
@@ -73,8 +73,9 @@ if __name__ == "__main__":
 					soil_site_model=soil_site_model, imt_periods=imt_periods,
 					truncation_level=truncation_level, integration_distance=integration_distance)
 
-	uhs_field = dsha_model.calc_gmf_envelope_mp(num_cores=4, stddev_type="total",
-											np_aggregation=np_aggregation)
+	#uhs_field = dsha_model.calc_gmf_fixed_epsilon_mp(num_cores=4, stddev_type="total",
+	#										np_aggregation=np_aggregation)
+	[uhs_field] = dsha_model.calc_random_gmf_mp(num_cores=4, correlate_imt_uncertainties=True)
 	num_sites = uhs_field.num_sites
 
 	## Plot map
@@ -86,10 +87,10 @@ if __name__ == "__main__":
 	norm = PiecewiseLinearNorm(breakpoints)
 	title = "%s (%s)\nGround-motion field, %s" % (eq.name.title(), eq.date.isoformat(), gmpe_spec)
 	hm = uhs_field.getHazardMap(period_spec=T)
-	map = hm.get_plot(grid_interval=(2,1), cmap="jet", norm=norm, contour_interval=contour_interval, num_grid_cells=num_sites, title=title, projection="merc")
-	fig_filespec = "C:\Temp\gmf.png"
-	#fig_filespec = None
-	#map.plot(fig_filespec=rfig_filespec)
+	map = hm.get_plot(graticule_interval=(2,1), cmap="jet", norm=norm, contour_interval=contour_interval, num_grid_cells=num_sites, title=title, projection="merc")
+	#fig_filespec = "C:\Temp\gmf.png"
+	fig_filespec = None
+	map.plot(fig_filespec=fig_filespec)
 
 	## Export grid layer to geotiff
 	## Note: do not plot map before or map area will be shifted due to colorbar!
@@ -97,7 +98,7 @@ if __name__ == "__main__":
 	layers[0].style.color_map_theme.colorbar_style = None
 	map.layers = layers
 	#map.export_geotiff(r"C:\Temp\gmf.tif", dpi=300)
-	hm.export_GeoTiff(r"C:\Temp\gmf2", num_cells=num_sites)
+	#hm.export_GeoTiff(r"C:\Temp\gmf2", num_cells=num_sites)
 
 	## Plot UHS
 	lon, lat = 4.367777777777778, 50.79499999999999

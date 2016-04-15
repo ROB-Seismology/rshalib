@@ -52,8 +52,8 @@ if __name__ == "__main__":
 
 
 	# Define GMPEs
-	gmpe_names = ["BooreAtkinson2008", "CampbellBozorgnia2008", "ChiouYoungs2008"]
-	#gmpe_names = ["BooreAtkinson2008"]
+	#gmpe_names = ["BooreAtkinson2008", "CampbellBozorgnia2008", "ChiouYoungs2008"]
+	gmpe_names = ["BooreAtkinson2008"]
 	gmpe_system_defs = []
 	for gmpe_name in gmpe_names:
 		gmpe_system_def = {}
@@ -71,8 +71,10 @@ if __name__ == "__main__":
 	grid_spacing = (0.1, 0.1)
 	soil_site_model = None
 
-	imt_periods = {'PGA': [0], 'SA': [0.25, 1.]}
-	period_list = sorted(np.sum(imt_periods.values()))
+	#imt_periods = {'PGA': [0], 'SA': [0.25, 1.]}
+	#period_list = sorted(np.sum(imt_periods.values()))
+	imt_periods = {'PGA': [0]}
+	period_list = [0]
 
 	truncation_level = 0
 	integration_distance = 300
