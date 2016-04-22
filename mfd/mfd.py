@@ -164,7 +164,7 @@ class MFD(object):
 			f.write("%.2f,%f\n" % (mag, rate))
 		f.close()
 
-	def sample_inter_event_times(self, timespan, method="poisson", random_seed=None):
+	def sample_inter_event_times(self, timespan, skip_time=0, method="poisson", random_seed=None):
 		"""
 		Generate random inter-event times for each magnitude bin according to a
 		Poisson or random process.
@@ -173,6 +173,10 @@ class MFD(object):
 
 		:param timespan:
 			int, time span (in years) in which random timings are generated
+		:param skip_time:
+			int, time span (in years) to skip before starting to keep the
+			samples
+			(default: 0)
 		:param method:
 			str, sampling method, either "poisson", "random"
 			(default: "poisson")
@@ -195,27 +199,31 @@ class MFD(object):
 				sigma = 1. / np.sqrt(rate)
 			## Should we re-initialize random number generator for each bin?
 			inter_event_times.append([])
-			total_time, next_event_time = 0, -1
+			total_time, iet = 0, -1
 			#while total_time <= timespan:
-			while total_time < timespan:
-				if next_event_time >= 0:
+			while total_time < (timespan + skip_time):
+				if iet >= 0 and total_time >= skip_time:
+					if len(inter_event_times[-1]) == 0:
+						next_event_time = total_time - skip_time
+					else:
+						next_event_time = iet
 					inter_event_times[-1].append(next_event_time)
 				if method == "poisson":
 					#prob = rnd.random()
 					## From http://preshing.com/20111007/how-to-generate-random-timings-for-a-poisson-process/
 					#next_event_time = -np.log(1.0 - prob) / rate
-					next_event_time = rnd.expovariate(rate)
+					iet = rnd.expovariate(rate)
 				elif method == "random":
 					epsilon = rnd.normalvariate(0, 1)
-					next_event_time = (1. / rate) + sigma * epsilon
+					iet = (1. / rate) + sigma * epsilon
 				elif method == "time-dependent":
 					# TODO
 					raise Exception("Time-dependent sampling not yet implemented!")
-				total_time += next_event_time
+				total_time += iet
 
 		return np.array(inter_event_times)
 
-	def generate_random_catalog(self, timespan, method="poisson", start_year=1, lons=None, lats=None, random_seed=None):
+	def generate_random_catalog(self, timespan, skip_time=0, method="poisson", start_year=1, lons=None, lats=None, random_seed=None):
 		"""
 		Generate random catalog by random sampling.
 		See :meth:`sample_inter_event_times`
@@ -244,7 +252,7 @@ class MFD(object):
 		rnd = random.Random()
 		rnd.seed(random_seed)
 		from eqcatalog.eqcatalog import EQCatalog, LocalEarthquake
-		inter_event_times = self.sample_inter_event_times(timespan, method, random_seed)
+		inter_event_times = self.sample_inter_event_times(timespan, skip_time, method, random_seed)
 		eq_list = []
 		ID = 0
 		depth = 0.
