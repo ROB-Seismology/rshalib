@@ -281,8 +281,9 @@ class DSHAModel(SHAModelBase):
 		branch_names = ["Realization #%d" % (i+1) for i in range(num_realizations)]
 		filespecs = ["" for i in range(num_realizations)]
 		weights = []
+		imt = self.get_imt_families()[0]
 		return UHSFieldTree(self.name, branch_names, filespecs, weights, sites,
-							periods, "SA", GMF, intensity_unit="g", timespan=1,
+							periods, imt, GMF, intensity_unit="", timespan=1,
 							return_period=1)
 
 	def calc_random_gmf_mp(self, num_realizations=1, correlation_model=None,
@@ -425,8 +426,9 @@ class DSHAModel(SHAModelBase):
 		branch_names = ["Realization #%d" % (i+1) for i in range(num_realizations)]
 		filespecs = ["" for i in range(num_realizations)]
 		weights = []
+		imt = self.get_imt_families()[0]
 		return UHSFieldTree(self.name, branch_names, filespecs, weights, sites,
-							periods, "SA", GMF, intensity_unit="g", timespan=1,
+							periods, imt, GMF, intensity_unit="", timespan=1,
 							return_period=1)
 
 	def calc_gmf_fixed_epsilon(self, stddev_type="total", np_aggregation="avg",
@@ -534,7 +536,8 @@ class DSHAModel(SHAModelBase):
 
 		periods = self._get_periods()
 		sites = soil_site_model.get_sha_sites()
-		return UHSField(self.name, "", sites, periods, "SA", gmf_envelope, intensity_unit="g", timespan=1, return_period=1)
+		imt = self.get_imt_families()[0]
+		return UHSField(self.name, "", sites, periods, imt, gmf_envelope, intensity_unit="", timespan=1, return_period=1)
 
 	def calc_gmf_fixed_epsilon_mp(self, stddev_type="total", np_aggregation="avg",
 								gmpe_aggregation="avg", src_aggregation="max",
@@ -644,7 +647,8 @@ class DSHAModel(SHAModelBase):
 
 		periods = self._get_periods()
 		sites = soil_site_model.get_sha_sites()
-		return UHSField(self.name, "", sites, periods, "SA", gmf_envelope, intensity_unit="g", timespan=1, return_period=1)
+		imt = self.get_imt_families()[0]
+		return UHSField(self.name, "", sites, periods, imt, gmf_envelope, intensity_unit="", timespan=1, return_period=1)
 
 
 

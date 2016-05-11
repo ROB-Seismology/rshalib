@@ -106,6 +106,19 @@ class SHAModelBase(object):
 				periods.append(0)
 		return periods
 
+	def get_imt_families(self):
+		"""
+		Return list of IMT families
+		"""
+		imts = self.imt_periods.keys()
+		if "PGA" in imts and "SA" in imts:
+			imts.pop("PGA")
+		if "PGV" in imts and "SV" in imts:
+			imts.pop("PGV")
+		if "PGD" in imts and "SD" in imts:
+			imts.pop("PGD")
+		return imts
+
 	def _set_sha_sites(self, sites, grid_outline, grid_spacing):
 		"""
 		Set SHA sites from list of sites or grid outline and grid spacing.
