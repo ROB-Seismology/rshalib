@@ -349,7 +349,7 @@ class IntensityResult:
 		elif IMT in ("PGD", "SD"):
 			return "m"
 		elif IMT == "MMI":
-			return "I"
+			return ""
 
 
 class HazardResult(IntensityResult):
