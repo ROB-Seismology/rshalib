@@ -248,10 +248,10 @@ class IntensityResult:
 	"""
 	Generic class providing common methods related to intensities
 	"""
-	def __init__(self, IMT, intensities, intensity_unit="g"):
+	def __init__(self, IMT, intensities, intensity_unit=""):
 		self.IMT = IMT
 		self.intensities = as_array(intensities)
-		self.intensity_unit = intensity_unit
+		self.intensity_unit = intensity_unit or self.get_default_intensity_unit(IMT)
 
 	@property
 	def num_intensities(self):
@@ -301,16 +301,19 @@ class IntensityResult:
 
 		return intensities * conv_factor
 
-	def get_intensities(self, intensity_unit="g"):
+	def get_intensities(self, intensity_unit=""):
 		"""
 		Get intensity array, optionally converted to a different intensity unit
 
 		:param intensity_unit:
 			string, intensity unit to scale result,
-			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
+			either "g", "mg", "ms2", "gal" or "cms2" (default: "")
 		"""
-		return self._convert_intensities(self.intensities, self.intensity_unit,
-										intensity_unit)
+		if intensity_unit and intensity_unit != self.intensity_unit:
+			return self._convert_intensities(self.intensities, self.intensity_unit,
+											intensity_unit)
+		else:
+			return self.intensities
 
 	def set_intensity_unit(self, target_intensity_unit):
 		"""
@@ -329,6 +332,25 @@ class IntensityResult:
 				self.intensities = intensities
 				self.intensity_unit = new_intensity_unit
 
+	def get_default_intensity_unit(self, IMT):
+		"""
+		Return default intensity unit for given IMT
+
+		:param IMT:
+			str
+
+		:return:
+			str, intensity unit
+		"""
+		if IMT in ("PGA", "SA"):
+			return "g"
+		elif IMT in ("PGV", "SV"):
+			return "ms"
+		elif IMT in ("PGD", "SD"):
+			return "m"
+		elif IMT == "MMI":
+			return "I"
+
 
 class HazardResult(IntensityResult):
 	"""
@@ -340,7 +362,7 @@ class HazardResult(IntensityResult):
 		exceedance_rates: list or array with exceedance rates (default: None)
 		return_periods: list or array with return periods (default: None)
 	"""
-	def __init__(self, hazard_values, timespan=50, IMT="PGA", intensities=None, intensity_unit="g"):
+	def __init__(self, hazard_values, timespan=50, IMT="PGA", intensities=None, intensity_unit=""):
 		if not isinstance(hazard_values, HazardCurveArray):
 			raise Exception("hazard_values should be instance of HazardCurveArray!")
 		IntensityResult.__init__(self, IMT, intensities, intensity_unit)
@@ -534,7 +556,7 @@ class HazardField:
 			num_cells = (num_cells, num_cells)
 		return np.meshgrid(self.get_grid_longitudes(lonmin, lonmax, num_cells[0]), self.get_grid_latitudes(latmin, latmax, num_cells[1]))
 
-	def get_grid_intensities(self, extent=(None, None, None, None), num_cells=100, method="cubic", intensity_unit="g", nodata_value=np.nan):
+	def get_grid_intensities(self, extent=(None, None, None, None), num_cells=100, method="cubic", intensity_unit="", nodata_value=np.nan):
 		"""
 		Convert intensities to a spatial grid (2-D array)
 
@@ -545,6 +567,10 @@ class HazardField:
 		:param method:
 			Str, interpolation method supported by griddata (either
 			"linear", "nearest" or "cubic") (default: "cubic")
+		:param intensity_unit:
+
+		:param nodata_value:
+
 		"""
 #		from scipy.interpolate import griddata
 #		x, y = self.longitudes, self.latitudes
@@ -558,7 +584,7 @@ class HazardField:
 		zi = self.get_site_intensities(xi, yi, method, intensity_unit, nodata_value=nodata_value)
 		return zi
 
-	def get_site_intensities(self, lons, lats, method="cubic", intensity_unit="g", nodata_value=np.nan):
+	def get_site_intensities(self, lons, lats, method="cubic", intensity_unit="", nodata_value=np.nan):
 		"""
 		Interpolate intensities for given sites.
 
@@ -569,6 +595,10 @@ class HazardField:
 		:param method:
 			Str, interpolation method supported by griddata (either
 			"linear", "nearest" or "cubic") (default: "cubic")
+		:param intensity_unit:
+
+		:param nodata_value:
+
 		"""
 		from scipy.interpolate import griddata
 		x, y = self.longitudes, self.latitudes
@@ -660,7 +690,7 @@ class HazardTree(HazardResult):
 	Generic class providing common methods related to logic-tree results.
 	Inherits from HazardResult
 	"""
-	def __init__(self, hazard_values, branch_names, weights=None, timespan=50, IMT="PGA", intensities=None, intensity_unit="g", mean=None, percentile_levels=None, percentiles=None):
+	def __init__(self, hazard_values, branch_names, weights=None, timespan=50, IMT="PGA", intensities=None, intensity_unit="", mean=None, percentile_levels=None, percentiles=None):
 		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
 		self.branch_names = branch_names
 		if weights in ([], None):
@@ -4121,7 +4151,7 @@ class HazardMap(HazardResult, HazardField):
 	sites: 1-D list [i] with (lon, lat) tuples of all sites
 	intensities: 1-D array [i]
 	"""
-	def __init__(self, model_name, filespec, sites, period, IMT, intensities, intensity_unit="g", timespan=50, poe=None, return_period=None, vs30s=None):
+	def __init__(self, model_name, filespec, sites, period, IMT, intensities, intensity_unit="", timespan=50, poe=None, return_period=None, vs30s=None):
 		if return_period:
 			hazard_values = ExceedanceRateArray([1./return_period])
 		elif poe:
@@ -4529,7 +4559,7 @@ class HazardMap(HazardResult, HazardField):
 				cmap="usgs", norm=None, contour_interval=None, amin=None, amax=None,
 				num_grid_cells=100, plot_style="cont", contour_line_style="default",
 				site_style="default", source_model="", source_model_style="default",
-				countries_style="default", coastline_style="default", intensity_unit="g",
+				countries_style="default", coastline_style="default", intensity_unit="",
 				hide_sea=False, title=None):
 		"""
 		Plot hazard map
@@ -4602,7 +4632,7 @@ class HazardMap(HazardResult, HazardField):
 			(default: "default")
 		:param intensity_unit:
 			str, unit in which ground-motion values need to be expressed
-			(default: "g")
+			(default: "")
 		:param hide_sea:
 			bool, whether or not hazard map should be masked over seas
 			and oceans
@@ -4642,6 +4672,8 @@ class HazardMap(HazardResult, HazardField):
 		longitudes, latitudes = self.longitudes, self.latitudes
 		# TODO: use site lons and lats if they are already a meshed grid
 		grid_lons, grid_lats = self.meshgrid(num_cells=num_grid_cells)
+		if not intensity_unit:
+			intensity_unit = self.intensity_unit
 		intensity_grid = self.get_grid_intensities(num_cells=num_grid_cells, intensity_unit=intensity_unit)
 		# TODO: option to use contour levels as defined in norm
 		if not contour_interval:
