@@ -22,7 +22,7 @@ def read_ec8_information():
 	for rec in ec8_records:
 		ID_ec8_dict[rec['CommuneID']] = rec['EC8_2011_Zone']
 
-	ec8_zone_PGA_dict = {0: 0.02, 1: 0.04, 2: 0.06, 3: 0.08, 4: 0.1}
+	ec8_zone_PGA_dict = {0: 0.0, 1: 0.04, 2: 0.06, 3: 0.08, 4: 0.1}
 
 	village_ec8_PGA_dict = {}
 	for village in village_ID_dict.keys():
