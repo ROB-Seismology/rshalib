@@ -1755,17 +1755,17 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 		for i in range(1, len(min_mags)):
 			ax.plot([min_mags[i], min_mags[i]], Freq_range, 'k--', lw=1, label="_nolegend_")
 			ax.annotate("", xy=(min_mags[i-1], annoty), xycoords='data', xytext=(min_mags[i], annoty), textcoords='data', arrowprops=dict(arrowstyle="<->"),)
-			label = "%s - %s" % (completeness.get_completeness_year(min_mags[i-1]), end_year)
+			label = "%s - %s" % (completeness.get_initial_completeness_year(min_mags[i-1]), end_year)
 			ax.text(np.mean([min_mags[i-1], min_mags[i]]), annoty*10**-0.25, label, ha="center", va="center", size=12, bbox=bbox_props)
 		ax.annotate("", xy=(min_mags[i], annoty), xycoords='data', xytext=(min(mfd.max_mag, Mrange[1]), annoty), textcoords='data', arrowprops=dict(arrowstyle="<->"),)
-		label = "%s - %s" % (completeness.get_completeness_year(min_mags[i]), end_year)
+		label = "%s - %s" % (completeness.get_initial_completeness_year(min_mags[i]), end_year)
 		ax.text(np.mean([min_mags[i], mfd.max_mag]), annoty*10**-0.25, label, ha="center", va="center", size=12, bbox=bbox_props)
 
 	## Apply plot limits
 	ax.axis((Mrange[0], Mrange[1], Freq_range[0], Freq_range[1]))
 
 	ax.set_xlabel("Magnitude ($M_%s$)" % mfd.Mtype[1].upper(), fontsize="x-large")
-	label = {"en": "Annual number of earthquakes", "nl": "Aantal aardbevingen per jaar", "fr": "Nombre de seismes par annee"}[lang.lower()]
+	label = {"en": "Annual number of earthquakes", "nl": "Aantal aardbevingen per jaar", "fr": u"Nombre de séismes par année"}[lang.lower()]
 	ax.set_ylabel(label, fontsize="x-large")
 	ax.set_title(title, fontsize='x-large')
 	ax.grid(True)
