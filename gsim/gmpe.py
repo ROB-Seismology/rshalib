@@ -4082,24 +4082,28 @@ def plot_distance(gmpe_list, mags, dmin=None, dmax=None, distance_metric=None, h
 				plotfunc(distances, Asigmavalues, style, linewidth=1, label='_nolegend_')
 
 	## Plot decoration
+	dist_label = {"en": "Distance", "nl": "Afstand", "fr": "Distance"}[lang]
 	if distance_metric:
-		pylab.xlabel(" ".join([distance_metric, "distance (km)"]), fontsize="x-large")
+		#pylab.xlabel(" ".join([distance_metric, "distance (km)"]), fontsize="x-large")
+		distance_metrics = [distance_metric]
 	else:
 		distance_metrics = set()
 		for gmpe in gmpe_list:
 			distance_metrics.add(gmpe.distance_metric)
-		if len(distance_metrics) > 1:
-			pylab.xlabel("Distance (km)", fontsize="x-large")
-		else:
-			pylab.xlabel(" ".join([gmpe.distance_metric, "distance (km)"]), fontsize="x-large")
+		distance_metrics = list(distance_metrics)
+	if len(distance_metrics) > 1:
+		pylab.xlabel("%s (km)" % dist_label, fontsize="x-large")
+	else:
+		pylab.xlabel(get_distance_label(distance_metrics[0], lang), fontsize="x-large")
 	imt_label = get_imt_label(imt, lang.lower()) + " (%s)" % imt_unit_to_plot_label.get(imt_unit, imt_unit)
 	pylab.ylabel(imt_label, fontsize="x-large")
 	pylab.grid(True)
 	if want_minor_grid:
 		pylab.grid(True, which="minor")
-	title += "\n%s" % imt
-	if not imt in ("PGA", "PGV", "PGD"):
-		title += " (T=%s s)" % T
+	if title is None:
+		title = "%s" % imt
+		if not imt in ("PGA", "PGV", "PGD"):
+			title += " (T=%s s)" % T
 	pylab.title(title)
 	font = FontProperties(size='medium')
 	pylab.legend(loc=legend_location, prop=font)
@@ -4340,19 +4344,46 @@ def get_imt_label(imt, lang="en"):
 		String, Intensity measure type
 	:param lang:
 		String, shorthand for language of annotations. Currently only
-		"en" and "nl" are supported (default: "en").
+		"en", "fr" and "nl" are supported (default: "en").
 
 	:return:
 		String, plot axis label.
 	"""
 	imt_label = {}
-	imt_label["PGA"] = {"en": "Peak Ground Acceleration", "nl": "Piekgrondversnelling"}
-	imt_label["PGV"] = {"en": "Peak Ground Velocity", "nl": "Piekgrondsnelheid"}
-	imt_label["PGD"] = {"en": "Peak Ground Displacement", "nl": "Piekgrondverplaatsing"}
-	imt_label["SA"] = {"en": "Spectral Acceleration", "nl": "Spectrale versnelling"}
-	imt_label["PSV"] = {"en": "Spectral Velocity", "nl": "Spectrale snelheid"}
-	imt_label["SD"] = {"en": "Spectral Displacement", "nl": "Spectrale verplaatsing"}
+	imt_label["PGA"] = {"en": "Peak Ground Acceleration", "nl": "Piekgrondversnelling", "fr": u"Accélération maximale du sol"}
+	imt_label["PGV"] = {"en": "Peak Ground Velocity", "nl": "Piekgrondsnelheid", "fr": "Vitesse maximale"}
+	imt_label["PGD"] = {"en": "Peak Ground Displacement", "nl": "Piekgrondverplaatsing", "fr": u"Déplacement maximal"}
+	imt_label["SA"] = {"en": "Spectral Acceleration", "nl": "Spectrale versnelling", "fr": u"Accélération spectrale"}
+	imt_label["PSV"] = {"en": "Spectral Velocity", "nl": "Spectrale snelheid", "fr": "Vitesse spectrale"}
+	imt_label["SD"] = {"en": "Spectral Displacement", "nl": "Spectrale verplaatsing", "fr": u"Déplacement spectral"}
 	return imt_label[imt][lang]
+
+
+def get_distance_label(distance_metric, lang="en"):
+	"""
+	Return plot label for a particular distance metric
+
+	:param distance_metric:
+		str, distance metric
+	:param lang:
+		str, shorthand for language of annotations. Currently only
+		"en", "fr" and "nl" are supported (default: "en").
+
+	:return:
+		str, plot axis label.
+	"""
+	if lang == "en":
+		label = "%s distance" % distance_metric
+	else:
+		if distance_metric.lower() == "hypocentral":
+			label = {"nl": "Hypocentrale afstand", "fr": "Distance hypocentrale"}[lang]
+		elif distance_metric.lower() == "epicentral":
+			label = {"nl": "Epicentrale afstand", "fr": u"Distance épicentrale"}[lang]
+		elif distance_metric.lower() == "rupture":
+			label = {"nl": "Ruptuur-afstand", "fr": "Distance de rupture"}[lang]
+		elif distance_metric.lower() == "joyner-boore":
+			label = {"nl": "Joyner-Boore afstand", "fr": "Distance Joyner-Boore"}[lang]
+	return label
 
 
 if __name__ == "__main__":
