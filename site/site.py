@@ -486,6 +486,15 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 	def lats(self):
 		return self.mesh.lats
 
+	def get_bbox(self):
+		"""
+		Determine bounding box:
+
+		:return:
+			(lonmin, lonmax, latmin, latmax) tuple
+		"""
+		return (self.lons.min(), self.lons.max(), self.lats.min(), self.lats.max())
+
 	def get_sites(self):
 		"""
 		:return:
