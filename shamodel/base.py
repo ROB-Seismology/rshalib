@@ -112,11 +112,11 @@ class SHAModelBase(object):
 		"""
 		imts = self.imt_periods.keys()
 		if "PGA" in imts and "SA" in imts:
-			imts.pop("PGA")
+			imts.remove("PGA")
 		if "PGV" in imts and "SV" in imts:
-			imts.pop("PGV")
+			imts.remove("PGV")
 		if "PGD" in imts and "SD" in imts:
-			imts.pop("PGD")
+			imts.remove("PGD")
 		return imts
 
 	def _set_sha_sites(self, sites, grid_outline, grid_spacing):
