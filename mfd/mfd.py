@@ -1,3 +1,5 @@
+# -*- coding: iso-Latin-1 -*-
+
 """
 This module extends functionality of nhlib.mfd
 """
