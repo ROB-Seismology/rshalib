@@ -17,7 +17,8 @@ reload(smoothed_seismicity)
 from rupture import Rupture
 
 from source import (PointSource, AreaSource, SimpleFaultSource,
-                    ComplexFaultSource, CharacteristicFaultSource)
+                    ComplexFaultSource, CharacteristicFaultSource,
+                    RuptureSource)
 
 from source_model import SourceModel
 

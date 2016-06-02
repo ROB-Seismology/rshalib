@@ -436,23 +436,24 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		mfd = EvenlyDiscretizedMFD(M, 0.1, [1.], Mtype)
 		depth = min(lower_seismogenic_depth, max(5, eq.depth))
 		hdd = HypocentralDepthDistribution([depth], [1.])
-		if not synthetic:
-			focmec_rec = eq.get_focal_mechanism()
-		else:
-			focmec_rec = False
-		if focmec_rec:
-			focmec = focmec_rec.get_focmec()
-			np1 = NodalPlane(*[round(angle.deg()) for angle in focmec.sdr1()])
-			np2 = NodalPlane(*[round(angle.deg()) for angle in focmec.sdr2()])
-			npd = NodalPlaneDistribution([np1, np2], [0.5] * 2)
-		elif not nodal_plane_distribution:
-			np1 = NodalPlane(0, 45, 0)
-			np2 = NodalPlane(90, 45, 0)
-			np3 = NodalPlane(180, 45, 0)
-			np4 = NodalPlane(270, 45, 0)
-			npd = NodalPlaneDistribution([np1, np2, np3, np4], [0.25] * 4)
-		else:
+		if nodal_plane_distribution:
 			npd = nodal_plane_distribution
+		else:
+			if not synthetic:
+				focmec_rec = eq.get_focal_mechanism()
+			else:
+				focmec_rec = False
+			if focmec_rec:
+				focmec = focmec_rec.get_focmec()
+				np1 = NodalPlane(*[round(angle.deg()) for angle in focmec.sdr1()])
+				np2 = NodalPlane(*[round(angle.deg()) for angle in focmec.sdr2()])
+				npd = NodalPlaneDistribution([np1, np2], [0.5] * 2)
+			elif not nodal_plane_distribution:
+				np1 = NodalPlane(0, 45, 0)
+				np2 = NodalPlane(90, 45, 0)
+				np3 = NodalPlane(180, 45, 0)
+				np4 = NodalPlane(270, 45, 0)
+				npd = NodalPlaneDistribution([np1, np2, np3, np4], [0.25] * 4)
 
 		return PointSource(source_id, name, tectonic_region_type, mfd,
 					rupture_mesh_spacing, magnitude_scaling_relationship,
