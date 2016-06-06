@@ -265,15 +265,6 @@ class MFD(object):
 			num_lon_lats = 0
 		start_date = mxDateTime.Date(start_year, 1, 1)
 		for M, iets in zip(self.get_magnitude_bin_centers(), inter_event_times):
-			if self.Mtype == "MW":
-				MW = M
-				ML, MS = 0., 0.
-			elif self.Mtype == "MS":
-				MS = M
-				ML, MW = 0., 0.
-			elif self.Mtype == "ML":
-				ML = M
-				MS, MW = 0., 0.
 
 			fractional_years = np.add.accumulate(iets)
 			for year in fractional_years:
@@ -283,7 +274,7 @@ class MFD(object):
 				else:
 					idx = rnd.randint(0, num_lon_lats-1)
 					lon, lat = lons[idx], lats[idx]
-				eq = LocalEarthquake(ID, date, None, lon, lat, depth, ML, MS, MW, name)
+				eq = LocalEarthquake(ID, date, None, lon, lat, depth, {Mtype: M}, name=name)
 				eq_list.append(eq)
 				ID += 1
 		end_date = start_date + mxDateTime.RelativeDate(years=timespan) - mxDateTime.RelativeDate(days=1)
