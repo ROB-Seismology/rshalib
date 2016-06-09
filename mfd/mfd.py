@@ -274,7 +274,7 @@ class MFD(object):
 				else:
 					idx = rnd.randint(0, num_lon_lats-1)
 					lon, lat = lons[idx], lats[idx]
-				eq = LocalEarthquake(ID, date, None, lon, lat, depth, {Mtype: M}, name=name)
+				eq = LocalEarthquake(ID, date, None, lon, lat, depth, {self.Mtype: M}, name=name)
 				eq_list.append(eq)
 				ID += 1
 		end_date = start_date + mxDateTime.RelativeDate(years=timespan) - mxDateTime.RelativeDate(days=1)
