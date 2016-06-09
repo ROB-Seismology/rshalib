@@ -637,6 +637,35 @@ class HazardField:
 			raise Exception("Invalid site specification: %s" % site_spec)
 		return site_index
 
+	def get_site_indexes(self, site_specs):
+		"""
+		Determine index for a list of site specifications.
+		Should be much faster than repeatedly calling :meth:`site_index`
+
+		:param site_specs:
+			list of site specifications: can be int (site index),
+			str (site name), tuple (lon, lat) or instance of :class:`SHASite`
+
+		:return:
+			list of ints, site indexes
+		"""
+		site_spec0 = site_specs[0]
+		if isinstance(site_spec0, int):
+			return site_specs
+		elif isinstance(site_spec0, (str, unicode)):
+			site_spec_index_dict = {self.site_names[i]: i for i in range(self.num_sites)}
+		elif isinstance(site_spec0, SHASite):
+			site_specs = [site.name for site in site_specs]
+			site_spec_index_dict = {self.site_names[i]: i for i in range(self.num_sites)}
+			#site_spec_index_dict = {self.sites[i]: i for i in range(self.num_sites)}
+		elif isinstance(site_spec0, (list, tuple)) and len(site_spec) >= 2:
+			site_specs = [SHASite(*ss).get_name_from_position() for ss in site_specs]
+			site_spec_index_dict = {site.get_name_from_position(): i for i, site in enumerate(self.sites)}
+		else:
+			raise Exception("Invalid site specification: %s" % site_spec0)
+		site_indexes = [site_spec_index_dict.get(site_spec) for site_spec in site_specs]
+		return site_indexes
+
 	def get_nearest_site_index(self, site_spec):
 		"""
 		Determine index of nearest site
@@ -4423,7 +4452,8 @@ class HazardMap(HazardResult, HazardField):
 			intensities = self.get_site_intensities(lons, lats, method="cubic")
 			vs30s = None
 		else:
-			site_idxs = [self.site_index(site) for site in sites]
+			site_idxs = self.get_site_indexes(sites)
+			#site_idxs = [self.site_index(site) for site in sites]
 			intensities = self.intensities[site_idxs]
 			if self.vs30s != None:
 				vs30s = self.vs30s[site_idxs]
