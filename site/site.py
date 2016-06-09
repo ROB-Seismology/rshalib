@@ -44,17 +44,7 @@ class SHASite(Point):
 	def __init__(self, longitude, latitude, depth=0.0, name=""):
 		super(SHASite, self).__init__(longitude, latitude, depth)
 		if not name:
-			if longitude < 0:
-				NorS = "S"
-			else:
-				NorS = "N"
-			if latitude < 0:
-				EorW = "W"
-			else:
-				EorW = "E"
-			self.name = "%.3f %s, %.3f %s" % (abs(longitude), EorW, abs(latitude), NorS)
-			if depth:
-				self.name += ", %.1f" % depth
+			self.name = self.get_name_from_position()
 		else:
 			self.name = name
 
@@ -68,6 +58,28 @@ class SHASite(Point):
 	@property
 	def lat(self):
 		return self.latitude
+
+	def get_name_from_position(self):
+		"""
+		Construct generic site name from position (lon, lat, and
+		optionally depth)
+
+		:return:
+			str, site name
+		"""
+		if self.longitude < 0:
+			NorS = "S"
+		else:
+			NorS = "N"
+		if self.latitude < 0:
+			EorW = "W"
+		else:
+			EorW = "E"
+		name = "%.3f %s, %.3f %s"
+		name %= (abs(self.longitude), EorW, abs(self.latitude), NorS)
+		if self.depth:
+			name += ", %.1f" % self.depth
+		return name
 
 	def to_soil_site(self, soil_params=REF_SOIL_PARAMS):
 		"""
