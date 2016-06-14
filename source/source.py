@@ -450,7 +450,7 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		M = np.round(eq.get_M(Mtype, Mrelation), decimals=1)
 		mfd = EvenlyDiscretizedMFD(M, 0.1, [1.], Mtype)
 		depth = eq.depth
-		if depth and lower_seismogenic_depth < depth < upper_seismogenic_depth:
+		if depth and upper_seismogenic_depth < depth < lower_seismogenic_depth:
 			#depth = min(lower_seismogenic_depth, max(5, eq.depth))
 			hdd = HypocentralDepthDistribution([depth], [1])
 		elif hypocenter_distribution:
