@@ -414,6 +414,20 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		"""
 		Construct point source from earthquake object
 
+		Note:
+		order of precedence for hypocenter_distribution:
+		- earthquake depth, if is not zero and lies between upper and
+		lower seismogenic depth, or
+		- provided hypocenter_distribution, or
+		- average of lower and upper seismogenic depth
+
+		order of precedence of nodal_plane_distribution is:
+		- earthquake focal mechanism in ROB database, or
+		- provided nodal_plane_distribution, or
+		- N-S and E-W planes dipping 45 degrees and with strike-slip
+		style of faulting
+
+
 		:param eq:
 			instance of :class:`LocalEarthquake`
 
@@ -435,11 +449,15 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		location = Point(eq.lon, eq.lat)
 		M = np.round(eq.get_M(Mtype, Mrelation), decimals=1)
 		mfd = EvenlyDiscretizedMFD(M, 0.1, [1.], Mtype)
-		if hypocenter_distribution:
+		depth = eq.depth
+		if depth and lower_seismogenic_depth < depth < upper_seismogenic_depth:
+			#depth = min(lower_seismogenic_depth, max(5, eq.depth))
+			hdd = HypocentralDepthDistribution([depth], [1])
+		elif hypocenter_distribution:
 			hdd = hypocenter_distribution
 		else:
-			depth = min(lower_seismogenic_depth, max(5, eq.depth))
-			hdd = HypocentralDepthDistribution([depth], [1.])
+			depth = (lower_seismogenic_depth + upper_seismogenic_depth) / 2.
+			hdd = HypocentralDepthDistribution([depth], [1])
 		if not synthetic:
 			focmec_rec = eq.get_focal_mechanism()
 		else:
@@ -449,14 +467,14 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 			np1 = NodalPlane(*[round(angle.deg()) for angle in focmec.sdr1()])
 			np2 = NodalPlane(*[round(angle.deg()) for angle in focmec.sdr2()])
 			npd = NodalPlaneDistribution([np1, np2], [0.5] * 2)
-		elif not nodal_plane_distribution:
+		elif nodal_plane_distribution:
+			npd = nodal_plane_distribution
+		else:
 			np1 = NodalPlane(0, 45, 0)
 			np2 = NodalPlane(90, 45, 0)
 			np3 = NodalPlane(180, 45, 0)
 			np4 = NodalPlane(270, 45, 0)
 			npd = NodalPlaneDistribution([np1, np2, np3, np4], [0.25] * 4)
-		else:
-			npd = nodal_plane_distribution
 
 		return PointSource(source_id, name, tectonic_region_type, mfd,
 					rupture_mesh_spacing, magnitude_scaling_relationship,

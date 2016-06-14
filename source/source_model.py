@@ -136,9 +136,15 @@ class SourceModel():
 				magnitude_scaling_relationship=WC1994(),
 				rupture_mesh_spacing=1., rupture_aspect_ratio=1.,
 				upper_seismogenic_depth=5., lower_seismogenic_depth=25.,
-				nodal_plane_distribution=None, synthetic=False):
+				nodal_plane_distribution=None, hypocenter_distribution=None,
+				synthetic=False):
 		"""
-		Construct point source model from earthquake catalog
+		Construct point source model from earthquake catalog.
+
+		Note: if area_source_model is provided, it overrides trt, usd,
+		lsd, npd and hdd. See :meth:`from_eq_record` for order of
+		precedence for determining nodal_plane_distribution and
+		hypocenter_distribution
 
 		:param eq_catalog:
 			instance of :class:`EQCatalog`
@@ -157,9 +163,11 @@ class SourceModel():
 			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)()
 		src_list = []
 		if area_source_model_name:
-			from ..rob import create_rob_source_model
+			#from ..rob import create_rob_source_model
+			from read_from_gis import read_rob_source_model
 			zone_catalogs = eq_catalog.split_into_zones(area_source_model_name, verbose=False)
-			source_model = create_rob_source_model(area_source_model_name, verbose=False)
+			#source_model = create_rob_source_model(area_source_model_name, min_mag=2., verbose=False)
+			source_model = read_rob_source_model(area_source_model_name, min_mag=2., verbose=False)
 			for zone_id in zone_catalogs.keys():
 				zone_catalog = zone_catalogs[zone_id]
 				source_zone = source_model[zone_id]
@@ -168,13 +176,15 @@ class SourceModel():
 					upper_seismogenic_depth = source_zone.upper_seismogenic_depth
 					lower_seismogenic_depth = source_zone.lower_seismogenic_depth
 					nodal_plane_distribution = source_zone.nodal_plane_distribution
+					hypocenter_distribution = source_zone.nodal_plane_distribution
 
 					## TODO: nodal plane distribution from as model
 					pt_src = PointSource.from_eq_record(eq, Mtype, Mrelation,
 						tectonic_region_type, magnitude_scaling_relationship,
 						rupture_mesh_spacing, rupture_aspect_ratio,
 						upper_seismogenic_depth, lower_seismogenic_depth,
-						nodal_plane_distribution, synthetic=synthetic)
+						nodal_plane_distribution, hypocenter_distribution,
+						synthetic=synthetic)
 					src_list.append(pt_src)
 
 		else:
@@ -183,7 +193,8 @@ class SourceModel():
 					tectonic_region_type, magnitude_scaling_relationship,
 					rupture_mesh_spacing, rupture_aspect_ratio,
 					upper_seismogenic_depth, lower_seismogenic_depth,
-					nodal_plane_distribution, synthetic=synthetic)
+					nodal_plane_distribution, hypocenter_distribution,
+					synthetic=synthetic)
 				src_list.append(pt_src)
 
 		return SourceModel(eq_catalog.name, src_list)
