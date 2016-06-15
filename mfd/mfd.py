@@ -268,7 +268,10 @@ class MFD(object):
 
 			fractional_years = np.add.accumulate(iets)
 			for year in fractional_years:
-				date = start_date + mxDateTime.RelativeDate(years=year)
+				days_in_year = (mxDateTime.Date(int(year), 1, 1)
+							- mxDateTime.Date(int(year), 12, 31)).days
+				days = int((year - int(year)) * days_in_year)
+				date = start_date + mxDateTime.RelativeDate(years=int(year), days=days)
 				if num_lon_lats == 0:
 					lon, lat = 0., 0.
 				else:
