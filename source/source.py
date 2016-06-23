@@ -1245,9 +1245,10 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		if bin_width is None:
 			bin_width = self.mfd.bin_width
 
-		max_mag = self.max_mag - bin_width
+		#char_mag = self.max_mag - bin_width
+		char_mag = self.max_mag
 		return_period = self.get_Mmax_return_period()
-		MFD = CharacteristicMFD(max_mag, return_period, bin_width, M_sigma=M_sigma, num_sigma=num_sigma)
+		MFD = CharacteristicMFD(char_mag, return_period, bin_width, M_sigma=M_sigma, num_sigma=num_sigma)
 		return MFD
 
 	def get_MFD_Anderson_Luco(self, min_mag=None, max_mag=None, bin_width=None, b_val=None, aseismic_coef=0., strain_drop=None, mu=3E+10, arbitrary_surface=True):
@@ -1501,9 +1502,14 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		centroid = self.to_ogr_geometry().Centroid()
 		return (centroid.GetX(), centroid.GetY())
 
-	def to_characteristic_source(self):
+	def to_characteristic_source(self, convert_mfd=False):
 		"""
 		Convert to a characteristic fault source
+
+		:param convert_mfd:
+			bool, whether or not to convert fault MFD to
+			instance of :class:`CharacteristicMFD`
+			(default: False)
 
 		:return:
 			instance of :class:`CharacteristicSource`
@@ -1512,8 +1518,13 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			self.fault_trace, self.upper_seismogenic_depth,
 			self.lower_seismogenic_depth, self.dip, self.rupture_mesh_spacing)
 
+		if convert_mfd and not isinstance(self.mfd, CharacteristicMFD):
+			mfd = self.get_MFD_characteristic()
+		else:
+			mfd = self.mfd
+
 		return CharacteristicFaultSource(self.source_id, self.name,
-			self.tectonic_region_type, self.mfd, surface, self.rake)
+			self.tectonic_region_type, mfd, surface, self.rake)
 
 	def get_subfaults(self, as_num=1, ad_num=1):
 		"""
