@@ -882,6 +882,16 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 	def return_period(self):
 		return 1. / np.sum(self.occurrence_rates)
 
+	def adjust_for_dsha(self):
+		"""
+		Adjust characteristic MFD for use in DSHA:
+		set :prop:`num_sigma` to 0
+		set :prop`occurrence_rates` to [1.0]
+		Adjustment is done in place.
+		"""
+		self.set_num_sigma(0)
+		self.modify_set_occurrence_rates([1.0])
+
 
 class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 	"""
