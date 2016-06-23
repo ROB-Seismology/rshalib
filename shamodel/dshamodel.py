@@ -170,7 +170,7 @@ class DSHAModel(SHAModelBase):
 		for src in self.source_model.sources:
 			if not isinstance(src, (PointSource, CharacteristicFaultSource)):
 				msg = "Source type (%s) of source %s not allowed!"
-				msg %= (src.type, src.source_id)
+				msg %= (src.__class__, src.source_id)
 				raise Exception(msg)
 
 	def calc_random_gmf(self, num_realizations=1, correlation_model=None,
