@@ -4684,8 +4684,8 @@ class HazardMap(HazardResult, HazardField):
 			site_style = lbm.PointStyle(shape="x", line_color="w", size=2.5)
 		if source_model_style == "default":
 			polygon_style = lbm.PolygonStyle(line_width=2, fill_color="none")
-			line_style = lbm.LineStyle(line_width=3, line_color='r')
-			point_style = lbm.PointStyle(shape='*', fill_color='r')
+			line_style = lbm.LineStyle(line_width=3, line_color='purple')
+			point_style = lbm.PointStyle(shape='*', fill_color='yellow')
 			source_model_style = lbm.CompositeStyle(line_style=line_style, polygon_style=polygon_style, point_style=point_style)
 		elif isinstance(source_model_style, lbm.PolygonStyle):
 			polygon_style = source_model_style
@@ -4792,11 +4792,12 @@ class HazardMap(HazardResult, HazardField):
 
 		## Source model
 		if source_model and source_model_style:
-			from ..source import SourceModel, PointSource, AreaSource, SimpleFaultSource
+			from ..source import (SourceModel, PointSource, AreaSource,
+							SimpleFaultSource, CharacteristicFaultSource)
 			legend_label = {}
-			legend_label["polygons"] = "Area sources"
-			legend_label["lines"] = "Fault sources"
-			legend_label["points"] = "Point sources"
+			#legend_label["polygons"] = "Area sources"
+			#legend_label["lines"] = "Fault sources"
+			#legend_label["points"] = "Point sources"
 
 			if isinstance(source_model, (str, unicode)):
 				from eqcatalog.source_models import rob_source_models_dict
@@ -4804,24 +4805,25 @@ class HazardMap(HazardResult, HazardField):
 				sm_data = lbm.GisData(gis_filespec)
 			elif isinstance(source_model, SourceModel):
 				# TODO: add ComplexFaultSource
+				# TODO: how to handle CharacteristicSource (doesn't have get_polygon method)?
 				polygon_data = lbm.MultiPolygonData([], [])
 				line_data = lbm.MultiLineData([], [])
 				point_data = lbm.MultiPointData([], [])
 				for source in source_model:
 					if isinstance(source, AreaSource):
 						polygon_data.append(lbm.PolygonData(source.longitudes, source.latitudes))
-						#if not legend_label.has_key("polygons"):
-						#	legend_label["polygons"] = "Area sources"
+						if not legend_label.has_key("polygons"):
+							legend_label["polygons"] = "Area sources"
 					elif isinstance(source, SimpleFaultSource):
 						pg = source.get_polygon()
 						polygon_data.append(lbm.PolygonData(pg.lons, pg.lats))
 						line_data.append(lbm.LineData(source.longitudes, source.latitudes))
-						#if not legend_label.has_key("lines"):
-						#	legend_label["lines"] = "Fault sources"
+						if not legend_label.has_key("lines"):
+							legend_label["lines"] = "Fault sources"
 					elif isinstance(source, PointSource):
 						point_data.append(lbm.PointData(source.location.longitude, source.location.longitude))
-						#if not legend_label.has_key("points"):
-						#	legend_label["points"] = "Point sources"
+						if not legend_label.has_key("points"):
+							legend_label["points"] = "Point sources"
 					else:
 						print("Warning: Skipped plotting source %s, source type not supported" % source.source_id)
 				sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data)
