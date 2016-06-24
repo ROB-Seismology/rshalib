@@ -803,7 +803,7 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		(default: 0)
 	"""
 	def __init__(self, char_mag, return_period, bin_width, M_sigma=0.3, num_sigma=0):
-		self.char_mag = char_mag
+		self.char_mag = char_mag - bin_width / 2.
 		self.char_return_period = return_period
 		self.M_sigma = M_sigma
 		self.num_sigma = num_sigma
