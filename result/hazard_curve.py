@@ -4766,7 +4766,10 @@ class HazardMap(HazardResult, HazardField):
 			cbar_label += ' (%s)' % intensity_unit_label
 
 		map_layers = []
-		colorbar_style = lbm.ColorbarStyle(location="bottom", format="%.2f", ticks=contour_levels, title=cbar_label)
+		ticks = contour_levels
+		if not ticks in ([], None):
+			ticks = ticks[ticks <= norm.vmax]
+		colorbar_style = lbm.ColorbarStyle(location="bottom", format="%.2f", ticks=ticks, title=cbar_label)
 		color_map_theme = lbm.ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax, colorbar_style=colorbar_style)
 		color_gradient = {"cont": "continuous", "disc": "discontinuous"}[plot_style]
 		grid_style = lbm.GridStyle(color_map_theme=color_map_theme, color_gradient=color_gradient, line_style=contour_line_style, contour_levels=contour_levels)
