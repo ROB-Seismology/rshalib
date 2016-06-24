@@ -4814,19 +4814,21 @@ class HazardMap(HazardResult, HazardField):
 						polygon_data.append(lbm.PolygonData(source.longitudes, source.latitudes))
 						if not legend_label.has_key("polygons"):
 							legend_label["polygons"] = "Area sources"
-					elif isinstance(source, SimpleFaultSource):
+					elif isinstance(source, (SimpleFaultSource, CharacteristicFaultSource)):
 						pg = source.get_polygon()
 						polygon_data.append(lbm.PolygonData(pg.lons, pg.lats))
-						line_data.append(lbm.LineData(source.longitudes, source.latitudes))
+						fault_trace = source.fault_trace
+						line_data.append(lbm.LineData(fault_trace.lons, fault_trace.lats))
 						if not legend_label.has_key("lines"):
 							legend_label["lines"] = "Fault sources"
 					elif isinstance(source, PointSource):
-						point_data.append(lbm.PointData(source.location.longitude, source.location.longitude))
+						point_data.append(lbm.PointData(source.location.longitude, source.location.latitude))
 						if not legend_label.has_key("points"):
 							legend_label["points"] = "Point sources"
 					else:
 						print("Warning: Skipped plotting source %s, source type not supported" % source.source_id)
-				sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data)
+				sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data,
+											points=point_data)
 			sm_style = source_model_style
 			map_layers.append(lbm.MapLayer(sm_data, sm_style, legend_label=legend_label))
 
