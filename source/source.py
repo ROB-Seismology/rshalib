@@ -101,7 +101,7 @@ class RuptureSource():
 			lons = rupture.surface.corner_lons[corner_indexes]
 			lats = rupture.surface.corner_lats[corner_indexes]
 			depths = rupture.surface.corner_depths[corner_indexes]
-		elif isinstance(self, SimpleFaultSource):
+		elif isinstance(self, (SimpleFaultSource, CharacteristicFaultSource)):
 			mesh = rupture.surface.mesh
 			all_lons, all_lats, all_depths = mesh.lons.flatten(), mesh.lats.flatten(), mesh.depths.flatten()
 			top_edge_indexes = np.where(all_depths == rupture.surface.get_top_edge_depth())[0]
@@ -132,7 +132,7 @@ class RuptureSource():
 		if isinstance(self, (PointSource, AreaSource)):
 			## rup.hypocenter does not appear to have correct depth information
 			depths = np.array([rup.surface.get_middle_point().depth for rup in ruptures])
-		if isinstance(self, (SimpleFaultSource, ComplexFaultSource)):
+		if isinstance(self, (SimpleFaultSource, ComplexFaultSource, CharacteristicFaultSource)):
 			depths = np.array([rup.hypocenter.depth for rup in ruptures])
 		return lons, lats, depths
 
@@ -1830,6 +1830,18 @@ class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, Ruptu
 		## Restore original MFD
 		self.mfd = mfd_copy
 		return rup
+
+	def get_polygon(self):
+		"""
+		Construct polygonal outline of fault
+
+		:return:
+			instance of :class:`Polygon`
+		"""
+		rupture = self.get_rupture()
+		lons, lats, depths = self.get_rupture_bounds(rupture)
+		points = [Point(lon, lat, depth) for lon, lat, depth in zip(lons, lats, depths)]
+		return Polygon(points)
 
 
 
