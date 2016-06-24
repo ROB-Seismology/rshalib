@@ -811,6 +811,12 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		Mmin, occurrence_rates = self._get_evenly_discretized_mfd_params(num_sigma, bin_width=bin_width)
 		EvenlyDiscretizedMFD.__init__(self, Mmin, bin_width, occurrence_rates, Mtype="MW")
 
+	def modify_set_char_mag(self, char_mag):
+		self.char_mag = char_mag - self.bin_width / 2.
+		Mmin, occurrence_rates = self._get_evenly_discretized_mfd_params(self.num_sigma, bin_width=None)
+		self.min_mag = Mmin
+		self.modify_set_occurrence_rates(occurrence_rates)
+
 	def _get_evenly_discretized_mfd_params(self, num_sigma, bin_width=None):
 		"""
 		Compute parameters for constructing evenly discretized MFD
