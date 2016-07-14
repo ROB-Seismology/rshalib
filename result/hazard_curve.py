@@ -4590,7 +4590,7 @@ class HazardMap(HazardResult, HazardField):
 				num_grid_cells=100, plot_style="cont", contour_line_style="default",
 				site_style="default", source_model="", source_model_style="default",
 				countries_style="default", coastline_style="default", intensity_unit="",
-				hide_sea=False, title=None):
+				hide_sea=False, title=None, ax=None, **kwargs):
 		"""
 		Plot hazard map
 
@@ -4671,6 +4671,12 @@ class HazardMap(HazardResult, HazardField):
 			str, map title. If empty string, no title will be plotted.
 			If None, default title will be used
 			(default: None)
+		:param ax:
+			matplotlib Axes instance
+			(default: None)
+		:param kwargs:
+			additional keyword arguments to be passed to LayeredBasemap
+			constructor
 
 		:return:
 			instance of :class:`LayeredBasemap.LayeredBasemap`, where
@@ -4845,7 +4851,7 @@ class HazardMap(HazardResult, HazardField):
 			legend_style = None
 
 		graticule_style = lbm.GraticuleStyle(annot_axes="SE")
-		map = lbm.LayeredBasemap(map_layers, title, projection, region=region, graticule_interval=graticule_interval, resolution=resolution, graticule_style=graticule_style, legend_style=legend_style)
+		map = lbm.LayeredBasemap(map_layers, title, projection, region=region, graticule_interval=graticule_interval, resolution=resolution, graticule_style=graticule_style, legend_style=legend_style, ax=ax, **kwargs)
 		return map
 
 
