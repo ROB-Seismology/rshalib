@@ -404,7 +404,7 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 				hypocenter_distribution=hypocenter_distribution)
 
 	@classmethod
-	def from_eq_record(self, eq, Mtype="MW", Mrelation={},
+	def from_eq_record(cls, eq, Mtype="MW", Mrelation={},
 				tectonic_region_type="Stable Shallow Crust",
 				magnitude_scaling_relationship=oqhazlib.scalerel.WC1994(),
 				rupture_mesh_spacing=1., rupture_aspect_ratio=1.,
@@ -1246,7 +1246,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			bin_width = self.mfd.bin_width
 
 		#char_mag = self.max_mag - bin_width
-		char_mag = self.max_mag
+		char_mag = self.max_mag + bin_width/2.
 		return_period = self.get_Mmax_return_period()
 		MFD = CharacteristicMFD(char_mag, return_period, bin_width, M_sigma=M_sigma, num_sigma=num_sigma)
 		return MFD
