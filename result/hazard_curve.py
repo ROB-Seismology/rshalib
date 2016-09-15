@@ -4590,7 +4590,8 @@ class HazardMap(HazardResult, HazardField):
 				num_grid_cells=100, plot_style="cont", contour_line_style="default",
 				site_style="default", source_model="", source_model_style="default",
 				countries_style="default", coastline_style="default", intensity_unit="",
-				hide_sea=False, title=None, ax=None, **kwargs):
+				hide_sea=False, colorbar_style="default", show_legend=True,
+				title=None, ax=None, **kwargs):
 		"""
 		Plot hazard map
 
@@ -4667,6 +4668,13 @@ class HazardMap(HazardResult, HazardField):
 			bool, whether or not hazard map should be masked over seas
 			and oceans
 			(default: False)
+		:param colorbar_style:
+			instance of :class:`LayeredBasemap.ColorbarStyle`, defining
+			style for plotting color bar
+			(default: "default")
+		:param show_legend:
+			bool, whether or not to show the legend for sources
+			(default: True)
 		:param title:
 			str, map title. If empty string, no title will be plotted.
 			If None, default title will be used
@@ -4775,29 +4783,30 @@ class HazardMap(HazardResult, HazardField):
 		ticks = contour_levels
 		if not ticks in ([], None):
 			ticks = ticks[ticks <= norm.vmax]
-		colorbar_style = lbm.ColorbarStyle(location="bottom", format="%.2f", ticks=ticks, title=cbar_label)
+		if colorbar_style == "default":
+			colorbar_style = lbm.ColorbarStyle(location="bottom", format="%.2f", ticks=ticks, title=cbar_label)
 		color_map_theme = lbm.ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax, colorbar_style=colorbar_style)
 		color_gradient = {"cont": "continuous", "disc": "discontinuous"}[plot_style]
 		grid_style = lbm.GridStyle(color_map_theme=color_map_theme, color_gradient=color_gradient, line_style=contour_line_style, contour_levels=contour_levels)
 		grid_data = lbm.MeshGridData(grid_lons, grid_lats, intensity_grid)
-		layer = lbm.MapLayer(grid_data, grid_style)
+		layer = lbm.MapLayer(grid_data, grid_style, name="intensity_grid")
 		map_layers.append(layer)
 
 		## Intensity data points
 		if site_style:
 			site_data = lbm.MultiPointData(longitudes, latitudes)
-			map_layers.append(lbm.MapLayer(site_data, site_style))
+			map_layers.append(lbm.MapLayer(site_data, site_style, name="intensity_points"))
 
 		if hide_sea:
 			continent_style = lbm.FocmecStyle(fill_color=(1, 1, 1, 0), bg_color=(1, 1, 1, 1), line_width=0, line_color="none")
 			data = lbm.BuiltinData("continents")
-			map_layers.append(lbm.MapLayer(data, continent_style))
+			map_layers.append(lbm.MapLayer(data, continent_style, name="ocean"))
 
 		## Coastlines and national boundaries
 		if coastline_style:
-			map_layers.append(lbm.MapLayer(lbm.BuiltinData("coastlines"), coastline_style))
+			map_layers.append(lbm.MapLayer(lbm.BuiltinData("coastlines"), coastline_style, name="coastlines"))
 		if countries_style:
-			map_layers.append(lbm.MapLayer(lbm.BuiltinData("countries"), countries_style))
+			map_layers.append(lbm.MapLayer(lbm.BuiltinData("countries"), countries_style, name="countries"))
 
 		## Source model
 		if source_model and source_model_style:
@@ -4821,25 +4830,25 @@ class HazardMap(HazardResult, HazardField):
 				for source in source_model:
 					if isinstance(source, AreaSource):
 						polygon_data.append(lbm.PolygonData(source.longitudes, source.latitudes))
-						if not legend_label.has_key("polygons"):
+						if not legend_label.has_key("polygons") and show_legend:
 							legend_label["polygons"] = "Area sources"
 					elif isinstance(source, (SimpleFaultSource, CharacteristicFaultSource)):
 						pg = source.get_polygon()
 						polygon_data.append(lbm.PolygonData(pg.lons, pg.lats))
 						fault_trace = source.fault_trace
 						line_data.append(lbm.LineData(fault_trace.lons, fault_trace.lats))
-						if not legend_label.has_key("lines"):
+						if not legend_label.has_key("lines") and show_legend:
 							legend_label["lines"] = "Fault sources"
 					elif isinstance(source, PointSource):
 						point_data.append(lbm.PointData(source.location.longitude, source.location.latitude))
-						if not legend_label.has_key("points"):
+						if not legend_label.has_key("points") and show_legend:
 							legend_label["points"] = "Point sources"
 					else:
 						print("Warning: Skipped plotting source %s, source type not supported" % source.source_id)
 				sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data,
 											points=point_data)
 			sm_style = source_model_style
-			map_layers.append(lbm.MapLayer(sm_data, sm_style, legend_label=legend_label))
+			map_layers.append(lbm.MapLayer(sm_data, sm_style, legend_label=legend_label, name="source_model"))
 
 		## Title
 		if title is None:
