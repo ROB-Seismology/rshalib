@@ -75,13 +75,13 @@ def Poisson(life_time=None, return_period=None, prob=None):
 	np.seterr(divide='ignore', invalid='ignore')
 
 	## Return period
-	if life_time != None and prob != None:
+	if return_period is None:
 		return -life_time / np.log(1.0 - prob)
 	## Life time
-	elif return_period != None and prob != None:
+	elif life_time is None:
 		return -return_period * np.log(1.0 - prob)
 	## Probability of exceedance
-	elif life_time != None and return_period != None:
+	elif prob is None:
 		return 1.0 - np.exp(-life_time * 1.0 / return_period)
 	else:
 		raise TypeError("Need to specify 2 parameters")
@@ -91,7 +91,7 @@ def as_array(values):
 	"""
 	Convert values to array if it is not None or already a numpy array
 	"""
-	if values in ([], None) or values[0] == None:
+	if values in ([], None) or values[0] is None:
 		values = None
 	else:
 		values = {True: values, False: np.array(values, dtype='d')}[isinstance(values, np.ndarray)]
