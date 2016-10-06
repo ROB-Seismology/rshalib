@@ -3746,6 +3746,23 @@ class ChiouYoungs2008(NhlibGMPE):
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
 
 
+class Anbazhagan2013(NhlibGMPE):
+	"""
+	"""
+	def __init__(self):
+		name, short_name = "Anbazhagan2013", "An_2013"
+		distance_metric = "Rupture"
+		Mmin, Mmax = 4.3, 8.7
+		dmin, dmax = 1., 300.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
+
+
 def adjust_hard_rock_to_rock(imt, periods, gm, gm_logsigma=None):
 	"""
 	Adjust hard rock (vs30=2800 m/s) to rock (vs30=760 m/s, kappa=0.03)
