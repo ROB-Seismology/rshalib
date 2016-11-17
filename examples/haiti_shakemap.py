@@ -81,6 +81,10 @@ if __name__ == "__main__":
 	model_name = "Haiti"
 
 
+	## Fetch topography for hillshading only once
+	elevation_grid = lbm.WCSData("http://seishaz.oma.be:8080/geoserver/wcs", "nasa:etopo1", region=grid_outline)
+
+
 	## Compute ground_motion field
 	print("Computing ground-motion fields...")
 
@@ -121,8 +125,16 @@ if __name__ == "__main__":
 								title=title, projection="merc", site_style=site_style,
 								source_model=src_model)
 				#map.legend_style = None
+
+				## Add topographic hillshading
+				layer = map.get_layer_by_name("intensity_grid")
+				blend_mode = "soft"
+				hillshade_style = lbm.HillshadeStyle(45, 45, 1, blend_mode=blend_mode,
+														elevation_grid=elevation_grid)
+				layer.style.hillshade_style = hillshade_style
+
 				fig_filespec = None
 				#fig_filename = "%s_%s_T=%ss.PNG" % (src_model.name, gmpe_name, T)
 				#fig_filespec = os.path.join(out_folder, fig_filename)
 				map.plot(fig_filespec=fig_filespec, dpi=150)
-				#exit()
+				exit()
