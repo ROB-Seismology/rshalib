@@ -23,8 +23,8 @@ if __name__ == "__main__":
 	#eq_id = 1306  ## Alsdorf
 	eq_id = 987  ## Roermond
 	#eq_id = 5329  ## Ramsgate
-	eq = eqcatalog.seismodb.query_ROB_LocalEQCatalogByID(eq_id)
-	catalog = eqcatalog.EQCatalog([eq])
+	catalog = eqcatalog.seismodb.query_ROB_LocalEQCatalogByID(eq_id)
+	[eq] = catalog.eq_list
 
 	## Create point-source model
 	Mtype = "MW"
@@ -73,9 +73,9 @@ if __name__ == "__main__":
 					soil_site_model=soil_site_model, imt_periods=imt_periods,
 					truncation_level=truncation_level, integration_distance=integration_distance)
 
-	#uhs_field = dsha_model.calc_gmf_fixed_epsilon_mp(num_cores=4, stddev_type="total",
-	#										np_aggregation=np_aggregation)
-	[uhs_field] = dsha_model.calc_random_gmf_mp(num_cores=4, correlate_imt_uncertainties=True)
+	uhs_field = dsha_model.calc_gmf_fixed_epsilon_mp(num_cores=4, stddev_type="total",
+											np_aggregation=np_aggregation)
+	#[uhs_field] = dsha_model.calc_random_gmf_mp(num_cores=4, correlate_imt_uncertainties=True)
 	num_sites = uhs_field.num_sites
 
 	## Plot map
@@ -88,6 +88,16 @@ if __name__ == "__main__":
 	title = "%s (%s)\nGround-motion field, %s" % (eq.name.title(), eq.date.isoformat(), gmpe_spec)
 	hm = uhs_field.getHazardMap(period_spec=T)
 	map = hm.get_plot(graticule_interval=(2,1), cmap="jet", norm=norm, contour_interval=contour_interval, num_grid_cells=num_sites, title=title, projection="merc")
+
+	## Add topographic hillshading
+	layer = map.get_layer_by_name("intensity_grid")
+	elevation_grid = lbm.WCSData("http://seishaz.oma.be:8080/geoserver/wcs", "ngi:DTM10k", region=map.region, down_sampling=25)
+	blend_mode = "soft"
+	hillshade_style = lbm.HillshadeStyle(45, 45, 1, blend_mode=blend_mode,
+											elevation_grid=elevation_grid)
+	layer.style.hillshade_style = hillshade_style
+
+
 	#fig_filespec = "C:\Temp\gmf.png"
 	fig_filespec = None
 	map.plot(fig_filespec=fig_filespec)
