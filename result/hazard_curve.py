@@ -4768,12 +4768,14 @@ class HazardMap(HazardResult, HazardField):
 
 		## Intensity grid
 		if self.IMT == "SA":
+			label_format="%.2f"
 			if self.period == 0:
 				imt_label = "PGA"
 			else:
 				imt_label = "%s (%s s)" % (self.IMT, self.period)
 		else:
 			imt_label = self.IMT
+			label_format="%d"
 		intensity_unit_label = get_intensity_unit_label(intensity_unit)
 		cbar_label = imt_label
 		if intensity_unit:
@@ -4784,7 +4786,7 @@ class HazardMap(HazardResult, HazardField):
 		if not ticks in ([], None):
 			ticks = ticks[ticks <= norm.vmax]
 		if colorbar_style == "default":
-			colorbar_style = lbm.ColorbarStyle(location="bottom", format="%.2f", ticks=ticks, title=cbar_label)
+			colorbar_style = lbm.ColorbarStyle(location="bottom", format=label_format, ticks=ticks, title=cbar_label)
 		color_map_theme = lbm.ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax, colorbar_style=colorbar_style)
 		color_gradient = {"cont": "continuous", "disc": "discontinuous"}[plot_style]
 		grid_style = lbm.GridStyle(color_map_theme=color_map_theme, color_gradient=color_gradient, line_style=contour_line_style, contour_levels=contour_levels)
