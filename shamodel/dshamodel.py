@@ -462,19 +462,19 @@ class DSHAModel(SHAModelBase):
 		imt_list = self._get_imts()
 		fake_tom = oqhazlib.tom.PoissonTOM(1)
 		if stddev_type == "total":
-			total_residual_epsilons = np.ones_like(num_sites)
+			total_residual_epsilons = np.ones(num_sites)
 			total_residual_epsilons *= self.truncation_level
 			inter_residual_epsilons = total_residual_epsilons
 			intra_residual_epsilons = total_residual_epsilons
 		elif stddev_type == "inter-event":
 			total_residual_epsilons = None
-			inter_residual_epsilons = np.ones_like(num_sites)
+			inter_residual_epsilons = np.ones(num_sites)
 			inter_residual_epsilons *= self.truncation_level
-			intra_residual_epsilons = np.ones_like(num_sites)
+			intra_residual_epsilons = np.ones(num_sites)
 		elif stddev_type == "intra-event":
 			total_residual_epsilons = None
-			inter_residual_epsilons = np.ones_like(num_sites)
-			intra_residual_epsilons = np.ones_like(num_sites)
+			inter_residual_epsilons = np.ones(num_sites)
+			intra_residual_epsilons = np.ones(num_sites)
 			intra_residual_epsilons *= self.truncation_level
 
 		gmf_envelope = np.zeros((num_sites, len(imt_list)))
@@ -561,19 +561,19 @@ class DSHAModel(SHAModelBase):
 		imt_list = self._get_imts()
 		fake_tom = oqhazlib.tom.PoissonTOM(1)
 		if stddev_type == "total":
-			total_residual_epsilons = np.ones_like(num_sites)
+			total_residual_epsilons = np.ones(num_sites)
 			total_residual_epsilons *= self.truncation_level
 			inter_residual_epsilons = total_residual_epsilons
 			intra_residual_epsilons = total_residual_epsilons
 		elif stddev_type == "inter-event":
 			total_residual_epsilons = None
-			inter_residual_epsilons = np.ones_like(num_sites)
+			inter_residual_epsilons = np.ones(num_sites)
 			inter_residual_epsilons *= self.truncation_level
-			intra_residual_epsilons = np.ones_like(num_sites)
+			intra_residual_epsilons = np.ones(num_sites)
 		elif stddev_type == "intra-event":
 			total_residual_epsilons = None
-			inter_residual_epsilons = np.ones_like(num_sites)
-			intra_residual_epsilons = np.ones_like(num_sites)
+			inter_residual_epsilons = np.ones(num_sites)
+			intra_residual_epsilons = np.ones(num_sites)
 			intra_residual_epsilons *= self.truncation_level
 
 		gmf_envelope = np.zeros((num_sites, len(imt_list)))
