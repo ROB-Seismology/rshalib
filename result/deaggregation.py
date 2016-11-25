@@ -256,13 +256,15 @@ class ProbabilityMatrix(DeaggMatrix):
 		assert isinstance(other, ProbabilityMatrix)
 		return ProbabilityMatrix(1 - ((1 - self.matrix) / (1 - other.matrix)))
 
-	def __mul__(self, number):
-		assert isinstance(number, (int, float, Decimal))
-		return ProbabilityMatrix(1 - np.exp(np.log(1 - self.matrix) * float(number)))
+	def __mul__(self, other):
+		#assert isinstance(number, (int, float, Decimal))
+		#return ProbabilityMatrix(1 - np.exp(np.log(1 - self.matrix) * float(number)))
+		return ProbabilityMatrix(1 - (1 - self.matrix) ** other)
 
-	def __div__(self, number):
-		assert isinstance(number, (int, float, Decimal))
-		return ProbabilityMatrix(1 - np.exp(np.log(1 - self.matrix) / float(number)))
+	def __div__(self, other):
+		#assert isinstance(number, (int, float, Decimal))
+		#return ProbabilityMatrix(1 - np.exp(np.log(1 - self.matrix) / float(number)))
+		return self.__mul__(1./other)
 
 	def get_total_exceedance_rate(self, timespan):
 		"""

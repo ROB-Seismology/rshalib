@@ -175,13 +175,15 @@ class ProbabilityArray(HazardCurveArray):
 		assert isinstance(other, ProbabilityArray)
 		return ProbabilityArray(1 - ((1 - self.array) / (1 - other.array)))
 
-	def __mul__(self, number):
-		assert isinstance(number, (int, float, Decimal))
-		return ProbabilityArray(1 - np.exp(np.log(1 - self.array) * float(number)))
+	def __mul__(self, other):
+		#assert isinstance(number, (int, float, Decimal))
+		#return ProbabilityArray(1 - np.exp(np.log(1 - self.array) * float(number)))
+		return ProbabilityArray(1 - (1 - self.array) ** other)
 
-	def __div__(self, number):
-		assert isinstance(number, (int, float, Decimal))
-		return ProbabilityArray(1 - np.exp(np.log(1 - self.array) / float(number)))
+	def __div__(self, other):
+		#assert isinstance(number, (int, float, Decimal))
+		#return ProbabilityArray(1 - np.exp(np.log(1 - self.array) / float(number)))
+		return self.__mul__(1./other)
 
 	def to_exceedance_rates(self, timespan):
 		## Ignore division warnings
