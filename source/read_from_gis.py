@@ -42,6 +42,7 @@ point_source_params = common_source_params + [
 	'Nf',
 	'Tf',
 	'Ss',
+	'hypo_distribution',
 	'min_hypo_depth',
 	'max_hypo_depth',
 	'hypo_bin_width']
@@ -533,18 +534,31 @@ def import_point_or_area_source_from_gis_record(
 
 	## Hypocenter distribution
 	if not hypocentral_distribution:
-		if min_hypo_depth is None:
-			min_hypo_depth = import_param(source_rec, column_map, 'min_hypo_depth', float)
-		min_hypo_depth = max(min_hypo_depth, upper_seismogenic_depth)
-		if max_hypo_depth is None:
-			max_hypo_depth = import_param(source_rec, column_map, 'max_hypo_depth', float)
-		max_hypo_depth = min(max_hypo_depth, lower_seismogenic_depth)
-		if hypo_bin_width is None:
-			hypo_bin_width = import_param(source_rec, column_map, 'hypo_bin_width', float)
-		num_bins = (max_hypo_depth - min_hypo_depth) / hypo_bin_width + 1
-		hypo_depths, weights = get_normal_distribution(min_hypo_depth, max_hypo_depth,
-													num_bins=num_bins)
-		hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
+		if 'hypo_distribution' in column_map:
+			hypo_depths, weights = [], []
+			for depth_col, weight_col in column_map['hypo_distribution']:
+				depth = float(source_rec.get(depth_col, 0))
+				weight = float(source_rec.get(weight_col, 0))
+				if weight != 0:
+					hypo_depths.append(depth)
+					weights.append(weight)
+			hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
+
+		else:
+			if min_hypo_depth is None:
+				min_hypo_depth = import_param(source_rec, column_map, 'min_hypo_depth', float)
+			min_hypo_depth = max(min_hypo_depth, upper_seismogenic_depth)
+			if max_hypo_depth is None:
+				max_hypo_depth = import_param(source_rec, column_map, 'max_hypo_depth', float)
+
+			max_hypo_depth = min(max_hypo_depth, lower_seismogenic_depth)
+
+			if hypo_bin_width is None:
+				hypo_bin_width = import_param(source_rec, column_map, 'hypo_bin_width', float)
+			num_bins = max(1, (max_hypo_depth - min_hypo_depth) / hypo_bin_width + 1)
+			hypo_depths, weights = get_normal_distribution(min_hypo_depth, max_hypo_depth,
+														num_bins=num_bins)
+			hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
 
 	## Geometry
 	geom = source_rec['obj']
@@ -941,6 +955,7 @@ def import_source_model_from_gis(
 	gis_filespec,
 	name="",
 	column_map=None,
+	source_ids=[],
 	source_catalogs={},
 	overall_catalog=None,
 	catalog_params={},
@@ -958,6 +973,9 @@ def import_source_model_from_gis(
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
 		(default: "latin-1")
+	:param source_ids:
+		list of source IDs to import
+		(default: [], import all sources in GIS file)
 	:param source_catalogs:
 		dict, mapping source ID's to instances of :class:`eqcatalog.EQCatalog`
 		(default: {})
@@ -988,6 +1006,8 @@ def import_source_model_from_gis(
 	source_records = read_GIS_file(gis_filespec, encoding=None, verbose=verbose)
 	for source_rec in source_records:
 		source_id = import_param(source_rec, column_map, 'id', str)
+		if source_ids and not source_id in source_ids:
+			continue
 		catalog = source_catalogs.get(source_id)
 		if not catalog and overall_catalog:
 			## Extract source catalog from overall catalog
@@ -1007,6 +1027,7 @@ def import_source_model_from_gis(
 def read_rob_source_model(
 	source_model_name,
 	column_map={},
+	source_ids=[],
 	source_catalogs={},
 	overall_catalog=None,
 	catalog_params={},
@@ -1021,6 +1042,9 @@ def read_rob_source_model(
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
 		(default: {})
+	:param source_ids:
+		list of source IDs to import
+		(default: [], import all sources in GIS file)
 	:param source_catalogs:
 		dict, mapping source ID's to instances of :class:`eqcatalog.EQCatalog`
 		(default: {})
@@ -1062,6 +1086,6 @@ def read_rob_source_model(
 			column_map[key] = default_column_map[key]
 
 	return import_source_model_from_gis(gis_filespec, name=source_model_name,
-				column_map=column_map, source_catalogs=source_catalogs,
+				column_map=column_map, source_ids=source_ids, source_catalogs=source_catalogs,
 				overall_catalog=overall_catalog, catalog_params=catalog_params,
 				encoding=encoding, verbose=verbose, **kwargs)
