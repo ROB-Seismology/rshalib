@@ -3791,7 +3791,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			mean_shcf = None
 			for i in range(len(shcf_list)):
 				shcf = shcf_list[i]
-				weight = weights[i]
+				weight = float(weights[i])
 				if i == 0:
 					mean_shcf = shcf * weight
 				else:
@@ -3837,7 +3837,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			mean_shcf = None
 			for i in range(len(shcf_list)):
 				shcf = shcf_list[i]
-				weight = weights[i]
+				weight = float(weights[i])
 				if i == 0:
 					mean_shcf = shcf * weight
 				else:
@@ -3978,6 +3978,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		else:
 			mean_shcf = None
 			for source_model, somo_weight in self.source_model_lt.source_model_pmf:
+				somo_weight = float(somo_weight)
 				source_model_shcf = self.get_oq_mean_shcf_by_source_model(source_model, trt=trt, gmpe_name=gmpe_name, write_xml=write_xml, respect_gm_trt_correlation=respect_gm_trt_correlation, calc_id=calc_id)
 				if mean_shcf is None:
 					mean_shcf = source_model_shcf * somo_weight
@@ -4277,6 +4278,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			mean_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id, dtype=dtype)
 		else:
 			for i, (sdc, weight) in enumerate(self.read_oq_source_deagg_realizations(source_model_name, src, site, gmpe_name=gmpe_name, calc_id=calc_id, dtype=dtype)):
+				weight = float(weight)
 				if verbose:
 					print i
 				if i == 0:
