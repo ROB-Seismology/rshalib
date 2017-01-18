@@ -464,6 +464,15 @@ def calc_gmf_with_fixed_epsilon(
 
 	if integration_distance:
 		rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(integration_distance)
+		## Trim *_epsilons arrays to sites within integration_distance
+		jb_dist = rupture.surface.get_joyner_boore_distance(sites.mesh)
+		indices = (jb_dist <= integration_distance)
+		if total_residual_epsilons != None:
+			total_residual_epsilons = total_residual_epsilons[indices]
+		if intra_residual_epsilons != None:
+			intra_residual_epsilons = intra_residual_epsilons[indices]
+		if inter_residual_epsilons != None:
+			inter_residual_epsilons = inter_residual_epsilons[indices]
 	else:
 		rupture_site_filter = oqhazlib.calc.filters.rupture_site_noop_filter
 
