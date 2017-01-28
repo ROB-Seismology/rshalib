@@ -2820,11 +2820,14 @@ class NhlibGMPE(GMPE):
 		Return sigma as log10.
 
 		See method self.__call__ for params.
+		
+		Note: :param:`soil_type` is ignored!
 		"""
 		#TODO: check whether we should support soil_type !
 		_, ln_stddevs = self._get_nhlib_mean_and_stddevs(M, d, h=h, imt=imt, T=T, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
 
-		log_sigmas = np.log10(np.exp(ln_stddevs))
+		#log_sigmas = np.log10(np.exp(ln_stddevs))
+		log_sigmas = ln_stddevs * np.log10(np.e)
 
 		return log_sigmas
 
