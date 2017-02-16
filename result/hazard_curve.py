@@ -4769,7 +4769,7 @@ class HazardMap(HazardResult, HazardField):
 				norm = lbm.cm.get_norm("hazard", norm)
 
 		## Intensity grid
-		if self.IMT == "SA":
+		if self.IMT in ("SA", "PGA"):
 			label_format="%.2f"
 			if self.period == 0:
 				imt_label = "PGA"
