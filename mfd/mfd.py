@@ -538,7 +538,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		else:
 			raise Exception("Characteristic magnitude should be multiple of bin width!")
 
-	def to_truncated_GR_mfd(self, completeness, end_date, method="Weichert", b_val=None, verbose=False):
+	def to_truncated_GR_mfd(self, completeness, end_date, method="Weichert", b_val=None, Mmax=None, verbose=False):
 		"""
 		Calculate truncated Gutenberg-Richter MFD using maximum likelihood estimation
 		for variable observation periods for different magnitude increments.
@@ -553,10 +553,15 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		:param method:
 			String, computation method (default: "Weichert":
 			- "Weichert"
-			- "LSQc" (least squares on cumulative values)
-			- "LSQi" (least squares on incremental values)
+			- "LSQc": least squares on cumulative values
+			- "LSQi": least squares on incremental values
+			- "wLSQc": weighted least squares on cumulative values
+			- "wLSQi": weighted least squares on incremental values
 		:param b_val:
 			Float, fixed b value to constrain MLE estimation (default: None)
+		:param Mmax:
+			Float, maximum magnitude of fitted GR MFD
+			(default: None, will use currently set max_mag)
 		:param verbose:
 			Bool, whether some messages should be printed or not (default: False)
 
@@ -565,22 +570,35 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		"""
 		from eqcatalog.calcGR import calcGR_Weichert, calcGR_LSQ
 		magnitudes = self.get_magnitude_bin_edges()
+		if Mmax is None:
+			max_mag = self.max_mag
+		else:
+			max_mag = Mmax
 		if method == "Weichert":
 			## Number of earthquakes in each bin according to completeness
 			bins_N = self.get_num_earthquakes(completeness, end_date)
+			if Mmax != None:
+				num_empty_bins = int(round((Mmax - self.max_mag) / self.bin_width)) + 1
+				bins_N = np.concatenate([bins_N, np.zeros(num_empty_bins)])
+				extra_mags = magnitudes[-1] + np.arange(1, num_empty_bins+1) * self.bin_width
+				magnitudes = np.concatenate([magnitudes, extra_mags])
 			a, b, stda, stdb = calcGR_Weichert(magnitudes, bins_N, completeness, end_date, b_val=b_val, verbose=verbose)
-		elif method[:3] == "LSQ":
-			if method == "LSQc":
+		elif "LSQ" in method:
+			weights = None
+			if method[0] == 'w' and completeness and end_date:
+				## Use weighted LSQC
+				weights = self.get_num_earthquakes(completeness, end_date)
+			if method[-1] == 'c':
 				occurrence_rates = self.get_cumulative_rates()
-			elif method == "LSQi":
+			elif method[-1] == 'i':
 				occurrence_rates = np.array(self.occurrence_rates)
-			a, b, stda, stdb = calcGR_LSQ(magnitudes, occurrence_rates, b_val=b_val, verbose=verbose)
-			if method == "LSQi":
+			a, b, stda, stdb = calcGR_LSQ(magnitudes, occurrence_rates, b_val=b_val, weights=weights, verbose=verbose)
+			if method[-1] == 'i':
 				## Compute a value for cumulative MFD from discrete a value
 				a2 = a
 				dM = self.bin_width
 				a = a2 + get_a_separation(b, dM)
-		return TruncatedGRMFD(self.get_min_mag_edge(), self.max_mag, self.bin_width, a, b, a_sigma=stda, b_sigma=stdb, Mtype=self.Mtype)
+		return TruncatedGRMFD(self.get_min_mag_edge(), max_mag, self.bin_width, a, b, a_sigma=stda, b_sigma=stdb, Mtype=self.Mtype)
 
 	def get_max_mag_observed(self):
 		"""
@@ -1769,6 +1787,9 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 			ax.annotate("", xy=(min_mags[i-1], annoty), xycoords='data', xytext=(min_mags[i], annoty), textcoords='data', arrowprops=dict(arrowstyle="<->"),)
 			label = "%s - %s" % (completeness.get_initial_completeness_year(min_mags[i-1]), end_year)
 			ax.text(np.mean([min_mags[i-1], min_mags[i]]), annoty*10**-0.25, label, ha="center", va="center", size=12, bbox=bbox_props)
+		## Uniform completeness has only 1 min_mag
+		if len(min_mags) == 1:
+			i = 0
 		ax.annotate("", xy=(min_mags[i], annoty), xycoords='data', xytext=(min(mfd.max_mag, Mrange[1]), annoty), textcoords='data', arrowprops=dict(arrowstyle="<->"),)
 		label = "%s - %s" % (completeness.get_initial_completeness_year(min_mags[i]), end_year)
 		ax.text(np.mean([min_mags[i], mfd.max_mag]), annoty*10**-0.25, label, ha="center", va="center", size=12, bbox=bbox_props)
