@@ -530,6 +530,8 @@ def import_point_or_area_source_from_gis_record(
 				for rake, rake_weight in zip(rakes, rake_weights):
 					nodal_planes.append(NodalPlane(strike, dip, rake))
 					np_weights.append(strike_weight * rake_weight * dip_weight)
+		np_weights = adjust_decimal_weights(np_weights)
+
 		nodal_plane_distribution = NodalPlaneDistribution(nodal_planes, np_weights)
 
 	## Hypocenter distribution
@@ -542,9 +544,10 @@ def import_point_or_area_source_from_gis_record(
 				if weight != 0:
 					hypo_depths.append(depth)
 					weights.append(weight)
-			hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
+			if hypo_depths:
+				hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
 
-		else:
+		if not hypocentral_distribution:
 			if min_hypo_depth is None:
 				min_hypo_depth = import_param(source_rec, column_map, 'min_hypo_depth', float)
 			min_hypo_depth = max(min_hypo_depth, upper_seismogenic_depth)
@@ -972,7 +975,7 @@ def import_source_model_from_gis(
 		(default: "")
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
-		(default: "latin-1")
+		(default: None)
 	:param source_ids:
 		list of source IDs to import
 		(default: [], import all sources in GIS file)
@@ -990,7 +993,8 @@ def import_source_model_from_gis(
 		(default: {})
 	:param encoding:
 		str, unicode encoding in GIS file
-		(default: "guess", will try to guess, but this may fail)
+		#(default: "guess", will try to guess, but this may fail)
+		(default: "latin-1")
 	:param verbose:
 		bool, whether or not to print information during reading
 		(default: True)
