@@ -431,7 +431,7 @@ class HazardSpectrum():
 		idxs = np.argsort(self.periods)
 		self.periods = self.periods[idxs]
 		self.intensities = self.intensities.take(idxs, axis=0)
-		if self.period_axis != None:
+		if self.period_axis is not None:
 			self._hazard_values = self._hazard_values.take(idxs, axis=self.period_axis)
 
 
@@ -941,7 +941,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			raise Exception("hazard array has wrong dimension")
 		if self._hazard_values.shape != (num_sites, num_branches, num_periods, num_intensities):
 			raise Exception("hazard array has wrong shape")
-		if self.variances != None:
+		if self.variances is not None:
 			if len(self.variances.shape) != 4:
 				raise Exception("variances array has wrong dimension")
 			if self.variances.shape != (num_sites, num_branches, num_periods, num_intensities):
@@ -983,7 +983,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		all_hazard_values = shcf0._hazard_values.__class__(all_hazard_values)
 		all_hazard_values[:,0,:,:] = shcf0._hazard_values
 
-		if shcf0.variances != None:
+		if shcf0.variances is not None:
 			all_variances = np.zeros((num_sites, num_branches, num_periods, num_intensities), 'd')
 			all_variances[:,0,:,:] = shcf0.variances
 		else:
@@ -1000,14 +1000,14 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		for j, shcf in enumerate(shcf_list[1:]):
 			shcft.check_shcf_compatibility(shcf)
 			shcft._hazard_values[:,j+1] = shcf._hazard_values
-			if shcft.variances != None:
+			if shcft.variances is not None:
 				shcft.variances[:,j+1] = shcf.variances
 
-		if mean != None:
+		if mean is not None:
 			shcft.check_shcf_compatibility(mean)
 			shcft.set_mean(mean._hazard_values)
 
-		if percentiles != None:
+		if percentiles is not None:
 			num_percentiles = len(percentiles)
 			perc_array = np.zeros((num_sites, num_periods, num_intensities, num_percentiles), 'd')
 			for p in range(num_percentiles):
@@ -1066,7 +1066,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		shape = (self.num_sites, 1, self.num_periods, self.num_intensities)
 		hazard_values = np.concatenate([self._hazard_values, shcf._hazard_values.reshape(shape)], axis=1)
 		self._hazard_values = self._hazard_values.__class__(hazard_values)
-		if self.variances != None:
+		if self.variances is not None:
 			## Note: this is only correct if both shcft and shcf are of the same type
 			## (exceedance rates or probabilities of exceedance)
 			self.variances = np.concatenate([self.variances, shcf.variances.reshape(shape)], axis=1)
@@ -1087,7 +1087,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		self.weights = np.concatenate([self.weights, shcft.weights])
 		hazard_values = np.concatenate([self._hazard_values, shcft._hazard_values], axis=1)
 		self._hazard_values = self._hazard_values.__class__(hazard_values)
-		if self.variances != None:
+		if self.variances is not None:
 			variances = np.concatenate([self.variances, shcft.variances])
 			self.variances = self.variances.__class__(variances)
 		## Remove mean and percentiles
@@ -1112,7 +1112,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			branch_name = self.branch_names[branch_index]
 			filespec = self.filespecs[branch_index]
 			hazard_values = self._hazard_values[:,branch_index,:,:]
-			if self.variances != None:
+			if self.variances is not None:
 				variances = self.variances[:,branch_index,:,:]
 			else:
 				variances = None
@@ -1144,7 +1144,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 
 		intensities = self.intensities
 		hazard_values = self._hazard_values[site_index, branch_index]
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances[site_index, branch_index]
 		else:
 			variances = None
@@ -1213,7 +1213,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		Return value:
 			mean variance of exceedance rate: 3-D array [i,k,l]
 		"""
-		if self.variances != None:
+		if self.variances is not None:
 			if weighted:
 				mean_variance = np.average(self.variances, weights=self.weights, axis=1)
 			else:
@@ -1246,7 +1246,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		num_sites, num_periods, num_intensities = self.num_sites, self.num_periods, self.num_intensities
 		num_percentiles = len(percentile_levels)
 		#percentiles = np.zeros((num_sites, num_periods, num_intensities, num_percentiles))
-		if weighted and self.weights != None and len(set(self.weights)) > 1:
+		if weighted and self.weights is not None and len(set(self.weights)) > 1:
 			#for i in range(num_sites):
 			#	for k in range(num_periods):
 			#		for l in range(num_intensities):
@@ -1432,7 +1432,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		intensity_unit = self.intensity_unit
 		timespan = self.timespan
 		hazard_values = self._hazard_values[:,branch_indexes,:,:]
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances[:,branch_indexes,:,:]
 		else:
 			variances = None
@@ -1479,15 +1479,15 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		"""
 		num_sites, num_branches, num_intensities = self.num_sites, self.num_branches, self.num_intensities
 		out_hazard_values = np.zeros((num_sites, num_branches, len(out_periods), num_intensities), dtype='d')
-		if self.variances != None:
+		if self.variances is not None:
 			out_variances = np.zeros((num_sites, num_branches, len(out_periods), num_intensities), dtype='d')
 		else:
 			out_variances = None
-		if self.mean != None:
+		if self.mean is not None:
 			out_mean = np.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
 		else:
 			out_mean = None
-		if self.percentiles != None:
+		if self.percentiles is not None:
 			num_percentiles = self.num_percentiles
 			out_percentiles = np.zeros((num_sites, len(out_periods), num_intensities, num_percentiles), dtype='d')
 
@@ -1496,13 +1496,13 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 				shc = self.getSpectralHazardCurve(site_spec=i, branch_spec=j)
 				shc_out = shc.interpolate_periods(out_periods)
 				out_hazard_values[i,j] = shc_out._hazard_values
-				if self.variances != None:
+				if self.variances is not None:
 					out_variances[i,j] = shc_out.variances
-			if self.mean != None:
+			if self.mean is not None:
 				shc = SpectralHazardCurve("mean", self.mean[i], "", self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
 				shc_out = shc.interpolate_periods(out_periods)
 				out_mean[i] = shc_out._hazard_values
-			if self.percentiles != None:
+			if self.percentiles is not None:
 				for p in range(num_percentiles):
 					shc = SpectralHazardCurve("mean", self.percentiles[i,:,:,p], "", self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
 					shc_out = shc.interpolate_periods(out_periods)
@@ -1875,7 +1875,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			raise Exception("exceedance_rates or poes array has wrong dimension")
 		if self._hazard_values.shape != (num_sites, num_periods, num_intensities):
 			raise Exception("exceedance_rates or poes array has wrong shape")
-		if self.variances != None:
+		if self.variances is not None:
 			if len(self.variances.shape) != 3:
 				raise Exception("variances array has wrong dimension")
 			if self.variances.shape != (num_sites, num_periods, num_intensities):
@@ -1889,7 +1889,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			raise IndexError("Period index %s out of range" % period_index)
 		intensities = self.intensities[period_index]
 		hazard_values = self._hazard_values[:,period_index]
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances[:,period_index]
 		else:
 			variances = None
@@ -1917,7 +1917,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		filespec = self.filespecs[0]
 		intensities = self.intensities
 		hazard_values = self._hazard_values[site_index]
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances[site_index]
 		else:
 			variances = None
@@ -1951,7 +1951,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		filespec = self.filespecs[period_index]
 		intensities = self.intensities[period_index]
 		hazard_values = self._hazard_values[site_index, period_index]
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances[site_index, period_index]
 		else:
 			variances = None
@@ -1964,7 +1964,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		"""
 		intensities = self.intensities
 		hazard_values = self._hazard_values.reshape((self.num_sites, 1, self.num_periods, self.num_intensities))
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances.reshape((self.num_sites, 1, self.num_periods, self.num_intensities))
 		else:
 			variances = None
@@ -2001,7 +2001,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		"""
 		num_sites, num_intensities = self.num_sites, self.num_intensities
 		out_hazard_values = self._hazard_values.__class__(np.zeros((num_sites, len(out_periods), num_intensities), dtype='d'))
-		if self.variances != None:
+		if self.variances is not None:
 			out_variances = np.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
 		else:
 			out_variances = None
@@ -2010,7 +2010,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			shc = self.getSpectralHazardCurve(site_spec=i)
 			shc_out = shc.interpolate_periods(out_periods)
 			out_hazard_values[i] = shc_out._hazard_values
-			if self.variances != None:
+			if self.variances is not None:
 				out_variances[i] = shc_out.variances
 		intensities = shc_out.intensities
 		return SpectralHazardCurveField(self.model_name, out_hazard_values, self.filespecs, self.sites, out_periods, self.IMT, intensities, self.intensity_unit, self.timespan, variances=out_variances)
@@ -2109,7 +2109,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 				f.write("INTENSITY %d T=%s\n" % (k+1, self.periods[k]))
 				for l in range(self.num_intensities):
 					f.write("%.5E  %.5E" % (self.intensities[k,l], self.exceedance_rates[i,k,l]))
-					if self.variances != None:
+					if self.variances is not None:
 						f.write("  %.5E" % self.variances[i,k,l])
 					f.write("\n")
 		f.close()
@@ -2270,7 +2270,7 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 			raise IndexError("Period index %s out of range" % period_index)
 		intensities = self.intensities[period_index]
 		hazard_values = self._hazard_values[period_index]
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances[period_index]
 		else:
 			variances = None
@@ -2305,7 +2305,7 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 			in_periods = self.periods
 			num_intensities = self.num_intensities
 			out_hazard_values = self._hazard_values.__class__(np.zeros((len(out_periods), num_intensities), dtype='d'))
-			if self.variances != None:
+			if self.variances is not None:
 				out_variances = np.zeros((len(out_periods), num_intensities), dtype='d')
 			else:
 				out_variances = None
@@ -2329,17 +2329,17 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 					## Interpolate exceedances of adjacent periods to out_period_intensities
 					hazard_values1 = interpolate(self.intensities[id1], self._hazard_values[id1], out_period_intensities[k])
 					hazard_values2 = interpolate(self.intensities[id2], self._hazard_values[id2], out_period_intensities[k])
-					if self.variances != None:
+					if self.variances is not None:
 						variances1 = interpolate(self.intensities[id1], self.variances[id1], out_period_intensities[k])
 						variances2 = interpolate(self.intensities[id2], self.variances[id2], out_period_intensities[k])
 					for l in range(num_intensities):
 						out_hazard_values[k,l] = interpolate([in_periods[id1], in_periods[id2]], [hazard_values1[l], hazard_values2[l]], [out_periods[k]])[0]
-						if self.variances != None:
+						if self.variances is not None:
 							out_variances[k,l] = interpolate([in_periods[id1], in_periods[id2]], [variances1[l], variances2[l]], [out_periods[k]])[0]
 				else:
 					out_period_intensities[k] = self.intensities[id]
 					out_hazard_values[k] = self._hazard_values[id]
-					if self.variances != None:
+					if self.variances is not None:
 						out_variances[k] = self.variances[id]
 			return SpectralHazardCurve(self.model_name, hazard_values, self.filespec, self.site, out_periods, self.IMT, out_period_intensities, self.intensity_unit, self.timespan, variances=out_variances)
 
@@ -2349,7 +2349,7 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 		"""
 		intensities = self.intensities
 		hazard_values = self._hazard_values.reshape((1, self.num_periods, self.num_intensities))
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances.reshape((1, self.num_periods, self.num_intensities))
 		else:
 			variances = None
@@ -2557,7 +2557,7 @@ class HazardCurveField(HazardResult, HazardField):
 		site_name = self.site_names[site_index]
 		intensities = self.intensities
 		hazard_values = self._hazard_values[site_index]
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances[site_index]
 		else:
 			variances = None
@@ -2585,7 +2585,7 @@ class HazardCurveField(HazardResult, HazardField):
 		"""
 		intensities = self.intensities.reshape((1, self.num_intensities))
 		hazard_values = self._hazard_values.reshape((self.num_sites, 1, self.num_intensities))
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances.reshape((self.num_sites, 1, self.num_intensities))
 		else:
 			variances = None
@@ -2780,7 +2780,7 @@ class HazardCurve(HazardResult):
 		"""
 		intensities = self.intensities.reshape((1, self.num_intensities))
 		hazard_values = self._hazard_values.reshape((1, self.num_intensities))
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances.reshape((1, self.num_intensities))
 		else:
 			variances = None
@@ -2792,7 +2792,7 @@ class HazardCurve(HazardResult):
 		"""
 		intensities = self.intensities
 		hazard_values = self._hazard_values.reshape((1, self.num_intensities))
-		if self.variances != None:
+		if self.variances is not None:
 			variances = self.variances.reshape((1, self.num_intensities))
 		else:
 			variances = None
@@ -2960,10 +2960,10 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		uhsft = UHSFieldTree(model_name, branch_names, filespecs, weights, uhsf0.sites, uhsf0.periods, uhsf0.IMT, intensities, uhsf0.intensity_unit, uhsf0.timespan, uhsf0.poe, uhsf0.return_period)
 
 		## Set mean and percentiles
-		if mean != None:
+		if mean is not None:
 			uhsft.set_mean(mean.intensities)
 
-		if percentiles != None:
+		if percentiles is not None:
 			num_percentiles = len(percentiles)
 			perc_array = np.zeros((num_sites, num_periods, num_percentiles), 'd')
 			for p in range(num_percentiles):
@@ -3105,7 +3105,7 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		percentiles = np.zeros((num_sites, num_periods, num_percentiles))
 		for i in range(num_sites):
 			for k in range(num_periods):
-				if weighted and self.weights != None and len(np.unique(self.weights)) > 1:
+				if weighted and self.weights is not None and len(np.unique(self.weights)) > 1:
 					pmf = NumericPMF.from_values_and_weights(self.intensities[i,:,k], self.weights)
 					percentiles[i,k,:] = pmf.get_percentiles(percentile_levels)
 				else:
@@ -4314,7 +4314,7 @@ class HazardMap(HazardResult, HazardField):
 			if lonmin <= longitudes[i] <= lonmax and latmin <= latitudes[i] <= latmax:
 				site_indexes.append(i)
 				sites.append(self.sites[i])
-				if self.vs30s != None:
+				if self.vs30s is not None:
 					vs30s.append(self.vs30s[i])
 
 		model_name = self.model_name
@@ -4457,7 +4457,7 @@ class HazardMap(HazardResult, HazardField):
 			site_idxs = self.get_site_indexes(sites)
 			#site_idxs = [self.site_index(site) for site in sites]
 			intensities = self.intensities[site_idxs]
-			if self.vs30s != None:
+			if self.vs30s is not None:
 				vs30s = self.vs30s[site_idxs]
 			else:
 				vs30s = self.vs30s
@@ -4738,7 +4738,7 @@ class HazardMap(HazardResult, HazardField):
 		if amax is None:
 			amax = np.ceil(self.max(intensity_unit) / contour_interval) * contour_interval
 
-		if contour_interval != None:
+		if contour_interval is not None:
 			contour_levels = np.arange(amin, amax+contour_interval, contour_interval)
 			## Sometimes, there is an empty contour interval at the end
 			if len(contour_levels) > 1 and contour_levels[-2] > self.max():
