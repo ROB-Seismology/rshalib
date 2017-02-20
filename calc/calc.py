@@ -109,7 +109,7 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 
 if __name__ == "__main__":
 	grid_outline = (-74, -72, -46, -44.5)
-	grid_spacing = 0.5
+	grid_spacing = 0.25
 
 	mfd = rshalib.mfd.EvenlyDiscretizedMFD(5.05, 0.5, np.ones(6)/6.)
 	magnitudes = mfd.get_center_magnitudes()
@@ -156,15 +156,27 @@ if __name__ == "__main__":
 	ne_sites = rshalib.site.SoilSiteModel("Negative evidence", [ne_site])
 	ne_threshold = 7.0
 
-	truncation_level = 3
+	truncation_level = 0
 
 	prob_dict = calc_rupture_probability_from_ground_motion_thresholds(
 						source_model, ground_motion_model, imt, pe_sites,
 						pe_threshold, ne_sites, ne_threshold, truncation_level)
 
-	for source_ids, probs in prob_dict:
+	x, y = [], []
+	values = {'mag': [], 'prob': []}
+	for source_id, probs in prob_dict.items():
 		source = sources[source_id]
 		idx = probs.argmax()
 		prob_max = probs[idx]
-		mag = magnitudes[idx]
-		print source.point, mag, prob_max
+		if prob_max > 0:
+			values['prob'].append(prob_max)
+			values['mag'].append(magnitudes[idx])
+			x.append(source.location.longitude)
+			y.append(source.location.latitude)
+
+			print x[-1], y[-1], values['mag'][-1], prob_max
+
+	import mapping.Basemap as lbm
+	data = lbm.MultiPointData(x, y, values=values)
+	thematic_size = lbm.ThematicStyleGradient()
+
