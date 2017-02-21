@@ -22,6 +22,25 @@ class PoissonTau:
 	def labmda(self):
 		return 1. / self.tau
 
+	@classmethod
+	def from_conditional_probability(cls, cond_prob, t):
+		"""
+		Create Poisson model with return period that is equivalent to
+		the conditional (time-dependent) rupture probability for given
+		timespan
+
+		:param cond_prob:
+			float or array of floats, conditional rupture probability(ies)
+		:param t:
+			float, time interval (number of years) over which probability
+			is computed
+
+		:return:
+			instance of :class:`PoissonTau`
+		"""
+		effective_rate = -np.log(1 - cond_prob) / float(t)
+		return cls(1./effective_rate)
+
 	def plot(self, tmax, t_test=None, n="one_or_more", t_over_tau=False):
 		t = np.linspace(0, tmax, 51)
 		if n == "one_or_more":
