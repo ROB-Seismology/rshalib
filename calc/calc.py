@@ -109,10 +109,15 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 
 if __name__ == "__main__":
 	grid_outline = (-74, -72, -46, -44.5)
-	grid_spacing = 0.25
+	grid_spacing = 0.1
 
-	mfd = rshalib.mfd.EvenlyDiscretizedMFD(5.05, 0.5, np.ones(6)/6.)
+	dM = 0.3
+	min_mag, max_mag = 5.0, 7.5
+	num_mags = int(round((max_mag - min_mag) / dM + 1))
+	mfd = rshalib.mfd.EvenlyDiscretizedMFD(min_mag + dM/2, dM, np.ones(num_mags)/float(num_mags))
 	magnitudes = mfd.get_center_magnitudes()
+	print magnitudes
+
 	trt = "ASC"
 	strike, dip, rake = 20, 90, 180
 	nopl = rshalib.geo.NodalPlane(strike, dip, rake)
@@ -139,8 +144,8 @@ if __name__ == "__main__":
 			i += 1
 	source_model = rshalib.source.SourceModel("Point source model", sources)
 
-	ipe_name = "AtkinsonWald2007"
-	#ipe_name = "BakunWentworth1997"
+	#ipe_name = "AtkinsonWald2007"
+	ipe_name = "BakunWentworth1997"
 	trt_gsim_dict = {trt: ipe_name}
 	ground_motion_model = rshalib.gsim.GroundMotionModel(ipe_name, trt_gsim_dict)
 
@@ -156,7 +161,7 @@ if __name__ == "__main__":
 	ne_sites = rshalib.site.SoilSiteModel("Negative evidence", [ne_site])
 	ne_threshold = 7.0
 
-	truncation_level = 0
+	truncation_level = 2
 
 	prob_dict = calc_rupture_probability_from_ground_motion_thresholds(
 						source_model, ground_motion_model, imt, pe_sites,
@@ -176,7 +181,27 @@ if __name__ == "__main__":
 
 			print x[-1], y[-1], values['mag'][-1], prob_max
 
+	import matplotlib
 	import mapping.Basemap as lbm
-	data = lbm.MultiPointData(x, y, values=values)
-	thematic_size = lbm.ThematicStyleGradient()
+	layers = []
 
+	data = lbm.MultiPointData(x, y, values=values)
+	#colors = matplotlib.cm.jet(np.arange(num_mags))
+	#colors = ["purple", "blue", "green", "yellow", "orange", "red"]
+	#colors = "random_color"
+	#thematic_color = lbm.ThematicStyleGradient(magnitudes, colors, value_key='mag')
+	#thematic_size = lbm.ThematicStyleGradient([1E-3, 1E-2, 1E-1, 1], [1, 3, 6, 12], value_key='prob')
+	colorbar_style = lbm.ColorbarStyle()
+	#thematic_color = lbm.ThematicStyleGradient([1E-3, 1E-2, 1E-1, 1], "RdBu_r", value_key='prob', colorbar_style=colorbar_style)
+	thematic_color = lbm.ThematicStyleGradient([0.01, 0.05, 0.125, 0.25, 0.5, 1], "RdBu_r", value_key='prob', colorbar_style=colorbar_style)
+	edge_magnitudes = np.concatenate([mfd.get_magnitude_bin_edges(), [magnitudes[-1]+dM/2]])
+	thematic_size = lbm.ThematicStyleRanges(edge_magnitudes, (np.linspace(0.5, 4, num_mags))**2, value_key='mag', labels=magnitudes)
+	thematic_legend_style = lbm.LegendStyle()
+	style = lbm.PointStyle(fill_color=thematic_color, size=thematic_size, thematic_legend_style=thematic_legend_style)
+
+	layer = lbm.MapLayer(data, style)
+	layers.append(layer)
+
+	map = lbm.LayeredBasemap(layers, "", "merc", region=grid_outline,
+							graticule_interval=(1, 0.5))
+	map.plot()
