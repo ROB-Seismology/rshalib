@@ -9,12 +9,13 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 	source_model,
 	ground_motion_model,
 	imt,
-	pe_sites,
-	pe_threshold,
-	ne_sites=None,
-	ne_threshold=None,
+	pe_site_models,
+	pe_thresholds,
+	ne_site_models=[],
+	ne_thresholds=[],
 	truncation_level=3,
 	integration_distance=300,
+	strict_intersection=True,
 	apply_rupture_probability=False
 	):
 	"""
@@ -29,32 +30,36 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 	at sites of negative evidence
 
 	It is assumed that these 2 events are independent, in which case
-	the probability P(E1E2) = p(E1).p(E2). Note that each site is considered
-	separately, so the total number of events is equal to the number of
-	sites with positive evidence times the number of sites with negative
-	evidence.
+	the probability P(E1E2) = p(E1).p(E2). If :param:`strict_intersection`
+	is set to True, each site is considered separately, so the total number
+	of events is equal to the number of sites with positive evidence times
+	the number of sites with negative evidence.
 
 	The objective is to infer which rupture has the highest probability
-	of generating
+	of generating the observed distribution of sites with positive and
+	negative evidence.
 
 	:param source_model:
 		instance of :class:`rshalib.source.SourceModel`
+		Should contain either point or fault sources
 	:param ground_motion_model:
 		instance of :class:`rshalib.gsim.GroundMotionModel`
 	:param imt:
 		instance of :class:`openquake.hazardlib.imt.IMT`
-	:param pe_sites:
-		instance of :class:`rshalib.site.SoilSiteModel`, sites with
-		positive evidence
-	:param pe_threshold:
-		float, minimum ground-motion intensity for positive evidence
-	:param ne_sites:
-		instance of :class:`rshalib.site.SoilSiteModel`, sites with
-		negative evidence
-		(default: None)
-	:param ne_threshold:
-		float, maximum ground-motion intensity for negative evidence
-		(default: None)
+	:param pe_site_models:
+		list with instances of :class:`rshalib.site.SoilSiteModel`,
+		sites with positive evidence
+	:param pe_thresholds:
+		float list or array, minimum ground-motion intensity for each
+		positive evidence site model
+	:param ne_site_models:
+		list with instances of :class:`rshalib.site.SoilSiteModel`,
+		sites with negative evidence
+		(default: [])
+	:param ne_thresholds:
+		float list or array, maximum ground-motion intensity for each
+		negative evidence site model
+		(default: [])
 	:param truncation_level:
 		float, GMPE uncertainty truncation level
 		(default: 3)
@@ -62,6 +67,11 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 		float, integration distance in km
 		Not taken into account yet!
 		(default: 300)
+	:param strict_intersection:
+		bool, whether or not strict intersection should be applied for
+		all sites in :param:`pe_sites` or :param:`ne_sites`. If False,
+		the average probability in each will be used.
+		(default: True)
 	:param apply_rupture_probability:
 		bool, whether or not to multiply probabilities of (non-)exceedance
 		with the rupture probability
@@ -71,9 +81,6 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 		dictionary mapping source IDs to lists of probabilities for each
 		rupture in the source
 	"""
-	# use area sources or polygons or SiteCollection for pe_area, ne_area
-	# or add from_polygon method to SiteCollection?
-
 	prob_dict = {}
 
 	for src in source_model:
@@ -82,19 +89,27 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 		gsim_name = ground_motion_model[trt]
 		gsim = oqhazlib.gsim.get_available_gsims()[gsim_name]()
 		tom = oqhazlib.tom.PoissonTOM(1)
-		for rupture in src.iter_ruptures(tom):
-			sctx, rctx, dctx = gsim.make_contexts(pe_sites, rupture)
-			pe_poes = gsim.get_poes(sctx, rctx, dctx, imt, pe_threshold, truncation_level)
-			pe_poes = pe_poes[0]
-			pe_prob = np.prod(pe_poes)
 
-			if not None in (ne_sites, ne_threshold):
-				sctx, rctx, dctx = gsim.make_contexts(ne_sites, rupture)
+		for rupture in src.iter_ruptures(tom):
+			pe_prob = 1
+			for (pe_threshold, pe_site_model) in zip(pe_thresholds, pe_site_models):
+				sctx, rctx, dctx = gsim.make_contexts(pe_site_model, rupture)
+				pe_poes = gsim.get_poes(sctx, rctx, dctx, imt, pe_threshold, truncation_level)
+				pe_poes = pe_poes[:,0]
+				if strict_intersection:
+					pe_prob *= np.prod(pe_poes)
+				else:
+					pe_prob *= np.mean(pe_poes)
+
+			ne_prob = 1
+			for (ne_threshold, ne_site_model) in zip(ne_thresholds, ne_site_models):
+				sctx, rctx, dctx = gsim.make_contexts(ne_site_model, rupture)
 				ne_poes = gsim.get_poes(sctx, rctx, dctx, imt, ne_threshold, truncation_level)
-				ne_poes = ne_poes[0]
-				ne_prob = np.prod(1 - ne_poes)
-			else:
-				ne_prob = 1
+				ne_poes = ne_poes[:,0]
+				if strict_intersection:
+					ne_prob = np.prod(1 - ne_poes)
+				else:
+					ne_prob = np.mean(1 - ne_poes)
 
 			total_prob = pe_prob * ne_prob
 			if apply_rupture_probability:
@@ -105,103 +120,3 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 
 	return prob_dict
 
-
-
-if __name__ == "__main__":
-	grid_outline = (-74, -72, -46, -44.5)
-	grid_spacing = 0.1
-
-	dM = 0.3
-	min_mag, max_mag = 5.0, 7.5
-	num_mags = int(round((max_mag - min_mag) / dM + 1))
-	mfd = rshalib.mfd.EvenlyDiscretizedMFD(min_mag + dM/2, dM, np.ones(num_mags)/float(num_mags))
-	magnitudes = mfd.get_center_magnitudes()
-	print magnitudes
-
-	trt = "ASC"
-	strike, dip, rake = 20, 90, 180
-	nopl = rshalib.geo.NodalPlane(strike, dip, rake)
-	npd = rshalib.pmf.NodalPlaneDistribution([nopl], [1])
-	depth = 5
-	hdd = rshalib.pmf.HypocentralDepthDistribution([depth], [1])
-	usd = 0
-	lsd = 20
-	rar = 1
-	msr = oqhazlib.scalerel.wc1994.WC1994()
-	rms = 2.5
-
-	lons = np.arange(grid_outline[0], grid_outline[1] + grid_spacing, grid_spacing)
-	lats = np.arange(grid_outline[2], grid_outline[3] + grid_spacing, grid_spacing)
-	sources = []
-	i = 0
-	for lon in lons:
-		for lat in lats:
-			point = rshalib.geo.Point(lon, lat)
-			name = "%.2f, %.2f" % (lon, lat)
-			source = rshalib.source.PointSource(i, name, trt, mfd, rms, msr, rar,
-												usd, lsd, point, npd, hdd)
-			sources.append(source)
-			i += 1
-	source_model = rshalib.source.SourceModel("Point source model", sources)
-
-	#ipe_name = "AtkinsonWald2007"
-	ipe_name = "BakunWentworth1997"
-	trt_gsim_dict = {trt: ipe_name}
-	ground_motion_model = rshalib.gsim.GroundMotionModel(ipe_name, trt_gsim_dict)
-
-	imt = oqhazlib.imt.MMI()
-
-	soil_params = rshalib.site.REF_SOIL_PARAMS
-
-	pe_site = rshalib.site.SoilSite(-73, -45.4, soil_params=soil_params)
-	pe_sites = rshalib.site.SoilSiteModel("Positive evidence", [pe_site])
-	pe_threshold = 7.5
-
-	ne_site = rshalib.site.SoilSite(-73.2, -45.3, soil_params=soil_params)
-	ne_sites = rshalib.site.SoilSiteModel("Negative evidence", [ne_site])
-	ne_threshold = 7.0
-
-	truncation_level = 2
-
-	prob_dict = calc_rupture_probability_from_ground_motion_thresholds(
-						source_model, ground_motion_model, imt, pe_sites,
-						pe_threshold, ne_sites, ne_threshold, truncation_level)
-
-	x, y = [], []
-	values = {'mag': [], 'prob': []}
-	for source_id, probs in prob_dict.items():
-		source = sources[source_id]
-		idx = probs.argmax()
-		prob_max = probs[idx]
-		if prob_max > 0:
-			values['prob'].append(prob_max)
-			values['mag'].append(magnitudes[idx])
-			x.append(source.location.longitude)
-			y.append(source.location.latitude)
-
-			print x[-1], y[-1], values['mag'][-1], prob_max
-
-	import matplotlib
-	import mapping.Basemap as lbm
-	layers = []
-
-	data = lbm.MultiPointData(x, y, values=values)
-	#colors = matplotlib.cm.jet(np.arange(num_mags))
-	#colors = ["purple", "blue", "green", "yellow", "orange", "red"]
-	#colors = "random_color"
-	#thematic_color = lbm.ThematicStyleGradient(magnitudes, colors, value_key='mag')
-	#thematic_size = lbm.ThematicStyleGradient([1E-3, 1E-2, 1E-1, 1], [1, 3, 6, 12], value_key='prob')
-	colorbar_style = lbm.ColorbarStyle()
-	#thematic_color = lbm.ThematicStyleGradient([1E-3, 1E-2, 1E-1, 1], "RdBu_r", value_key='prob', colorbar_style=colorbar_style)
-	thematic_color = lbm.ThematicStyleGradient([0.01, 0.05, 0.125, 0.25, 0.5, 1], "RdBu_r", value_key='prob', colorbar_style=colorbar_style)
-	edge_magnitudes = np.concatenate([mfd.get_magnitude_bin_edges(), [magnitudes[-1]+dM/2]])
-	thematic_size = lbm.ThematicStyleRanges(edge_magnitudes, (np.linspace(0.5, 4, num_mags))**2, value_key='mag', labels=magnitudes)
-	thematic_legend_style = lbm.LegendStyle()
-	style = lbm.PointStyle(fill_color=thematic_color, size=thematic_size, thematic_legend_style=thematic_legend_style)
-
-	layer = lbm.MapLayer(data, style)
-	layers.append(layer)
-
-	map = lbm.LayeredBasemap(layers, "", "merc", region=grid_outline,
-							graticule_interval=(1, 0.5))
-	map.plot()
