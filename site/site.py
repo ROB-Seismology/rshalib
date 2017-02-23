@@ -256,6 +256,33 @@ class SHASiteModel(nhlib.geo.Mesh):
 			self.lons = grid[:,:,0]
 			self.lats = grid[:,:,1]
 
+	@classmethod
+	def from_grid_spec(cls, grid_outline, grid_spacing):
+		pass
+
+	@classmethod
+	def from_polygon(cls, polygon, spacing, depth=None):
+		"""
+		Construct SHA site model from polygon.
+
+		:param polygon:
+			instance of :class:`oqhazlib.geo.polygon.Polygon`
+		:param spacing:
+			float, spacing in km for discretizing polygonµ
+		:param depth:
+			float, depth in km
+			(default: None)
+
+		:return:
+			instance of :class:`SHASiteModel`
+		"""
+		mesh = polygon.discretize(spacing)
+		if depth:
+			depths = [depth] * len(mesh)
+		else:
+			depths = None
+		return cls(lons=mesh.lons, lats=mesh.lats, depths=depths)
+
 	@property
 	def region(self):
 		"""
@@ -382,7 +409,8 @@ class SHASiteModel(nhlib.geo.Mesh):
 		:return:
 			instance of SoilSiteModel
 		"""
-		return SoilSiteModel(name, [site.to_soil_site(ref_soil_params) for site in self.get_sites()])
+		soil_sites = [site.to_soil_site(ref_soil_params) for site in self.get_sites()]
+		return SoilSiteModel(name, soil_sites)
 
 	def plot(self):
 		"""
@@ -506,6 +534,30 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 			(lonmin, lonmax, latmin, latmax) tuple
 		"""
 		return (self.lons.min(), self.lons.max(), self.lats.min(), self.lats.max())
+
+	@classmethod
+	def from_polygon(cls, polygon, spacing, soil_params=REF_SOIL_PARAMS,
+					depth=None, name=""):
+		"""
+		:param polygon:
+			instance of :class:`oqhazlib.geo.polygon.Polygon`
+		:param spacing:
+			float, spacing in km for discretizing polygonµ
+		:param soil_params:
+			dict, containing soil parameters (vs30, vs30measured, z1pt0, z2pt5, and kappa)
+			(default: REF_SOIL_PARAMS)
+		:param depth:
+			float, depth in km
+			(default: None)
+		:param name:
+			str, name of soil site model
+			(default: "")
+
+		:return:
+			instance of :class:`SoilSiteModel`
+		"""
+		sha_site_model = SHASiteModel.from_polygon(polygon, spacing, depth=depth)
+		return sha_site_model.to_soil_site_model(name=name, ref_soil_params=soil_params)
 
 	def get_sites(self):
 		"""
