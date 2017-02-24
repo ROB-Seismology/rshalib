@@ -107,9 +107,9 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 				ne_poes = gsim.get_poes(sctx, rctx, dctx, imt, ne_threshold, truncation_level)
 				ne_poes = ne_poes[:,0]
 				if strict_intersection:
-					ne_prob = np.prod(1 - ne_poes)
+					ne_prob *= np.prod(1 - ne_poes)
 				else:
-					ne_prob = np.mean(1 - ne_poes)
+					ne_prob *= np.mean(1 - ne_poes)
 
 			total_prob = pe_prob * ne_prob
 			if apply_rupture_probability:
