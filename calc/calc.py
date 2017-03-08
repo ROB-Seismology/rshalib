@@ -95,7 +95,13 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 			for (pe_threshold, pe_site_model) in zip(pe_thresholds, pe_site_models):
 				sctx, rctx, dctx = gsim.make_contexts(pe_site_model, rupture)
 				pe_poes = gsim.get_poes(sctx, rctx, dctx, imt, pe_threshold, truncation_level)
+				from openquake.hazardlib import const
+				#mean, stddevs = gsim.get_mean_and_stddevs(sctx, rctx, dctx, imt, [const.StdDev.TOTAL])
+				#print mean
+				#print stddevs
+				#print pe_poes.shape
 				pe_poes = pe_poes[:,0]
+				#print pe_poes
 				if strict_intersection:
 					pe_prob *= np.prod(pe_poes)
 				else:
@@ -111,6 +117,7 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 				else:
 					ne_prob *= np.mean(1 - ne_poes)
 
+			#print pe_prob, ne_prob
 			total_prob = pe_prob * ne_prob
 			if apply_rupture_probability:
 				total_prob *= rupture.get_probability_one_or_more_occurrences()
