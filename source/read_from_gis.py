@@ -866,7 +866,6 @@ def import_simple_fault_source_from_gis_record(
 						max_mag=max_mag, mfd_bin_width=mfd_bin_width,
 						a_val=a_val, b_val=b_val, a_sigma=a_sigma, b_sigma=b_sigma)
 			except ValueError:
-				pass
 				mfd = None
 
 		if not mfd:

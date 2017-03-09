@@ -16,7 +16,8 @@ from openquake.hazardlib.scalerel import WC1994
 from ..nrml import ns
 from ..nrml.common import *
 from ..mfd import *
-from source import PointSource, AreaSource, SimpleFaultSource, ComplexFaultSource
+from source import (PointSource, AreaSource, SimpleFaultSource, ComplexFaultSource,
+					CharacteristicFaultSource)
 
 import jsonpickle
 import base64, zlib
@@ -337,7 +338,7 @@ class SourceModel():
 		return [source for source in self.sources if isinstance(source, ComplexFaultSource)]
 
 	def get_fault_sources(self):
-		return [source for source in self.sources if isinstance(source, (SimpleFaultSource, ComplexFaultSource))]
+		return [source for source in self.sources if isinstance(source, (SimpleFaultSource, ComplexFaultSource, CharacteristicFaultSource))]
 
 	def set_fault_MFDs_from_BG_zones(self):
 		"""
