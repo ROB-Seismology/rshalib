@@ -4711,7 +4711,7 @@ class HazardMap(HazardResult, HazardField):
 		if coastline_style == "default":
 			coastline_style = lbm.LineStyle(line_width=2, line_color="w")
 		if contour_line_style == "default":
-			contour_label_style = lbm.TextStyle(font_size=10)
+			contour_label_style = lbm.TextStyle(font_size=10, background_color=(1,1,1,0.5))
 			contour_line_style = lbm.LineStyle(label_style=contour_label_style)
 
 		## Prepare intensity grid and contour levels
