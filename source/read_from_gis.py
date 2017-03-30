@@ -941,6 +941,8 @@ def import_source_from_gis_record(
 	elif obj_type in "LINESTRING":
 		default_column_map = default_simple_fault_source_column_map
 		func = import_simple_fault_source_from_gis_record
+	else:
+		print("Warning: %s geometry not supported!" % obj_type)
 
 	if column_map is None:
 		column_map = default_column_map.copy()
