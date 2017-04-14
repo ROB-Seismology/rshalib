@@ -19,7 +19,7 @@ class PoissonTau:
 		return (1. / self.tau) * np.exp(-t / self.tau)
 
 	@property
-	def labmda(self):
+	def lamda(self):
 		return 1. / self.tau
 
 	@classmethod
