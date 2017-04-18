@@ -1034,6 +1034,17 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 
 		return sfs_elem
 
+	def print_report(self):
+		print("Fault source %s - %s" % (self.source_id, self.name))
+		print("Strike/dip/rake: %.1f/%.1f/%.1f" % (self.get_mean_strike(), self.dip, self.rake))
+		print("Upper/Lower depth: %.1f/%.1f km" % (self.upper_seismogenic_depth, self.lower_seismogenic_depth))
+		print("Length/width: %.1f/%.1f km" % (self.get_length(), self.get_width()))
+		print("Area: %.1f km2" % (self.get_area()))
+		if isinstance(self.mfd, CharacteristicMFD):
+			print("Mchar: %.1f" % self.mfd.char_mag)
+		else:
+			print("Mmax: %.1f" % self.max_mag)
+
 	@property
 	def min_mag(self):
 		"""

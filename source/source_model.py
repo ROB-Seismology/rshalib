@@ -566,6 +566,148 @@ class SourceModel():
 		mfd_list = [src.mfd for src in self.get_area_sources()]
 		return sum_MFDs(mfd_list)
 
+	def get_plot(self, region=None, projection="merc", resolution="i", graticule_interval=(1., 1.),
+				point_source_style="default", area_source_style="default",
+				fault_source_style="default", countries_style="default",
+				coastline_style="default", label_style="default",
+				title=None, ax=None, **kwargs):
+		"""
+		Plot hazard map
+
+		:param region:
+			(west, east, south, north) tuple specifying rectangular region
+			to plot in geographic coordinates
+			(default: None)
+		:param projection:
+			string, map projection. See Basemap documentation
+			(default: "merc")
+		:param resolution:
+			char, resolution of builtin shorelines / country borders:
+			'c' (crude), 'l' (low), 'i' (intermediate), 'h' (high), 'f' (full)
+			(default: 'i')
+		:param graticule_interval:
+			(dlon, dlat) tuple of floats, spacing of grid lines (meridians,
+			parallels) to draw over the map
+			(default: (1., 1.)
+		:param point_source_style:
+			instance of :class:`LayeredBasemap.PointStyle`, defining
+			style for plotting point sources
+			(default: "default")
+		:param area_source_style:
+			instance of :class:`LayeredBasemap.PolygonStyle`, defining
+			style for plotting area sources
+			(default: "default")
+		:param fault_source_style:
+			instance of :class:`LayeredBasemap.LineStyle`, defining
+			style for plotting fault sources
+			(default: "default")
+		:param countries_style:
+			instance of :class:`LayeredBasemap.LineStyle`, defining
+			style for plotting country borders
+			(default: "default")
+		:param coastline_style:
+			instance of :class:`LayeredBasemap.LineStyle`, defining
+			style for plotting coastlines
+			(default: "default")
+		:param label_style:
+			instance of :class:`LayeredBasemap.TextStyle`, defining
+			style for plotting source labels
+			(default: "default")
+		:param title:
+			str, map title. If empty string, no title will be plotted.
+			If None, default title will be used
+			(default: None)
+		:param ax:
+			matplotlib Axes instance
+			(default: None)
+		:param kwargs:
+			additional keyword arguments to be passed to LayeredBasemap
+			constructor
+
+		:return:
+			instance of :class:`LayeredBasemap.LayeredBasemap`, where
+			additional layers may be added before final plotting.
+		"""
+		import mapping.Basemap as lbm
+
+		## Construct default styles:
+		if label_style == "default":
+			label_style = lbm.TextStyle(color='k', font_size=8, font_weight="bold",
+					horizontal_alignment="center", vertical_alignment="center")
+		if point_source_style == "default":
+			point_source_style = lbm.PointStyle(shape='*', fill_color='yellow')
+			point_source_style.label_style = label_style
+		if area_source_style == "default":
+			area_source_style = lbm.PolygonStyle(line_width=2, fill_color="none")
+			area_source_style.label_style = label_style
+		if fault_source_style == "default":
+			fault_source_style = lbm.LineStyle(line_width=3, line_color='purple')
+			fault_source_style.label_style = label_style
+		source_model_style = lbm.CompositeStyle(line_style=fault_source_style,
+											polygon_style=area_source_style,
+											point_style=point_source_style)
+		if countries_style == "default":
+			countries_style = lbm.LineStyle(line_width=2, line_color="w")
+		if coastline_style == "default":
+			coastline_style = lbm.LineStyle(line_width=2, line_color="w")
+
+		## Compute map limits
+		if not region:
+			region = self.get_bounding_box()
+
+		map_layers = []
+
+		## Coastlines and national boundaries
+		if coastline_style:
+			map_layers.append(lbm.MapLayer(lbm.BuiltinData("coastlines"), coastline_style, name="coastlines"))
+		if countries_style:
+			map_layers.append(lbm.MapLayer(lbm.BuiltinData("countries"), countries_style, name="countries"))
+
+		## Source model
+		legend_label = {}
+		#legend_label["polygons"] = "Area sources"
+		#legend_label["lines"] = "Fault sources"
+		#legend_label["points"] = "Point sources"
+
+		# TODO: add ComplexFaultSource
+		# TODO: how to handle CharacteristicSource (doesn't have get_polygon method)?
+		polygon_data = lbm.MultiPolygonData([], [])
+		line_data = lbm.MultiLineData([], [])
+		point_data = lbm.MultiPointData([], [])
+		for source in self.sources:
+			if isinstance(source, AreaSource):
+				polygon_data.append(lbm.PolygonData(source.longitudes, source.latitudes, label=source.source_id))
+				if not legend_label.has_key("polygons"):
+					legend_label["polygons"] = "Area sources"
+			elif isinstance(source, (SimpleFaultSource, CharacteristicFaultSource)):
+				pg = source.get_polygon()
+				polygon_data.append(lbm.PolygonData(pg.lons, pg.lats))
+				fault_trace = source.fault_trace
+				line_data.append(lbm.LineData(fault_trace.lons, fault_trace.lats, label=source.source_id))
+				if not legend_label.has_key("lines"):
+					legend_label["lines"] = "Fault sources"
+			elif isinstance(source, PointSource):
+				point_data.append(lbm.PointData(source.location.longitude, source.location.latitude, label=source.source_id))
+				if not legend_label.has_key("points"):
+					legend_label["points"] = "Point sources"
+			else:
+				print("Warning: Skipped plotting source %s, source type not supported" % source.source_id)
+		sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data,
+									points=point_data)
+		sm_style = source_model_style
+		map_layers.append(lbm.MapLayer(sm_data, sm_style, legend_label=legend_label, name="source_model"))
+
+		## Title
+		if title is None:
+			title = self.name
+
+		legend_style = lbm.LegendStyle(location=0)
+		graticule_style = lbm.GraticuleStyle(annot_axes="SE")
+		map = lbm.LayeredBasemap(map_layers, title, projection, region=region, graticule_interval=graticule_interval, resolution=resolution, graticule_style=graticule_style, legend_style=legend_style, ax=ax, **kwargs)
+		return map
+
+
+
 
 
 if __name__ == '__main__':
