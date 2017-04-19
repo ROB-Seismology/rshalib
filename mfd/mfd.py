@@ -1802,8 +1802,9 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 	ax.set_ylabel(label, fontsize="x-large")
 	ax.set_title(title, fontsize='x-large')
 	ax.grid(True)
-	font = FontProperties(size='medium')
-	ax.legend(loc=legend_location, prop=font)
+	if labels:
+		font = FontProperties(size='medium')
+		ax.legend(loc=legend_location, prop=font)
 	for label in ax.get_xticklabels() + ax.get_yticklabels():
 		label.set_size('large')
 
