@@ -32,13 +32,15 @@ common_source_params = [
 	'b_val',
 	'mfd_bin_width',
 	'min_mag',
-	'max_mag']
+	'max_mag',
+	'max_mag_distribution']
 
 point_source_params = common_source_params + [
 	'min_strike',
 	'max_strike',
 	'strike_delta',
 	'dip_delta',
+	'strike_dip_distribution',
 	'Nf',
 	'Tf',
 	'Ss',
@@ -480,37 +482,58 @@ def import_point_or_area_source_from_gis_record(
 
 	## Nodal plane distribution
 	if not nodal_plane_distribution:
-		## Strike
-		if min_strike is None:
-			min_strike = import_param(source_rec, column_map, 'min_strike', float)
-		if max_strike is None:
-			max_strike = import_param(source_rec, column_map, 'max_strike', float)
-		if strike_delta is None:
-			strike_delta = import_param(source_rec, column_map, 'strike_delta', float)
-		# TODO: This may fail when e.g., min_strike=355 and max_strike=5
-		if min_strike > max_strike:
-			min_strike, max_strike = max_strike, min_strike
-		if min_strike == 0. and max_strike == 360.:
-			max_strike -= strike_delta
-		## If min_strike and max_strike are 180 degrees apart, assume they correspond
-		## to real fault directions, and allow only these values
-		if max_strike - min_strike == 180.:
-			strike_delta = 180.
-		strikes, strike_weights = get_uniform_distribution(min_strike, max_strike, strike_delta)
+		## Strike and dip combined (SHARE...)
+		if 'strike_dip_distribution' in column_map:
+			strike_dips, strike_dip_weights = [], []
+			for strike_col, dip_col, weight_col in column_map['strike_dip_distribution']:
+				strike = int(source_rec.get(strike_col, 0))
+				dip = int(source_rec.get(dip_col, 90))
+				weight = float(source_rec.get(weight_col, 0))
+				if weight != 0:
+					strike_dips.append((strike, dip))
+					strike_dip_weights.append(Decimal(weight))
+			if not strike_dips or strike_dips == [(0, 0)]:
+				strike_dips = [(0, 90)]
+				strike_dip_weights = [Decimal(1)]
 
-		## Dip
-		if min_dip is None:
-			min_dip = import_param(source_rec, column_map, 'min_dip', float)
-		if max_dip is None:
-			max_dip = import_param(source_rec, column_map, 'max_dip', float)
-		if dip_delta is None:
-			dip_delta = import_param(source_rec, column_map, 'dip_delta', float)
-		## oq-hazardlib doesn't like zero dips
-		min_dip = max(min_dip, 1E-6)
-		max_dip = max(max_dip, 1E-6)
-		if min_dip > max_dip:
-			min_dip, max_dip = max_dip, min_dip
-		dips, dip_weights = get_uniform_distribution(min_dip, max_dip, dip_delta)
+		else:
+			## Strike
+			if min_strike is None:
+				min_strike = import_param(source_rec, column_map, 'min_strike', float)
+			if max_strike is None:
+				max_strike = import_param(source_rec, column_map, 'max_strike', float)
+			if strike_delta is None:
+				strike_delta = import_param(source_rec, column_map, 'strike_delta', float)
+			# TODO: This may fail when e.g., min_strike=355 and max_strike=5
+			if min_strike > max_strike:
+				min_strike, max_strike = max_strike, min_strike
+			if min_strike == 0. and max_strike == 360.:
+				max_strike -= strike_delta
+			## If min_strike and max_strike are 180 degrees apart, assume they correspond
+			## to real fault directions, and allow only these values
+			if max_strike - min_strike == 180.:
+				strike_delta = 180.
+			strikes, strike_weights = get_uniform_distribution(min_strike, max_strike, strike_delta)
+
+			## Dip
+			if min_dip is None:
+				min_dip = import_param(source_rec, column_map, 'min_dip', float)
+			if max_dip is None:
+				max_dip = import_param(source_rec, column_map, 'max_dip', float)
+			if dip_delta is None:
+				dip_delta = import_param(source_rec, column_map, 'dip_delta', float)
+			## oq-hazardlib doesn't like zero dips
+			min_dip = max(min_dip, 1E-6)
+			max_dip = max(max_dip, 1E-6)
+			if min_dip > max_dip:
+				min_dip, max_dip = max_dip, min_dip
+			dips, dip_weights = get_uniform_distribution(min_dip, max_dip, dip_delta)
+
+			strike_dips, strike_dip_weights = [], []
+			for strike, strike_weight in zip(strikes, strike_weights):
+				for dip, dip_weight in zip(dips, dip_weights):
+					strike_dips.append((strike, dip))
+					strike_dip_weights.append(strike_weight * dip_weight)
 
 		## Rake
 		if Ss is None:
@@ -523,13 +546,15 @@ def import_point_or_area_source_from_gis_record(
 		rakes = np.array([0, -90, 90])[rake_weights > 0]
 		rake_weights = rake_weights[rake_weights > 0]
 
-		## NPD
+		## Construct NPD
 		nodal_planes, np_weights = [], []
-		for strike, strike_weight in zip(strikes, strike_weights):
-			for dip, dip_weight in zip(dips, dip_weights):
+		#for strike, strike_weight in zip(strikes, strike_weights):
+		#	for dip, dip_weight in zip(dips, dip_weights):
+		for (strike, dip), strike_dip_weight in zip(strike_dips, strike_dip_weights):
 				for rake, rake_weight in zip(rakes, rake_weights):
 					nodal_planes.append(NodalPlane(strike, dip, rake))
-					np_weights.append(strike_weight * rake_weight * dip_weight)
+					#np_weights.append(strike_weight * dip_weight * rake_weight)
+					np_weights.append(strike_dip_weight * rake_weight)
 		np_weights = adjust_decimal_weights(np_weights)
 
 		nodal_plane_distribution = NodalPlaneDistribution(nodal_planes, np_weights)
@@ -553,7 +578,6 @@ def import_point_or_area_source_from_gis_record(
 			min_hypo_depth = max(min_hypo_depth, upper_seismogenic_depth)
 			if max_hypo_depth is None:
 				max_hypo_depth = import_param(source_rec, column_map, 'max_hypo_depth', float)
-
 			max_hypo_depth = min(max_hypo_depth, lower_seismogenic_depth)
 
 			if hypo_bin_width is None:
@@ -614,6 +638,20 @@ def import_point_or_area_source_from_gis_record(
 						a_val=a_val, b_val=b_val, a_sigma=a_sigma, b_sigma=b_sigma)
 			except ValueError:
 				pass
+
+			## Override max_mag with mean from max_mag_distribution (SHARE...)
+			## Other option could be to sum weighted MFDs with different Mmax to incremental MFD
+			if 'max_mag_distribution' in column_map:
+				max_mags, weights = [], []
+				for max_mag_col, weight_col in column_map['max_mag_distribution']:
+					max_mag = float(source_rec.get(max_mag_col, 0))
+					weight = float(source_rec.get(weight_col, 0))
+					if weight != 0:
+						max_mags.append(max_mag)
+						weights.append(weight)
+				if max_mags:
+					max_mag_dist = MmaxPMF(max_mags, weights)
+					mfd.max_mag = max_mag_dist.get_mean()
 
 		if not mfd:
 			try:
