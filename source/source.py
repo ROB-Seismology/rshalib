@@ -807,7 +807,7 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 		Compute area of source in square km
 
 		:return:
-			Float, fault source in square km
+			Float, source area in square km
 		"""
 		import osr
 		from mapping.geo.coordtrans import wgs84, get_utm_spec, get_utm_srs
