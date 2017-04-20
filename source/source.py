@@ -982,6 +982,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 	"""
 	# TODO: SlipratePMF
 	# TODO: add aseismic_coef and strain_drop parameters (see get_MFD_Anderson_Luco method)
+	# TODO: add char_mag property, to make distinction with max_mag !!!
 	def __init__(self, source_id, name, tectonic_region_type, mfd, rupture_mesh_spacing, magnitude_scaling_relationship, rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth, fault_trace, dip, rake, slip_rate=numpy.NaN, bg_zone=None):
 		if isinstance(magnitude_scaling_relationship, (str, unicode)):
 			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)()
@@ -1256,8 +1257,11 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		if bin_width is None:
 			bin_width = self.mfd.bin_width
 
-		#char_mag = self.max_mag - bin_width
-		char_mag = self.max_mag + bin_width/2.
+		try:
+			char_mag = self.mfd.char_mag
+		except AttributeError:
+			#char_mag = self.max_mag - bin_width
+			char_mag = self.max_mag + bin_width/2.
 		return_period = self.get_Mmax_return_period()
 		MFD = CharacteristicMFD(char_mag, return_period, bin_width, M_sigma=M_sigma, num_sigma=num_sigma)
 		return MFD
@@ -1301,8 +1305,11 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		if min_mag is None:
 			min_mag = self.mfd.get_min_mag_edge()
 		if max_mag is None:
-			#max_mag = self.mfd.max_mag - bin_width / 2.
-			max_mag = self.mfd.max_mag
+			try:
+				max_mag = self.mfd.char_mag
+			except AttributeError:
+				#max_mag = self.mfd.max_mag - bin_width / 2.
+				max_mag = self.mfd.max_mag
 		if not strain_drop and not arbitrary_surface:
 			strain_drop = self.get_Mmax_strain_drop()
 		## For seismic moment in units of dyn-cm
@@ -1363,8 +1370,13 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			bin_width = self.mfd.bin_width
 		if min_mag is None:
 			min_mag = self.mfd.get_min_mag_center()
-		char_mag = self.max_mag
-		char_rate = 1. / self.get_Mmax_return_period()
+		try:
+			char_mag = self.mfd.char_mag
+		except AttributeError:
+			char_mag = self.max_mag
+			char_rate = 1. / self.get_Mmax_return_period()
+		else:
+			char_rate = 1. / self.mfd.char_return_period
 		MFD = YoungsCoppersmith1985MFD.from_characteristic_rate(min_mag, b_val, char_mag, char_rate, bin_width)
 		return MFD
 
