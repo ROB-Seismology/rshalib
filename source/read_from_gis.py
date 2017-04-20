@@ -619,6 +619,20 @@ def import_point_or_area_source_from_gis_record(
 			nodal_plane_distribution, hypocentral_distribution, polygon,
 			area_discretization)
 
+	## Override max_mag with mean from max_mag_distribution (SHARE...)
+	## Other option could be to sum weighted MFDs with different Mmax to incremental MFD
+	if 'max_mag_distribution' in column_map:
+		max_mags, weights = [], []
+		for max_mag_col, weight_col in column_map['max_mag_distribution']:
+			max_mag = float(source_rec.get(max_mag_col, 0))
+			weight = float(source_rec.get(weight_col, 0))
+			if weight != 0:
+				max_mags.append(max_mag)
+				weights.append(weight)
+		if max_mags:
+			max_mag_dist = MmaxPMF(max_mags, weights)
+			max_mag = max_mag_dist.get_mean()
+
 	## MFD
 	if not mfd:
 		if catalog is not None:
@@ -638,20 +652,6 @@ def import_point_or_area_source_from_gis_record(
 						a_val=a_val, b_val=b_val, a_sigma=a_sigma, b_sigma=b_sigma)
 			except ValueError:
 				pass
-
-			## Override max_mag with mean from max_mag_distribution (SHARE...)
-			## Other option could be to sum weighted MFDs with different Mmax to incremental MFD
-			if 'max_mag_distribution' in column_map:
-				max_mags, weights = [], []
-				for max_mag_col, weight_col in column_map['max_mag_distribution']:
-					max_mag = float(source_rec.get(max_mag_col, 0))
-					weight = float(source_rec.get(weight_col, 0))
-					if weight != 0:
-						max_mags.append(max_mag)
-						weights.append(weight)
-				if max_mags:
-					max_mag_dist = MmaxPMF(max_mags, weights)
-					mfd.max_mag = max_mag_dist.get_mean()
 
 		if not mfd:
 			try:
@@ -886,6 +886,19 @@ def import_simple_fault_source_from_gis_record(
 		dummy_mfd, rupture_mesh_spacing, magnitude_scaling_relationship,
 		rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth,
 		fault_trace, dip, rake, slip_rate, bg_zone)
+
+	## Override max_mag if there is a distribution (SHARE...)
+	if 'max_mag_distribution' in column_map:
+		max_mags, weights = [], []
+		for max_mag_col, weight_col in column_map['max_mag_distribution']:
+			max_mag = float(source_rec.get(max_mag_col, 0))
+			weight = float(source_rec.get(weight_col, 0))
+			if weight != 0:
+				max_mags.append(max_mag)
+				weights.append(weight)
+		if max_mags:
+			max_mag_dist = MmaxPMF(max_mags, weights)
+			max_mag = max_mag_dist.get_mean()
 
 	## MFD
 	if not mfd:
