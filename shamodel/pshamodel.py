@@ -1682,7 +1682,9 @@ class PSHAModel(PSHAModelBase):
 		## Raise exception if model contains sites with different
 		## vs30 and/or kappa
 		if self.soil_site_model:
-			if len(set(self.soil_site_model.vs30)) > 1 or len(set(self.soil_site_model.kappa)) > 1:
+			if (len(set(self.soil_site_model.vs30)) > 1
+				or (not np.isnan(self.soil_site_model.kappa).all() and
+				len(set(self.soil_site_model.kappa)) > 1)):
 				raise Exception("CRISIS2007 does not support sites with different VS30 and/or kappa!")
 
 		if not os.path.exists(self.crisis_root_folder):
