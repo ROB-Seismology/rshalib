@@ -685,8 +685,7 @@ def import_simple_fault_source_from_gis_record(
 	max_dip=None,
 	min_rake=None,
 	max_rake=None,
-	min_slip_rate=None,
-	max_slip_rate=None,
+	slip_rate=None,
 	mfd=None,
 	min_mag=4.0,
 	max_mag=None,
@@ -746,13 +745,8 @@ def import_simple_fault_source_from_gis_record(
 		float, maximum rake in degrees
 		Note that average rake will be computed with :param:`min_rake`
 		(default: None)
-	:param min_slip_rate:
-		float, minimum slip rate in mm/yr
-		Note that average slip rate will be computed with :param:`max_slip_rate`
-		(default: None)
-	:param max_slip_rate:
-		float, maximum slip rate in mm/yr
-		Note that average slip rate will be computed with :param:`min_slip_rate`
+	:param slip_rate:
+		float, slip rate in mm/yr
 		(default: None)
 	:param mfd:
 		instance of :class:`oqhazlib.mfd.base.BaseMFD`, magnitude-frequency
@@ -803,6 +797,8 @@ def import_simple_fault_source_from_gis_record(
 	:return:
 		instance of :class:`SimpleFaultSource`
 	"""
+	# TODO: add slip_rate_distribution parameter?
+
 	## ID and name
 	source_id = import_param(source_rec, column_map, 'id', str, encoding=encoding)
 	name = import_param(source_rec, column_map, 'name', str, encoding=encoding)
@@ -862,7 +858,6 @@ def import_simple_fault_source_from_gis_record(
 			rake -= 360.
 
 	## Slip rate
-	slip_rate = None
 	if 'slip_rate_distribution' in column_map:
 		slip_rates, weights = [], []
 		for slip_rate_col, weight_col in column_map['slip_rate_distribution']:
