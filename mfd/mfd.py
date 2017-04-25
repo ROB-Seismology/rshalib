@@ -521,6 +521,24 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		else:
 			raise Exception("Magnitudes must not overlap with MFD magnitude range. Sum MFD's instead")
 
+	def modify_set_bin_width(self, bin_width):
+		"""
+		Modify bin width in place
+
+		:param bin_width:
+			float, new magnitude bin width
+		"""
+		from ..utils import interpolate
+
+		edge_mags = self.get_magnitude_bin_edges()
+		rebinned_edge_mags = np.arange(edge_mags[0], edge_mags[-1] + self.bin_width/2, bin_width)
+		rebinned_cum_rates = interpolate(edge_mags, self.get_cumulative_rates(), rebinned_edge_mags)
+		rebinned_occurrence_rates = np.diff(rebinned_cum_rates[::-1])[::-1]
+		rebinned_occurrence_rates = np.concatenate([rebinned_occurrence_rates, rebinned_cum_rates[-1:]])
+		self.min_mag = rebinned_edge_mags[0] + bin_width/2
+		self.bin_width = bin_width
+		self.modify_set_occurrence_rates(rebinned_occurrence_rates)
+
 	def append_characteristic_eq(self, Mc, return_period):
 		"""
 		Append magnitude-frequency of a characteristic earthquake
