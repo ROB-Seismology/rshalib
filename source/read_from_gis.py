@@ -55,8 +55,8 @@ area_source_params = point_source_params + [
 simple_fault_source_params = common_source_params + [
 	'min_rake',
 	'max_rake',
-	'min_slip_rate',
-	'max_slip_rate',
+	'slip_rate_distribution',
+	'slip_rate',
 	'bg_zone']
 
 
@@ -488,7 +488,7 @@ def import_point_or_area_source_from_gis_record(
 			for strike_col, dip_col, weight_col in column_map['strike_dip_distribution']:
 				strike = int(source_rec.get(strike_col, 0))
 				dip = int(source_rec.get(dip_col, 90))
-				weight = float(source_rec.get(weight_col, 0))
+				weight = float(source_rec.get(weight_col, weight_col))
 				if weight != 0:
 					strike_dips.append((strike, dip))
 					strike_dip_weights.append(Decimal(weight))
@@ -565,7 +565,7 @@ def import_point_or_area_source_from_gis_record(
 			hypo_depths, weights = [], []
 			for depth_col, weight_col in column_map['hypo_distribution']:
 				depth = float(source_rec.get(depth_col, 0))
-				weight = float(source_rec.get(weight_col, 0))
+				weight = float(source_rec.get(weight_col, weight_col))
 				if weight != 0:
 					hypo_depths.append(depth)
 					weights.append(weight)
@@ -625,7 +625,7 @@ def import_point_or_area_source_from_gis_record(
 		max_mags, weights = [], []
 		for max_mag_col, weight_col in column_map['max_mag_distribution']:
 			max_mag = float(source_rec.get(max_mag_col, 0))
-			weight = float(source_rec.get(weight_col, 0))
+			weight = float(source_rec.get(weight_col, weight_col))
 			if weight != 0:
 				max_mags.append(max_mag)
 				weights.append(weight)
@@ -862,6 +862,24 @@ def import_simple_fault_source_from_gis_record(
 			rake -= 360.
 
 	## Slip rate
+	slip_rate = None
+	if 'slip_rate_distribution' in column_map:
+		slip_rates, weights = [], []
+		for slip_rate_col, weight_col in column_map['slip_rate_distribution']:
+			slip_rate = float(source_rec.get(slip_rate_col, 0))
+			weight = float(source_rec.get(weight_col, weight_col))
+			if weight != 0:
+				slip_rates.append(slip_rate)
+				weights.append(weight)
+		if slip_rates:
+			slip_rate_dist = NumericPMF.from_values_and_weights(slip_rates, weights)
+			slip_rate = slip_rate_dist.get_mean()
+	if slip_rate is None:
+		slip_rate = import_param(source_rec, column_map, 'slip_rate', float)
+	if slip_rate is None:
+		print("Warning: Slip rate not defined for source %s" % source_id)
+
+	"""
 	if min_slip_rate is None:
 		min_slip_rate = import_param(source_rec, column_map, 'min_slip_rate', float)
 	if max_slip_rate is None:
@@ -871,6 +889,7 @@ def import_simple_fault_source_from_gis_record(
 		slip_rate = None
 	else:
 		slip_rate = (min_slip_rate + max_slip_rate) / 2.
+	"""
 
 	## Background zone
 	if not bg_zone:
@@ -892,7 +911,7 @@ def import_simple_fault_source_from_gis_record(
 		max_mags, weights = [], []
 		for max_mag_col, weight_col in column_map['max_mag_distribution']:
 			max_mag = float(source_rec.get(max_mag_col, 0))
-			weight = float(source_rec.get(weight_col, 0))
+			weight = float(source_rec.get(weight_col, weight_col))
 			if weight != 0:
 				max_mags.append(max_mag)
 				weights.append(weight)

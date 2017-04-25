@@ -706,7 +706,47 @@ class SourceModel():
 		map = lbm.LayeredBasemap(map_layers, title, projection, region=region, graticule_interval=graticule_interval, resolution=resolution, graticule_style=graticule_style, legend_style=legend_style, ax=ax, **kwargs)
 		return map
 
+	@classmethod
+	def from_nrml_file(cls, nrml_filespec, rupture_mesh_spacing, area_discretization):
+		"""
+		Read source model from NRML file
 
+		:param nrml_filespec:
+			string, full path to NRML file describing source model
+		:param rupture_mesh_spacing:
+			float, the desired distance between two adjacent points in source's
+			ruptures' mesh, in km.
+		:param area_discretization:
+			float, polygon area discretization spacing in kilometers.
+
+		:return:
+			instance of :class:`SourceModel`
+		"""
+		from openquake.nrmllib.hazard.parsers import SourceModelParser
+		import openquake.engine.input.source as input
+
+		## Replace oqhazlib modules with rshalib modules
+		from .. import geo
+		from .. import mfd
+		from .. import pmf
+		from .. import source
+		input.geo = geo
+		input.mfd = mfd
+		input.pmf = pmf
+		input.source = source
+
+		## Parse NRML and create NRML model objects
+		parser = SourceModelParser(nrml_filespec)
+		src_model = parser.parse()
+
+		## Convert NRML model objects to rshalib objects
+		sources = []
+		for src_nrml in src_model:
+			src = input.nrml_to_hazardlib(src_nrml, rupture_mesh_spacing, None,
+										area_discretization)
+			sources.append(src)
+		description = "Imported from %s" % nrml_filespec
+		return cls(src_model.name, sources, description=description)
 
 
 
