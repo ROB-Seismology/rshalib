@@ -26,8 +26,7 @@ common_source_params = [
 	'magnitude_scaling_relationship',
 	'upper_seismogenic_depth',
 	'lower_seismogenic_depth',
-	'min_dip',
-	'max_dip',
+	'dip_distribution',
 	'a_val',
 	'b_val',
 	'mfd_bin_width',
@@ -36,10 +35,12 @@ common_source_params = [
 	'max_mag_distribution']
 
 point_source_params = common_source_params + [
+	'min_dip',
+	'max_dip',
+	'dip_delta',
 	'min_strike',
 	'max_strike',
 	'strike_delta',
-	'dip_delta',
 	'strike_dip_distribution',
 	'Nf',
 	'Tf',
@@ -53,10 +54,11 @@ area_source_params = point_source_params + [
 	'area_discretization']
 
 simple_fault_source_params = common_source_params + [
-	'min_rake',
-	'max_rake',
-	'slip_rate_distribution',
+	'dip',
+	'rake',
+	'rake_distribution',
 	'slip_rate',
+	'slip_rate_distribution',
 	'bg_zone']
 
 
@@ -103,6 +105,36 @@ def import_param(
 		else:
 			val = type(val)
 	return val
+
+
+def import_distribution(
+	source_rec,
+	column_map,
+	param_name):
+	"""
+	Read a distribution for a particular parameter from a GIS record
+
+	:param source_rec:
+		GIS record as returned by :func:`mapping.geo.readGIS`
+	:param column_map:
+		dict, mapping source parameter names to GIS columns or scalars
+	:param param_name:
+		str, name of parameter to read (must be key in :param:`column_map`)
+
+	:return:
+		instance of :class:`pmf.NumericPMF`
+	"""
+	dist = None
+	values, weights = [], []
+	for value_col, weight_col in column_map[param_name]:
+		value = float(source_rec.get(value_col, 0))
+		weight = float(source_rec.get(weight_col, weight_col))
+		if weight != 0:
+			values.append(value)
+			weights.append(weight)
+	if values:
+		dist = NumericPMF.from_values_and_weights(values, weights)
+	return dist
 
 
 def read_gr_mfd_params(
@@ -562,15 +594,10 @@ def import_point_or_area_source_from_gis_record(
 	## Hypocenter distribution
 	if not hypocentral_distribution:
 		if 'hypo_distribution' in column_map:
-			hypo_depths, weights = [], []
-			for depth_col, weight_col in column_map['hypo_distribution']:
-				depth = float(source_rec.get(depth_col, 0))
-				weight = float(source_rec.get(weight_col, weight_col))
-				if weight != 0:
-					hypo_depths.append(depth)
-					weights.append(weight)
-			if hypo_depths:
-				hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
+			hypo_dist = import_distribution(source_rec, column_map, 'hypo_distribution')
+			if hypo_dist:
+				hypocentral_distribution = HypocentralDepthDistribution(hypo_dist.values,
+																	hypo_dist.weights)
 
 		if not hypocentral_distribution:
 			if min_hypo_depth is None:
@@ -620,17 +647,10 @@ def import_point_or_area_source_from_gis_record(
 			area_discretization)
 
 	## Override max_mag with mean from max_mag_distribution (SHARE...)
-	## Other option could be to sum weighted MFDs with different Mmax to incremental MFD
+	max_mag_dist = None
 	if 'max_mag_distribution' in column_map:
-		max_mags, weights = [], []
-		for max_mag_col, weight_col in column_map['max_mag_distribution']:
-			max_mag = float(source_rec.get(max_mag_col, 0))
-			weight = float(source_rec.get(weight_col, weight_col))
-			if weight != 0:
-				max_mags.append(max_mag)
-				weights.append(weight)
-		if max_mags:
-			max_mag_dist = MmaxPMF(max_mags, weights)
+		max_mag_dist = import_distribution(source_rec, column_map, 'max_mag_distribution')
+		if max_mag_dist:
 			max_mag = max_mag_dist.get_mean()
 
 	## MFD
@@ -663,7 +683,17 @@ def import_point_or_area_source_from_gis_record(
 			else:
 				print("Warning: Falling back to average SCR MFD for source %s" % source_id)
 
-		source.mfd = mfd
+		## Sum weighted MFDs with different Mmax to incremental MFD
+		if mfd and max_mag_dist:
+			mfd_list = []
+			for Mmax, weight in max_mag_dist:
+				mfd2 = mfd.get_copy()
+				mfd2.max_mag = Mmax
+				mfd2 *= float(weight)
+				mfd_list.append(mfd2)
+			mfd = np.sum(mfd_list)
+
+	source.mfd = mfd
 
 	return source
 
@@ -681,10 +711,8 @@ def import_simple_fault_source_from_gis_record(
 	rupture_mesh_spacing=1.,
 	rupture_aspect_ratio=1.,
 	magnitude_scaling_relationship='WC1994',
-	min_dip=None,
-	max_dip=None,
-	min_rake=None,
-	max_rake=None,
+	dip=None,
+	rake=None,
 	slip_rate=None,
 	mfd=None,
 	min_mag=4.0,
@@ -729,24 +757,17 @@ def import_simple_fault_source_from_gis_record(
 		str or instance of class:`openquake.hazardlib.scalerel.base.BaseMSR`
 		magnitude-area scaling relationship
 		(default: 'WC1994')
-	:param min_dip:
-		float, minimum dip angle in degrees
-		Note that average dip will be computed with :param:`max_dip`
+	:param dip:
+		float, dip angle in degrees
+		Note that dip distribution can be specified through column map
 		(default: None)
-	:param max_dip:
-		float, maximum dip angle in degrees
-		Note that average dip will be computed with :param:`min_dip`
-		(default: None)
-	:param min_rake:
-		float, minimum rake in degrees
-		Note that average rake will be computed with :param:`max_rake`
-		(default: None)
-	:param max_rake:
-		float, maximum rake in degrees
-		Note that average rake will be computed with :param:`min_rake`
+	:param rake:
+		float, rake in degrees
+		Note that rake distribution can be specified through column map
 		(default: None)
 	:param slip_rate:
 		float, slip rate in mm/yr
+		Note that slip rate distribution can be specified through column map
 		(default: None)
 	:param mfd:
 		instance of :class:`oqhazlib.mfd.base.BaseMFD`, magnitude-frequency
@@ -797,8 +818,6 @@ def import_simple_fault_source_from_gis_record(
 	:return:
 		instance of :class:`SimpleFaultSource`
 	"""
-	# TODO: add slip_rate_distribution parameter?
-
 	## ID and name
 	source_id = import_param(source_rec, column_map, 'id', str, encoding=encoding)
 	name = import_param(source_rec, column_map, 'name', str, encoding=encoding)
@@ -835,39 +854,36 @@ def import_simple_fault_source_from_gis_record(
 	fault_trace = Line([Point(*pt) for pt in points])
 
 	## Dip
-	if min_dip is None:
-		min_dip = import_param(source_rec, column_map, 'min_dip', float)
-	if max_dip is None:
-		max_dip = import_param(source_rec, column_map, 'max_dip', float)
-	if None in (min_dip, max_dip):
+	if dip is None:
+		if "dip_distribution" in column_map:
+			dip_dist = import_distribution(source_rec, column_map, 'dip_distribution')
+			if dip_dist:
+				dip = dip_dist.get_mean()
+		else:
+			dip = import_param(source_rec, column_map, 'min_dip', float)
+	if dip is None:
 		raise Exception("Dip not defined for source %s" % source_id)
-	else:
-		dip = (min_dip + max_dip) / 2.
 
 	## Rake
-	if min_rake is None:
-		min_rake = import_param(source_rec, column_map, 'min_rake', float)
-	if max_rake is None:
-		max_rake = import_param(source_rec, column_map, 'max_rake', float)
-	if None in (min_rake, max_rake):
+	if rake is None:
+		if "rake_distribution" in column_map:
+			rake_dist = import_distribution(source_rec, column_map, 'rake_distribution')
+			if rake_dist:
+				weights = map(float, rake_dist.weights)
+				rake = mean_angle(rake_dist.values, weights=weights)
+		else:
+			rake = import_param(source_rec, column_map, 'rake', float)
+	if rake is None:
 		raise Exception("Rake not defined for source %s" % source_id)
 	else:
-		rake = mean_angle([min_rake, max_rake])
 		## Constrain to (-180, 180)
 		if rake > 180:
 			rake -= 360.
 
 	## Slip rate
 	if 'slip_rate_distribution' in column_map:
-		slip_rates, weights = [], []
-		for slip_rate_col, weight_col in column_map['slip_rate_distribution']:
-			slip_rate = float(source_rec.get(slip_rate_col, 0))
-			weight = float(source_rec.get(weight_col, weight_col))
-			if weight != 0:
-				slip_rates.append(slip_rate)
-				weights.append(weight)
-		if slip_rates:
-			slip_rate_dist = NumericPMF.from_values_and_weights(slip_rates, weights)
+		slip_rate_dist = import_distribution(source_rec, column_map, 'slip_rate_distribution')
+		if slip_rate_dist:
 			slip_rate = slip_rate_dist.get_mean()
 	if slip_rate is None:
 		slip_rate = import_param(source_rec, column_map, 'slip_rate', float)
@@ -903,15 +919,8 @@ def import_simple_fault_source_from_gis_record(
 
 	## Override max_mag if there is a distribution (SHARE...)
 	if 'max_mag_distribution' in column_map:
-		max_mags, weights = [], []
-		for max_mag_col, weight_col in column_map['max_mag_distribution']:
-			max_mag = float(source_rec.get(max_mag_col, 0))
-			weight = float(source_rec.get(weight_col, weight_col))
-			if weight != 0:
-				max_mags.append(max_mag)
-				weights.append(weight)
-		if max_mags:
-			max_mag_dist = MmaxPMF(max_mags, weights)
+		max_mag_dist = import_distribution(source_rec, column_map, 'max_mag_distribution')
+		if max_mag_dist:
 			max_mag = max_mag_dist.get_mean()
 
 	## MFD
