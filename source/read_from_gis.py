@@ -26,7 +26,6 @@ common_source_params = [
 	'magnitude_scaling_relationship',
 	'upper_seismogenic_depth',
 	'lower_seismogenic_depth',
-	'dip_distribution',
 	'a_val',
 	'b_val',
 	'mfd_bin_width',
@@ -55,6 +54,7 @@ area_source_params = point_source_params + [
 
 simple_fault_source_params = common_source_params + [
 	'dip',
+	'dip_distribution',
 	'rake',
 	'rake_distribution',
 	'slip_rate',
