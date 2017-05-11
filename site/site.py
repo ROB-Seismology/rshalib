@@ -415,9 +415,9 @@ class SHASiteModel(nhlib.geo.Mesh):
 	def plot(self):
 		"""
 		"""
-		from mapping.Basemap.LayeredBasemap import MapLayer, LayeredBasemap
-		from mapping.Basemap.data_types import MultiPointData, BuiltinData
-		from mapping.Basemap.styles import PointStyle, LineStyle
+		from mapping.layeredbasemap.layered_basemap import MapLayer, LayeredBasemap
+		from mapping.layeredbasemap.data_types import MultiPointData, BuiltinData
+		from mapping.layeredbasemap.styles import PointStyle, LineStyle
 
 		map_layers = []
 		map_layers.extend([MapLayer(data=MultiPointData(self.lons, self.lats), style=PointStyle(shape=".", size=5))])

@@ -15,8 +15,8 @@ if __name__ == "__main__":
 	import numpy as np
 	import eqcatalog
 	import hazard.rshalib as rshalib
-	import mapping.Basemap as lbm
-	from mapping.Basemap.cm.norm import PiecewiseLinearNorm
+	import mapping.layeredbasemap as lbm
+	from mapping.layeredbasemap.cm.norm import PiecewiseLinearNorm
 
 
 	## Read from database

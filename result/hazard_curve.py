@@ -4692,7 +4692,7 @@ class HazardMap(HazardResult, HazardField):
 			instance of :class:`LayeredBasemap.LayeredBasemap`, where
 			additional layers may be added before final plotting.
 		"""
-		import mapping.Basemap as lbm
+		import mapping.layeredbasemap as lbm
 		from plot import get_intensity_unit_label
 
 		## Construct default styles:

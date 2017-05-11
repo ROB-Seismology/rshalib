@@ -628,7 +628,7 @@ class SourceModel():
 			instance of :class:`LayeredBasemap.LayeredBasemap`, where
 			additional layers may be added before final plotting.
 		"""
-		import mapping.Basemap as lbm
+		import mapping.layeredbasemap as lbm
 
 		## Construct default styles:
 		if label_style == "default":
