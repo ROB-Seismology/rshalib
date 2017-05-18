@@ -81,6 +81,8 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 		dictionary mapping source IDs to lists of probabilities for each
 		rupture in the source
 	"""
+	# TODO: take into account spatial correlation (but there is no model for MMI) ?
+
 	prob_dict = {}
 
 	for src in source_model:
@@ -96,10 +98,6 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 				sctx, rctx, dctx = gsim.make_contexts(pe_site_model, rupture)
 				pe_poes = gsim.get_poes(sctx, rctx, dctx, imt, pe_threshold, truncation_level)
 				from openquake.hazardlib import const
-				#mean, stddevs = gsim.get_mean_and_stddevs(sctx, rctx, dctx, imt, [const.StdDev.TOTAL])
-				#print mean
-				#print stddevs
-				#print pe_poes.shape
 				pe_poes = pe_poes[:,0]
 				#print pe_poes
 				if strict_intersection:
