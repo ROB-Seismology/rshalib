@@ -860,7 +860,7 @@ def import_simple_fault_source_from_gis_record(
 			if dip_dist:
 				dip = dip_dist.get_mean()
 		else:
-			dip = import_param(source_rec, column_map, 'min_dip', float)
+			dip = import_param(source_rec, column_map, 'dip', float)
 	if dip is None:
 		raise Exception("Dip not defined for source %s" % source_id)
 
