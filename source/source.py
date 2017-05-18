@@ -1613,6 +1613,84 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 
 		return subfaults
 
+	def get_surface(self):
+		"""
+		Get fault surface object
+
+		:return:
+			instance of :class:`openquake.hazardlib.geo.surface.simple_fault.SimpleFaultSurface`
+		"""
+		from openquake.hazardlib.geo.surface.simple_fault import SimpleFaultSurface
+
+		return SimpleFaultSurface.from_fault_data(self.fault_trace,
+					self.upper_seismogenic_depth, self.lower_seismogenic_depth,
+					self.dip, self.rupture_mesh_spacing)
+
+	def get_mesh(self):
+		"""
+		Get fault mesh
+
+		:return:
+			instance of :class:`openquake.hazardlib.geo.mesh.RectangularMesh`
+		"""
+		return self.get_surface().get_mesh()
+
+	def get_top_edge_rupture_faults(self, mag):
+		"""
+		Get list of floating top-edge ruptures as fault objects
+		with dimensions corresponding to given magnitude and
+		fault's rupture mesh spacing and rupture aspect ratio
+
+		:param mag:
+			float, magnitude
+
+		:return:
+			list with instances of :class:`SimpleFaultSource`
+		"""
+		rms = self.rupture_mesh_spacing
+		usd, lsd = self.upper_seismogenic_depth, self.lower_seismogenic_depth
+		trt = self.tectonic_region_type
+		msr = self.magnitude_scaling_relationship
+		rar = self.rupture_aspect_ratio
+
+		fault_mesh = self.get_mesh()
+		surface_locations = fault_mesh[0:1]
+		mesh_rows, mesh_cols = fault_mesh.shape
+		#print fault_mesh[:,:1].depths
+
+		subfaults = []
+		for i in range(1, mesh_cols-1):
+			submesh = fault_mesh[:, i-1:i+1]
+			dip, strike = submesh.get_mean_inclination_and_azimuth()
+			hypocenter = submesh.get_middle_point()
+			nodal_plane = NodalPlane(strike, dip, self.rake)
+			npd = NodalPlaneDistribution([nodal_plane], [1])
+			hdd = HypocentralDepthDistribution([hypocenter.depth], [1])
+			subfault_name = "%s #%02d" % (self.name, i+1)
+			subfault_mfd = EvenlyDiscretizedMFD(mag, self.mfd.bin_width, [1])
+			subfault_id = self.source_id + "#%02d_M=%s" % (i+1, mag)
+			point_source = PointSource(subfault_id, subfault_name, trt, subfault_mfd, rms, msr, rar,
+										usd, lsd, hypocenter, npd, hdd)
+			## Only select ruptures staying within fault limits
+			distance_to_start = i * rms - rms/2.
+			distance_to_end = (mesh_cols - i) * rms - rms/2.
+			rup_length, rup_width = point_source._get_rupture_dimensions(mag, nodal_plane)
+			if rup_length / 2 <= min(distance_to_start, distance_to_end):
+				rup_num_cols = int(round(rup_length / rms))
+				start_col = min(i, int(i - (rup_num_cols / 2.)))
+				end_col = max(i, int(i + (rup_num_cols / 2.)))
+				#rup_row_num = int(round(rup_width / rms))
+				subfault_trace = list(surface_locations)[start_col:end_col+1]
+				subfault_trace = Line(subfault_trace)
+				subfault_lsd =  rup_width * np.cos(np.radians(90 - self.dip))
+				subfault = SimpleFaultSource(subfault_id, subfault_name,
+								trt, subfault_mfd, rms, msr, rar, usd, subfault_lsd,
+								subfault_trace, self.dip, self.rake)
+
+				subfaults.append(subfault)
+
+		return subfaults
+
 
 class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 	"""
