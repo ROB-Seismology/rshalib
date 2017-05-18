@@ -824,7 +824,7 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 	"""
 	MFD representing a characteristic earthquake, implemented as an
 	evenly discretized MFD with one magnitude bin. The characteristic
-	magnitde is taken to correspond to the left edge of the bin.
+	magnitude is taken to correspond to the left edge of the bin.
 
 	:param char_mag:
 		Float, magnitude of characteristic earthquake
@@ -905,6 +905,7 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		Mmin, occurrence_rates = self._get_evenly_discretized_mfd_params(num_sigma)
 		self.min_mag = Mmin
 		self.modify_set_occurrence_rates(occurrence_rates)
+		self.num_sigma = num_sigma
 
 	def __div__(self, other):
 		if isinstance(other, (int, float)):
