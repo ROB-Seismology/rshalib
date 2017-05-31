@@ -2,7 +2,7 @@
 Read EC8 information from GIS files
 """
 
-from mapping.geo.readGIS import read_GIS_file
+from mapping.geotools.readGIS import read_GIS_file
 
 def read_ec8_information():
 	"""

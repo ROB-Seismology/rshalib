@@ -58,7 +58,7 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 		SourceModel object.
 	"""
 	from eqcatalog.source_models import rob_source_models_dict
-	from mapping.geo.readGIS import read_GIS_file
+	from mapping.geotools.readGIS import read_GIS_file
 
 	rob_source_model = rob_source_models_dict[source_model_name]
 	source_records = read_GIS_file(rob_source_model['gis_filespec'], encoding=None, fix_mi_lambert=fix_mi_lambert, verbose=verbose)
@@ -185,7 +185,7 @@ def create_rob_area_source(
 		AreaSource object.
 	"""
 	import osr
-	from mapping.geo.coordtrans import wgs84, lambert1972
+	from mapping.geotools.coordtrans import wgs84, lambert1972
 	coordTrans = osr.CoordinateTransformation(wgs84, lambert1972)
 
 	## ID and name

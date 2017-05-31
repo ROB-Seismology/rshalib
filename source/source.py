@@ -177,7 +177,7 @@ class RuptureSource():
 			(default: False)
 		"""
 		import mpl_toolkits.mplot3d.axes3d as p3
-		import mapping.geo.coordtrans as coordtrans
+		import mapping.geotools.coordtrans as coordtrans
 
 		## Determine UTM zone and hemisphere
 		utm_spec = coordtrans.get_utm_spec(*self.get_centroid())
@@ -810,7 +810,7 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 			Float, source area in square km
 		"""
 		import osr
-		from mapping.geo.coordtrans import wgs84, get_utm_spec, get_utm_srs
+		from mapping.geotools.coordtrans import wgs84, get_utm_spec, get_utm_srs
 
 		poly = self.to_ogr_geometry()
 		centroid = poly.Centroid()

@@ -14,7 +14,7 @@ from ..geo import Point, Line, Polygon, NodalPlane, mean_angle
 from ..pmf.distributions import *
 from ..source import PointSource, AreaSource, SimpleFaultSource, SourceModel
 
-from mapping.geo.readGIS import read_GIS_file
+from mapping.geotools.readGIS import read_GIS_file
 
 
 common_source_params = [
@@ -78,7 +78,7 @@ def import_param(
 	into a particular type
 
 	:param source_rec:
-		GIS record as returned by :func:`mapping.geo.readGIS`
+		GIS record as returned by :func:`mapping.geotools.readGIS`
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
 	:param param_name:
@@ -115,7 +115,7 @@ def import_distribution(
 	Read a distribution for a particular parameter from a GIS record
 
 	:param source_rec:
-		GIS record as returned by :func:`mapping.geo.readGIS`
+		GIS record as returned by :func:`mapping.geotools.readGIS`
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
 	:param param_name:
@@ -151,7 +151,7 @@ def read_gr_mfd_params(
 	Read truncated Gutenberg-Richter MFD from GIS record
 
 	:param source_rec:
-		GIS record as returned by :func:`mapping.geo.readGIS`
+		GIS record as returned by :func:`mapping.geotools.readGIS`
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
 	:param min_mag:
@@ -213,7 +213,7 @@ def read_gr_mfd(
 	Read truncated Gutenberg-Richter MFD from GIS record
 
 	:param source_rec:
-		GIS record as returned by :func:`mapping.geo.readGIS`
+		GIS record as returned by :func:`mapping.geotools.readGIS`
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
 	:param min_mag:
@@ -367,7 +367,7 @@ def import_point_or_area_source_from_gis_record(
 		in column_map
 
 	:param source_rec:
-		GIS record as returned by :func:`mapping.geo.readGIS` representing
+		GIS record as returned by :func:`mapping.geotools.readGIS` representing
 		area source.
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
@@ -733,7 +733,7 @@ def import_simple_fault_source_from_gis_record(
 	Create simple fault source from GIS record.
 
 	:param source_rec:
-		GIS record as returned by :func:`mapping.geo.readGIS` representing
+		GIS record as returned by :func:`mapping.geotools.readGIS` representing
 		simple fault source.
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
@@ -982,7 +982,7 @@ def import_source_from_gis_record(
 	Wrapper function to create various types of sources from GIS records
 
 	:param source_rec:
-		GIS record as returned by :func:`mapping.geo.readGIS`
+		GIS record as returned by :func:`mapping.geotools.readGIS`
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
 		(default: None, will use default column map for given type of source)
