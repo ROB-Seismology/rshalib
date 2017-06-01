@@ -1142,6 +1142,15 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		"""
 		return self.get_length() * self.get_width()
 
+	def get_aspect_ratio(self):
+		"""
+		Compute fault aspect ratio (length / width)
+
+		:return:
+			Float, aspect ratio
+		"""
+		return self.get_length() / self.get_width()
+
 	def _get_trace_azimuths_and_distances(self):
 		"""
 		Compute point-to-point azimuth and distance along fault trace
@@ -1917,6 +1926,18 @@ class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, Ruptu
 			edge = Line([Point(lon, lat, depth) for (lon, lat, depth) in zip(lons, lats, depths)])
 			edges.append(edge)
 		return edges
+
+	def get_length(self):
+		"""
+		Compute length of fault based on its mesh
+
+		:return:
+			Float, fault length
+		"""
+		fault_mesh = self.surface.get_mesh()
+		submesh = fault_mesh[:2, :]
+		_, lengths, _, _ = submesh.get_cell_dimensions()
+		return np.sum(lengths)
 
 	def get_rupture(self, timespan=1):
 		"""
