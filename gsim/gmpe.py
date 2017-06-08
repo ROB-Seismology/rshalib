@@ -20,7 +20,7 @@ from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from ..utils import interpolate, logrange
 
 import openquake.hazardlib as nhlib
-from openquake.hazardlib.imt import PGD, PGV, PGA, SA
+from openquake.hazardlib.imt import PGD, PGV, PGA, SA, MMI
 
 
 def sd2psa(sd, T):
@@ -2599,7 +2599,7 @@ class NhlibGMPE(GMPE):
 	Class to implement GMPEs from Nhlib into this module.
 	"""
 
-	IMT_DICT = {"PGD": PGD, "PGV": PGV, "PGA": PGA, "SA": SA}
+	IMT_DICT = {"PGD": PGD, "PGV": PGV, "PGA": PGA, "SA": SA, "MMI": MMI}
 
 	def __init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings=[5], imt_periods=None):
 		"""
@@ -2716,8 +2716,8 @@ class NhlibGMPE(GMPE):
 		from ..site import SHASiteModel
 
 		azimuth = 90
-		lons, lats = nhlib.geo.geodetic.point_at(lon, lat, azimuth, d)
-		depths = np.zeros_like(d)
+		lons, lats = nhlib.geo.geodetic.point_at(lon, lat, azimuth, np.array([d]))
+		depths = np.zeros_like(lons)
 		sha_site_model = SHASiteModel(lons=lons, lats=lats, depths=depths)
 
 		if not vs30:
@@ -2820,7 +2820,7 @@ class NhlibGMPE(GMPE):
 		Return sigma as log10.
 
 		See method self.__call__ for params.
-		
+
 		Note: :param:`soil_type` is ignored!
 		"""
 		#TODO: check whether we should support soil_type !
