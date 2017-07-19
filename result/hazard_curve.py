@@ -4701,7 +4701,7 @@ class HazardMap(HazardResult, HazardField):
 		if source_model_style == "default":
 			polygon_style = lbm.PolygonStyle(line_width=2, fill_color="none")
 			line_style = lbm.LineStyle(line_width=3, line_color='purple')
-			point_style = lbm.PointStyle(shape='*', fill_color='yellow')
+			point_style = lbm.PointStyle(shape='*', fill_color='yellow', size=12)
 			source_model_style = lbm.CompositeStyle(line_style=line_style, polygon_style=polygon_style, point_style=point_style)
 		elif isinstance(source_model_style, lbm.PolygonStyle):
 			polygon_style = source_model_style
@@ -4777,7 +4777,7 @@ class HazardMap(HazardResult, HazardField):
 				imt_label = "%s (%s s)" % (self.IMT, self.period)
 		else:
 			imt_label = self.IMT
-			label_format="%d"
+			label_format="%s"
 		intensity_unit_label = get_intensity_unit_label(intensity_unit)
 		cbar_label = imt_label
 		if intensity_unit:
