@@ -1654,7 +1654,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			float, magnitude
 
 		:return:
-			list with instances of :class:`SimpleFaultSource`
+			list with instances of :class:`CharacteristicFaultSource`
 		"""
 		rms = self.rupture_mesh_spacing
 		usd, lsd = self.upper_seismogenic_depth, self.lower_seismogenic_depth
@@ -1696,7 +1696,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 								trt, subfault_mfd, rms, msr, rar, usd, subfault_lsd,
 								subfault_trace, self.dip, self.rake)
 
-				subfaults.append(subfault)
+				subfaults.append(subfault.to_characteristic_source())
 
 		return subfaults
 
