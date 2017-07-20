@@ -1835,6 +1835,7 @@ class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 		return CharacteristicFaultSource(self.source_id, self.name,
 			self.tectonic_region_type, self.mfd, surface, self.rake)
 
+# TODO: need common base class for SimpleFaultSource and CharacteristicFaultSource
 
 class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, RuptureSource):
 	"""
@@ -1970,6 +1971,16 @@ class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, Ruptu
 		lons, lats, depths = self.get_rupture_bounds(rupture)
 		points = [Point(lon, lat, depth) for lon, lat, depth in zip(lons, lats, depths)]
 		return Polygon(points)
+
+	def get_surface(self):
+		"""
+		Get fault surface object
+
+		:return:
+			instance of :class:`openquake.hazardlib.geo.surface.simple_fault.SimpleFaultSurface`
+		"""
+		rupture = self.get_rupture()
+		return rupture.surface
 
 
 
