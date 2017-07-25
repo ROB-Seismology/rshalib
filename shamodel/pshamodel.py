@@ -2856,7 +2856,7 @@ class PSHAModelTree(PSHAModelBase):
 			sdc = self.read_oq_disagg_matrix_multi(curve_name, site, calc_id=calc_id, dtype=dtype)
 			## Apply weight
 			sdc_matrix = sdc.deagg_matrix.to_fractional_contribution_matrix()
-			sdc_matrix *= weight
+			sdc_matrix *= float(weight)
 
 			if i == 0:
 				## Obtain overall bin edges
@@ -4453,6 +4453,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			mean_sdc = self.read_oq_disagg_matrix_multi(curve_name, site, curve_path=curve_path, calc_id=calc_id)
 		else:
 			for i, (source_model, somo_weight) in enumerate(self.source_model_lt.source_model_pmf):
+				somo_weight = float(somo_weight)
 				if verbose:
 					print source_model.name
 				sdc = self.get_oq_mean_sdc_by_source_model(source_model.name, site, mean_shc=mean_shc, interpolate_matrix=interpolate_matrix, calc_id=calc_id, dtype=dtype, write_xml=write_xml, verbose=verbose)
