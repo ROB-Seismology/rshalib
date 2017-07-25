@@ -122,13 +122,24 @@ class PSHAModelBase(SHAModelBase):
 		:param path:
 			str, absolute path
 		"""
+		import errno
+
 		path = path.split(self.root_folder)[1]
 		subfolders = path.split(os.path.sep)
 		partial_path = self.root_folder
 		for subfolder in subfolders:
 			partial_path = os.path.join(partial_path, subfolder)
 			if not os.path.exists(partial_path):
-				os.mkdir(partial_path)
+				try:
+					os.mkdir(partial_path)
+				except OSError, err:
+					if err.errno == errno.EEXIST and os.path.isdir(partial_path):
+						## Folder already created by another process
+						pass
+					else:
+						## Our target dir exists as a file, or different error,
+						## reraise the error!
+						raise
 
 	def get_oq_hc_folder(self, calc_id=None, multi=False):
 		"""
