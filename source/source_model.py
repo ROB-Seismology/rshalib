@@ -9,6 +9,7 @@ as well as to generate input files for OpenQuake.
 """
 
 from lxml import etree
+import numpy as np
 
 import openquake.hazardlib as oqhazlib
 from openquake.hazardlib.scalerel import WC1994
@@ -747,6 +748,96 @@ class SourceModel():
 			sources.append(src)
 		description = "Imported from %s" % nrml_filespec
 		return cls(src_model.name, sources, description=description)
+
+	def get_fault_network(self, max_gap=4, max_strike_delta=45):
+		"""
+		Generate fault network
+
+		:param max_gap:
+			maximum distance (in km) between fault sections to consider
+			them as linked
+			(default: 4)
+		:param max_strike_delta:
+			maximum difference in strike (in degrees) between fault
+			sections to consider them as linked
+			(default: 45)
+
+		:return:
+			instance of :class:`fault_network.FaultNetwork`
+		"""
+		from fault_network import FaultNetwork
+
+		def get_strike_delta(strike1, strike2):
+			strike_delta = np.abs(strike1 - strike2)
+			if strike_delta > 180:
+				if strike1 < 180:
+					strike1 += 360
+				else:
+					strike2 += 360
+				strike_delta = np.abs(strike1 - strike2)
+			return strike_delta
+
+		faults = self.get_simple_fault_sources()
+		start_points = [flt.fault_trace[0] for flt in faults]
+		end_points = [flt.fault_trace[-1] for flt in faults]
+		subfaults_dict = {flt.source_id: flt.discretize_along_strike() for flt in faults}
+		subfault_strike_dict = {flt.source_id: [subflt.get_mean_strike() for subflt in subfaults_dict[flt.source_id]] for flt in faults}
+
+		fault_links = {}
+		for f, flt in enumerate(faults):
+			subfaults = subfaults_dict[flt.source_id]
+			for s, subflt in enumerate(subfaults):
+				start_links, end_links = [], []
+				strike1 = subfault_strike_dict[flt.source_id][s]
+				if s == 0:
+					strike2 = subfault_strike_dict[flt.source_id][s+1]
+					if get_strike_delta(strike1, strike2) <= max_strike_delta:
+						end_links.append(subfaults[s+1].source_id)
+					start_distances = [start_points[f].distance(pt) for pt in start_points]
+					end_distances = [start_points[f].distance(pt) for pt in end_points]
+					for f2, flt2 in enumerate(faults):
+						if f2 != f:
+							subfaults2 = subfaults_dict[flt2.source_id]
+							if start_distances[f2] <= end_distances[f2]:
+								strike2 = subfault_strike_dict[flt2.source_id][0]
+								if start_distances[f2] <= max_gap:
+									if get_strike_delta(strike1, strike2) <= max_strike_delta:
+										start_links.append(subfaults2[0].source_id)
+							else:
+								strike2 = subfault_strike_dict[flt2.source_id][-1]
+								if end_distances[f2] <= max_gap:
+									if get_strike_delta(strike1, strike2) <= max_strike_delta:
+										start_links.append(subfaults2[-1].source_id)
+				elif s == len(subfaults) - 1:
+					strike2 = subfault_strike_dict[flt.source_id][s-1]
+					if get_strike_delta(strike1, strike2) <= max_strike_delta:
+						start_links.append(subfaults[s-1].source_id)
+					start_distances = [end_points[f].distance(pt) for pt in start_points]
+					end_distances = [end_points[f].distance(pt) for pt in end_points]
+					for f2, flt2 in enumerate(faults):
+						if f2 != f:
+							subfaults2 = subfaults_dict[flt2.source_id]
+							if start_distances[f2] <= end_distances[f2]:
+								strike2 = subfault_strike_dict[flt2.source_id][0]
+								if start_distances[f2] <= max_gap:
+									if get_strike_delta(strike1, strike2) <= max_strike_delta:
+										end_links.append(subfaults2[0].source_id)
+							else:
+								strike2 = subfault_strike_dict[flt2.source_id][-1]
+								if end_distances[f2] <= max_gap:
+									if get_strike_delta(strike1, strike2) <= max_strike_delta:
+										end_links.append(subfaults2[-1].source_id)
+				else:
+					strike2 = subfault_strike_dict[flt.source_id][s-1]
+					if get_strike_delta(strike1, strike2) <= max_strike_delta:
+						start_links.append(subfaults[s-1].source_id)
+					strike2 = subfault_strike_dict[flt.source_id][s+1]
+					if get_strike_delta(strike1, strike2) <= max_strike_delta:
+						end_links.append(subfaults[s+1].source_id)
+
+				fault_links[subflt.source_id] = (start_links, end_links)
+
+		return FaultNetwork(fault_links)
 
 
 
