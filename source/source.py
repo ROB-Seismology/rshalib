@@ -1700,6 +1700,37 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 
 		return subfaults
 
+	def discretize_along_strike(self):
+		"""
+		Divide fault in subfaults along strike with length equal
+		to rupture mesh spacing.
+
+		:return:
+			list with instances of :class:`SimpleFaultSource`
+		"""
+		rms = self.rupture_mesh_spacing
+		usd, lsd = self.upper_seismogenic_depth, self.lower_seismogenic_depth
+		trt = self.tectonic_region_type
+		msr = self.magnitude_scaling_relationship
+		rar = self.rupture_aspect_ratio
+
+		fault_mesh = self.get_mesh()
+		surface_locations = fault_mesh[0:1]
+		subfaults = []
+		for i in range(1, len(surface_locations)):
+			subfault_id = self.source_id + "#%02d" % i
+			subfault_name = "%s #%02d" % (self.name, i)
+			subfault_trace = list(surface_locations)[i-1:i+1]
+			subfault_trace = Line(subfault_trace)
+			subfault = SimpleFaultSource(subfault_id, subfault_name,
+							trt, self.mfd, rms, msr, rar, usd, lsd,
+							subfault_trace, self.dip, self.rake)
+
+			subfaults.append(subfault)
+
+		return subfaults
+
+
 
 class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 	"""
