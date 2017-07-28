@@ -753,6 +753,20 @@ class SourceModel():
 		"""
 		Generate fault network
 
+		Describe how fault model should be made (all faults should terminate
+		at intersections!)
+
+		UCERF3 criteria:
+		- each fault section is subdivided in equal-length subsections,
+		with lengths about half the seismogenic thickness
+		- max. gap: 5 km
+		- at least 2 subsections of any main fault
+		- max. azimuth change: 60 degrees
+		- max. azimuth change between first and last subsection: 60°
+		- max. cumulative rake change (180 degrees)
+		- max. cumulative azimuth change: 560 degrees
+		- Coulomb criterion
+
 		:param max_gap:
 			maximum distance (in km) between fault sections to consider
 			them as linked
