@@ -1721,6 +1721,12 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			subfault_id = self.source_id + "#%02d" % i
 			subfault_name = "%s #%02d" % (self.name, i)
 			subfault_trace = list(surface_locations)[i-1:i+1]
+			## Make sure start of first subfault and end of last subfault
+			## correspond exactly to fault trace endpoints
+			if i == 0:
+				subfault_trace[0] = self.fault_trace[0]
+			elif i == len(surface_locations) - 1:
+				subfault_trace[-1] = self.fault_trace[-1]
 			subfault_trace = Line(subfault_trace)
 			subfault = SimpleFaultSource(subfault_id, subfault_name,
 							trt, self.mfd, rms, msr, rar, usd, lsd,
