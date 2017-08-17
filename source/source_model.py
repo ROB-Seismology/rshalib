@@ -749,7 +749,7 @@ class SourceModel():
 		description = "Imported from %s" % nrml_filespec
 		return cls(src_model.name, sources, description=description)
 
-	def get_fault_network(self, max_gap=4, max_strike_delta=45):
+	def get_fault_network(self, max_gap=4, max_strike_delta=45, allow_triple_junctions=True):
 		"""
 		Generate fault network
 
@@ -775,6 +775,9 @@ class SourceModel():
 			maximum difference in strike (in degrees) between fault
 			sections to consider them as linked
 			(default: 45)
+		:param allow_triple_junctions:
+			bool, whether or not to allow bifurcating ruptures
+			(default: True)
 
 		:return:
 			instance of :class:`fault_network.FaultNetwork`
@@ -803,45 +806,53 @@ class SourceModel():
 			for s, subflt in enumerate(subfaults):
 				start_links, end_links = [], []
 				strike1 = subfault_strike_dict[flt.source_id][s]
-				if s == 0:
-					strike2 = subfault_strike_dict[flt.source_id][s+1]
-					if get_strike_delta(strike1, strike2) <= max_strike_delta:
-						end_links.append(subfaults[s+1].source_id)
-					start_distances = [start_points[f].distance(pt) for pt in start_points]
-					end_distances = [start_points[f].distance(pt) for pt in end_points]
-					for f2, flt2 in enumerate(faults):
-						if f2 != f:
-							subfaults2 = subfaults_dict[flt2.source_id]
-							if start_distances[f2] <= end_distances[f2]:
-								strike2 = subfault_strike_dict[flt2.source_id][0]
-								if start_distances[f2] <= max_gap:
+				if s in (0, len(subfaults) - 1):
+					## First or last subfault or single subfault
+					if len(subfaults) == 1:
+						open_points = [start_points[f], end_points[f]]
+						open_links = [start_links, end_links]
+					elif s == 0:
+						strike2 = subfault_strike_dict[flt.source_id][s+1]
+						if get_strike_delta(strike1, strike2) <= max_strike_delta:
+							end_links.append(subfaults[s+1].source_id)
+						open_points = [start_points[f]]
+						open_links = [start_links]
+					elif s == len(subfaults) - 1:
+						strike2 = subfault_strike_dict[flt.source_id][s-1]
+						if get_strike_delta(strike1, strike2) <= max_strike_delta:
+							start_links.append(subfaults[s-1].source_id)
+						open_points = [end_points[f]]
+						open_links = [end_links]
+
+					## Find connecting subfaults from other faults
+					for open_pt, open_lnk in zip(open_points, open_links):
+						start_distances = [open_pt.distance(pt) for pt in start_points]
+						end_distances = [open_pt.distance(pt) for pt in end_points]
+						for f2, flt2 in enumerate(faults):
+							if f2 != f:
+								subfaults2 = subfaults_dict[flt2.source_id]
+								if allow_triple_junctions:
+									if start_distances[f2] <= end_distances[f2]:
+										distance = start_distances[f2]
+										subflt2_idx = 0
+									else:
+										distance = end_distances[f2]
+										subflt2_idx = -1
+								else:
+									if open_pt == start_points[f]:
+										distance = end_distances[f2]
+										subflt2_idx = -1
+									else:
+										distance = start_distances[f2]
+										subflt2_idx = 0
+
+								if distance <= max_gap:
+									strike2 = subfault_strike_dict[flt2.source_id][subflt2_idx]
 									if get_strike_delta(strike1, strike2) <= max_strike_delta:
-										start_links.append(subfaults2[0].source_id)
-							else:
-								strike2 = subfault_strike_dict[flt2.source_id][-1]
-								if end_distances[f2] <= max_gap:
-									if get_strike_delta(strike1, strike2) <= max_strike_delta:
-										start_links.append(subfaults2[-1].source_id)
-				elif s == len(subfaults) - 1:
-					strike2 = subfault_strike_dict[flt.source_id][s-1]
-					if get_strike_delta(strike1, strike2) <= max_strike_delta:
-						start_links.append(subfaults[s-1].source_id)
-					start_distances = [end_points[f].distance(pt) for pt in start_points]
-					end_distances = [end_points[f].distance(pt) for pt in end_points]
-					for f2, flt2 in enumerate(faults):
-						if f2 != f:
-							subfaults2 = subfaults_dict[flt2.source_id]
-							if start_distances[f2] <= end_distances[f2]:
-								strike2 = subfault_strike_dict[flt2.source_id][0]
-								if start_distances[f2] <= max_gap:
-									if get_strike_delta(strike1, strike2) <= max_strike_delta:
-										end_links.append(subfaults2[0].source_id)
-							else:
-								strike2 = subfault_strike_dict[flt2.source_id][-1]
-								if end_distances[f2] <= max_gap:
-									if get_strike_delta(strike1, strike2) <= max_strike_delta:
-										end_links.append(subfaults2[-1].source_id)
+										open_lnk.append(subfaults2[subflt2_idx].source_id)
+
 				else:
+					## Intermediate subfaults
 					strike2 = subfault_strike_dict[flt.source_id][s-1]
 					if get_strike_delta(strike1, strike2) <= max_strike_delta:
 						start_links.append(subfaults[s-1].source_id)
@@ -849,9 +860,68 @@ class SourceModel():
 					if get_strike_delta(strike1, strike2) <= max_strike_delta:
 						end_links.append(subfaults[s+1].source_id)
 
+				#start_links = sorted(set(start_links))
+				#end_links = sorted(set(end_links))
 				fault_links[subflt.source_id] = (start_links, end_links)
 
+		# TODO: we need to add strike and rake properties to each subfault
+		# in the fault network, to allow evaluating cumulative strike and rake
+		# changes?
+		# Or else we can post-process the generated fault connections based
+		# on subfault ID
+
 		return FaultNetwork(fault_links)
+
+	def get_linked_subfaults(self, fault_links):
+		from ..geo import Line
+
+		faults = self.get_simple_fault_sources()
+		subfaults_dict = {flt.source_id: flt.discretize_along_strike() for flt in faults}
+
+		faults = []
+		for conn in fault_links:
+			reverse = False
+			for s, subfault_id in enumerate(conn):
+				flt_id, subfault_idx = subfault_id.split('#')
+				subfault_idx = int(subfault_idx) - 1
+				subfault = subfaults_dict[flt_id][subfault_idx]
+				if s == 0:
+					fault_trace = subfault.fault_trace.points
+					rms = subfault.rupture_mesh_spacing
+					usd = subfault.upper_seismogenic_depth
+					lsd = subfault.lower_seismogenic_depth
+					trt = subfault.tectonic_region_type
+					msr = subfault.magnitude_scaling_relationship
+					rar = subfault.rupture_aspect_ratio
+					dip = subfault.dip
+					rake = subfault.rake
+					mfd = subfault.mfd
+				else:
+					subfault_trace = subfault.fault_trace.points
+					if s == 1:
+						pt1, pt2 = subfault_trace[0], subfault_trace[-1]
+						dist1 = pt1.distance(fault_trace[-1])
+						dist2 = pt2.distance(fault_trace[0])
+						if dist1 > dist2:
+							fault_trace = fault_trace[::-1]
+							reverse = True
+					if reverse:
+						subfault_trace = subfault_trace[::-1]
+					fault_trace.extend(subfault_trace)
+			if reverse:
+				fault_trace = fault_trace[::-1]
+			#for pt in fault_trace:
+			#	print pt.longitude, pt.latitude
+			fault_trace = Line(fault_trace)
+			#print fault_trace.get_length()
+			fault_id = fault_name = '+'.join(conn)
+			fault = SimpleFaultSource(fault_id, fault_name,
+							trt, mfd, rms, msr, rar, usd, lsd,
+							fault_trace, dip, rake)
+			fault.mfd = fault.get_MFD_characteristic()
+			faults.append(fault)
+
+		return SourceModel("Fault network", faults)
 
 
 
