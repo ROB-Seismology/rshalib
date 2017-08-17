@@ -69,7 +69,7 @@ class FaultNetwork:
 		start_links, end_links = self.fault_links[flt_id]
 		return start_links + end_links
 
-	def get_connections(self, flt_id, max_len, parent=None):
+	def get_connections(self, flt_id, max_len, parents=[], allow_triple_junctions=True):
 		"""
 		Construct all fault connections that include a particular fault
 
@@ -81,6 +81,10 @@ class FaultNetwork:
 			ID of 'parent' fault, connections through that fault should
 			not be included (avoids going back to fault where we started
 			when the function is applied recursively)
+		:param allow_triple_junctions:
+			bool, whether or not triple junctions are allowed
+			(only plays a role when :param:`parent` is not None)
+			(default: True)
 
 		:return:
 			list of tuples containing fault IDs that are connected
@@ -91,36 +95,58 @@ class FaultNetwork:
 			return [[flt_id]]
 		else:
 			connections = [[flt_id]]
+
 			neighbours = self.get_neighbours(flt_id)
-			if parent:
-				idx = neighbours.index(parent)
-				neighbours.pop(idx)
-			#if parent:
-			#	neighbours = self.get_opposite_links(flt_id, parent)
-			#else:
-			#	neighbours = self.get_neighbours(flt_id)
+			if parents:
+				if allow_triple_junctions:
+					for parent in parents:
+						if parent in neighbours:
+							neighbours.remove(parent)
+						"""
+						try:
+							idx = neighbours.index(parent)
+						except:
+							pass
+						else:
+							neighbours.pop(idx)
+						"""
+				else:
+					neighbours = self.get_opposite_links(flt_id, parents[0])
+
 			for flt_id2 in neighbours:
-				connections2 = self.get_connections(flt_id2, max_len-1, parent=flt_id)
-				connections += [sorted([flt_id] + conn2) for conn2 in connections2]
+				sorted_connections = [sorted(conn) for conn in connections]
+				parents2 = [flt_id] + parents
+				connections2 = self.get_connections(flt_id2, max_len-1, parents=parents2,
+									allow_triple_junctions=allow_triple_junctions)
+				for conn2 in connections2:
+					if not sorted([flt_id] + conn2) in sorted_connections:
+						connections.append([flt_id] + conn2)
+
 			return connections
 
-	def get_all_connections(self, max_len):
+	def get_all_connections(self, max_len, allow_triple_junctions=True):
 		"""
 		Construct all possible fault connections in the network
 
 		:param max_len:
 			int, maximum number of linked fault sections
+		:param allow_triple_junctions:
+			bool, whether or not triple junctions are allowed
+			(default: True)
 
 		:return:
 			list of tuples containing fault IDs that are connected
 		"""
-		connections = set()
-		for flt_id in self.fault_ids:
-			connections2 = self.get_connections(flt_id, max_len)
+		connections = []
+		for flt_id in sorted(self.fault_ids):
+			sorted_connections = [sorted(conn) for conn in connections]
+			connections2 = self.get_connections(flt_id, max_len, parents=[],
+								allow_triple_junctions=allow_triple_junctions)
 			for conn2 in connections2:
-				connections.add(tuple(conn2))
-			#connections.update(set(connections2))
-		return sorted(connections)
+				if not sorted(conn2) in sorted_connections:
+					connections.append(tuple(conn2))
+		#return sorted(connections)
+		return connections
 
 
 
