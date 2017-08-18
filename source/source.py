@@ -1225,6 +1225,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			instance of :class:`Polygon`
 		"""
 		width = self.get_projected_width()
+		if self.dip == 90:
+			width = 0.1
 		mean_strike = self.get_mean_strike()
 		perpendicular_direction = mean_strike + 90.
 		z0, z1 = self.upper_seismogenic_depth, self.lower_seismogenic_depth
