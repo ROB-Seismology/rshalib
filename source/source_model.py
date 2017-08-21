@@ -872,7 +872,7 @@ class SourceModel():
 
 		return FaultNetwork(fault_links)
 
-	def get_linked_subfaults(self, fault_links):
+	def get_linked_subfaults(self, fault_links, characteristic=True):
 		from ..geo import Line
 
 		faults = self.get_simple_fault_sources()
@@ -915,11 +915,18 @@ class SourceModel():
 			fault_trace = Line(fault_trace)
 			#print fault_trace.get_length()
 			fault_id = fault_name = '+'.join(conn)
-			fault = SimpleFaultSource(fault_id, fault_name,
+			try:
+				fault = SimpleFaultSource(fault_id, fault_name,
 							trt, mfd, rms, msr, rar, usd, lsd,
 							fault_trace, dip, rake)
-			fault.mfd = fault.get_MFD_characteristic()
-			faults.append(fault)
+			except:
+				print("Fault construction failed for %s" % fault_id)
+				continue
+			else:
+				fault.mfd = fault.get_MFD_characteristic()
+				if characteristic:
+					fault = fault.to_characteristic_source(convert_mfd=False)
+				faults.append(fault)
 
 		return SourceModel("Fault network", faults)
 
