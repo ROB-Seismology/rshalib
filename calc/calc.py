@@ -89,7 +89,7 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 
 	prob_dict = {}
 
-	for src in source_model:
+	for s, src in enumerate(source_model):
 		prob_dict[src.source_id] = []
 		trt = src.tectonic_region_type
 		gsim_model = ground_motion_model[trt]
@@ -97,6 +97,8 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 			gsim_names, gsim_weights = gsim_model.gmpe_names, gsim_model.weights
 		elif isinstance(gsim_model, (str, unicode)):
 			gsim_names, gsim_weights = [gsim_model], [1.]
+		if s == 0:
+			gsims_dict = {gsim_name: oqhazlib.gsim.get_available_gsims()[gsim_name]() for gsim_name in gsim_names}
 
 		tom = oqhazlib.tom.PoissonTOM(1)
 		for rupture in src.iter_ruptures(tom):
@@ -111,17 +113,15 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 					min_dist, max_dist = None, None
 				filtered_pe_site_models[gsim_name] = []
 				for pe_site_model in pe_site_models:
-					if not (min_dist or max_dist):
-						## No filtering required
-						filtered_pe_site_model = pe_site_model
-					else:
+					pe_mask = np.ones(len(pe_site_model))
+					if min_dist or max_dist:
+						## Filtering required
 						jb_dist = rupture.surface.get_joyner_boore_distance(pe_site_model.mesh)
-						pe_mask = np.ones(len(pe_site_model))
 						if min_dist:
 							pe_mask *= (min_dist <= jb_dist)
 						if max_dist:
 							pe_mask *= (jb_dist <= max_dist)
-						filtered_pe_site_model = pe_site_model.filter(pe_mask)
+					filtered_pe_site_model = pe_site_model.filter(pe_mask)
 					if filtered_pe_site_model:
 						filtered_pe_site_models[gsim_name].append(filtered_pe_site_model)
 						if strict_intersection:
@@ -130,16 +130,15 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 							num_sites[gsim_name] += 1
 				filtered_ne_site_models[gsim_name] = []
 				for ne_site_model in ne_site_models:
-					if not (min_dist or max_dist):
-						filtered_ne_site_model = ne_site_model
-					else:
+					ne_mask = np.ones(len(ne_site_model))
+					if min_dist or max_dist:
+						## Filtering required
 						jb_dist = rupture.surface.get_joyner_boore_distance(ne_site_model.mesh)
-						ne_mask = np.ones(len(ne_site_model))
 						if min_dist:
 							ne_mask *= (min_dist <= jb_dist)
 						if max_dist:
 							ne_mask *= (jb_dist <= max_dist)
-						filtered_ne_site_model = ne_site_model.filter(ne_mask)
+					filtered_ne_site_model = ne_site_model.filter(ne_mask)
 					if filtered_ne_site_model:
 						filtered_ne_site_models[gsim_name].append(filtered_ne_site_model)
 						if strict_intersection:
@@ -154,7 +153,7 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 
 			rupture_prob = 0
 			for gsim_name, gsim_weight in zip(filtered_gsim_names, filtered_gsim_weights):
-				gsim = oqhazlib.gsim.get_available_gsims()[gsim_name]()
+				gsim = gsims_dict[gsim_name]
 				pe_prob = 1
 				for (pe_threshold, pe_site_model) in zip(pe_thresholds, filtered_pe_site_models[gsim_name]):
 					sctx, rctx, dctx = gsim.make_contexts(pe_site_model, rupture)
