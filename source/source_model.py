@@ -886,7 +886,7 @@ class SourceModel():
 				subfault_idx = int(subfault_idx) - 1
 				subfault = subfaults_dict[flt_id][subfault_idx]
 				if s == 0:
-					fault_trace = subfault.fault_trace.points
+					fault_trace = subfault.fault_trace.points[:]
 					rms = subfault.rupture_mesh_spacing
 					usd = subfault.upper_seismogenic_depth
 					lsd = subfault.lower_seismogenic_depth
