@@ -104,6 +104,7 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 		for rupture in src.iter_ruptures(tom):
 			## Filter sites by distance
 			filtered_pe_site_models, filtered_ne_site_models = {}, {}
+			filtered_pe_thresholds, filtered_ne_thresholds = {}, {}
 			num_sites = {}
 			for gsim_name in gsim_names:
 				num_sites[gsim_name] = 0
@@ -112,7 +113,8 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 				else:
 					min_dist, max_dist = None, None
 				filtered_pe_site_models[gsim_name] = []
-				for pe_site_model in pe_site_models:
+				filtered_pe_thresholds[gsim_name] = []
+				for p, pe_site_model in enumerate(pe_site_models):
 					pe_mask = np.ones(len(pe_site_model))
 					if min_dist or max_dist:
 						## Filtering required
@@ -123,13 +125,15 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 							pe_mask *= (jb_dist <= max_dist)
 					filtered_pe_site_model = pe_site_model.filter(pe_mask)
 					if filtered_pe_site_model:
+						filtered_pe_thresholds[gsim_name].append(pe_thresholds[p])
 						filtered_pe_site_models[gsim_name].append(filtered_pe_site_model)
 						if strict_intersection:
 							num_sites[gsim_name] += len(filtered_pe_site_model)
 						else:
 							num_sites[gsim_name] += 1
 				filtered_ne_site_models[gsim_name] = []
-				for ne_site_model in ne_site_models:
+				filtered_ne_thresholds[gsim_name] = []
+				for n, ne_site_model in enumerate(ne_site_models):
 					ne_mask = np.ones(len(ne_site_model))
 					if min_dist or max_dist:
 						## Filtering required
@@ -140,6 +144,7 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 							ne_mask *= (jb_dist <= max_dist)
 					filtered_ne_site_model = ne_site_model.filter(ne_mask)
 					if filtered_ne_site_model:
+						filtered_ne_thresholds[gsim_name].append(ne_thresholds[n])
 						filtered_ne_site_models[gsim_name].append(filtered_ne_site_model)
 						if strict_intersection:
 							num_sites[gsim_name] += len(filtered_ne_site_model)
@@ -155,7 +160,8 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 			for gsim_name, gsim_weight in zip(filtered_gsim_names, filtered_gsim_weights):
 				gsim = gsims_dict[gsim_name]
 				pe_prob = 1
-				for (pe_threshold, pe_site_model) in zip(pe_thresholds, filtered_pe_site_models[gsim_name]):
+
+				for (pe_threshold, pe_site_model) in zip(filtered_pe_thresholds[gsim_name], filtered_pe_site_models[gsim_name]):
 					sctx, rctx, dctx = gsim.make_contexts(pe_site_model, rupture)
 					pe_poes = gsim.get_poes(sctx, rctx, dctx, imt, pe_threshold, truncation_level)
 					pe_poes = pe_poes[:,0]
@@ -166,7 +172,7 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 						pe_prob *= np.mean(pe_poes)
 
 				ne_prob = 1
-				for (ne_threshold, ne_site_model) in zip(ne_thresholds, filtered_ne_site_models[gsim_name]):
+				for (ne_threshold, ne_site_model) in zip(filtered_ne_thresholds[gsim_name], filtered_ne_site_models[gsim_name]):
 					sctx, rctx, dctx = gsim.make_contexts(ne_site_model, rupture)
 					ne_poes = gsim.get_poes(sctx, rctx, dctx, imt, ne_threshold, truncation_level)
 					ne_poes = ne_poes[:,0]
