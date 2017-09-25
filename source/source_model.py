@@ -872,7 +872,12 @@ class SourceModel():
 
 		return FaultNetwork(fault_links)
 
-	def get_linked_subfaults(self, fault_links, characteristic=True):
+	def get_linked_subfaults(self, fault_links, min_aspect_ratio=0.67, characteristic=True):
+		"""
+		:param min_aspect_ratio:
+			float, minimum aspect ratio (length / width)
+			(default: 0.67, i.e. maximum width is 1.5 * length)
+		"""
 		from ..geo import Line
 
 		faults = self.get_simple_fault_sources()
@@ -913,11 +918,16 @@ class SourceModel():
 			#for pt in fault_trace:
 			#	print pt.longitude, pt.latitude
 			fault_trace = Line(fault_trace)
-			#print fault_trace.get_length()
+
+			## Constrain fault width to max. 2 times the fault length
 			fault_id = fault_name = '+'.join(conn)
+			length = fault_trace.get_length()
+			width = min(length / min_aspect_ratio, (lsd - usd) * np.sin(np.radians(dip)))
+			lsd_lim = usd + width * np.sin(np.radians(dip))
+
 			try:
 				fault = SimpleFaultSource(fault_id, fault_name,
-							trt, mfd, rms, msr, rar, usd, lsd,
+							trt, mfd, rms, msr, rar, usd, lsd_lim,
 							fault_trace, dip, rake)
 			except:
 				print("Fault construction failed for %s" % fault_id)
