@@ -567,6 +567,30 @@ class SourceModel():
 		mfd_list = [src.mfd for src in self.get_area_sources()]
 		return sum_MFDs(mfd_list)
 
+	def to_geo_data(self):
+		import mapping.layeredbasemap as lbm
+
+		# TODO: add ComplexFaultSource
+		# TODO: how to handle CharacteristicSource (doesn't have get_polygon method)?
+		polygon_data = lbm.MultiPolygonData([], [])
+		line_data = lbm.MultiLineData([], [])
+		point_data = lbm.MultiPointData([], [])
+		for source in self.sources:
+			if isinstance(source, AreaSource):
+				polygon_data.append(lbm.PolygonData(source.longitudes, source.latitudes, label=source.source_id))
+			elif isinstance(source, (SimpleFaultSource, CharacteristicFaultSource)):
+				pg = source.get_polygon()
+				polygon_data.append(lbm.PolygonData(pg.lons, pg.lats))
+				fault_trace = source.fault_trace
+				line_data.append(lbm.LineData(fault_trace.lons, fault_trace.lats, label=source.source_id))
+			elif isinstance(source, PointSource):
+				point_data.append(lbm.PointData(source.location.longitude, source.location.latitude, label=source.source_id))
+			else:
+				print("Warning: Skipped source %s, source type not supported" % source.source_id)
+		sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data,
+									points=point_data)
+		return sm_data
+
 	def get_plot(self, region=None, projection="merc", resolution="i", graticule_interval=(1., 1.),
 				point_source_style="default", area_source_style="default",
 				fault_source_style="default", countries_style="default",
@@ -672,6 +696,7 @@ class SourceModel():
 
 		# TODO: add ComplexFaultSource
 		# TODO: how to handle CharacteristicSource (doesn't have get_polygon method)?
+		"""
 		polygon_data = lbm.MultiPolygonData([], [])
 		line_data = lbm.MultiLineData([], [])
 		point_data = lbm.MultiPointData([], [])
@@ -693,8 +718,14 @@ class SourceModel():
 					legend_label["points"] = "Point sources"
 			else:
 				print("Warning: Skipped plotting source %s, source type not supported" % source.source_id)
-		sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data,
-									points=point_data)
+		"""
+		sm_data = self.to_geo_data()
+		if len(sm_data.polygon_data) and not legend_label.has_key("polygons"):
+			legend_label["polygons"] = "Area sources"
+		if len(sm_data.line_data) and not legend_label.has_key("lines"):
+			legend_label["lines"] = "Fault sources"
+		if len(sm_data.point_data) and not legend_label.has_key("points"):
+			legend_label["points"] = "Point sources"
 		sm_style = source_model_style
 		map_layers.append(lbm.MapLayer(sm_data, sm_style, legend_label=legend_label, name="source_model"))
 
