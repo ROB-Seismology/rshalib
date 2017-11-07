@@ -567,14 +567,17 @@ class SourceModel():
 		mfd_list = [src.mfd for src in self.get_area_sources()]
 		return sum_MFDs(mfd_list)
 
-	def to_geo_data(self):
+	def to_lbm_data(self):
+		"""
+		Convert to layeredbasemap geodata
+		"""
 		import mapping.layeredbasemap as lbm
 
 		# TODO: add ComplexFaultSource
-		# TODO: how to handle CharacteristicSource (doesn't have get_polygon method)?
-		polygon_data = lbm.MultiPolygonData([], [])
-		line_data = lbm.MultiLineData([], [])
-		point_data = lbm.MultiPointData([], [])
+		# TODO: add attributes !
+		polygon_data = []
+		line_data = []
+		point_data = []
 		for source in self.sources:
 			if isinstance(source, AreaSource):
 				polygon_data.append(lbm.PolygonData(source.longitudes, source.latitudes, label=source.source_id))
