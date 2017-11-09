@@ -567,27 +567,36 @@ class SourceModel():
 		mfd_list = [src.mfd for src in self.get_area_sources()]
 		return sum_MFDs(mfd_list)
 
-	def to_lbm_data(self):
+	def to_lbm_data(self, fault_geom_type="line"):
 		"""
 		Convert to layeredbasemap geodata
+
+		:param fault_geom_type:
+			str, "line" or "polygon"
+			(default: "line")
+
+		:return:
+			layeredbasemap CompositeData object
 		"""
 		import mapping.layeredbasemap as lbm
 
 		# TODO: add ComplexFaultSource
-		# TODO: add attributes !
 		polygon_data = []
 		line_data = []
 		point_data = []
 		for source in self.sources:
 			if isinstance(source, AreaSource):
-				polygon_data.append(lbm.PolygonData(source.longitudes, source.latitudes, label=source.source_id))
+				pg = source.to_lbm_data()
+				polygon_data.append(pg)
 			elif isinstance(source, (SimpleFaultSource, CharacteristicFaultSource)):
-				pg = source.get_polygon()
-				polygon_data.append(lbm.PolygonData(pg.lons, pg.lats))
-				fault_trace = source.fault_trace
-				line_data.append(lbm.LineData(fault_trace.lons, fault_trace.lats, label=source.source_id))
+				geom = source.to_lbm_data(geom_type=fault_geom_type)
+				if fault_geom_type == "line":
+					line_data.append(geom)
+				else:
+					polygon_data.append(geom)
 			elif isinstance(source, PointSource):
-				point_data.append(lbm.PointData(source.location.longitude, source.location.latitude, label=source.source_id))
+				pt = source.to_lbm_data()
+				point_data.append(pt)
 			else:
 				print("Warning: Skipped source %s, source type not supported" % source.source_id)
 		sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data,
