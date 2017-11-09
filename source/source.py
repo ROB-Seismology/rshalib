@@ -590,6 +590,26 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		"""
 		return self.lower_seismogenic_depth - self.upper_seismogenic_depth
 
+	def to_lbm_data(self):
+		"""
+		Convert to layeredbasemap point
+
+		:return:
+			layeredbasemap PointData object
+		"""
+		import mapping.layeredbasemap as lbm
+
+		pt = lbm.PointData(self.location.longitude, self.location.latitude,
+							label=self.source_id)
+		attrs = ("source_id", "name", "tectonic_region_type",
+				"rupture_mesh_spacing", "magnitude_scaling_relationship",
+				"rupture_aspect_ratio", "upper_seismogenic_depth",
+				"lower_seismogenic_depth")
+		for attr in attrs:
+			pt.value[attr] = getattr(self, attr)
+		return pt
+
+
 
 class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 	"""
@@ -935,6 +955,25 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 		moment_rate = self.get_moment_rate_from_strain_rate(strain_rate, rigidity)
 		Mmax = self.mfd.get_Mmax_from_moment_rate(moment_rate)
 		return Mmax
+
+	def to_lbm_data(self):
+		"""
+		Convert to layeredbasemap polygon
+
+		:return:
+			layeredbasemap PolygonData object
+		"""
+		import mapping.layeredbasemap as lbm
+
+		pg = lbm.PolygonData(self.longitudes, self.latitudes, label=self.source_id)
+		pg.value = {}
+		attrs = ("source_id", "name", "tectonic_region_type", "rupture_mesh_spacing",
+				"magnitude_scaling_relationship", "rupture_aspect_ratio",
+				"upper_seismogenic_depth", "lower_seismogenic_depth",
+				"area_discretization")
+		for attr in attrs:
+			pg.value[attr] = getattr(self, attr)
+		return pg
 
 
 class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
@@ -1738,6 +1777,36 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 
 		return subfaults
 
+	def to_lbm_data(self, geom_type="line"):
+		"""
+		Convert to layeredbasemap line or polygon
+
+		:param geom_type:
+			str, "line" or "polygon"
+			(default: "line")
+
+		:return:
+			layeredbasemap LineData or PolygonData object
+		"""
+		import mapping.layeredbasemap as lbm
+
+		if geom_type == "line":
+			ft = self.fault_trace
+			geom = lbm.LineData(ft.lons, ft.lats, label=self.source_id)
+		elif geom_type == "polygon":
+			pg = self.get_polygon()
+			geom = lbm.PolygonData(pg.lons, pg.lats, label=self.source_id)
+
+		geom.value = {}
+		attrs = ("source_id", "name", "tectonic_region_type",
+			"rupture_mesh_spacing", "magnitude_scaling_relationship",
+			"rupture_aspect_ratio", "upper_seismogenic_depth",
+			"lower_seismogenic_depth", "dip", "rake", "slip_rate", "bg_zone")
+		for attr in attrs:
+			geom.value[attr] = getattr(self, attr)
+
+		return geom
+
 
 
 class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
@@ -2020,6 +2089,33 @@ class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, Ruptu
 		"""
 		rupture = self.get_rupture()
 		return rupture.surface
+
+	def to_lbm_data(self, geom_type="line"):
+		"""
+		Convert to layeredbasemap line or polygon
+
+		:param geom_type:
+			str, "line" or "polygon"
+			(default: "line")
+
+		:return:
+			layeredbasemap LineData or PolygonData object
+		"""
+		import mapping.layeredbasemap as lbm
+
+		if geom_type == "line":
+			ft = self.fault_trace
+			geom = lbm.LineData(ft.lons, ft.lats, label=self.source_id)
+		elif geom_type == "polygon":
+			pg = self.get_polygon()
+			geom = lbm.PolygonData(pg.lons, pg.lats, label=self.source_id)
+
+		geom.value = {}
+		attrs = ("source_id", "name", "tectonic_region_type", "rake")
+		for attr in attrs:
+			geom.value[attr] = getattr(self, attr)
+
+		return geom
 
 
 
