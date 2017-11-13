@@ -522,7 +522,7 @@ class HazardField:
 			lonmin = self.lonmin()
 		if lonmax is None:
 			lonmax = self.lonmax()
-		return np.linspace(lonmin, lonmax, num_cells)
+		return np.linspace(lonmin, lonmax, num_cells, dtype='f')
 
 	def get_grid_latitudes(self, latmin=None, latmax=None, num_cells=100):
 		"""
@@ -542,7 +542,7 @@ class HazardField:
 			latmin = self.latmin()
 		if latmax is None:
 			latmax = self.latmax()
-		return np.linspace(latmin, latmax, num_cells)
+		return np.linspace(latmin, latmax, num_cells, dtype='f')
 
 	def meshgrid(self, extent=(None, None, None, None), num_cells=100):
 		"""
@@ -556,7 +556,9 @@ class HazardField:
 		lonmin, lonmax, latmin, latmax = extent
 		if isinstance(num_cells, int):
 			num_cells = (num_cells, num_cells)
-		return np.meshgrid(self.get_grid_longitudes(lonmin, lonmax, num_cells[0]), self.get_grid_latitudes(latmin, latmax, num_cells[1]))
+		return np.meshgrid(self.get_grid_longitudes(lonmin, lonmax, num_cells[0]),
+						self.get_grid_latitudes(latmin, latmax, num_cells[1]),
+						copy=False)
 
 	def get_grid_intensities(self, extent=(None, None, None, None), num_cells=100, method="cubic", intensity_unit="", nodata_value=np.nan):
 		"""
@@ -574,15 +576,15 @@ class HazardField:
 		:param nodata_value:
 
 		"""
-#		from scipy.interpolate import griddata
-#		x, y = self.longitudes, self.latitudes
+		#from scipy.interpolate import griddata
+		#x, y = self.longitudes, self.latitudes
 		lonmin, lonmax, latmin, latmax = extent
 		if isinstance(num_cells, int):
 			num_cells = (num_cells, num_cells)
 		xi, yi = self.meshgrid(extent, num_cells)
-#		z = self.get_intensities(intensity_unit=intensity_unit)
+		#z = self.get_intensities(intensity_unit=intensity_unit)
 		#zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method='cubic')
-#		zi = griddata((x, y), z, (xi, yi), method=method)
+		#zi = griddata((x, y), z, (xi, yi), method=method)
 		zi = self.get_site_intensities(xi, yi, method, intensity_unit, nodata_value=nodata_value)
 		return zi
 
@@ -4346,7 +4348,7 @@ class HazardMap(HazardResult, HazardField):
 			instance of :class:`HazardMap`
 		"""
 		grid_lons, grid_lats = self.meshgrid(grid_extent, num_grid_cells)
-		grid_intensities = self.get_grid_intensities(grid_extent, num_grid_cells, method)
+		grid_intensities = self.get_site_intensities(grid_lons, grid_lats, method)
 		intensities = grid_intensities.flatten()
 
 		model_name = self.model_name + " (interpolated)"
@@ -4399,8 +4401,8 @@ class HazardMap(HazardResult, HazardField):
 			latmax = min(self.latmax(), other_map.latmax())
 			grid_extent = (lonmin, lonmax, latmin, latmax)
 			grid_lons, grid_lats = self.meshgrid(grid_extent, num_grid_cells)
-			grid_intensities1 = self.get_grid_intensities(grid_extent, num_grid_cells, interpol_method)
-			grid_intensities2 = other_map.get_grid_intensities(grid_extent, num_grid_cells, interpol_method)
+			grid_intensities1 = self.get_site_intensities(grid_lons, grid_lats, interpol_method)
+			grid_intensities2 = other_map.get_site_intensities(grid_lons, grid_lats, interpol_method)
 			residuals = (grid_intensities1 - grid_intensities2).flatten()
 			residuals[np.isnan(residuals)] = 0.
 			if not abs:
@@ -4716,11 +4718,20 @@ class HazardMap(HazardResult, HazardField):
 
 		## Prepare intensity grid and contour levels
 		longitudes, latitudes = self.longitudes, self.latitudes
-		# TODO: use site lons and lats if they are already a meshed grid
-		grid_lons, grid_lats = self.meshgrid(num_cells=num_grid_cells)
+		if num_grid_cells is None:
+			## Assume site lons and lats already define a meshed grid
+			lons = np.sort(np.unique(self.longitudes))
+			lats = np.sort(np.unique(self.latitudes))
+			grid_lons, grid_lats = np.meshgrid(lons, lats, copy=False)
+			interpol_method = "nearest"
+		else:
+			grid_lons, grid_lats = self.meshgrid(num_cells=num_grid_cells)
+			interpol_method = "cubic"
 		if not intensity_unit:
 			intensity_unit = self.intensity_unit
-		intensity_grid = self.get_grid_intensities(num_cells=num_grid_cells, intensity_unit=intensity_unit)
+		intensity_grid = self.get_site_intensities(grid_lons, grid_lats,
+						method=interpol_method, intensity_unit=intensity_unit)
+
 		# TODO: option to use contour levels as defined in norm
 		if not contour_interval:
 			arange = self.max() - self.min()
