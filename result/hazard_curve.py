@@ -4439,8 +4439,12 @@ class HazardMap(HazardResult, HazardField):
 		:param sites:
 			list with instances of SHASite or (lon, lat) tuples
 		:param interpolate:
-			bool, if False, sites must match exactly, otherwise
-			they intensities will be interpolated
+			bool or string
+			If False, sites must match exactly, otherwise
+			the intensities will be interpolated
+			If string, should correspond to interpolation method
+			("nearest", "linear" or "cubic")
+			If True, cubic interpolation is applied
 			(default: False)
 
 		:return:
@@ -4453,7 +4457,11 @@ class HazardMap(HazardResult, HazardField):
 			else:
 				## (lon, lat) tuples
 				lons, lats = zip(*sites)
-			intensities = self.get_site_intensities(lons, lats, method="cubic")
+			if isinstance(interpolate, (str, unicode)):
+				method = interpolate
+			else:
+				method = "cubic"
+			intensities = self.get_site_intensities(lons, lats, method=method)
 			vs30s = None
 		else:
 			site_idxs = self.get_site_indexes(sites)
@@ -5107,6 +5115,8 @@ class HazardMapSet(HazardResult, HazardField):
 GroundMotionField = HazardMap
 HazardCurveFieldTree = SpectralHazardCurveFieldTree
 
+# TODO: implement GroundMotionField without probabilistic properties
+# and subclass HazardMap from that
 
 
 if __name__ == "__main__":
