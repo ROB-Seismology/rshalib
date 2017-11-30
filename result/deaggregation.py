@@ -1175,6 +1175,8 @@ class DeaggregationSlice(DeaggBase):
 	def write_nrml(self, nrml_filespec, sourceModelTreePath=None, gsimTreePath=None):
 		"""
 		"""
+		# TODO: params should be smlt_path and gmpelt_path, in accordance with
+		# write_nrml method of SpectralHazardCurveField
 		from ..openquake.IO import write_disaggregation_slice
 		poe = self.deagg_matrix.get_total_probability(timespan=self.timespan)
 		matrix = self.deagg_matrix.to_probability_matrix(timespan=self.timespan)
