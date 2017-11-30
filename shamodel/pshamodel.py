@@ -1430,7 +1430,7 @@ class PSHAModel(PSHAModelBase):
 		deagg_soil_sites = []
 		for (site_lon, site_lat) in sorted(site_imtls.keys()):
 			for site in site_model.get_sites():
-				if (site.lon, site.lat) == (site_lon, site_lat):
+				if np.allclose((site.lon, site.lat), (site_lon, site_lat), atol=1E-5):
 					deagg_soil_sites.append(site)
 					break
 		deagg_site_model = SoilSiteModel("", deagg_soil_sites)
