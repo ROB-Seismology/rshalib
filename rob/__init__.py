@@ -2,10 +2,10 @@
 # Empty file necessary for python to recognise directory as package
 #
 
-import rob_sourceModels
-reload(rob_sourceModels)
+import rob_source_models
+reload(rob_source_models)
 
-from rob_sourceModels import (create_rob_source_model, create_rob_source,
+from rob_source_models import (create_rob_source_model, create_rob_source,
 			create_rob_area_source, create_rob_simple_fault_source)
 
 import ec8
