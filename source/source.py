@@ -1617,7 +1617,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		:return:
 			list with instances of :class:`eqgeology.FocMec.ElasticSubFault`
 		"""
-		from eqgeology.FocMec.okada import ElasticSubFault
+		from eqgeology.faultlib.okada import ElasticSubFault
 		from thirdparty.PyVisvalingamWhyatt.polysimplify import VWSimplifier
 
 		subfault_width = self.get_width() / ad_num
