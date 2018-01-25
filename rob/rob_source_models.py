@@ -7,7 +7,6 @@ Module to create nrml objects and files for ROB source models
 import numpy as np
 import os
 import decimal
-from matplotlib import pyplot
 
 from openquake.hazardlib.scalerel import WC1994
 
@@ -19,6 +18,76 @@ from ..source import AreaSource, SimpleFaultSource, SourceModel
 
 # set precision for weights calculation
 #decimal.getcontext().prec = 4
+
+
+from ..source import import_source_model_from_gis
+
+
+def read_rob_source_model(
+	source_model_name,
+	column_map={},
+	source_ids=[],
+	source_catalogs={},
+	overall_catalog=None,
+	catalog_params={},
+	encoding="latin-1",
+	verbose=True,
+	**kwargs):
+	"""
+	Read well-known ROB source model
+
+	:param source_model_name:
+		str, name of ROB source model
+	:param column_map:
+		dict, mapping source parameter names to GIS columns or scalars
+		(default: {})
+	:param source_ids:
+		list of source IDs to import
+		(default: [], import all sources in GIS file)
+	:param source_catalogs:
+		dict, mapping source ID's to instances of :class:`eqcatalog.EQCatalog`
+		(default: {})
+	:param overall_catalog:
+		instance of :class:`eqcatalog.EQCatalog`
+		source catalogs will be extracted from overall catalog if they
+		are not specified in :param:`source_catalogs`
+		(default: None)
+	:param catalog_params:
+		dict, defining catalog processing parameters, in particular the keys
+		'Mtype', 'Mrelation', and 'completeness'
+		(default: {})
+	:param encoding:
+		str, unicode encoding in GIS file
+		(default: "latin-1")
+	:param verbose:
+		bool, whether or not to print information during reading
+		(default: True)
+	:param kwargs:
+		dict, mapping parameter names to values, overriding entries
+		in :param:`column_map` or in GIS file or in default kwargs for
+		particular source
+
+	:return:
+		instance of :class:`SourceModel`
+	"""
+	from eqcatalog.source_models import rob_source_models_dict
+
+	rob_source_model = rob_source_models_dict[source_model_name]
+
+	gis_filespec = rob_source_model['gis_filespec']
+
+	## Override default column map
+	## Copy dict to avoid side effects in calling function
+	column_map = column_map.copy()
+	default_column_map = rob_source_model['column_map']
+	for key in default_column_map:
+		if not key in column_map:
+			column_map[key] = default_column_map[key]
+
+	return import_source_model_from_gis(gis_filespec, name=source_model_name,
+				column_map=column_map, source_ids=source_ids, source_catalogs=source_catalogs,
+				overall_catalog=overall_catalog, catalog_params=catalog_params,
+				encoding=encoding, verbose=verbose, **kwargs)
 
 
 def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, column_map={}, source_catalogs={}, catalog_params={}, fix_mi_lambert=True, verbose=True, **kwargs):
@@ -57,6 +126,7 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	:return:
 		SourceModel object.
 	"""
+	print("Warning: this function is deprecated. Use read_rob_source_model instead!")
 	from eqcatalog.source_models import rob_source_models_dict
 	from mapping.geotools.readGIS import read_GIS_file
 
@@ -114,6 +184,8 @@ def create_rob_source(source_rec, column_map, catalog=None, catalog_params={}, v
 	:return:
 		AreaSource or SimpleFaultSource object.
 	"""
+	print("Warning: this function is deprecated!")
+
 	## Decide which function to use based on object type
 	function = {"POLYGON": create_rob_area_source, "LINESTRING": create_rob_simple_fault_source}[source_rec["obj"].GetGeometryName()]
 	return function(source_rec, column_map=column_map, catalog=catalog, catalog_params=catalog_params, verbose=verbose, **kwargs)
@@ -184,6 +256,8 @@ def create_rob_area_source(
 	:return:
 		AreaSource object.
 	"""
+	print("Warning: this function is deprecated!")
+
 	import osr
 	from mapping.geotools.coordtrans import wgs84, lambert1972
 	coordTrans = osr.CoordinateTransformation(wgs84, lambert1972)
@@ -403,6 +477,8 @@ def create_rob_simple_fault_source(
 	:return:
 		SimpleFaultSource object.
 	"""
+	print("Warning: this function is deprecated!")
+
 	## ID and name
 	source_id = str(source_rec.get(column_map['id'], column_map['id']))
 	name = str(source_rec.get(column_map['name'], column_map['name']))
@@ -498,6 +574,8 @@ def create_rob_simple_fault_source(
 if __name__ == '__main__':
 	"""
 	"""
+	from matplotlib import pyplot
+
 	## write rob source models
 	source_model = create_rob_source_model('Seismotectonic')
 	source_model.print_xml()

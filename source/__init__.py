@@ -11,6 +11,9 @@ reload(source)
 import source_model
 reload(source_model)
 
+import read_from_gis
+reload(read_from_gis)
+
 import smoothed_seismicity
 reload(smoothed_seismicity)
 
@@ -21,6 +24,11 @@ from source import (PointSource, AreaSource, SimpleFaultSource,
                     RuptureSource)
 
 from source_model import SourceModel
+
+from read_from_gis import (import_source_model_from_gis,
+							import_source_from_gis_record,
+							import_point_or_area_source_from_gis_record,
+							import_simple_fault_source_from_gis_record)
 
 from smoothed_seismicity import SmoothedSeismicity
 

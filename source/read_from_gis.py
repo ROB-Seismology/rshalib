@@ -12,7 +12,6 @@ import openquake.hazardlib as oqhazlib
 from ..mfd import TruncatedGRMFD, EvenlyDiscretizedMFD
 from ..geo import Point, Line, Polygon, NodalPlane, mean_angle
 from ..pmf.distributions import *
-from ..source import PointSource, AreaSource, SimpleFaultSource, SourceModel
 
 from mapping.geotools.readGIS import read_GIS_file
 
@@ -485,6 +484,8 @@ def import_point_or_area_source_from_gis_record(
 	:return:
 		instance of :class:`PointSource` or :class:`AreaSource`
 	"""
+	from ..source import PointSource, AreaSource
+
 	## ID and name
 	source_id = import_param(source_rec, column_map, 'id', str, encoding=encoding)
 	name = import_param(source_rec, column_map, 'name', str, encoding=encoding)
@@ -818,6 +819,8 @@ def import_simple_fault_source_from_gis_record(
 	:return:
 		instance of :class:`SimpleFaultSource`
 	"""
+	from ..source import SimpleFaultSource
+
 	## ID and name
 	source_id = import_param(source_rec, column_map, 'id', str, encoding=encoding)
 	name = import_param(source_rec, column_map, 'name', str, encoding=encoding)
@@ -1081,6 +1084,8 @@ def import_source_model_from_gis(
 	:return:
 		instance of :class:`..source.SourceModel`
 	"""
+	from ..source import SourceModel
+
 	sources = []
 	source_records = read_GIS_file(gis_filespec, encoding=None, verbose=verbose)
 	for source_rec in source_records:
@@ -1101,70 +1106,3 @@ def import_source_model_from_gis(
 		name = os.path.splitext(os.path.split(gis_filespec)[1])[0]
 	source_model = SourceModel(name, sources)
 	return source_model
-
-
-def read_rob_source_model(
-	source_model_name,
-	column_map={},
-	source_ids=[],
-	source_catalogs={},
-	overall_catalog=None,
-	catalog_params={},
-	encoding="latin-1",
-	verbose=True,
-	**kwargs):
-	"""
-	Read well-known ROB source model
-
-	:param source_model_name:
-		str, name of ROB source model
-	:param column_map:
-		dict, mapping source parameter names to GIS columns or scalars
-		(default: {})
-	:param source_ids:
-		list of source IDs to import
-		(default: [], import all sources in GIS file)
-	:param source_catalogs:
-		dict, mapping source ID's to instances of :class:`eqcatalog.EQCatalog`
-		(default: {})
-	:param overall_catalog:
-		instance of :class:`eqcatalog.EQCatalog`
-		source catalogs will be extracted from overall catalog if they
-		are not specified in :param:`source_catalogs`
-		(default: None)
-	:param catalog_params:
-		dict, defining catalog processing parameters, in particular the keys
-		'Mtype', 'Mrelation', and 'completeness'
-		(default: {})
-	:param encoding:
-		str, unicode encoding in GIS file
-		(default: "latin-1")
-	:param verbose:
-		bool, whether or not to print information during reading
-		(default: True)
-	:param kwargs:
-		dict, mapping parameter names to values, overriding entries
-		in :param:`column_map` or in GIS file or in default kwargs for
-		particular source
-
-	:return:
-		instance of :class:`SourceModel`
-	"""
-	from eqcatalog.source_models import rob_source_models_dict
-
-	rob_source_model = rob_source_models_dict[source_model_name]
-
-	gis_filespec = rob_source_model['gis_filespec']
-
-	## Override default column map
-	## Copy dict to avoid side effects in calling function
-	column_map = column_map.copy()
-	default_column_map = rob_source_model['column_map']
-	for key in default_column_map:
-		if not key in column_map:
-			column_map[key] = default_column_map[key]
-
-	return import_source_model_from_gis(gis_filespec, name=source_model_name,
-				column_map=column_map, source_ids=source_ids, source_catalogs=source_catalogs,
-				overall_catalog=overall_catalog, catalog_params=catalog_params,
-				encoding=encoding, verbose=verbose, **kwargs)
