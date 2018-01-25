@@ -4,23 +4,12 @@ Module to create nrml objects and files for ROB source models
 
 
 ### imports
-import numpy as np
-import os
-import decimal
-
-from openquake.hazardlib.scalerel import WC1994
-
-from ..mfd import TruncatedGRMFD, EvenlyDiscretizedMFD
-from ..geo import Point, Line, Polygon, NodalPlane, mean_angle
-from ..pmf.distributions import *
-from ..source import AreaSource, SimpleFaultSource, SourceModel
+from ..source import import_source_model_from_gis
 
 
 # set precision for weights calculation
 #decimal.getcontext().prec = 4
 
-
-from ..source import import_source_model_from_gis
 
 
 def read_rob_source_model(
@@ -88,6 +77,23 @@ def read_rob_source_model(
 				column_map=column_map, source_ids=source_ids, source_catalogs=source_catalogs,
 				overall_catalog=overall_catalog, catalog_params=catalog_params,
 				encoding=encoding, verbose=verbose, **kwargs)
+
+
+
+## Note: the following functions are obsolete
+## and should be removed in the near future
+
+
+import numpy as np
+import os
+import decimal
+
+from openquake.hazardlib.scalerel import WC1994
+
+from ..mfd import TruncatedGRMFD, EvenlyDiscretizedMFD
+from ..geo import Point, Line, Polygon, NodalPlane, mean_angle
+from ..pmf.distributions import *
+from ..source import AreaSource, SimpleFaultSource, SourceModel
 
 
 def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, column_map={}, source_catalogs={}, catalog_params={}, fix_mi_lambert=True, verbose=True, **kwargs):
