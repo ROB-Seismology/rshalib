@@ -100,7 +100,7 @@ class SourceModel():
 		"""
 		Make sources accessible with their ID as key
 		"""
-		if isinstance(index_or_name, int):
+		if isinstance(index_or_name, (int, slice)):
 			index = index_or_name
 		elif isinstance(index_or_name, (str, unicode)):
 			name = index_or_name
