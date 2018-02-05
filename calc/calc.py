@@ -102,6 +102,20 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 
 		tom = oqhazlib.tom.PoissonTOM(1)
 		for rupture in src.iter_ruptures(tom):
+			"""
+			if s in (225, 226):
+				print s, src.source_id
+				print len(rupture.surface.mesh)
+				print rupture.surface.mesh.lons
+				print rupture.surface.mesh.lats
+				print rupture.surface.mesh.depths
+				for site_model in pe_site_models[1:2]:
+					jb_dist = rupture.surface.get_joyner_boore_distance(site_model.mesh)
+				#for site_model in ne_site_models:
+				#	jb_dist = rupture.surface.get_joyner_boore_distance(site_model.mesh)
+			prob_dict[src.source_id].append(1)
+			"""
+
 			## Filter sites by distance
 			filtered_pe_site_models, filtered_ne_site_models = {}, {}
 			filtered_pe_thresholds, filtered_ne_thresholds = {}, {}
