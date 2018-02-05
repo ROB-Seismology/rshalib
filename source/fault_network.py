@@ -1,5 +1,7 @@
 
 
+# Perhaps see also:
+# https://www.python.org/doc/essays/graphs/
 
 
 class FaultNetwork:
