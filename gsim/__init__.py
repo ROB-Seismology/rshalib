@@ -2,11 +2,16 @@
 # Empty file necessary for python to recognise directory as package
 #
 
+import inverse_gsim
+reload(inverse_gsim)
+
 import gsim_model
 reload(gsim_model)
 
 import gmpe
 reload(gmpe)
+
+from inverse_gsim import InverseGSIM
 
 from gsim_model import GroundMotionModel
 
