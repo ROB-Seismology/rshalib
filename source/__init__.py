@@ -11,6 +11,9 @@ reload(source)
 import source_model
 reload(source_model)
 
+import grid_source_model
+reload(grid_source_model)
+
 import read_from_gis
 reload(read_from_gis)
 
@@ -24,6 +27,8 @@ from source import (PointSource, AreaSource, SimpleFaultSource,
                     RuptureSource)
 
 from source_model import SourceModel
+
+from grid_source_model import SimpleUniformGridSourceModel
 
 from read_from_gis import (import_source_model_from_gis,
 							import_source_from_gis_record,
