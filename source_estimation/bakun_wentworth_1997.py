@@ -1,6 +1,8 @@
 
 import numpy as np
 
+import openquake.hazardlib as oqhazlib
+
 from ..gsim import InverseGSIM
 from ..site import SoilSiteModel
 
