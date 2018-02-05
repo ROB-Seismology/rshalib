@@ -75,7 +75,6 @@ def estimate_epicenter_location_and_magnitude_from_intensities(
 
 	if method == "reverse":
 		inverse_ipe = InverseGSIM(ipe_name)
-		mag_bounds = (min_mag, max_mag)
 
 	## Compute most likely magnitude at each grid point, and corresponding RMS error
 	mag_grid = np.zeros_like(grid_source_model.lon_grid)
