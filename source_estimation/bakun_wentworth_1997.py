@@ -32,11 +32,11 @@ def estimate_epicenter_location_and_magnitude_from_intensities(
 		sites with positive evidence
 	:param pe_intensities:
 		list of floats, intensities at positive evidence sites
-	: parem ne_sites:
+	:param ne_sites:
 		list of instances of :class:`rshalib.site.SoilSite`,
 		sites with negative evidence
 		(default: [])
-	:param pe_intensities:
+	:param ne_intensities:
 		list of floats, intensities at negative evidence sites
 		(default: [])
 	:param method:
@@ -55,10 +55,13 @@ def estimate_epicenter_location_and_magnitude_from_intensities(
 		(default: None)
 
 	:return:
-		(lon_grid, lat_grid, mag_grid, rms_grid) tuple:
+		(mag_grid, rms_grid) tuple:
 		- mag_grid: 2-D mesh of magnitudes
 		- rms_grid: 2-D mesh of RMS errors
 	"""
+	assert len(pe_sites) == len(pe_intensities)
+	assert len(ne_sites) == len(ne_intensities)
+
 	## Construct site models
 	num_pe = pe_intensities
 	pe_site_model = SoilSiteModel("Positive evicence", pe_sites)
