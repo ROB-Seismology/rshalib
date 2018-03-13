@@ -1256,6 +1256,38 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			az_max -= 360
 		return (az_min, az_max)
 
+	def get_strike_deltas(self, other_faults):
+		"""
+		Compute difference in strike compared to other faults
+
+		:param other_faults:
+			list with instances of :class:`SimpleFault`
+
+		:return:
+			float array: strike differences (in degrees, between -180 and 180)
+			- negative values: other faults are in anticlockwise direction
+			- positive values: other faults are in clockwise direction
+		"""
+		strike0 = self.get_mean_strike()
+		other_strikes = np.array([flt.get_mean_strike() for flt in other_faults])
+		strike_delta = other_strikes - strike0
+		other_strikes[other_strikes > 180] = 360 - other_strikes[other_strikes > 180]
+		other_strikes[other_strikes < -180] += 360
+		return other_strikes
+
+	def get_abs_strike_deltas(self, other_faults):
+		"""
+		Compute absolute difference in strike compared to other faults
+
+		:param other_faults:
+			list with instances of :class:`SimpleFault`
+
+		:return:
+			float array: absolute strike differences
+			(in degrees, between 0 and 180)
+		"""
+		return np.abs(self.get_strike_deltas(other_faults))
+
 	def get_polygon(self):
 		"""
 		Construct polygonal outline of fault
