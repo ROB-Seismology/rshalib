@@ -79,8 +79,8 @@ class FaultNetwork:
 			ID of fault that should be included
 		:param max_len:
 			int, maximum number of linked fault sections
-		:param parent:
-			ID of 'parent' fault, connections through that fault should
+		:param parents:
+			ID of 'parent' faults, connections through that fault should
 			not be included (avoids going back to fault where we started
 			when the function is applied recursively)
 		:param allow_triple_junctions:
