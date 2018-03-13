@@ -875,6 +875,8 @@ class SourceModel():
 							if f2 != f:
 								subfaults2 = subfaults_dict[flt2.source_id]
 								if allow_triple_junctions:
+									## Both start and end points of other
+									## faults are allowed to connect
 									if start_distances[f2] <= end_distances[f2]:
 										distance = start_distances[f2]
 										subflt2_idx = 0
@@ -882,6 +884,8 @@ class SourceModel():
 										distance = end_distances[f2]
 										subflt2_idx = -1
 								else:
+									## Allow only end points of other faults
+									## to connect with start point and vice versa
 									if open_pt == start_points[f]:
 										distance = end_distances[f2]
 										subflt2_idx = -1
