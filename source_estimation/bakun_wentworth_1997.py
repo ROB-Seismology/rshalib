@@ -123,7 +123,7 @@ def estimate_epicenter_location_and_magnitude_from_intensities(
 																[stddev_type])
 					if (mmi >= ne_intensities).any():
 						mag_grid[lat_idx, lon_idx] = np.nan
-						#rms_grid[lat_idx, lon_idx] = np.nan
+						rms_grid[lat_idx, lon_idx] = np.inf
 
 			elif method == "forward":
 				## Forward method
@@ -162,7 +162,7 @@ def estimate_epicenter_location_and_magnitude_from_intensities(
 					rms_grid[lat_idx, lon_idx] = src_rms[idx]
 				else:
 					mag_grid[lat_idx, lon_idx] = np.nan
-					rms_grid[lat_idx, lon_idx] = np.nan
+					rms_grid[lat_idx, lon_idx] = np.inf
 
 	return (mag_grid, rms_grid)
 
