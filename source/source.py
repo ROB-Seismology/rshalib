@@ -1659,9 +1659,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			int, number of subfaults along dip (default: 1)
 
 		:return:
-			list with instances of :class:`eqgeology.FocMec.ElasticSubFault`
-			This is a nested list, first dimension is along strike,
-			second dimension is down dip.
+			2-D array with instances of :class:`eqgeology.FocMec.ElasticSubFault`
+			First dimension is along strike, second dimension is down dip.
 		"""
 		from eqgeology.faultlib.okada import ElasticSubFault
 		from thirdparty.PyVisvalingamWhyatt.polysimplify import VWSimplifier
@@ -1684,6 +1683,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 
 		subfaults = []
 		for i in range(as_num):
+			subfaults.append([])
 			start, end = reduced_pts[i:i+2]
 			center_lon = np.mean([start[0], end[0]])
 			center_lat = np.mean([start[1], end[1]])
@@ -1705,9 +1705,9 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 				subfault.longitude = top_lon
 				subfault.latitude = top_lat
 				subfault.coordinate_specification = "top center"
-				subfaults.append(subfault)
+				subfaults[i].append(subfault)
 
-		return subfaults
+		return np.array(subfaults)
 
 	def get_surface(self):
 		"""
