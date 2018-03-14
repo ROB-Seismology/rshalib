@@ -1288,6 +1288,12 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		"""
 		return np.abs(self.get_strike_deltas(other_faults))
 
+	def reverse_trace(self):
+		"""
+		Reverse direction of fault trace
+		"""
+		self.fault_trace.reverse_direction()
+
 	def get_polygon(self):
 		"""
 		Construct polygonal outline of fault
