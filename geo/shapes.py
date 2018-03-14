@@ -98,6 +98,12 @@ class Line(nhlib.geo.Line):
 		"""
 		return Polygon(self.points)
 
+	def reverse_direction(self):
+		"""
+		Reverse line direction
+		"""
+		self.points = self.points[::-1]
+
 	def create_xml_element(self, encoding='latin1'):
 		"""
 		Create xml element (NRML root element)
