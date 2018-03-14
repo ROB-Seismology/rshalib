@@ -1294,6 +1294,12 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		"""
 		self.fault_trace.reverse_direction()
 
+	def get_dip_direction(self):
+		"""
+		Return dip direction (azimuth in degrees)
+		"""
+		return (self.get_mean_strike() + 90) % 360
+
 	def get_polygon(self):
 		"""
 		Construct polygonal outline of fault
