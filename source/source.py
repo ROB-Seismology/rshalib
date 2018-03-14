@@ -1654,6 +1654,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 
 		:return:
 			list with instances of :class:`eqgeology.FocMec.ElasticSubFault`
+			This is a nested list, first dimension is along strike,
+			second dimension is down dip.
 		"""
 		from eqgeology.faultlib.okada import ElasticSubFault
 		from thirdparty.PyVisvalingamWhyatt.polysimplify import VWSimplifier
