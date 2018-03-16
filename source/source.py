@@ -1310,13 +1310,12 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		width = self.get_projected_width()
 		if self.dip == 90:
 			width = 0.1
-		mean_strike = self.get_mean_strike()
-		perpendicular_direction = mean_strike + 90.
+		dip_direction = self.get_dip_direction()
 		z0, z1 = self.upper_seismogenic_depth, self.lower_seismogenic_depth
 		top_edge = [Point(pt.longitude, pt.latitude, z0) for pt in self.fault_trace]
 		bottom_edge = []
 		for pt in top_edge:
-			lon, lat = oqhazlib.geo.geodetic.point_at(pt[0], pt[1], perpendicular_direction, width)
+			lon, lat = oqhazlib.geo.geodetic.point_at(pt[0], pt[1], dip_direction, width)
 			bottom_edge.append(Point(lon, lat, z1))
 		bottom_edge.reverse()
 		return Polygon(top_edge + bottom_edge + [top_edge[0]])
@@ -1679,7 +1678,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			## In some cases, as_num is not honored by VWSimplifier
 			as_num = len(reduced_pts) - 1
 
-		perpendicular_direction = self.get_mean_strike() + 90.
+		dip_direction = self.get_dip_direction()
 
 		subfaults = []
 		for i in range(as_num):
@@ -1692,7 +1691,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			for j in range(ad_num):
 				top_depth = j * (subfault_width * np.sin(np.radians(self.dip)))
 				top_dist = j * (subfault_width * np.cos(np.radians(self.dip)))
-				top_lon, top_lat = oqhazlib.geo.geodetic.point_at(center_lon, center_lat, perpendicular_direction, top_dist)
+				top_lon, top_lat = oqhazlib.geo.geodetic.point_at(center_lon, center_lat, dip_direction, top_dist)
 
 				subfault = ElasticSubFault()
 				subfault.strike = subfault_strike
