@@ -126,7 +126,7 @@ def import_distribution(
 	dist = None
 	values, weights = [], []
 	for value_col, weight_col in column_map[param_name]:
-		value = float(source_rec.get(value_col, 0))
+		value = float(source_rec.get(value_col, value_col))
 		weight = float(source_rec.get(weight_col, weight_col))
 		if weight != 0:
 			values.append(value)
@@ -614,6 +614,22 @@ def import_point_or_area_source_from_gis_record(
 			hypo_depths, weights = get_normal_distribution(min_hypo_depth, max_hypo_depth,
 														num_bins=num_bins)
 			hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
+
+	## Compare hypocentral distribution with upper/lower seismogenic depth
+	if hypocentral_distribution.values[0] <= upper_seismogenic_depth:
+		msg = "Warning: usd (%.1f) >= min. hypo depth (%.1f) in src %s"
+		msg %= (upper_seismogenic_depth, hypocentral_distribution.values[0], source_id)
+		print (msg)
+		if upper_seismogenic_depth == 0:
+			hypocentral_distribution.values[0] -= 1
+		else:
+			upper_seismogenic_depth = max(0, hypocentral_distribution.values[0] - 1)
+
+	if hypocentral_distribution.values[-1] >= lower_seismogenic_depth:
+		msg = "Warning: lsd (%.1f) <= max. hypo depth (%.1f) in src %s"
+		msg %= (lower_seismogenic_depth, hypocentral_distribution.values[-1], source_id)
+		print (msg)
+		lower_seismogenic_depth = hypocentral_distribution.values[-1] + 1
 
 	## Geometry
 	geom = source_rec['obj']
