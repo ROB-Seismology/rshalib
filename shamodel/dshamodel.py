@@ -200,6 +200,7 @@ class DSHAModel(SHAModelBase):
 			(default: "avg")
 		:param src_aggregation:
 			str, how to aggregate different sources, either "sum", "min", "max" or "avg"
+			or list or array containing weights
 			(default: "max")
 		:param random_seed:
 			int, seed for the random number generator (default: None)
@@ -227,7 +228,7 @@ class DSHAModel(SHAModelBase):
 			correlation_model = getattr(oqhazlib.correlation, correlation_model)()
 
 		GMF = np.zeros((num_sites, num_realizations, len(imt_list)))
-		for src in self.source_model:
+		for s, src in enumerate(self.source_model):
 			src_gmf = np.zeros((num_sites, num_realizations, len(imt_list)))
 			trt = src.tectonic_region_type
 			gmpe_pmf = self.gmpe_system_def[trt]
@@ -247,7 +248,10 @@ class DSHAModel(SHAModelBase):
 						if np_aggregation == "avg":
 							gmpe_gmf[:,:,k] += (rup_gmf * rup.occurrence_rate)
 						elif np_aggregation == "min":
-							gmpe_gmf[:,:,k] = np.minimum(gmpe_gmf[:,:,k], rup_gmf)
+							if r == 0:
+								gmpe_gmf[:,:,k] = rup_gmf
+							else:
+								gmpe_gmf[:,:,k] = np.minimum(gmpe_gmf[:,:,k], rup_gmf)
 						elif np_aggregation == "max":
 							gmpe_gmf[:,:,k] = np.maximum(gmpe_gmf[:,:,k], rup_gmf)
 						else:
@@ -258,17 +262,25 @@ class DSHAModel(SHAModelBase):
 					assert np.allclose(total_rupture_probability, 1)
 					src_gmf += (gmpe_gmf * float(gmpe_weight))
 				elif gmpe_aggregation == "min":
-					src_gmf = np.minimum(src_gmf, gmpe_gmf)
+					if np.allclose(src_gmf, 0):
+						src_gmf += gmpe_pmf
+					else:
+						src_gmf = np.minimum(src_gmf, gmpe_gmf)
 				elif gmpe_aggregation == "max":
 					src_gmf = np.maximum(src_gmf, gmpe_gmf)
 				else:
 					raise Exception("aggregation:%s not supported for GMPEs!" % gmpe_aggregation)
 
 			## Aggregate gmf's corresponding to different sources
-			if src_aggregation == "sum":
+			if isinstance(src_aggregation, (list, np.ndarray)):
+				GMF += (src_gmf * float(src_aggregation[s]))
+			elif src_aggregation == "sum":
 				GMF += src_gmf
 			elif src_aggregation == "min":
-				GMF = np.minimum(GMF, src_gmf)
+				if s == 0:
+					GMF += src_gmf
+				else:
+					GMF = np.minimum(GMF, src_gmf)
 			elif src_aggregation == "max":
 				GMF = np.maximum(GMF, src_gmf)
 			elif src_aggregation == "avg":
@@ -392,7 +404,10 @@ class DSHAModel(SHAModelBase):
 						if np_aggregation == "avg":
 							gmpe_gmf[:,:,k] += (rup_gmf * rup.occurrence_rate)
 						elif np_aggregation == "min":
-							gmpe_gmf[:,:,k] = np.minimum(gmpe_gmf[:,:,k], rup_gmf)
+							if r == 0:
+								gmpe_gmf[:,:,k] = rup_gmf
+							else:
+								gmpe_gmf[:,:,k] = np.minimum(gmpe_gmf[:,:,k], rup_gmf)
 						elif np_aggregation == "max":
 							gmpe_gmf[:,:,k] = np.maximum(gmpe_gmf[:,:,k], rup_gmf)
 						else:
@@ -403,17 +418,25 @@ class DSHAModel(SHAModelBase):
 				if gmpe_aggregation == "avg":
 					src_gmf += (gmpe_gmf * float(gmpe_weight))
 				elif gmpe_aggregation == "min":
-					src_gmf = np.minimum(src_gmf, gmpe_gmf)
+					if np.allclose(src_gmf, 0):
+						src_gmf += gmpe_pmf
+					else:
+						src_gmf = np.minimum(src_gmf, gmpe_gmf)
 				elif gmpe_aggregation == "max":
 					src_gmf = np.maximum(src_gmf, gmpe_gmf)
 				else:
 					raise Exception("aggregation:%s not supported for GMPEs!" % gmpe_aggregation)
 
 			## Aggregate gmf's corresponding to different sources
-			if src_aggregation == "sum":
+			if isinstance(src_aggregation, (list, np.ndarray)):
+				GMF += (src_gmf * float(src_aggregation[s]))
+			elif src_aggregation == "sum":
 				GMF += src_gmf
 			elif src_aggregation == "min":
-				GMF = np.minimum(GMF, src_gmf)
+				if s == 0:
+					GMF += src_gmf
+				else:
+					GMF = np.minimum(GMF, src_gmf)
 			elif src_aggregation == "max":
 				GMF = np.maximum(GMF, src_gmf)
 			elif src_aggregation == "avg":
@@ -452,6 +475,7 @@ class DSHAModel(SHAModelBase):
 			(default: "avg")
 		:param src_aggregation:
 			str, how to aggregate different sources, either "sum", "min", "max" or "avg"
+			or list or array containing weights
 			(default: "max")
 
 		:return:
@@ -481,7 +505,7 @@ class DSHAModel(SHAModelBase):
 		amax = 0
 
 		for k, imt in enumerate(imt_list):
-			for src in self.source_model:
+			for s, src in enumerate(self.source_model):
 				src_gmf = np.zeros(len(soil_site_model))
 				trt = src.tectonic_region_type
 				gmpe_pmf = self.gmpe_system_def[trt]
@@ -489,7 +513,7 @@ class DSHAModel(SHAModelBase):
 					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
 					gmpe_gmf = np.zeros(len(soil_site_model))
 					total_rupture_probability = 0
-					for rup in src.iter_ruptures(fake_tom):
+					for r, rup in enumerate(src.iter_ruptures(fake_tom)):
 						total_rupture_probability += rup.occurrence_rate
 						# TODO: check if CharacteristicFaultSources return only 1 rupture
 						gmf = mp.calc_gmf_with_fixed_epsilon(
@@ -503,7 +527,10 @@ class DSHAModel(SHAModelBase):
 						if np_aggregation == "avg":
 							gmpe_gmf += (gmf * rup.occurrence_rate)
 						elif np_aggregation == "min":
-							gmpe_gmf = np.minimum(gmpe_gmf, gmf)
+							if r == 0:
+								gmpe_gmf += gmf
+							else:
+								gmpe_gmf = np.minimum(gmpe_gmf, gmf)
 						elif np_aggregation == "max":
 							gmpe_gmf = np.maximum(gmpe_gmf, gmf)
 						else:
@@ -514,7 +541,10 @@ class DSHAModel(SHAModelBase):
 						assert np.allclose(total_rupture_probability, 1)
 						src_gmf += (gmpe_gmf * float(gmpe_weight))
 					elif gmpe_aggregation == "min":
-						src_gmf = np.minimum(src_gmf, gmpe_gmf)
+						if np.allclose(src_gmf, 0):
+							src_gmf += gmpe_gmf
+						else:
+							src_gmf = np.minimum(src_gmf, gmpe_gmf)
 					elif gmpe_aggregation == "max":
 						src_gmf = np.maximum(src_gmf, gmpe_gmf)
 					else:
@@ -523,10 +553,15 @@ class DSHAModel(SHAModelBase):
 				#amax = max(amax, src_gmf.max())
 
 				## Aggregate gmf's corresponding to different sources
-				if src_aggregation == "sum":
+				if isinstance(src_aggregation, (list, np.ndarray)):
+					gmf_envelope[:,k] += (src_gmf * float(src_aggregation[s]))
+				elif src_aggregation == "sum":
 					gmf_envelope[:,k] += src_gmf
 				elif src_aggregation == "min":
-					gmf_envelope[:,k] = np.minimum(gmf_envelope[:,k], src_gmf)
+					if s == 0:
+						gmf_envelope[:,k] += src_gmf
+					else:
+						gmf_envelope[:,k] = np.minimum(gmf_envelope[:,k], src_gmf)
 				elif src_aggregation == "max":
 					gmf_envelope[:,k] = np.maximum(gmf_envelope[:,k], src_gmf)
 				elif src_aggregation == "avg":
@@ -599,7 +634,7 @@ class DSHAModel(SHAModelBase):
 
 		i = 0
 		for k, imt in enumerate(imt_list):
-			for src in self.source_model:
+			for s, src in enumerate(self.source_model):
 				src_gmf = np.zeros(len(soil_site_model))
 				trt = src.tectonic_region_type
 				gmpe_pmf = self.gmpe_system_def[trt]
@@ -607,7 +642,7 @@ class DSHAModel(SHAModelBase):
 					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
 					gmpe_gmf = np.zeros(len(soil_site_model))
 					total_rupture_probability = 0
-					for rup in src.iter_ruptures(fake_tom):
+					for r, rup in enumerate(src.iter_ruptures(fake_tom)):
 						total_rupture_probability += rup.occurrence_rate
 						gmf = gmf_list[i]
 						i += 1
@@ -616,7 +651,10 @@ class DSHAModel(SHAModelBase):
 						if np_aggregation == "avg":
 							gmpe_gmf += (gmf * rup.occurrence_rate)
 						elif np_aggregation == "min":
-							gmpe_gmf = np.minimum(gmpe_gmf, gmf)
+							if r == 0:
+								gmpe_gmf += gmf
+							else:
+								gmpe_gmf = np.minimum(gmpe_gmf, gmf)
 						elif np_aggregation == "max":
 							gmpe_gmf = np.maximum(gmpe_gmf, gmf)
 						else:
@@ -627,17 +665,25 @@ class DSHAModel(SHAModelBase):
 						assert np.allclose(total_rupture_probability, 1)
 						src_gmf += (gmpe_gmf * float(gmpe_weight))
 					elif gmpe_aggregation == "min":
-						src_gmf = np.minimum(src_gmf, gmpe_gmf)
+						if np.allclose(src_gmf, 0):
+							src_gmf += gmpe_gmf
+						else:
+							src_gmf = np.minimum(src_gmf, gmpe_gmf)
 					elif gmpe_aggregation == "max":
 						src_gmf = np.maximum(src_gmf, gmpe_gmf)
 					else:
 						raise Exception("aggregation:%s not supported for GMPEs!" % gmpe_aggregation)
 
 				## Aggregate gmf's corresponding to different sources
-				if src_aggregation == "sum":
+				if isinstance(src_aggregation, (list, np.ndarray)):
+					gmf_envelope[:,k] += (src_gmf * float(src_aggregation[s]))
+				elif src_aggregation == "sum":
 					gmf_envelope[:,k] += src_gmf
 				elif src_aggregation == "min":
-					gmf_envelope[:,k] = np.minimum(gmf_envelope[:,k], src_gmf)
+					if s == 0:
+						gmf_envelope[:,k] += src_gmf
+					else:
+						gmf_envelope[:,k] = np.minimum(gmf_envelope[:,k], src_gmf)
 				elif src_aggregation == "max":
 					gmf_envelope[:,k] = np.maximum(gmf_envelope[:,k], src_gmf)
 				elif src_aggregation == "avg":
