@@ -975,6 +975,27 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 			pg.value[attr] = getattr(self, attr)
 		return pg
 
+	def contains_sites(self, sites):
+		"""
+		Determine whether given sites are located in this area source
+
+		:param sites:
+			instance of :class:`rshalib.site.SoilSiteModel`
+			or list with instances of :class:`rshalib.site.SHASite`
+
+		:return:
+			array of bool values
+		"""
+		from ..site import SoilSiteModel
+		if isinstance(sites, SoilSiteModel):
+			mesh = site_model.mesh
+		else:
+			lons = np.array([site.longitude for site in sites])
+			lats = np.array([site.latitude for site in sites])
+			depths = np.array([site.depth for site in sites])
+			mesh = oqhazlib.geo.mesh.Mesh(lons, lats, depths)
+		return self.polygon.intersects(mesh)
+
 
 class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 	"""
