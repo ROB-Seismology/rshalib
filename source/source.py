@@ -1683,10 +1683,20 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			First dimension is along strike, second dimension is down dip.
 		"""
 		from eqgeology.faultlib.okada import ElasticSubFault
-		from thirdparty.PyVisvalingamWhyatt.polysimplify import VWSimplifier
 
 		subfault_width = self.get_width() / ad_num
 
+		original_rms = self.rupture_mesh_spacing
+		self.rupture_mesh_spacing = self.get_length() / as_num
+		fault_mesh = self.get_mesh()
+		surface_locations = fault_mesh[0:1]
+		lons = [pt.longitude for pt in surface_locations]
+		lats = [pt.latitude for pt in surface_locations]
+		reduced_pts = pts = zip(lons, lats)
+		self.rupture_mesh_spacing = original_rms
+
+		"""
+		from thirdparty.PyVisvalingamWhyatt.polysimplify import VWSimplifier
 		lons, lats = self.fault_trace.lons, self.fault_trace.lats
 		pts = zip(lons, lats)
 		if as_num >= len(pts):
@@ -1698,6 +1708,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			reduced_pts = simplifier.from_number(as_num+1)
 			## In some cases, as_num is not honored by VWSimplifier
 			as_num = len(reduced_pts) - 1
+		"""
 
 		dip_direction = self.get_dip_direction()
 
