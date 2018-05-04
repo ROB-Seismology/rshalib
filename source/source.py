@@ -1679,88 +1679,102 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			int, number of subfaults along dip (default: 1)
 
 		:return:
-			2-D array with instances of :class:`eqgeology.FocMec.ElasticSubFault`
+			2-D array with instances of :class:`eqgeology.faultlib.okada.ElasticSubFault`
 			First dimension is along strike, second dimension is down dip.
 		"""
+		from ..utils import interpolate
 		from eqgeology.faultlib.okada import ElasticSubFault
 
-		subfault_width = self.get_width() / ad_num
+		## It is not possible to have different rupture_mesh_spacing
+		## along-strike and down-dip, so the strategy is to subdivide
+		## using half the resolution required to obtain the specified
+		## number of along_strike sections; for each along-strike
+		## section, we interpolate the positions of the downdip
+		## sections along the center line
+		rupture_mesh_spacing = self.get_length() / as_num
+		fault_mesh = self.get_mesh(rupture_mesh_spacing / 2.)
+		#print fault_mesh.shape
 
-		original_rms = self.rupture_mesh_spacing
-		self.rupture_mesh_spacing = self.get_length() / as_num
-		fault_mesh = self.get_mesh()
-		surface_locations = fault_mesh[0:1]
-		lons = [pt.longitude for pt in surface_locations]
-		lats = [pt.latitude for pt in surface_locations]
-		reduced_pts = pts = zip(lons, lats)
-		self.rupture_mesh_spacing = original_rms
-
-		"""
-		from thirdparty.PyVisvalingamWhyatt.polysimplify import VWSimplifier
-		lons, lats = self.fault_trace.lons, self.fault_trace.lats
-		pts = zip(lons, lats)
-		if as_num >= len(pts):
-			print("Warning: maximum possible number of subfaults along strike is %d" % (len(pts)-1))
-			reduced_pts = pts
-			as_num = len(pts) - 1
-		else:
-			simplifier = VWSimplifier(pts)
-			reduced_pts = simplifier.from_number(as_num+1)
-			## In some cases, as_num is not honored by VWSimplifier
-			as_num = len(reduced_pts) - 1
-		"""
-
-		dip_direction = self.get_dip_direction()
+		## In- and output "positions" for interpolation
+		dd_mesh_pos = np.linspace(0, 1, fault_mesh.shape[0])
+		subflt_centroid_pos = (np.arange(ad_num) + 0.5) / ad_num
 
 		subfaults = []
 		for i in range(as_num):
 			subfaults.append([])
-			start, end = reduced_pts[i:i+2]
-			center_lon = np.mean([start[0], end[0]])
-			center_lat = np.mean([start[1], end[1]])
-			[subfault_length] = oqhazlib.geo.geodetic.geodetic_distance(start[0:1], start[-1:], end[0:1], end[-1:])
-			[subfault_strike] = oqhazlib.geo.geodetic.azimuth(start[0:1], start[-1:], end[0:1], end[-1:])
-			for j in range(ad_num):
-				top_depth = j * (subfault_width * np.sin(np.radians(self.dip)))
-				top_dist = j * (subfault_width * np.cos(np.radians(self.dip)))
-				top_lon, top_lat = oqhazlib.geo.geodetic.point_at(center_lon, center_lat, dip_direction, top_dist)
 
+			## Center line
+			center_lons = fault_mesh.lons[:,i*2+1]
+			center_lats = fault_mesh.lats[:,i*2+1]
+			center_depths = fault_mesh.depths[:,i*2+1]
+
+			## Compute projected width and height before interpolation
+			projected_width = oqhazlib.geo.geodetic.geodetic_distance(center_lons[0], center_lats[0], center_lons[-1], center_lats[-1])
+			total_height = center_depths[-1] - center_depths[0]
+
+			## Interpolate downdip centroid positions
+			center_lons = interpolate(dd_mesh_pos, center_lons, subflt_centroid_pos)
+			center_lats = interpolate(dd_mesh_pos, center_lats, subflt_centroid_pos)
+			center_depths = interpolate(dd_mesh_pos, center_depths, subflt_centroid_pos)
+
+			## Left and right edges at the surface
+			left_lon = fault_mesh.lons[0,i*2]
+			left_lat = fault_mesh.lats[0,i*2]
+			right_lon = fault_mesh.lons[0,i*2+2]
+			right_lat = fault_mesh.lats[0,i*2+2]
+
+			## Compute subfault length, strike, dip and width
+			subfault_length = oqhazlib.geo.geodetic.geodetic_distance(left_lon, left_lat, right_lon, right_lat)
+			subfault_strike = oqhazlib.geo.geodetic.azimuth(left_lon, left_lat, right_lon, right_lat)
+			subfault_dip = np.degrees(np.arctan2(total_height, projected_width))
+			subfault_width = (np.sqrt(projected_width**2 + total_height**2) / ad_num)
+
+			for j in range(ad_num):
 				subfault = ElasticSubFault()
 				subfault.strike = subfault_strike
-				subfault.dip = self.dip
-				subfault.rake = self.rake
+				subfault.dip = subfault_dip
 				subfault.length = subfault_length * 1E+3
 				subfault.width = subfault_width * 1E+3
-				subfault.depth = top_depth * 1E+3
+				subfault.longitude = center_lons[j]
+				subfault.latitude = center_lats[j]
+				subfault.depth = center_depths[j] * 1E+3
+				subfault.coordinate_specification = "centroid"
+				subfault.rake = self.rake
 				subfault.slip = self.get_Mmax_slip()
-				subfault.longitude = top_lon
-				subfault.latitude = top_lat
-				subfault.coordinate_specification = "top center"
 				subfaults[i].append(subfault)
 
 		return np.array(subfaults)
 
-	def get_surface(self):
+	def get_surface(self, rupture_mesh_spacing=None):
 		"""
 		Get fault surface object
+
+		:param rupture_mesh_spacing:
+			float, alternative rupture mesh spacing (in km)
+			(default: None, will use fault's current rupture mesh spacing)
 
 		:return:
 			instance of :class:`openquake.hazardlib.geo.surface.simple_fault.SimpleFaultSurface`
 		"""
 		from openquake.hazardlib.geo.surface.simple_fault import SimpleFaultSurface
 
+		rupture_mesh_spacing = rupture_mesh_spacing or self.rupture_mesh_spacing
 		return SimpleFaultSurface.from_fault_data(self.fault_trace,
 					self.upper_seismogenic_depth, self.lower_seismogenic_depth,
-					self.dip, self.rupture_mesh_spacing)
+					self.dip, rupture_mesh_spacing)
 
-	def get_mesh(self):
+	def get_mesh(self, rupture_mesh_spacing=None):
 		"""
 		Get fault mesh
+
+		:param rupture_mesh_spacing:
+			float, alternative rupture mesh spacing (in km)
+			(default: None, will use fault's current rupture mesh spacing)
 
 		:return:
 			instance of :class:`openquake.hazardlib.geo.mesh.RectangularMesh`
 		"""
-		return self.get_surface().get_mesh()
+		return self.get_surface(rupture_mesh_spacing=rupture_mesh_spacing).get_mesh()
 
 	def get_top_edge_rupture_faults(self, mag):
 		"""
