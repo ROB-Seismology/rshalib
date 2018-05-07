@@ -929,7 +929,7 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 		:param strain_rate:
 			float, strain rate in 1/yr
 		:param rigidity:
-			float, rigidity (default: 3E+10)
+			rigidity or shear modulus in N/m**2 or Pascal (default: 3E+10)
 
 		:return:
 			float, moment rate in N.m/yr
@@ -946,7 +946,7 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 		:param strain_rate:
 			float, strain rate in 1/yr
 		:param rigidity:
-			float, rigidity (default: 3E+10)
+			rigidity or shear modulus in N/m**2 or Pascal (default: 3E+10)
 
 		:return:
 			float, maximum magnitude
@@ -1243,6 +1243,15 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		#mean_strike = numpy.average(azimuths, weights=weights)
 		return mean_strike
 
+	def get_mesh_mean_strike(self):
+		"""
+		Compute mean strike of fault mesh in degrees
+
+		:return:
+			Float, mean strike in degrees
+		"""
+		return self.get_surface().get_strike()
+
 	def get_std_strike(self):
 		"""
 		Compute standard deviation of strike from surface trace
@@ -1406,7 +1415,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			If not provided, it will be computed from Mmax
 			(default: None)
 		:param mu:
-			rigidity or shear modulus in N/m**2 (default: 3E+10)
+			rigidity or shear modulus in N/m**2 or Pascal (default: 3E+10)
 		:param arbitrary_surface:
 			Boolean indicating whether rupture surface is arbitrary or
 			corresponds to max_mag (default: True)
@@ -1501,7 +1510,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		Compute moment rate from slip rate and fault dimensions
 
 		:param mu:
-			rigidity or shear modulus in N/m**2 (default: 3E+10)
+			rigidity or shear modulus in N/m**2 or Pascal (default: 3E+10)
 
 		:return:
 			Float, moment rate in N.m/yr
@@ -1528,7 +1537,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		assuming Mmax corresponds to max_mag of MFD minus one bin width
 
 		:param mu:
-			rigidity or shear modulus in N/m**2 (default: 3E+10)
+			rigidity or shear modulus in N/m**2 or Pascal (default: 3E+10)
 
 		:return:
 			Float, return period in yr
@@ -1541,7 +1550,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		assuming Mmax corresponds to max_mag of MFD minus one bin width
 
 		:param mu:
-			rigidity or shear modulus in N/m**2 (default: 3E+10)
+			rigidity or shear modulus in N/m**2 or Pascal (default: 3E+10)
 
 		:return:
 			Float, moment rate in N.m/yr
@@ -1555,7 +1564,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		max_mag of MFD minus one bin width
 
 		:param mu:
-			rigidity or shear modulus in N/m**2 (default: 3E+10)
+			rigidity or shear modulus in N/m**2 or Pascal (default: 3E+10)
 
 		:return:
 			Float, slip in m
@@ -1669,7 +1678,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		return CharacteristicFaultSource(self.source_id, self.name,
 			self.tectonic_region_type, mfd, surface, self.rake)
 
-	def get_subfaults(self, as_num=1, ad_num=1):
+	def get_subfaults(self, as_num=1, ad_num=1, rigidity=3E+10):
 		"""
 		Divide fault into subfaults (to be used for dislocation modeling).
 
@@ -1677,6 +1686,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			int, number of subfaults along strike (default: 1)
 		:param ad_num:
 			int, number of subfaults along dip (default: 1)
+		:param rigidity:
+			rigidity or shear modulus in N/m**2 or Pascal (default: 3E+10)
 
 		:return:
 			2-D array with instances of :class:`eqgeology.faultlib.okada.ElasticSubFault`
@@ -1687,11 +1698,51 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 
 		## It is not possible to have different rupture_mesh_spacing
 		## along-strike and down-dip, so the strategy is to subdivide
-		## using half the resolution required to obtain the specified
+		## using the resolution required to obtain the specified
 		## number of along_strike sections; for each along-strike
 		## section, we interpolate the positions of the downdip
-		## sections along the center line
+		## sections along the left and right edges
 		rupture_mesh_spacing = self.get_length() / as_num
+		fault_mesh = self.get_mesh(rupture_mesh_spacing)
+		#print fault_mesh.shape
+
+		## In- and output "positions" for interpolation
+		dd_mesh_pos = np.linspace(0, 1, fault_mesh.shape[0])
+		subflt_edge_pos = np.linspace(0, 1, ad_num + 1)
+
+		subfaults = []
+		slip = self.get_Mmax_slip(mu=rigidity)
+		for i in range(as_num):
+			subfaults.append([])
+
+			left_lons = fault_mesh.lons[:,i]
+			left_lats = fault_mesh.lats[:,i]
+			left_depths = fault_mesh.depths[:,i] * 1E+3
+
+			right_lons = fault_mesh.lons[:,i+1]
+			right_lats = fault_mesh.lats[:,i+1]
+			right_depths = fault_mesh.depths[:,i+1] * 1E+3
+
+			## Interpolate downdip edge positions
+			left_lons = interpolate(dd_mesh_pos, left_lons, subflt_edge_pos)
+			left_lats = interpolate(dd_mesh_pos, left_lats, subflt_edge_pos)
+			left_depths = interpolate(dd_mesh_pos, left_depths, subflt_edge_pos)
+
+			right_lons = interpolate(dd_mesh_pos, right_lons, subflt_edge_pos)
+			right_lats = interpolate(dd_mesh_pos, right_lats, subflt_edge_pos)
+			right_depths = interpolate(dd_mesh_pos, right_depths, subflt_edge_pos)
+
+			for j in range(ad_num):
+				A = [right_lons[j], right_lats[j], right_depths[j]]
+				B = [right_lons[j+1], right_lats[j+1], right_depths[j+1]]
+				C = [left_lons[j+1], left_lats[j+1], left_depths[j+1]]
+				D = [left_lons[j], left_lats[j], left_depths[j]]
+
+				subfault = ElasticSubFault.from_corner_points([A, B, C, D], slip,
+														self.rake, rigidity)
+				subfaults[i].append(subfault)
+
+		"""
 		fault_mesh = self.get_mesh(rupture_mesh_spacing / 2.)
 		#print fault_mesh.shape
 
@@ -1742,6 +1793,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 				subfault.rake = self.rake
 				subfault.slip = self.get_Mmax_slip()
 				subfaults[i].append(subfault)
+		"""
 
 		return np.array(subfaults)
 
