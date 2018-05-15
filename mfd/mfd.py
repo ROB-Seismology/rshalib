@@ -514,7 +514,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		if not np.allclose(fgap, gap):
 			raise Exception("Bin width not compatible!")
 
-		num_empty_bins = gap + 1
+		num_empty_bins = gap
 		if num_empty_bins >= 0:
 			occurrence_rates = np.concatenate([self.occurrence_rates, np.zeros(num_empty_bins, dtype='d'), occurrence_rates])
 			self.occurrence_rates = list(occurrence_rates)
@@ -539,22 +539,25 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		self.bin_width = bin_width
 		self.modify_set_occurrence_rates(rebinned_occurrence_rates)
 
-	def append_characteristic_eq(self, Mc, return_period):
+	def append_characteristic_eq(self, Mc, return_period, M_sigma=0.3, num_sigma=0):
 		"""
 		Append magnitude-frequency of a characteristic earthquake
 
 		:param Mc:
-			Float, magnitude of characteristic earthquake, must be multiple
-			of current bin width
+			Float, magnitude of characteristic earthquake
 		:param return_period:
 			Float, return period in yr of characteristic earthquake
+		:param M_sigma:
+		:param num_sigma:
+			see :class:`CharacteristicMFD`
 		"""
-		Mc = np.floor(Mc / self.bin_width) * self.bin_width
-		if self.is_magnitude_compatible(Mc):
-			characteristic_mfd = CharacteristicMFD(Mc, return_period, self.bin_width, Mtype=self.Mtype)
-			self.extend(characteristic_mfd)
-		else:
-			raise Exception("Characteristic magnitude should be multiple of bin width!")
+		characteristic_mfd = CharacteristicMFD(Mc, return_period, self.bin_width,
+						Mtype=self.Mtype, M_sigma=M_sigma, num_sigma=num_sigma,
+						force_bin_alignment=True)
+		dM = characteristic_mfd.char_mag - Mc
+		if not np.allclose(dM, 0):
+			print("Warning: Mc has been changed by %f to align with bin width!" % dM)
+		self.extend(characteristic_mfd)
 
 	def to_truncated_GR_mfd(self, completeness, end_date, method="Weichert", b_val=None, Mmax=None, verbose=False):
 		"""
@@ -837,21 +840,53 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 	:param num_sigma:
 		Float, number of standard deviations to spread occurrence rates over
 		(default: 0)
+	:param force_bin_alignment:
+		bool, whether or not to enforce bin edges to aligh with bin width.
+		If True, characteristic magnitude may be raised by up to half a
+		bin width.
+		(default: True)
 	"""
-	def __init__(self, char_mag, return_period, bin_width, M_sigma=0.3, num_sigma=0):
-		self.char_mag = char_mag - bin_width / 2.
+	def __init__(self, char_mag, return_period, bin_width, M_sigma=0.3, num_sigma=0,
+				Mtype="MW", force_bin_alignment=True):
+		#self.char_mag = char_mag - bin_width / 2.
+		if force_bin_alignment:
+			self.char_mag = self._align_char_mag(char_mag, bin_width)
+		else:
+			self.char_mag = char_mag
 		self.char_return_period = return_period
 		self.M_sigma = M_sigma
 		self.num_sigma = num_sigma
 
 		Mmin, occurrence_rates = self._get_evenly_discretized_mfd_params(num_sigma, bin_width=bin_width)
-		EvenlyDiscretizedMFD.__init__(self, Mmin, bin_width, occurrence_rates, Mtype="MW")
+		EvenlyDiscretizedMFD.__init__(self, Mmin, bin_width, occurrence_rates, Mtype=Mtype)
 
-	def modify_set_char_mag(self, char_mag):
-		self.char_mag = char_mag - self.bin_width / 2.
+	def modify_set_char_mag(self, char_mag, force_bin_alignment=True):
+		#self.char_mag = char_mag - self.bin_width / 2.
+		if force_bin_alignment:
+			self.char_mag = self._align_char_mag(char_mag, bin_width)
+		else:
+			self.char_mag = char_mag
 		Mmin, occurrence_rates = self._get_evenly_discretized_mfd_params(self.num_sigma, bin_width=None)
 		self.min_mag = Mmin
 		self.modify_set_occurrence_rates(occurrence_rates)
+
+	def _align_char_mag(self, char_mag, bin_width):
+		"""
+		Align characteristic magnitude to center of bin
+
+		:param char_mag:
+			float, characteristic magnitude
+		:param bin_width:
+			float, MFD bin width
+
+		:return:
+			float, aligned characteristic magnitude
+		"""
+		div, mod = divmod(char_mag, bin_width)
+		if np.allclose(mod, bin_width):
+			div += 1
+			mod = 0
+		return (div * bin_width) + bin_width / 2.
 
 	def _get_evenly_discretized_mfd_params(self, num_sigma, bin_width=None):
 		"""
@@ -875,8 +910,8 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		if self.M_sigma and num_sigma:
 			Mmin = self.char_mag - self.M_sigma * num_sigma
 			Mmax = self.char_mag + self.M_sigma * num_sigma
-			Mmin = np.floor(Mmin / bin_width) * bin_width
-			Mmax = np.ceil(Mmax / bin_width) * bin_width
+			#Mmin = np.floor(Mmin / bin_width) * bin_width
+			#Mmax = np.ceil(Mmax / bin_width) * bin_width
 			magnitudes = np.arange(Mmin, Mmax, bin_width)
 			probs = mlab.normpdf(magnitudes + bin_width/2, self.char_mag, self.M_sigma)
 			probs /= np.sum(probs)
@@ -893,7 +928,8 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		else:
 			Mmin = self.char_mag
 			occurrence_rates = np.array([1./self.char_return_period])
-		return Mmin + bin_width/2, occurrence_rates
+		#return Mmin + bin_width/2, occurrence_rates
+		return Mmin, occurrence_rates
 
 	def set_num_sigma(self, num_sigma):
 		"""
@@ -1616,6 +1652,7 @@ def sum_MFDs(mfd_list, weights=[]):
 			## TruncatedGR's can be summed after conversion to EvenlyDiscretized
 			pass
 
+	# TODO: take into account (characteristic) MFDs that may be shifted half a bin width!
 	min_mag = min(all_min_mags)
 	max_mag = max(all_max_mags)
 	num_bins = int(round((max_mag - min_mag) / bin_width))
