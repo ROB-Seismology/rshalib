@@ -1362,7 +1362,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		max_mag = wc.get_median_mag(self.get_area(), self.rake)
 		return max_mag
 
-	def get_MFD_characteristic(self, bin_width=None, M_sigma=0.3, num_sigma=1):
+	def get_MFD_characteristic(self, bin_width=None, M_sigma=0.3, num_sigma=1,
+								force_bin_alignment=True):
 		"""
 		Construct MFD corresponding to a characteristic Mmax
 		:param bin_width:
@@ -1373,6 +1374,11 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		:param num_sigma:
 			Float, number of standard deviations to spread occurrence rates over
 			(default: 1)
+		:param force_bin_alignment:
+			bool, whether or not to enforce bin edges to aligh with bin width
+			If True, characteristic magnitude may be raised by up to half a
+			bin width.
+			(default: True)
 
 		:return:
 			instance of :class:`EvenlyDiscretizedMFD`
@@ -1381,14 +1387,17 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			bin_width = self.mfd.bin_width
 
 		try:
-			char_mag = self.mfd.char_mag + bin_width/2.
+			#char_mag = self.mfd.char_mag + bin_width/2.
+			char_mag = self.mfd.char_mag
 		except AttributeError:
 			#char_mag = self.max_mag - bin_width
-			char_mag = self.max_mag + bin_width/2.
+			#char_mag = self.max_mag + bin_width/2.
+			char_mag = self.max_mag
 			return_period = self.get_Mmax_return_period()
 		else:
 			return_period = self.mfd.char_return_period
-		MFD = CharacteristicMFD(char_mag, return_period, bin_width, M_sigma=M_sigma, num_sigma=num_sigma)
+		MFD = CharacteristicMFD(char_mag, return_period, bin_width, M_sigma=M_sigma,
+						num_sigma=num_sigma, force_bin_alignment=force_bin_alignment)
 		return MFD
 
 	def get_MFD_Anderson_Luco(self, min_mag=None, max_mag=None, bin_width=None, b_val=None, aseismic_coef=0., strain_drop=None, mu=3E+10, arbitrary_surface=True):
