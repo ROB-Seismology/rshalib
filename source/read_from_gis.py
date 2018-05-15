@@ -977,7 +977,8 @@ def import_simple_fault_source_from_gis_record(
 				if max_mag and mfd_bin_width:
 					max_mag = np.ceil(max_mag / mfd_bin_width) * mfd_bin_width
 				simple_fault_source.mfd.max_mag = max_mag
-				mfd = simple_fault_source.get_MFD_characteristic(bin_width=mfd_bin_width)
+				mfd = simple_fault_source.get_MFD_characteristic(bin_width=mfd_bin_width,
+													force_bin_alignment=False)
 			except:
 				mfd = None
 				print("Warning: MFD could not be determined for source %s" % source_id)
