@@ -12,6 +12,7 @@ Example of ground-motion field due to an earthquake
 
 
 if __name__ == "__main__":
+	from collections import OrderedDict
 	import numpy as np
 	import eqcatalog
 	import hazard.rshalib as rshalib
@@ -21,14 +22,15 @@ if __name__ == "__main__":
 
 	## Read from database
 	#eq_id = 1306  ## Alsdorf
-	eq_id = 987  ## Roermond
+	#eq_id = 987  ## Roermond
 	#eq_id = 5329  ## Ramsgate
+	eq_id = 6625  ## Kinrooi
 	catalog = eqcatalog.seismodb.query_ROB_LocalEQCatalogByID(eq_id)
 	[eq] = catalog.eq_list
 
 	## Create point-source model
 	Mtype = "MW"
-	Mrelation = {"ML": "Ahorner1983", "MS": "Utsu2002"}
+	Mrelation = OrderedDict(MS="Utsu2002", ML="Ahorner1983")
 	area_source_model_name = "Seismotectonic_Hybrid_v2"
 	pt_src_model = rshalib.source.SourceModel.from_eq_catalog(catalog, Mtype,
 						Mrelation, area_source_model_name=area_source_model_name)
@@ -46,27 +48,31 @@ if __name__ == "__main__":
 	## Import GMPEs defined in a recent hazard project
 	#from hazard.psha.Projects.cAt_Rev.September2014.logictree.gmpe_lt import construct_gmpe_lt
 	#rock_type = "soft"
-	#gmpe_system_def = construct_gmpe_lt(rock_type).gmpe_system_def
-	#gmpe_spec = "GMPE logic tree (%s rock)" % rock_type
+	from projects.RegionWallonne.December2015.logictree.gmpe_lt import construct_gmpe_lt
+	site_conditions = "rock"
+	gmpe_system_def = construct_gmpe_lt(site_conditions).gmpe_system_def
+	gmpe_spec = "GMPE logic tree (%s)" % site_conditions
 
 	## Or define a single GMPE
-	gmpe_system_def = {}
-	gmpe_name = "RietbrockEtAl2013MD"
-	gmpe_pmf = rshalib.pmf.GMPEPMF([gmpe_name], [1])
-	gmpe_system_def[trt] = gmpe_pmf
-	gmpe_spec = gmpe_name + " GMPE"
+	#gmpe_system_def = {}
+	#gmpe_name = "RietbrockEtAl2013MD"
+	#gmpe_pmf = rshalib.pmf.GMPEPMF([gmpe_name], [1])
+	#gmpe_system_def[trt] = gmpe_pmf
+	#gmpe_spec = gmpe_name + " GMPE"
 
 	## Compute ground_motion field
 	print("Computing ground-motion field...")
 
-	grid_outline = [(2, 49), (7,52)]
-	grid_spacing = (0.2, 0.1)
+	#grid_outline = [(2, 49), (7, 52)]
+	#grid_spacing = (0.2, 0.1)
+	grid_outline = [(5, 50.5), (6, 51.5)]
+	grid_spacing = (0.05, 0.025)
 	soil_site_model = None
 	imt_periods = {'PGA': [0], 'SA': [0.05, 0.067, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.75, 1., 2.]}
 	model_name = ""
-	truncation_level = 1
+	truncation_level = 0
 	integration_distance = 300
-	np_aggregation = "avg"
+	np_aggregation = "max"
 
 	dsha_model = rshalib.shamodel.DSHAModel(model_name, pt_src_model, gmpe_system_def,
 					grid_outline=grid_outline, grid_spacing=grid_spacing,
@@ -79,27 +85,34 @@ if __name__ == "__main__":
 	num_sites = uhs_field.num_sites
 
 	## Plot map
-	T = 0.2
+	#T = 0.2
+	T = 0
 	#contour_interval = 0.02
+	contour_interval = 0.05
 	#norm = None
-	contour_interval = None
-	breakpoints = [0., 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.]
+	#contour_interval = None
+	breakpoints = np.array([0., 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.])
 	norm = PiecewiseLinearNorm(breakpoints)
 	title = "%s (%s)\nGround-motion field, %s" % (eq.name.title(), eq.date.isoformat(), gmpe_spec)
 	hm = uhs_field.getHazardMap(period_spec=T)
-	map = hm.get_plot(graticule_interval=(2,1), cmap="jet", norm=norm, contour_interval=contour_interval, num_grid_cells=num_sites, title=title, projection="merc")
+	site_style = lbm.PointStyle('.', size=1, line_width=0, line_color=None, fill_color='k')
+	map = hm.get_plot(graticule_interval=(2,1), cmap="jet", norm=norm,
+					contour_interval=contour_interval, num_grid_cells=num_sites,
+					site_style=site_style, intensity_unit="ms2", title=title, projection="merc")
 
 	## Add topographic hillshading
+	"""
 	layer = map.get_layer_by_name("intensity_grid")
 	elevation_grid = lbm.WCSData("http://seishaz.oma.be:8080/geoserver/wcs", "ngi:DTM10k", region=map.region, down_sampling=25)
 	blend_mode = "soft"
 	hillshade_style = lbm.HillshadeStyle(45, 45, 1, blend_mode=blend_mode,
 											elevation_grid=elevation_grid)
 	layer.style.hillshade_style = hillshade_style
+	"""
 
 
-	#fig_filespec = "C:\Temp\gmf.png"
-	fig_filespec = None
+	fig_filespec = "C:\Temp\Kinrooi_gmf.png"
+	#fig_filespec = None
 	map.plot(fig_filespec=fig_filespec)
 
 	## Export grid layer to geotiff
