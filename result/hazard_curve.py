@@ -4613,6 +4613,8 @@ class HazardMap(HazardResult, HazardField):
 		band = ds.GetRasterBand(1)
 		band.WriteArray(intensities.astype(np.float32))
 		band.SetNoDataValue(nodata_value)
+		band.ComputeStatistics()
+		#band.SetStatistics(np.min(mag_grid), np.max(mag_grid), np.average(mag_grid), np.std(mag_grid))
 		ds.FlushCache()
 
 	def export_kml(self):
