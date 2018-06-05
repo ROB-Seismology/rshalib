@@ -3554,6 +3554,28 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		irvt = pyrvt.motions.CompatibleRvtMotion(freqs, self.intensities, magnitude=mag, distance=distance, region=region)
 		return irvt
 
+	def to_fas(self, pgm_freq=50. , mag=6.0, distance=10, region="ENA"):
+		"""
+		Convert to Fourier Amplitude Spectrum based on inverse RVT
+
+		:param pgm_freq:
+		:param mag:
+		:param distance:
+		:param region:
+			see :meth:`get_fas_irvt`
+
+		:return:
+			instance of :class:`ResponseSpectrum`
+		"""
+		irvt = self.get_fas_irvt(pgm_freq=pgm_freq, mag=mag, distance=distance, region=region)
+
+		model_name = self.model_name + " (FAS)"
+		periods = 1./irvt.freqs
+		periods[irvt.freqs == pgm_freq] = 0
+		amps = irvt.fourier_amps
+		return ResponseSpectrum(model_name, periods, self.IMT, amps,
+								self.intensity_unit)
+
 	def to_srs(self, tf, pgm_freq=50., mag=6.0, distance=10, region="ENA"):
 		"""
 		Convert UHS to surface response spectrum with a transfer function
