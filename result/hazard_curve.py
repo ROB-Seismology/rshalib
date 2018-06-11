@@ -3629,7 +3629,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		return ResponseSpectrum(model_name, out_periods, self.IMT, srs_motion,
 								self.intensity_unit)
 
-	def export_csv(self, csv_filespec=None):
+	def export_csv(self, csv_filespec=None, format="%.5E"):
 		"""
 		Export to csv (comma-separated values) file
 
@@ -3643,7 +3643,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 			f = sys.stdout
 		f.write("Period (s), %s (%s)\n" % (self.IMT, self.intensity_unit))
 		for period, intensity in zip(self.periods, self.intensities):
-			f.write("%.3E, %.3E\n" % (period, intensity))
+			f.write(("%s, %s\n" % (format, format)) % (period, intensity))
 		f.close()
 
 	@classmethod
