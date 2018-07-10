@@ -1330,6 +1330,32 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		"""
 		return (self.get_mean_strike() + 90) % 360
 
+	def get_top_edge(self):
+		"""
+		Construct top edge of fault (downdip projection of surface trace
+		down to upper seismogenic depth)
+
+		:return:
+			instance of :class:`Line`
+		"""
+		usd = self.upper_seismogenic_depth
+		top_edge = self.fault_trace.project(usd, self.dip)
+		top_edge = [Point(pt.longitude, pt.latitude, usd) for pt in top_edge]
+		return top_edge
+
+	def get_bottom_edge(self):
+		"""
+		Construct bottom edge of fault (downdip projection of surface trace
+		down to lower seismogenic depth)
+
+		:return:
+			instance of :class:`Line`
+		"""
+		lsd = self.lower_seismogenic_depth
+		bottom_edge = self.fault_trace.project(lsd, self.dip)
+		bottom_edge = [Point(pt.longitude, pt.latitude, lsd) for pt in bottom_edge]
+		return bottom_edge
+
 	def get_polygon(self):
 		"""
 		Construct polygonal outline of fault
@@ -1337,16 +1363,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		:return:
 			instance of :class:`Polygon`
 		"""
-		width = self.get_projected_width()
-		if self.dip == 90:
-			width = 0.1
-		dip_direction = self.get_dip_direction()
-		z0, z1 = self.upper_seismogenic_depth, self.lower_seismogenic_depth
-		top_edge = [Point(pt.longitude, pt.latitude, z0) for pt in self.fault_trace]
-		bottom_edge = []
-		for pt in top_edge:
-			lon, lat = oqhazlib.geo.geodetic.point_at(pt[0], pt[1], dip_direction, width)
-			bottom_edge.append(Point(lon, lat, z1))
+		top_edge = self.get_top_edge()
+		bottom_edge = self.get_bottom_edge()
 		bottom_edge.reverse()
 		return Polygon(top_edge + bottom_edge + [top_edge[0]])
 
