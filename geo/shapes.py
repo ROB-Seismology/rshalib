@@ -1,22 +1,23 @@
 # -*- coding: utf-8 -*-
 
 """
-Classes representing source-model elements in Openquake/nhlib. Where possible,
-the classes are inherited from nhlib classes. All provide methods to create
+Classes representing source-model elements in Openquake/oqhazlib. Where possible,
+the classes are inherited from oqhazlib classes. All provide methods to create
 XML elements, which are used to write a complete source-model NRML file.
-Thus, objects instantiated from these classes can be used directly in nhlib,
+Thus, objects instantiated from these classes can be used directly in oqhazlib,
 as well as to generate input files for OpenQuake.
 """
 
 from lxml import etree
 
-import openquake.hazardlib as nhlib
+import numpy as np
+import openquake.hazardlib as oqhazlib
 
 from ..nrml import ns
 from ..nrml.common import *
 
 
-class Polygon(nhlib.geo.Polygon):
+class Polygon(oqhazlib.geo.Polygon):
 	def __init__(self, points):
 		super(Polygon, self).__init__(points=points)
 		## Store points as a property, as they may contain a z coordinate
@@ -46,7 +47,7 @@ class Polygon(nhlib.geo.Polygon):
 		else:
 			lon, lat = self.lons[self._current_index], self.lats[self._current_index]
 			self._current_index += 1
-			return nhlib.geo.Point(lon, lat)
+			return oqhazlib.geo.Point(lon, lat)
 	"""
 
 	def to_line(self):
@@ -70,7 +71,7 @@ class Polygon(nhlib.geo.Polygon):
 		return polygon_elem
 
 
-class Line(nhlib.geo.Line):
+class Line(oqhazlib.geo.Line):
 	def __init__(self, points):
 		super(Line, self).__init__(points)
 
@@ -83,6 +84,22 @@ class Line(nhlib.geo.Line):
 		Allow slicing.
 		"""
 		return self.points.__getitem__(item)
+
+	@classmethod
+	def from_lon_lats(cls, lons, lats):
+		"""
+		Construct from longitudes and latitudes
+
+		:param lons:
+			list or array of floats, longitudes
+		:param lats:
+			list or array of floats, latitudes
+
+		:return:
+			instance of :class:`Line`
+		"""
+		points = [Point(lon, lat) for (lon, lat) in zip(lons, lats)]
+		return cls(points)
 
 	@property
 	def lons(self):
@@ -101,8 +118,30 @@ class Line(nhlib.geo.Line):
 	def reverse_direction(self):
 		"""
 		Reverse line direction
+
+		:return:
+			None, list of points is reversed in place
 		"""
 		self.points = self.points[::-1]
+
+	def project(self, vertical_distance, dip):
+		"""
+		Project line up- or downward along dip
+
+		:param vertical_distance:
+			float, vertical distance in km, negative/positive is up/downward
+		:param dip:
+			float, (fault) dip in degrees
+
+		:return:
+			instance of :class:`Line`
+		"""
+		hori_distance = vertical_distance / np.tan(np.radians(dip))
+		dip_direction = (self.average_azimuth() + 90) % 360
+		lons, lats = np.array(self.lons), np.array(self.lats)
+		proj_lons, proj_lats = oqhazlib.geo.geodetic.point_at(lons, lats,
+													dip_direction, hori_distance)
+		return self.from_lon_lats(proj_lons, proj_lats)
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
@@ -117,7 +156,7 @@ class Line(nhlib.geo.Line):
 		return lineString_elem
 
 
-class Point(nhlib.geo.Point):
+class Point(oqhazlib.geo.Point):
 	def __init__(self, longitude, latitude, depth=0.):
 		super(Point, self).__init__(longitude, latitude, depth)
 
@@ -152,7 +191,7 @@ class Point(nhlib.geo.Point):
 		return point_elem
 
 
-class NodalPlane(nhlib.geo.NodalPlane):
+class NodalPlane(oqhazlib.geo.NodalPlane):
 	"""
 	Class representing a nodal plane of a focal mechanism
 
