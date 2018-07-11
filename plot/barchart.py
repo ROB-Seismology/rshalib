@@ -54,7 +54,9 @@ def plot_variation_barchart(mean_value, category_value_dict, ylabel, title, ymin
 			ymax = mean_value
 	pylab.hlines(0, xmin, xmax, lw=2, color='k')
 	pylab.text(xmax, 0, "%s" % mean_value, ha='left', va='center')
-	pylab.ylabel("$\Delta$ " + ylabel)
+	if mean_value:
+		ylabel = "$\Delta$ " + ylabel
+	pylab.ylabel(ylabel)
 	pylab.title(title)
 	pylab.xticks([])
 	pylab.axis((xmin, xmax, ymin, ymax))
@@ -178,7 +180,9 @@ def plot_nested_variation_barchart(mean_value, category_value_dict, ylabel, titl
 
 	#ax1.text(xmax, 0, "%s" % mean_value, ha='left', va='center')
 
-	ax1.set_ylabel("$\Delta$ " + ylabel)
+	if mean_value:
+		ylabel = "$\Delta$ " + ylabel
+	ax1.set_ylabel(ylabel)
 	ax1.set_title(title)
 	ax1.set_xticks([])
 	ax1.grid(True)
