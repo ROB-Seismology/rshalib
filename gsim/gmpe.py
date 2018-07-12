@@ -2618,18 +2618,7 @@ class NhlibGMPE(GMPE):
 
 		## get imt periods
 		if not imt_periods:
-			imt_periods = {}
-			for imt in self.gmpe.DEFINED_FOR_INTENSITY_MEASURE_TYPES:
-				if imt == SA:
-					if name in ("AtkinsonBoore2006", "AtkinsonBoore2006Prime"):
-						imt_periods['SA'] = [sa.period for sa in sorted(self.gmpe.COEFFS_BC.sa_coeffs.keys())]
-					elif "adjusted" in name:
-						(vs30, kappa) = self.gmpe.COEFFS.keys()[0]
-						imt_periods['SA'] = [sa.period for sa in sorted(self.gmpe.COEFFS[(vs30, kappa)].sa_coeffs.keys())]
-					else:
-						imt_periods['SA'] = [sa.period for sa in sorted(self.gmpe.COEFFS.sa_coeffs.keys())]
-				else:
-					imt_periods[imt.__name__] = [0]
+			imt_periods = self._get_imt_periods_from_nhlib_coeffs(name)
 
 		if name in ("ToroEtAl2002", "ToroEtAl2002SHARE", "ToroEtAl2002HTT"):
 			## Remove T=3 and T=4 seconds, which are not supported by the
@@ -2644,6 +2633,21 @@ class NhlibGMPE(GMPE):
 		self.imt_scaling["SA"] = self.imt_scaling["PGA"]
 		self.imt_scaling["PGV"] = {"ms": 1E-2, "cms": 1.0}
 		self.imt_scaling["PGD"] = {"m": 1E-2, "cm": 1.0}
+
+	def _get_imt_periods_from_nhlib_coeffs(self, name=""):
+		imt_periods = {}
+		for imt in self.gmpe.DEFINED_FOR_INTENSITY_MEASURE_TYPES:
+			if imt == SA:
+				if name in ("AtkinsonBoore2006", "AtkinsonBoore2006Prime"):
+					imt_periods['SA'] = [sa.period for sa in sorted(self.gmpe.COEFFS_BC.sa_coeffs.keys())]
+				elif "adjusted" in name:
+					(vs30, kappa) = self.gmpe.COEFFS.keys()[0]
+					imt_periods['SA'] = [sa.period for sa in sorted(self.gmpe.COEFFS[(vs30, kappa)].sa_coeffs.keys())]
+				else:
+					imt_periods['SA'] = [sa.period for sa in sorted(self.gmpe.COEFFS.sa_coeffs.keys())]
+			else:
+				imt_periods[imt.__name__] = [0]
+		return imt_periods
 
 	def _get_nhlib_mean_and_stddevs(self, M, d, h=0., imt="PGA", T=0, vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
 		## Convert arguments to correct shape
@@ -2792,12 +2796,14 @@ class NhlibGMPE(GMPE):
 
 		return sctx, rctx, dctx, imt_object
 
-	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type=None, vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
 		"""
 		See class GMPE for params.
 
 		Note: soil_type not supported. Should be implemented for each subclass.
 		"""
+		if soil_type:
+			print("Warning: soil_type parameter is ignored!")
 		ln_means, ln_stddevs = self._get_nhlib_mean_and_stddevs(M, d, h=h, imt=imt, T=T, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
 
 		## number of standard deviations
