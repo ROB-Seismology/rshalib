@@ -255,7 +255,7 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape, site_
 
 		sources = [source]
 		sources_sites = ((source, deagg_site_model) for source in sources)
-		for src_idx, (source, s_sites) in \
+		for s, (source, s_sites) in \
 				enumerate(source_site_filter(sources_sites)):
 
 			if verbose:
