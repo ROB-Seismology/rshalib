@@ -2720,7 +2720,13 @@ class NhlibGMPE(GMPE):
 		from ..site import SHASiteModel
 
 		azimuth = 90
-		lons, lats = nhlib.geo.geodetic.point_at(lon, lat, azimuth, np.array([d]))
+		if self.distance_metric in ("Rupture", "rrup", "Hypocentral", "rhypo"):
+			## Convert hypocentral/rupture distance to epicentral/joyner-boore distance
+			d = np.sqrt(np.asarray(d)**2 - depth**2)
+			d[np.isnan(d)] = 0
+		else:
+			d = np.asarray(d)
+		lons, lats = nhlib.geo.geodetic.point_at(lon, lat, azimuth, d)
 		depths = np.zeros_like(lons)
 		sha_site_model = SHASiteModel(lons=lons, lats=lats, depths=depths)
 
