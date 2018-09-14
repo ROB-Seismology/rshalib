@@ -19,6 +19,7 @@ from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from ..utils import interpolate
 
 
+
 def get_intensity_unit_label(intensity_unit="g"):
 	"""
 	Get intensity unit label to use in plots
@@ -43,7 +44,13 @@ def get_intensity_unit_label(intensity_unit="g"):
 	return intensity_unit_label
 
 
-def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", want_recurrence=False, fixed_life_time=None, interpol_rp=None, interpol_prob=0, interpol_rp_range=None, amax=None, intensity_unit="g", tr_max=1E+07, legend_location=0, lang="en", dpi=300):
+def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=[],
+					fig_filespec=None, title="", want_recurrence=False,
+					fixed_life_time=None, interpol_rp=None, interpol_prob=0,
+					interpol_rp_range=None, amax=None, intensity_unit="g",
+					tr_max=1E+07, legend_location=0, axis_label_size='x-large',
+					tick_label_size='large', legend_label_size='large',
+					lang="en", dpi=300):
 	"""
 	Generic function to plot a hazard curve (exceedance rate or probability of exceedance)
 	Parameters:
@@ -185,17 +192,17 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 	## Plot decoration
 	xlabel = {"en": "Acceleration", "nl": "Versnelling", "fr": u"Accélération"}[lang]
 	xlabel += " (%s)" % get_intensity_unit_label(intensity_unit)
-	pylab.xlabel(xlabel, fontsize='x-large')
+	pylab.xlabel(xlabel, fontsize=axis_label_size)
 	if want_recurrence:
-		pylab.ylabel({"en": "Return period (yr)", "nl": "Terugkeerperiode (jaar)"}[lang], fontsize='x-large')
+		pylab.ylabel({"en": "Return period (yr)", "nl": "Terugkeerperiode (jaar)"}[lang], fontsize=axis_label_size)
 		pylab.axis((0.0, amax, 1, tr_max))
 	elif fixed_life_time:
-		pylab.ylabel({"en": "Probability of exceedance", "nl": "Overschrijdingskans"}[lang], fontsize='x-large')
+		pylab.ylabel({"en": "Probability of exceedance", "nl": "Overschrijdingskans"}[lang], fontsize=axis_label_size)
 		pylab.axis((0.0, amax, 1E-05, 1))
 	else:
-		pylab.ylabel({"en": "Exceedance rate (1/yr)", "nl": "Overschrijdingssnelheid (1/jaar)", "fr": u"Taux de dépassement (1/a)"}[lang], fontsize='x-large')
+		pylab.ylabel({"en": "Exceedance rate (1/yr)", "nl": "Overschrijdingssnelheid (1/jaar)", "fr": u"Taux de dépassement (1/a)"}[lang], fontsize=axis_label_size)
 		pylab.axis((0, amax, 1.0/tr_max, 1))
-	font = FontProperties(size='large')
+	font = FontProperties(size=legend_label_size)
 	pylab.legend(loc=legend_location, prop=font)
 	if fixed_life_time:
 		title += "\n%s: %d %s" % ({"en": "Fixed life time", "nl": "Vaste levensduur"}[lang], fixed_life_time, {"en": "yr", "nl": "jaar"}[lang])
@@ -218,7 +225,7 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 	pylab.title(title)
 	pylab.grid(True)
 	for label in ax.get_xticklabels() + ax.get_yticklabels():
-		label.set_size('large')
+		label.set_size(tick_label_size)
 	if fig_filespec:
 		pylab.savefig(fig_filespec, dpi=dpi)
 	else:
@@ -227,7 +234,12 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 	#pylab.clf()
 
 
-def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=[], linestyles=[], linewidths=[], fig_filespec=None, title="", plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", legend_location=0, lang="en", dpi=300):
+def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=[],
+						linestyles=[], linewidths=[], fig_filespec=None, title="",
+						plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None,
+						amin=None, amax=None, intensity_unit="g", legend_location=0,
+						axis_label_size='x-large', tick_label_size='large',
+						legend_label_size='large', lang="en", dpi=300):
 	"""
 	Generic function to plot a (usually uniform) hazard spectrum
 	Parameters:
@@ -339,22 +351,22 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 	if amax is None:
 		amax = ymax
 	if plot_freq:
-		pylab.xlabel({"en": "Frequency (Hz)", "nl": "Frequentie (Hz)", "fr": u"Fréquence (Hz)"}[lang], fontsize='x-large')
+		pylab.xlabel({"en": "Frequency (Hz)", "nl": "Frequentie (Hz)", "fr": u"Fréquence (Hz)"}[lang], fontsize=axis_label_size)
 		pylab.axis((1.0/Tmax, 1.0/Tmin, amin, amax))
 	else:
-		pylab.xlabel({"en": "Period (s)", "nl": "Periode (s)", "fr": u"Période (s)"}[lang], fontsize='x-large')
+		pylab.xlabel({"en": "Period (s)", "nl": "Periode (s)", "fr": u"Période (s)"}[lang], fontsize=axis_label_size)
 		pylab.axis((Tmin, Tmax, amin, amax))
 	ylabel = {"en": "Acceleration", "nl": "Versnelling", "fr": u"Accélération"}[lang]
 	ylabel += " (%s)" % get_intensity_unit_label(intensity_unit)
-	pylab.ylabel(ylabel, fontsize='x-large')
+	pylab.ylabel(ylabel, fontsize=axis_label_size)
 	pylab.grid(True)
 	pylab.grid(True, which="minor")
-	font = FontProperties(size='large')
+	font = FontProperties(size=legend_label_size)
 	pylab.legend(loc=legend_location, prop=font)
 	pylab.title(title)
 	ax = pylab.gca()
 	for label in ax.get_xticklabels() + ax.get_yticklabels():
-		label.set_size('large')
+		label.set_size(tick_label_size)
 
 	if fig_filespec:
 		pylab.savefig(fig_filespec, dpi=dpi)
