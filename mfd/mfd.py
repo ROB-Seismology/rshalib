@@ -771,7 +771,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 		occur_rates_elem.text = " ".join(map(str, self.occurrence_rates))
 		return edi_elem
 
-	def plot(self, color='k', style="o", label="", discrete=True, cumul_or_inc="both", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, ax=None, fig_width=0, dpi=300):
+	def plot(self, color='k', style="o", label="", discrete=True, cumul_or_inc="both", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", y_log_labels=True, fig_filespec=None, ax=None, fig_width=0, dpi=300):
 		"""
 		Plot magnitude-frequency distribution
 
@@ -803,6 +803,9 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			String, plot title (default: "")
 		:param lang:
 			String, language of plot axis labels (default: "en")
+		:param y_log_labels:
+			bool, whether or not Y axis labels are plotted as 10 to a power
+			(default: True)
 		:param fig_filespec:
 			String, full path to output image file, if None plot to screen
 			(default: None)
@@ -819,7 +822,7 @@ class EvenlyDiscretizedMFD(nhlib.mfd.EvenlyDiscretizedMFD, MFD):
 			if both :param:`ax` and :param:`fig_filespec` are None, a
 			(ax, fig) tuple will be returned
 		"""
-		return plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, ax=ax, fig_width=fig_width, dpi=dpi)
+		return plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, y_log_labels=y_log_labels, fig_filespec=fig_filespec, ax=ax, fig_width=fig_width, dpi=dpi)
 
 
 
@@ -1210,7 +1213,7 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 
 		return tgr_elem
 
-	def plot(self, color='k', style="-", label="", discrete=False, cumul_or_inc="cumul", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, ax=None, fig_width=0, dpi=300):
+	def plot(self, color='k', style="-", label="", discrete=False, cumul_or_inc="cumul", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", y_log_labels=True, fig_filespec=None, ax=None, fig_width=0, dpi=300):
 		"""
 		Plot magnitude-frequency distribution
 
@@ -1242,6 +1245,9 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 			String, plot title (default: "")
 		:param lang:
 			String, language of plot axis labels (default: "en")
+		:param y_log_labels:
+			bool, whether or not Y axis labels are plotted as 10 to a power
+			(default: True)
 		:param fig_filespec:
 			String, full path to output image file, if None plot to screen
 			(default: None)
@@ -1258,7 +1264,7 @@ class TruncatedGRMFD(nhlib.mfd.TruncatedGRMFD, MFD):
 			if both :param:`ax` and :param:`fig_filespec` are None, a
 			(ax, fig) tuple will be returned
 		"""
-		return plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, ax=ax, fig_width=fig_width, dpi=dpi)
+		return plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, y_log_labels=y_log_labels, fig_filespec=fig_filespec, ax=ax, fig_width=fig_width, dpi=dpi)
 
 	def to_truncated_GR_mfd(self, min_mag=None, max_mag=None, bin_width=None):
 		"""
@@ -1548,7 +1554,7 @@ class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, EvenlyDiscret
 		"""
 		return self.min_mag + self.bin_width / 2
 
-	def plot(self, color='k', style="-", label="", discrete=True, cumul_or_inc="both", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", fig_filespec=None, ax=None, fig_width=0, dpi=300):
+	def plot(self, color='k', style="-", label="", discrete=True, cumul_or_inc="both", completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", y_log_labels=True, fig_filespec=None, ax=None, fig_width=0, dpi=300):
 		"""
 		Plot magnitude-frequency distribution
 
@@ -1580,6 +1586,9 @@ class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, EvenlyDiscret
 			String, plot title (default: "")
 		:param lang:
 			String, language of plot axis labels (default: "en")
+		:param y_log_labels:
+			bool, whether or not Y axis labels are plotted as 10 to a power
+			(default: True)
 		:param fig_filespec:
 			String, full path to output image file, if None plot to screen
 			(default: None)
@@ -1596,7 +1605,7 @@ class YoungsCoppersmith1985MFD(nhlib.mfd.YoungsCoppersmith1985MFD, EvenlyDiscret
 			if both :param:`ax` and :param:`fig_filespec` are None, a
 			(ax, fig) tuple will be returned
 		"""
-		return plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, fig_filespec=fig_filespec, ax=ax, fig_width=fig_width, dpi=dpi)
+		return plot_MFD([self], colors=[color], styles=[style], labels=[label], discrete=[discrete], cumul_or_inc=[cumul_or_inc], completeness=completeness, end_year=end_year, Mrange=Mrange, Freq_range=Freq_range, title=title, lang=lang, y_log_labels=y_log_labels, fig_filespec=fig_filespec, ax=ax, fig_width=fig_width, dpi=dpi)
 
 
 def sum_MFDs(mfd_list, weights=[]):
@@ -1664,7 +1673,10 @@ def sum_MFDs(mfd_list, weights=[]):
 	return EvenlyDiscretizedMFD(min_mag+bin_width/2, bin_width, occurrence_rates, Mtype)
 
 
-def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_inc=[], completeness=None, end_year=None, Mrange=(), Freq_range=(), title="", lang="en", legend_location=1, fig_filespec=None, ax=None, fig_width=0, dpi=300):
+def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_inc=[],
+			completeness=None, end_year=None, Mrange=(), Freq_range=(), title="",
+			lang="en", y_log_labels=True, legend_location=1,
+			fig_filespec=None, ax=None, fig_width=0, dpi=300):
 	"""
 	Plot one or more magnitude-frequency distributions
 
@@ -1702,6 +1714,9 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 		String, language of plot axis labels (default: "en")
 	:param legend_location:
 		int or str, matplotlib specification for legend location (default: 1)
+	:param y_log_labels:
+		bool, whether or not Y axis labels are plotted as 10 to a power
+		(default: True)
 	:param fig_filespec:
 		String, full path to output image file, if None plot to screen
 		(default: None)
@@ -1841,7 +1856,8 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 		for i in range(1, len(min_mags)):
 			ax.plot([min_mags[i], min_mags[i]], Freq_range, 'k--', lw=1, label="_nolegend_")
 			ax.annotate("", xy=(min_mags[i-1], annoty), xycoords='data', xytext=(min_mags[i], annoty), textcoords='data', arrowprops=dict(arrowstyle="<->"),)
-			label = "%s - %s" % (completeness.get_initial_completeness_year(min_mags[i-1]), end_year)
+			#label = "%s - %s" % (completeness.get_initial_completeness_year(min_mags[i-1]), end_year)
+			label = "%s - " % completeness.get_initial_completeness_year(min_mags[i-1])
 			ax.text(np.mean([min_mags[i-1], min_mags[i]]), annoty*10**-0.25, label, ha="center", va="center", size=12, bbox=bbox_props)
 		## Uniform completeness has only 1 min_mag
 		if len(min_mags) == 1:
@@ -1863,6 +1879,12 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 		ax.legend(loc=legend_location, prop=font)
 	for label in ax.get_xticklabels() + ax.get_yticklabels():
 		label.set_size('large')
+
+	if not y_log_labels:
+		from matplotlib.ticker import FuncFormatter
+		ax.yaxis.set_major_formatter(FuncFormatter((lambda y, _: '{:g}'.format(y))))
+		for label in ax.get_xticklabels() + ax.get_yticklabels():
+			label.set_size('medium')
 
 	if fig_filespec:
 		default_figsize = pylab.rcParams['figure.figsize']
