@@ -87,11 +87,29 @@ def Poisson(life_time=None, return_period=None, prob=None):
 		raise TypeError("Need to specify 2 parameters")
 
 
+def is_empty_array(ar):
+	"""
+	Determine whether or not a given array is empty, i.e. if:
+	- array is None or []
+	- first element of array is None
+
+	:param ar:
+		numpy array, list or None
+
+	:return:
+		bool
+	"""
+	if ar is None or ar == [] or ar[0] is None:
+		return True
+	else:
+		return False
+
+
 def as_array(values):
 	"""
 	Convert values to array if it is not None or already a numpy array
 	"""
-	if values in ([], None) or values[0] is None:
+	if is_empty_array(values):
 		values = None
 	else:
 		values = {True: values, False: np.array(values, dtype='d')}[isinstance(values, np.ndarray)]
