@@ -67,8 +67,10 @@ if __name__ == "__main__":
 
 
 	## Define site model
-	grid_outline = [-73.75, -70.75, 17.5, 20]
-	grid_spacing = (0.1, 0.1)
+	#grid_outline = [-73.75, -70.75, 17.5, 20]
+	#grid_spacing = (0.1, 0.1)
+	grid_outline = [-72.9, -71.5, 18.25, 18.85]
+	grid_spacing = (1./60, 1./60)
 	soil_site_model = None
 
 	#imt_periods = {'PGA': [0], 'SA': [0.25, 1.]}
@@ -103,10 +105,10 @@ if __name__ == "__main__":
 							soil_site_model=soil_site_model, imt_periods=imt_periods,
 							truncation_level=truncation_level, integration_distance=integration_distance)
 
-			#uhs_field = dsha_model.calc_gmf_fixed_epsilon_mp(num_cores=4, stddev_type="total")
+			uhs_field = dsha_model.calc_gmf_fixed_epsilon_mp(num_cores=3, stddev_type="total")
 			#correlation_model = oqhazlib.correlation.JB2009CorrelationModel(vs30_clustering=True)
 			correlation_model = None
-			uhs_field = dsha_model.calc_random_gmf(correlation_model=correlation_model, random_seed=42)[0]
+			#uhs_field = dsha_model.calc_random_gmf_mp(correlation_model=correlation_model, random_seed=42, num_cores=3)[0]
 			num_sites = uhs_field.num_sites
 
 
