@@ -408,6 +408,11 @@ def get_hazard_spectrum(lon, lat, poe=0.1, verbose=False):
 
 if __name__ == "__main__":
 	lon, lat = 4, 51
+
+	uhs = get_hazard_spectrum(lon, lat)
+	uhs.plot()
+	exit()
+
 	verbose = False
 	map_models = get_map_models(lon, lat, verbose=verbose)
 	print map_models
