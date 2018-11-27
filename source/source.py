@@ -830,13 +830,13 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 			Float, source area in square km
 		"""
 		import osr
-		from mapping.geotools.coordtrans import wgs84, get_utm_spec, get_utm_srs
+		from mapping.geotools.coordtrans import WGS84, get_utm_spec, get_utm_srs
 
 		poly = self.to_ogr_geometry()
 		centroid = poly.Centroid()
 		utm_spec = get_utm_spec(centroid.GetX(), centroid.GetY())
 		utm_srs = get_utm_srs(utm_spec)
-		coordTrans = osr.CoordinateTransformation(wgs84, utm_srs)
+		coordTrans = osr.CoordinateTransformation(WGS84, utm_srs)
 		poly.Transform(coordTrans)
 		return poly.GetArea() / 1E6
 

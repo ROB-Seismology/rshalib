@@ -134,10 +134,10 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 	"""
 	print("Warning: this function is deprecated. Use read_rob_source_model instead!")
 	from eqcatalog.source_models import rob_source_models_dict
-	from mapping.geotools.readGIS import read_GIS_file
+	from mapping.geotools.read_gis import read_gis_file
 
 	rob_source_model = rob_source_models_dict[source_model_name]
-	source_records = read_GIS_file(rob_source_model['gis_filespec'], encoding=None, fix_mi_lambert=fix_mi_lambert, verbose=verbose)
+	source_records = read_gis_file(rob_source_model['gis_filespec'], encoding=None, fix_mi_lambert=fix_mi_lambert, verbose=verbose)
 
 	## Override default column map
 	## Copy dict to avoid side effects in calling function
@@ -265,8 +265,8 @@ def create_rob_area_source(
 	print("Warning: this function is deprecated!")
 
 	import osr
-	from mapping.geotools.coordtrans import wgs84, lambert1972
-	coordTrans = osr.CoordinateTransformation(wgs84, lambert1972)
+	from mapping.geotools.coordtrans import WGS84, LAMBERT1972
+	coordTrans = osr.CoordinateTransformation(WGS84, LAMBERT1972)
 
 	## ID and name
 	source_id = str(source_rec.get(column_map['id'], column_map['id']))

@@ -2,7 +2,7 @@
 Read EC8 information from GIS files
 """
 
-from mapping.geotools.readGIS import read_GIS_file
+from mapping.geotools.read_gis import read_gis_file
 
 def read_ec8_information():
 	"""
@@ -11,9 +11,9 @@ def read_ec8_information():
 		EC8 zone (int) and reference PGA (float)
 	"""
 	village_filespec = r"D:\GIS-data\Belgium\Bel_main_village_points.TAB"
-	village_records = read_GIS_file(village_filespec)
+	village_records = read_gis_file(village_filespec)
 	ec8_filespec = r"D:\GIS-data\KSB-ORB\EC8_2002-2011.TAB"
-	ec8_records = read_GIS_file(ec8_filespec, encoding=None)
+	ec8_records = read_gis_file(ec8_filespec, encoding=None)
 
 	village_ID_dict = {}
 	for rec in village_records:
