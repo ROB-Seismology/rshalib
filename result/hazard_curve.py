@@ -4974,7 +4974,7 @@ class HazardMap(HazardResult, HazardField):
 
 		map_layers = []
 		ticks = contour_levels
-		if not ticks in ([], None):
+		if not (ticks is None or ticks == []):
 			ticks = ticks[ticks <= norm.vmax]
 		if colorbar_style == "default":
 			colorbar_style = lbm.ColorbarStyle(location="bottom", format=label_format, ticks=ticks, title=cbar_label)
