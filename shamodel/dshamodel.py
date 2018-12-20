@@ -361,7 +361,7 @@ class DSHAModel(SHAModelBase):
 					for k, imt in enumerate(imt_list):
 						if k == 0 or not correlate_imt_uncertainties:
 							random_seed2 = rnd.randint(0, MAX_SINT_32)
-						r = np.sum(num_ruptures_by_source) + src_num_ruptures
+						r = int(np.sum(num_ruptures_by_source) + src_num_ruptures)
 						shared_arr_idx = (r, g, k)
 						shared_arr_shape = []
 						job_args.append([rup, soil_site_model, tuple(imt), gsim,
