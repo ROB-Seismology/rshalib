@@ -99,7 +99,7 @@ def is_empty_array(ar):
 	:return:
 		bool
 	"""
-	if ar is None or ar == [] or ar[0] is None:
+	if ar is None or len(ar) == 0 or ar[0] is None:
 		return True
 	else:
 		return False
@@ -3101,12 +3101,15 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 			or (self._hazard_values != uhsf._hazard_values).any()):
 			raise Exception("Hazard array does not correspond!")
 
-	def extend(self, uhsft):
+	def extend(self, uhsft, renormalize_weights=False):
 		"""
 		Extend UHS field tree in-place with another one.
 
 		:param uhsft:
 			instance of :class:`UHSFieldTree`
+		:param normalize_weights:
+			bool, whether or not to renormalize weights
+			(default: False)
 		"""
 		self.check_uhsf_compatibility(uhsft)
 		self.branch_names.extend(uhsft.branch_names)
@@ -3119,7 +3122,8 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		## Remove mean and percentiles
 		self.mean = None
 		self.percentiles = None
-		self.normalize_weights()
+		if renormalize_weights:
+			self.normalize_weights()
 
 
 	def getUHSField(self, branch_spec):
