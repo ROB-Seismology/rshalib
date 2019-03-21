@@ -25,3 +25,6 @@ import refspec
 reload(refspec)
 
 from refspec import (get_refspec_RG160, get_refspec_EC8)
+
+import en1998update
+reload(en1998update)
