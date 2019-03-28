@@ -4072,7 +4072,9 @@ class UHS(HazardResult, ResponseSpectrum):
 		if title is None:
 			title = "UHS"
 			title += "\nSite: %s, Return period: %d yr" % (self.site_name, self.return_periods[0])
-		ResponseSpectrum.plot(self, color, linestyle, linewidth, fig_filespec, title, plot_freq, plot_style, Tmin, Tmax, amin, amax, intensity_unit, pgm_period, legend_location, lang)
+		kwargs = locals().copy()
+		kwargs.pop('self')
+		ResponseSpectrum.plot(self, **kwargs)
 
 	@classmethod
 	def from_csv(self, csv_filespec, site, col_spec=1, intensity_unit="g", model_name="", timespan=50, poe=None, return_period=None):
