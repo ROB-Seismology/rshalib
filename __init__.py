@@ -38,6 +38,10 @@ import utils
 reload(utils)
 
 ## No internal dependencies
+import poisson
+reload(poisson)
+
+## No internal dependencies
 import cav
 reload(cav)
 
