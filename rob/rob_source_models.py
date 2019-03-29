@@ -59,7 +59,7 @@ def read_rob_source_model(
 	:return:
 		instance of :class:`SourceModel`
 	"""
-	from eqcatalog.source_models import rob_source_models_dict
+	from eqcatalog.rob.source_models import rob_source_models_dict
 
 	rob_source_model = rob_source_models_dict[source_model_name]
 
