@@ -34,7 +34,8 @@ class RuptureSource():
 	the number of area discretization points * number of magnitude bins *
 	number of hypocentral depths * number of nodal planes
 	"""
-	def get_ruptures_Poisson(self, mag=None, strike=None, dip=None, rake=None, timespan=1):
+	def get_ruptures_Poisson(self, mag=None, strike=None, dip=None, rake=None,
+							depth=None, timespan=1):
 		"""
 		Generate ruptures according to Poissonian temporal occurrence model,
 		optionally filtering by magnitude, strike, dip and rake.
@@ -51,6 +52,8 @@ class RuptureSource():
 			Float, dip in degrees of ruptures to plot (default: None)
 		:param rake:
 			Float, rake in degrees of ruptures to plot (default: None)
+		:param depth:
+			Float, depth in km of ruptures to plot (default: None)
 
 		:return:
 			list of instances of :class:`ProbabilisticRupture`
@@ -67,6 +70,8 @@ class RuptureSource():
 			ruptures = [rup for rup in ruptures if np.allclose(rup.surface.get_dip(), dip)]
 		if rake is not None:
 			ruptures = [rup for rup in ruptures if np.allclose(rup.rake, rake)]
+		if depth is not None:
+			ruptures = [rup for rup in ruptures if np.allclose(rup.hypocenter.depth, depth)]
 		return ruptures
 
 	def get_stochastic_event_set_Poisson(self, timespan):
@@ -192,10 +197,8 @@ class RuptureSource():
 			else:
 				color = (0.,0.,1.)
 			lons, lats, depths = self.get_rupture_bounds(rup)
-			coord_list = zip(lons, lats)
-			utm_coord_list = coordtrans.lonlat_to_utm(coord_list, utm_spec)
-			x, y = zip(*utm_coord_list)
-			x, y = np.array(x) / 1000, np.array(y) / 1000
+			x, y = coordtrans.lonlat_to_utm(lons, lats, utm_spec=utm_spec)
+			x, y = x / 1000., y / 1000.
 			ax.plot3D(x, y, -depths, color=color)
 			if fill:
 				tri = p3.art3d.Poly3DCollection([zip(x, y, -depths)])
@@ -224,10 +227,9 @@ class RuptureSource():
 			src_latitudes = polygon.lats
 			src_depths = np.array([pt.depth for pt in polygon])
 
-		coord_list = zip(src_longitudes, src_latitudes)
-		utm_coord_list = coordtrans.lonlat_to_utm(coord_list, utm_spec)
-		x, y = zip(*utm_coord_list)
-		x, y = np.array(x) / 1000, np.array(y) / 1000
+		x, y = coordtrans.lonlat_to_utm(src_longitudes, src_latitudes,
+												utm_spec=utm_spec)
+		x, y = x / 1000., y / 1000.
 		ax.plot3D(x, y, -src_depths, 'k', lw=3)
 
 		## Upper and lower seismogenic depth
@@ -237,10 +239,8 @@ class RuptureSource():
 		## Highlight first rupture if source is a fault
 		if isinstance(self, (SimpleFaultSource, ComplexFaultSource)):
 			lons, lats, depths = self.get_rupture_bounds(ruptures[0])
-			coord_list = zip(lons, lats)
-			utm_coord_list = coordtrans.lonlat_to_utm(coord_list, utm_spec)
-			x, y = zip(*utm_coord_list)
-			x, y = np.array(x) / 1000, np.array(y) / 1000
+			x, y = coordtrans.lonlat_to_utm(lons, lats, utm_spec=utm_spec)
+			x, y = x / 1000., y / 1000.
 			ax.plot3D(x, y, -depths, 'm--', lw=3)
 
 		## Plot decoration
@@ -1854,6 +1854,26 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			instance of :class:`openquake.hazardlib.geo.mesh.RectangularMesh`
 		"""
 		return self.get_surface(rupture_mesh_spacing=rupture_mesh_spacing).get_mesh()
+
+	def calc_distance(self, lons, lats, depths):
+		"""
+		Compute distance to a set of points
+
+		:param lons:
+			list or array, longitudes (in degrees)
+		:param lats:
+			list or array, latitudes (in degrees)
+		:param depths:
+			list or array, depths (in km)
+
+		:return:
+			array, distances (in km)
+		"""
+		lons = np.asarray(lons)
+		lats = np.asarray(lats)
+		depths = np.asarray(depths)
+		mesh = oqhazlib.geo.mesh.Mesh(lons, lats, depths)
+		return self.get_surface().get_min_distance(mesh)
 
 	def get_top_edge_rupture_faults(self, mag):
 		"""
