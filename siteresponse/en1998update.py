@@ -48,17 +48,49 @@ def get_seismicity_class(Sdelta):
 	return seismicity_class
 
 
+def parse_consequence_class(consequence_class):
+	"""
+	Make sure consequence class is in the right format, e.g.
+	- 2 or '2' --> 'CC2'
+	- 'CC3-a' --> 'CC3a'
+	- 'CC4' --> 'CC3b'
+
+	:param consequenc_class:
+		str, consequence class
+
+	:return:
+		str, corrected consequence class
+	"""
+	if isinstance(consequence_class, int) or consequence_class[0] != 'C':
+		consequence_class = 'CC%s' % str(consequence_class)
+	consequence_class = consequence_class.replace('-', '')
+	if consequence_class == 'CC4':
+		consequence_class == 'CC3b'
+	return consequence_class
+
+
 def get_delta(consequence_class='CC2'):
 	"""
 	Coefficient depending on consequence class
 
 	:param consequence_class:
-		str, one of 'CC1', 'CC2', 'CC3a', 'CC3b', 'CC4', ...
+		str, one of 'CC1', 'CC2', 'CC3a', 'CC3b', ...
 
 	:return:
 		float, delta value
 	"""
-	raise NotImplementedError
+	consequence_class = parse_consequence_class()
+	delta = {'CC1': 0.6,
+			'CC2': 1.0,
+			'CC3a': 1.25,
+			'CC3b': 1.6}[consequence_class]
+	return delta
+
+
+def get_return_period(consequence_class='CC2', limit_state='SD'):
+	"""
+	"""
+	return NotImplementedError
 
 
 def get_ground_class(VsH):
