@@ -2,7 +2,7 @@
 2019 update of EN1998
 """
 
-from __future__ import absolute_import, division, print_function#, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 
 import numpy as np
@@ -296,7 +296,7 @@ def estimate_Sbeta_rp(Sref, ref_is_beta, consequence_class='CC2', limit_state='S
 	associated to that limit state and consequence class
 	(see :func:`get_return_period`)
 
-	:param S_ref:
+	:param Sref:
 		float, maximum or 1-s response spectral acceleration (5% damping)
 		on site category A for the reference return period (in m/s2)
 	:param ref_is_beta:
@@ -588,8 +588,9 @@ def construct_acceleration_rs(Salpha_rp, Sbeta_rp,
 		acceleration. Will be ignored if :param:`S0` is specified
 		(default: 2.5)
 	:param S0:
-		float, zero-period acceleration on category A for particular
-		return period (in m/s2). Will be used to override :param:`FA`
+		float, zero-period acceleration on category A (in m/s2) for same
+		return period as :param:`Salpha_rp`. Will be used to override
+		:param:`FA`
 		(default: None)
 	:param TD:
 		float, corner period at the beginning of the constant
@@ -726,7 +727,7 @@ def estimate_long_period_site_amplification_factor(Fbeta, site_category):
 	return Flp
 
 
-def get_displacement_rs(Salpha_rp, Sbeta_rp, site_category, periods, **kwargs):
+def construct_displacement_rs(Salpha_rp, Sbeta_rp, site_category, periods, **kwargs):
 	"""
 	Construct elastic displacement response spectrum
 
@@ -735,19 +736,19 @@ def get_displacement_rs(Salpha_rp, Sbeta_rp, site_category, periods, **kwargs):
 	:return:
 		instance of :class:`rshalib.result.ResponseSpectrum`
 	"""
-	Se = get_horizontal_acceleration_rs(Salpha_rp, Sbeta_rp, site_category,
+	Se = construct_acceleration_rs(Salpha_rp, Sbeta_rp, site_category,
 										periods=periods, **kwargs)
 	Se = Se.values
 	SDe = np.zeros_like(Se)
 	if not TD in kwargs:
-		TD = get_TD(Sbeta_rp)
+		TD = calc_TD(Sbeta_rp)
 	TE = max(TD, 6)
 	TF = 10
 
-	Falpha, Fbeta = get_site_amplification_factors(site_category)
-	if VsH in kwargs:
+	if kwargs.get(VsH):
 		Flp = calc_long_period_site_amplification_factor(VsH)
 	else:
+		_, Fbeta = estimate_site_amplification_factors(site_category)
 		Flp = estimate_long_period_site_amplification_factor(Fbeta, site_category)
 
 	idxs = (periods <= TE)
@@ -755,7 +756,7 @@ def get_displacement_rs(Salpha_rp, Sbeta_rp, site_category, periods, **kwargs):
 	if TE in periods:
 		[SDe_TE] = SDe[periods == TE]
 	else:
-		SDe_TE = get_horizontal_acceleration_rs(Salpha_rp, Sbeta_rp, site_category,
+		SDe_TE = construct_acceleration_rs(Salpha_rp, Sbeta_rp, site_category,
 											periods=[TE], **kwargs)
 	idxs = (TE < periods) & (periods <= TF)
 	SDe[idxs] = SDe_TE * (1 + ((Flp / Fbeta) - 1) * (periods[idxs] - TE) / (TF - TE))
@@ -801,7 +802,7 @@ def calc_design_pgv(Salpha, Sbeta):
 	return 0.06 * (Salpha * Sbeta)**0.55
 
 
-def calc_design_pgd(Sbeta_rp, Flp, TD):
+def calc_design_pgd(Sbeta_rp, Flp, TD=None):
 	"""
 	Calculate design PGD
 
@@ -810,15 +811,20 @@ def calc_design_pgd(Sbeta_rp, Flp, TD):
 		at vibration period T = 1 s on site category A
 		for particular return period (in m/s2)
 	:param Flp:
-		float, long-perid amplification factor
+		float, long-period amplification factor
 	:param TD:
 		float, corner period at the beginning of the constant
 		displacement response range of the spectrum (in s)
+		If not specified, will be determined automatically from
+		:param:`Sbeta_rp`
+		(default: None)
 
 	:return:
 		float, design PGD (in m)
 	"""
 	Tbeta = 1.
+	if not TD:
+		TD = calc_TD(Sbeta_rp)
 	return 0.025 * Tbeta * TD * Flp * Sbeta_rp
 
 
@@ -913,3 +919,4 @@ def is_site_specific_study_required():
 
 ## TODO:
 ## - Map Salpha (and optionally Sbeta, FA) for Tref and other return periods
+## Plot site amplification factors in function of VsH and/or H800
