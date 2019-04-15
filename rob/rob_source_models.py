@@ -91,7 +91,7 @@ import decimal
 from openquake.hazardlib.scalerel import WC1994
 
 from ..mfd import TruncatedGRMFD, EvenlyDiscretizedMFD
-from ..geo import Point, Line, Polygon, NodalPlane, mean_angle
+from ..geo import Point, Line, Polygon, NodalPlane
 from ..pmf.distributions import *
 from ..source import AreaSource, SimpleFaultSource, SourceModel
 
@@ -483,6 +483,8 @@ def create_rob_simple_fault_source(
 	:return:
 		SimpleFaultSource object.
 	"""
+	from mapping.geotools.angle import Angle
+
 	print("Warning: this function is deprecated!")
 
 	## ID and name
@@ -526,27 +528,24 @@ def create_rob_simple_fault_source(
 		fault_trace = Line([Point(*pt) for pt in points])
 
 	## Dip
-	max_dip = float(source_rec.get(column_map['min_dip'], column_map['min_dip']))
-	min_dip = float(source_rec.get(column_map['max_dip'], column_map['max_dip']))
+	min_dip = float(source_rec.get(column_map['min_dip'], column_map['min_dip']))
+	max_dip = float(source_rec.get(column_map['max_dip'], column_map['max_dip']))
 	if None in (min_dip, max_dip):
 		raise Exception("Dip not defined")
 	else:
 		dip = (min_dip + max_dip) / 2.
 
 	## Rake
-	max_rake = float(source_rec.get(column_map['min_rake'], column_map['min_rake']))
-	min_rake = float(source_rec.get(column_map['max_rake'], column_map['max_rake']))
+	min_rake = float(source_rec.get(column_map['min_rake'], column_map['min_rake']))
+	max_rake = float(source_rec.get(column_map['max_rake'], column_map['max_rake']))
 	if None in (min_rake, max_rake):
 		raise Exception("Rake not defined")
 	else:
-		rake = mean_angle([min_rake, max_rake])
-		## Constrain to (-180, 180)
-		if rake > 180:
-			rake -= 360.
+		rake = Angle([min_rake, max_rake], "deg").mean().deg()
 
 	## Slip rate
-	max_slip_rate = float(source_rec.get(column_map['min_slip_rate'], column_map['min_slip_rate']))
-	min_slip_rate = float(source_rec.get(column_map['max_slip_rate'], column_map['max_slip_rate']))
+	min_slip_rate = float(source_rec.get(column_map['min_slip_rate'], column_map['min_slip_rate']))
+	max_slip_rate = float(source_rec.get(column_map['max_slip_rate'], column_map['max_slip_rate']))
 	if None in (min_slip_rate, max_slip_rate):
 		print("Warning: Slip rate not defined")
 	else:
