@@ -9,9 +9,8 @@ as well as to generate input files for OpenQuake.
 """
 
 from lxml import etree
-## Note: Don't import numpy as np to avoid conflicts with np as abbreviation
-## for nodalplane
-import numpy
+## Note: Don't use np as abbreviation for nodalplane!!
+import numpy as np
 import pylab
 
 import openquake.hazardlib as oqhazlib
@@ -19,7 +18,6 @@ import openquake.hazardlib as oqhazlib
 from ..nrml import ns
 from ..nrml.common import *
 from ..mfd import *
-from ..geo.angle import *
 from ..geo import Point, Line, Polygon, NodalPlane
 from ..pmf import HypocentralDepthDistribution, NodalPlaneDistribution
 
@@ -1043,7 +1041,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 	# TODO: SlipratePMF
 	# TODO: add aseismic_coef and strain_drop parameters (see get_MFD_Anderson_Luco method)
 	# TODO: add char_mag property, to make distinction with max_mag !!!
-	def __init__(self, source_id, name, tectonic_region_type, mfd, rupture_mesh_spacing, magnitude_scaling_relationship, rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth, fault_trace, dip, rake, slip_rate=numpy.NaN, bg_zone=None):
+	def __init__(self, source_id, name, tectonic_region_type, mfd, rupture_mesh_spacing, magnitude_scaling_relationship, rupture_aspect_ratio, upper_seismogenic_depth, lower_seismogenic_depth, fault_trace, dip, rake, slip_rate=np.NaN, bg_zone=None):
 		if isinstance(magnitude_scaling_relationship, (str, unicode)):
 			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)()
 		super(SimpleFaultSource, self).__init__(source_id=source_id,
@@ -1169,7 +1167,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 
 		Note: don't change to m, in order to keep compatibility with mtoolkit!
 		"""
-		return self.get_depth_range() / numpy.sin(numpy.radians(self.dip))
+		return self.get_depth_range() / np.sin(np.radians(self.dip))
 
 	def get_projected_width(self):
 		"""
@@ -1178,7 +1176,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		:return:
 			Float, projected fault width in km
 		"""
-		return self.get_width() * numpy.cos(numpy.radians(self.dip))
+		return self.get_width() * np.cos(np.radians(self.dip))
 
 	def get_length(self):
 		"""
@@ -1191,7 +1189,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		lons1, lats1 = lons[:-1], lats[:-1]
 		lons2, lats2 = lons[1:], lats[1:]
 		distances = oqhazlib.geo.geodetic.geodetic_distance(lons1, lats1, lons2, lats2)
-		return numpy.add.reduce(distances)
+		return np.add.reduce(distances)
 
 	def get_area(self):
 		"""
@@ -1217,14 +1215,18 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 
 		:return:
 			Tuple (azimuths, distances):
-			azimuths: numpy array with point-to-point azimuths in degrees
+			azimuths: instance of :class:`mapping.geotools.Azimuth`,
+				point-to-point azimuths
 			distances: numpy array with point-to-point distances in km
 		"""
+		from mapping.geotools.angle import Azimuth
+
 		lons, lats = self.fault_trace.lons, self.fault_trace.lats
 		lons1, lats1 = lons[:-1], lats[:-1]
 		lons2, lats2 = lons[1:], lats[1:]
 		distances = oqhazlib.geo.geodetic.geodetic_distance(lons1, lats1, lons2, lats2)
 		azimuths = oqhazlib.geo.geodetic.azimuth(lons1, lats1, lons2, lats2)
+		azimuths = Azimuth(azimuths, "deg")
 		return (azimuths, distances)
 
 	def get_mean_strike(self):
@@ -1236,11 +1238,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			Float, mean strike in degrees
 		"""
 		azimuths, distances = self._get_trace_azimuths_and_distances()
-		weights = distances / numpy.add.reduce(distances)
-		mean_strike = mean_angle(azimuths, weights)
-		## Constrain to (0, 360)
-		mean_strike = (mean_strike + 360) % 360
-		#mean_strike = numpy.average(azimuths, weights=weights)
+		weights = distances / np.add.reduce(distances)
+		mean_strike = azimuths.mean(weights).deg()
 		return mean_strike
 
 	def get_mesh_mean_strike(self):
@@ -1259,14 +1258,16 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		:return:
 			Float, standard deviation of strike in degrees
 		"""
-		mean_strike = self.get_mean_strike()
+		from mapping.geotools.angle import Azimuth
+
+		mean_strike = Azimuth(self.get_mean_strike(), "deg")
 		#mean_strike_angle = 90 - mean_strike
 		azimuths, distances = self._get_trace_azimuths_and_distances()
-		weights = distances / numpy.add.reduce(distances)
-		azimuth_deltas = [delta_angle(mean_strike, az) for az in azimuths]
+		weights = distances / np.add.reduce(distances)
+		azimuth_deltas = azimuths.get_enclosed_angle(mean_strike).deg()
 
-		variance = numpy.dot(weights, numpy.array(azimuth_deltas)**2) / weights.sum()
-		return numpy.sqrt(variance)
+		variance = np.dot(weights, np.array(azimuth_deltas)**2) / weights.sum()
+		return np.sqrt(variance)
 
 	def get_min_max_strike(self):
 		"""
@@ -1276,13 +1277,10 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			Tuple (min_strike, max_strike) in degrees
 		"""
 		azimuths, _ = self._get_trace_azimuths_and_distances()
-		az_min, az_max = azimuths.min(), azimuths.max()
+		az_min, az_max = azimuths.min().deg(), azimuths.max().deg()
 		if az_max - az_min > 180:
-			tmpAzimuths = numpy.array(azimuths)
-			for i in range(len(tmpAzimuths)):
-				if tmpAzimuths[i] <= 180:
-					tmpAzimuths[i] += 360
-			az_min, az_max = min(tmpAzimuths), max(tmpAzimuths)
+			azimuths[azimuths < np.pi] += 360
+			az_min, az_max = azimuths.min().deg(), azimuths.max.deg()
 			az_max -= 360
 		return (az_min, az_max)
 
@@ -1298,12 +1296,15 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			- negative values: other faults are in anticlockwise direction
 			- positive values: other faults are in clockwise direction
 		"""
-		strike0 = self.get_mean_strike()
-		other_strikes = np.array([flt.get_mean_strike() for flt in other_faults])
-		strike_delta = other_strikes - strike0
-		other_strikes[other_strikes > 180] = 360 - other_strikes[other_strikes > 180]
-		other_strikes[other_strikes < -180] += 360
-		return other_strikes
+		from mapping.geotools.angle import Azimuth
+
+		strike0 = Azimuth(self.get_mean_strike(), "deg")
+		other_strikes = [flt.get_mean_strike() for flt in other_faults]
+		other_strikes = Azimuth(other_strikes, "deg")
+		strike_deltas = (other_strikes - strike0).deg()
+		strike_deltas[strike_deltas > 180] = 360 - strike_deltas[strike_deltas > 180]
+		strike_deltas[strike_deltas < -180] += 360
+		return strike_deltas
 
 	def get_abs_strike_deltas(self, other_faults):
 		"""
@@ -2205,7 +2206,7 @@ class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, Ruptu
 	@property
 	def lower_seismogenic_depth(self):
 		# TODO: check if this also works for complex fault surfaces
-		return self.upper_seismogenic_depth + self.width * numpy.sin(numpy.radians(self.dip))
+		return self.upper_seismogenic_depth + self.width * np.sin(np.radians(self.dip))
 
 	@property
 	def fault_trace(self):
