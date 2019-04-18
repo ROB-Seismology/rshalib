@@ -55,7 +55,7 @@ def get_delta(consequence_class='CC2'):
 	:return:
 		float, delta value
 	"""
-	consequence_class = parse_consequence_class()
+	consequence_class = parse_consequence_class(consequence_class)
 	delta = CC_DELTA_DICT[consequence_class]
 	return delta
 
@@ -77,7 +77,7 @@ def get_return_period(consequence_class='CC2', limit_state='SD'):
 	:return:
 		int, return period (in years)
 	"""
-	consequence_class = parse_consequence_class()
+	consequence_class = parse_consequence_class(consequence_class)
 	Tr = LS_CC_TR_DICT[limit_state.upper()][consequence_class]
 	return Tr
 
@@ -98,7 +98,7 @@ def get_performance_factor(consequence_class='CC2', limit_state='SD'):
 	:return:
 		int, return period (in years)
 	"""
-	consequence_class = parse_consequence_class()
+	consequence_class = parse_consequence_class(consequence_class)
 	gamma = LS_CC_GAMMA_DICT[limit_state.upper()][consequence_class]
 	return gamma
 
@@ -120,7 +120,7 @@ def calc_seismicity_index(Salpha_ref, delta):
 	:return:
 		float, Sdelta (in m/s2)
 	"""
-	return delta * Salpha_rp
+	return delta * Salpha_ref
 
 
 def get_seismicity_class(Sdelta):
