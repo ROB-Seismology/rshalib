@@ -133,7 +133,7 @@ def create_rob_source_model(source_model_name, min_mag=4.0, mfd_bin_width=0.1, c
 		SourceModel object.
 	"""
 	print("Warning: this function is deprecated. Use read_rob_source_model instead!")
-	from eqcatalog.source_models import rob_source_models_dict
+	from eqcatalog.rob.source_models import rob_source_models_dict
 	from mapping.geotools.read_gis import read_gis_file
 
 	rob_source_model = rob_source_models_dict[source_model_name]
