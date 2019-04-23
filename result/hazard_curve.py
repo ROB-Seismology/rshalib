@@ -5,6 +5,12 @@ Blueprint for classes representing hazard results of both OpenQuake and CRISIS
 
 # pylint: disable=W0142, W0312, C0103, R0913
 
+try:
+	basestring
+except:
+	basestring = str
+
+
 ### imports
 import os, sys
 from decimal import Decimal
@@ -342,7 +348,7 @@ class IntensityResult:
 		:param new_intensity_unit:
 			string, new intensity unit
 		"""
-		if new_intensity_unit != self.intensity_unit:
+		if target_intensity_unit != self.intensity_unit:
 			try:
 				intensities = self._convert_intensities(self.intensities,
 									self.intensity_unit, target_intensity_unit)
@@ -350,7 +356,7 @@ class IntensityResult:
 				raise
 			else:
 				self.intensities = intensities
-				self.intensity_unit = new_intensity_unit
+				self.intensity_unit = target_intensity_unit
 
 	def get_default_intensity_unit(self, IMT):
 		"""
@@ -647,7 +653,7 @@ class HazardField:
 		"""
 		if isinstance(site_spec, int):
 			site_index = site_spec
-		elif isinstance(site_spec, (str, unicode)):
+		elif isinstance(site_spec, basestring):
 			site_index = self.site_names.index(site_spec)
 		elif isinstance(site_spec, SHASite):
 			site_index = self.sites.index(site_spec)
@@ -674,7 +680,7 @@ class HazardField:
 		site_spec0 = site_specs[0]
 		if isinstance(site_spec0, int):
 			return site_specs
-		elif isinstance(site_spec0, (str, unicode)):
+		elif isinstance(site_spec0, basestring):
 			site_spec_index_dict = {self.site_names[i]: i for i in range(self.num_sites)}
 		elif isinstance(site_spec0, SHASite):
 			site_specs = [site.name for site in site_specs]
@@ -763,7 +769,7 @@ class HazardTree(HazardResult):
 	def branch_index(self, branch_spec):
 		if isinstance(branch_spec, int):
 			branch_index = branch_spec
-		elif isinstance(branch_spec, (str, unicode)):
+		elif isinstance(branch_spec, basestring):
 			branch_index =  self.branch_names.index(branch_spec)
 		else:
 			raise Exception("Invalid branch specification: %s" % branch_spec)
@@ -1391,13 +1397,13 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			weighted: boolean indicating whether or not branch weights should be
 				taken into account (default: True)
 		"""
-		if self.mean in (None, []):
+		if is_empty_array(self.mean):
 			mean = self.calc_mean(weighted=weighted)
 		else:
 			mean = self.mean
 		variance_of_mean = self.calc_variance_of_mean(weighted=weighted)
-		if self.percentiles in (None, []):
-			if self.percentile_levels in (None, []):
+		if is_empty_array(self.percentiles):
+			if is_empty_array(self.percentile_levels):
 				percentile_levels = [5, 16, 50, 84, 95]
 			else:
 				percentile_levels = self.percentile_levels
@@ -1469,11 +1475,11 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		# TODO: this is very slow !
 		num_sites, num_periods, num_branches = self.num_sites, self.num_periods, self.num_branches
 		rp_intensities = np.zeros((num_sites, num_branches, num_periods), dtype='d')
-		if self.mean not in (None, []):
+		if not is_empty_array(self.mean):
 			rp_mean = np.zeros((num_sites, num_periods), dtype='d')
 		else:
 			rp_mean = None
-		if self.percentiles not in (None, []):
+		if not is_empty_array(self.percentiles):
 			rp_percentiles = np.zeros((num_sites, num_periods, self.num_percentiles), dtype='d')
 		else:
 			rp_percentiles = None
@@ -1482,9 +1488,9 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			for k in range(num_periods):
 				for j in range(num_branches):
 					rp_intensities[i,j,k] = interpolate(self.exceedance_rates[i,j,k], self.intensities[k], [interpol_exceedance])[0]
-				if self.mean not in (None, []):
+				if not is_empty_array(self.mean):
 					rp_mean[i,k] = interpolate(self.mean[i,k].to_exceedance_rates(self.timespan), self.intensities[k], [interpol_exceedance])[0]
-				if self.percentiles not in (None, []):
+				if not is_empty_array(self.percentiles):
 					for p in range(self.num_percentiles):
 						rp_percentiles[i,k,p] = interpolate(self.percentiles[i,k,:,p].to_exceedance_rates(self.timespan), self.intensities[k], [interpol_exceedance])[0]
 		return UHSFieldTree(self.model_name, self.branch_names, self.filespecs, self.weights, self.sites, self.periods, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_period=return_period, mean=rp_mean, percentile_levels=self.percentile_levels, percentiles=rp_percentiles)
@@ -3225,12 +3231,12 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		return percentiles
 
 	def export_stats_csv(self, csv_filespec=None, site_index=0, weighted=True):
-		if self.mean in (None, []):
+		if is_empty_array(self.mean):
 			mean = self.calc_mean(weighted=weighted)
 		else:
 			mean = self.mean
-		if self.percentiles in (None, []):
-			if self.percentile_levels in (None, []):
+		if is_empty_array(self.percentiles):
+			if is_empty_array(self.percentile_levels):
 				percentile_levels = [5, 16, 50, 84, 95]
 			else:
 				percentile_levels = self.percentile_levels
@@ -3649,7 +3655,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 			title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None,
 			amin=None, amax=None, intensity_unit="g", pgm_period=0.02,
 			axis_label_size='x-large', tick_label_size='large',
-			legend_label_size='large', legend_location=0, lang="en"):
+			legend_label_size='large', legend_location=0, lang="en", ax=None):
 		if title is None:
 			title = "Response Spectrum"
 		intensities = self.get_intensities(intensity_unit)
@@ -3668,7 +3674,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 						amax=amax, intensity_unit=intensity_unit,
 						axis_label_size=axis_label_size, tick_label_size=tick_label_size,
 						legend_label_size=legend_label_size, legend_location=legend_location,
-						lang=lang)
+						lang=lang, ax=ax)
 
 	def get_fas_irvt(self, pgm_freq=50. , mag=6.0, distance=10, region="ENA"):
 		"""
@@ -3817,7 +3823,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 					freqs = True
 				else:
 					freqs = False
-				if isinstance(col_spec, str):
+				if isinstance(col_spec, basestring):
 					col_index = col_names.index(col_spec)
 				else:
 					col_index = col_spec
@@ -4068,7 +4074,7 @@ class UHS(HazardResult, ResponseSpectrum):
 	def site_name(self):
 		return self.site.name
 
-	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", pgm_period=0.02, legend_location=0, lang="en"):
+	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g", pgm_period=0.02, legend_location=0, lang="en", ax=None):
 		if title is None:
 			title = "UHS"
 			title += "\nSite: %s, Return period: %d yr" % (self.site_name, self.return_periods[0])
@@ -4140,9 +4146,9 @@ class UHSFieldSet(HazardResult, HazardField, HazardSpectrum):
 	return_periods: 1-D [p] array of return periods
 	"""
 	def __init__(self, model_name, filespecs, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, poes=None, return_periods=None):
-		if not return_periods in (None, []):
+		if not is_empty_array(return_periods):
 			hazard_values = ExceedanceRateArray(1./return_periods)
-		elif not poes in (None, []):
+		elif not is_empty_array(poes):
 			hazard_values = ProbabilityArray(poes)
 		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
 		HazardField.__init__(self, sites)
@@ -4322,7 +4328,8 @@ class UHSCollection:
 	def plot(self, fig_filespec=None, title=None, plot_freq=False, plot_style="loglin",
 			Tmin=None, Tmax=None, amin=None, amax=None, intensity_unit="g",
 			pgm_period=0.02, legend_location=0, axis_label_size='x-large',
-			tick_label_size='large', legend_label_size='large', lang="en", dpi=300):
+			tick_label_size='large', legend_label_size='large', lang="en", dpi=300,
+			ax=None):
 		if title is None:
 			title = "UHS Collection"
 		pgm, datasets = [], []
@@ -4348,7 +4355,7 @@ class UHSCollection:
 				amin=amin, amax=amax, intensity_unit=intensity_unit,
 				axis_label_size=axis_label_size, tick_label_size=tick_label_size,
 				legend_label_size=legend_label_size, legend_location=legend_location,
-				lang=lang, dpi=dpi)
+				lang=lang, dpi=dpi, ax=ax)
 
 
 class HazardMap(HazardResult, HazardField):
@@ -4631,7 +4638,7 @@ class HazardMap(HazardResult, HazardField):
 			else:
 				## (lon, lat) tuples
 				lons, lats = zip(*sites)
-			if isinstance(interpolate, (str, unicode)):
+			if isinstance(interpolate, basestring):
 				method = interpolate
 			else:
 				method = "cubic"
@@ -4950,7 +4957,7 @@ class HazardMap(HazardResult, HazardField):
 			region = (llcrnrlon, urcrnrlon, llcrnrlat, urcrnrlat)
 
 		## Color map and norm
-		if isinstance(cmap, str):
+		if isinstance(cmap, basestring):
 			if cmap.lower() in ("usgs", "share", "gshap"):
 				cmap_name = cmap
 				cmap = lbm.cm.get_cmap("hazard", cmap_name)
@@ -4959,7 +4966,7 @@ class HazardMap(HazardResult, HazardField):
 			else:
 				cmap = matplotlib.cm.get_cmap(cmap)
 
-		if isinstance(norm, str):
+		if isinstance(norm, basestring):
 			if norm.lower() in ("usgs", "share", "gshap"):
 				norm = lbm.cm.get_norm("hazard", norm)
 
@@ -5016,7 +5023,7 @@ class HazardMap(HazardResult, HazardField):
 			#legend_label["lines"] = "Fault sources"
 			#legend_label["points"] = "Point sources"
 
-			if isinstance(source_model, (str, unicode)):
+			if isinstance(source_model, basestring):
 				from eqcatalog.source_models import rob_source_models_dict
 				gis_filespec = rob_source_models_dict[source_model].gis_filespec
 				sm_data = lbm.GisData(gis_filespec)
