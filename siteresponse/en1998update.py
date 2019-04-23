@@ -389,10 +389,15 @@ def calc_TD(Sbeta_rp):
 	:return:
 		float, TD (in s)
 	"""
-	if Sbeta_rp <= 1:
-		TD = 2.
+	if np.isscalar(Sbeta_rp):
+		if Sbeta_rp <= 1:
+			TD = 2.
+		else:
+			TD = 1 + Sbeta_rp
 	else:
-		TD = 1 + Sbeta_rp
+		TD = np.ones_like(Sbeta_rp) * 2
+		idxs = Sbeta_rp > 1
+		TD[idxs] = 1 + Sbeta_rp[idxs]
 	return TD
 
 
