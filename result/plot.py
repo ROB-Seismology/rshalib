@@ -239,7 +239,7 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 						plot_freq=False, plot_style="loglin", Tmin=None, Tmax=None,
 						amin=None, amax=None, intensity_unit="g", legend_location=0,
 						axis_label_size='x-large', tick_label_size='large',
-						legend_label_size='large', lang="en", dpi=300):
+						legend_label_size='large', lang="en", dpi=300, ax=None):
 	"""
 	Generic function to plot a (usually uniform) hazard spectrum
 	Parameters:
@@ -277,6 +277,12 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 		lang: language to use for labels: en=English, nl=Dutch (default: en)
         dpi: Int, image resolution in dots per inch (default: 300)
 	"""
+	if ax is None:
+		#ax = pylab.axes()
+		fig, ax = pylab.subplots()
+	else:
+		fig_filespec = "hold"
+
 	if not labels:
 		labels = ["Set %d" % (i+1) for i in range(len(datasets))]
 
@@ -290,15 +296,15 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 		linewidths = [3]
 
 	if plot_style.lower() in ("lin", "linlin"):
-		plotfunc = pylab.plot
+		plotfunc = ax.plot
 	elif plot_style.lower() == "linlog":
-		plotfunc = pylab.semilogy
+		plotfunc = ax.semilogy
 	elif plot_style.lower() == "loglin":
-		plotfunc = pylab.semilogx
+		plotfunc = ax.semilogx
 	elif plot_style.lower() == "loglog":
-		plotfunc = pylab.loglog
+		plotfunc = ax.loglog
 
-	pylab.clf()
+	#pylab.clf()
 
 	for i, dataset in enumerate(datasets):
 		periods, intensities = dataset
@@ -345,31 +351,34 @@ def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=
 			plotfunc([xval_pgm], pgm[i], color=color, marker='o', markeredgecolor=markeredgecolor, markeredgewidth=markeredgewidth, markersize=markersize, label="_nolegend_")
 
 	## Plot decoration
-	xmin, xmax, ymin, ymax = pylab.axis()
+	xmin, xmax, ymin, ymax = ax.axis()
 	if amin is None:
 		amin = ymin
 	if amax is None:
 		amax = ymax
+	ax.set_ylim(amin, amax)
 	if plot_freq:
-		pylab.xlabel({"en": "Frequency (Hz)", "nl": "Frequentie (Hz)", "fr": u"Fréquence (Hz)"}[lang], fontsize=axis_label_size)
-		pylab.axis((1.0/Tmax, 1.0/Tmin, amin, amax))
+		ax.set_xlabel({"en": "Frequency (Hz)", "nl": "Frequentie (Hz)", "fr": u"Fréquence (Hz)"}[lang], fontsize=axis_label_size)
+		ax.set_xlim(1.0/Tmax, 1.0/Tmin)
 	else:
 		pylab.xlabel({"en": "Period (s)", "nl": "Periode (s)", "fr": u"Période (s)"}[lang], fontsize=axis_label_size)
-		pylab.axis((Tmin, Tmax, amin, amax))
+		ax.set_xlim(Tmin, Tmax)
 	ylabel = {"en": "Acceleration", "nl": "Versnelling", "fr": u"Accélération"}[lang]
 	ylabel += " (%s)" % get_intensity_unit_label(intensity_unit)
-	pylab.ylabel(ylabel, fontsize=axis_label_size)
-	pylab.grid(True)
-	pylab.grid(True, which="minor")
+	ax.set_ylabel(ylabel, fontsize=axis_label_size)
+	ax.grid(True)
+	ax.grid(True, which="minor")
 	font = FontProperties(size=legend_label_size)
-	pylab.legend(loc=legend_location, prop=font)
-	pylab.title(title)
-	ax = pylab.gca()
+	ax.legend(loc=legend_location, prop=font)
+	ax.set_title(title)
 	for label in ax.get_xticklabels() + ax.get_yticklabels():
 		label.set_size(tick_label_size)
 
-	if fig_filespec:
+	if fig_filespec == "hold":
+		return
+	elif fig_filespec:
 		pylab.savefig(fig_filespec, dpi=dpi)
+		pylab.clf()
 	else:
 		pylab.show()
 
