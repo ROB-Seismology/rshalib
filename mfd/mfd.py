@@ -1858,6 +1858,11 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 			ax.annotate("", xy=(min_mags[i-1], annoty), xycoords='data', xytext=(min_mags[i], annoty), textcoords='data', arrowprops=dict(arrowstyle="<->"),)
 			#label = "%s - %s" % (completeness.get_initial_completeness_year(min_mags[i-1]), end_year)
 			label = "%s - " % completeness.get_initial_completeness_year(min_mags[i-1])
+			## Add final year of completeness in case of non-monotonically decreasing
+			## completeness magnitudes
+			final_year = completeness.get_final_completeness_date(min_mags[i-1])
+			if final_year:
+				label += ("%s" % final_year)
 			ax.text(np.mean([min_mags[i-1], min_mags[i]]), annoty*10**-0.25, label, ha="center", va="center", size=12, bbox=bbox_props)
 		## Uniform completeness has only 1 min_mag
 		if len(min_mags) == 1:
