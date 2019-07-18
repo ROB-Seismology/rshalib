@@ -50,8 +50,12 @@ class GroundMotionSystem(LogicTree):
 			## Rename branch ID's:
 			for branch, gmpe_name in zip(branch_set.branches, self.gmpe_system_def[tectonicRegionType].gmpe_names):
 				# TODO: consider avoiding dependency on rshalib gmpe module
-				gmpe = getattr(gmpe_module, gmpe_name)()
-				gmpe_name = {True: gmpe.short_name, False: gmpe.name}[self.use_short_names]
+				try:
+					gmpe = getattr(gmpe_module, gmpe_name)()
+				except AttributeError:
+					pass
+				else:
+					gmpe_name = {True: gmpe.short_name, False: gmpe.name}[self.use_short_names]
 				branch.branch_id = "%s--%s" % (branchSetID, gmpe_name)
 			branching_level = LogicTreeBranchingLevel(branchingLevelID, [branch_set])
 			self.branching_levels.append(branching_level)
