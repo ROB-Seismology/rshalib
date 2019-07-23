@@ -1,6 +1,5 @@
 
 import numpy as np
-from scipy.optimize import minimize_scalar
 from functools import partial
 
 import openquake.hazardlib as oqhazlib
@@ -57,6 +56,8 @@ class InverseGSIM():
 		"""
 		Given intensities observed at different sites, find magnitude
 		"""
+		from scipy.optimize import minimize_scalar
+
 		sctx, rctx, dctx = self.gsim.make_contexts(site_model, rupture)
 		minimize_func = partial(self.get_prediction_mse,
 							observed_intensities=observed_intensities,
