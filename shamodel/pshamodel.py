@@ -1638,7 +1638,7 @@ class PSHAModel(PSHAModelBase):
 		params.gsim_logic_tree_file = ground_motion_model_lt_file_name
 
 		## convert return periods and time_span to poes
-		if not self.return_periods in ([], None):
+		if not (self.return_periods is None or len(self.return_periods) == 0):
 			if calculation_mode == "classical":
 				params.poes = Poisson(life_time=self.time_span, return_period=self.return_periods)
 			elif calculation_mode == "disaggregation":
@@ -2343,7 +2343,7 @@ class PSHAModelTree(PSHAModelBase):
 		params.gsim_logic_tree_file = ground_motion_model_lt_file_name
 
 		## convert return periods and time_span to poes
-		if not self.return_periods in ([], None):
+		if not (self.return_periods is None or len(self.return_periods) == 0):
 			if calculation_mode == "classical":
 				params.poes = Poisson(life_time=self.time_span, return_period=self.return_periods)
 			elif calculation_mode == "disaggregation":
