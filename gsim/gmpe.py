@@ -4114,7 +4114,6 @@ def plot_distance(gmpe_list, mags, dmin=None, dmax=None, distance_metric=None, h
 				plotfunc(distances, Asigmavalues, style, linewidth=1, label='_nolegend_')
 
 	## Plot decoration
-	dist_label = {"en": "Distance", "nl": "Afstand", "fr": "Distance"}[lang]
 	if distance_metric:
 		#pylab.xlabel(" ".join([distance_metric, "distance (km)"]), fontsize="x-large")
 		distance_metrics = [distance_metric]
@@ -4124,7 +4123,7 @@ def plot_distance(gmpe_list, mags, dmin=None, dmax=None, distance_metric=None, h
 			distance_metrics.add(gmpe.distance_metric)
 		distance_metrics = list(distance_metrics)
 	if len(distance_metrics) > 1:
-		pylab.xlabel("%s (km)" % dist_label, fontsize="x-large")
+		pylab.xlabel(get_distance_label(None, lang), fontsize="x-large")
 	else:
 		pylab.xlabel(get_distance_label(distance_metrics[0], lang), fontsize="x-large")
 	imt_label = get_imt_label(imt, lang.lower()) + " (%s)" % imt_unit_to_plot_label.get(imt_unit, imt_unit)
@@ -4396,7 +4395,7 @@ def get_distance_label(distance_metric, lang="en"):
 	Return plot label for a particular distance metric
 
 	:param distance_metric:
-		str, distance metric
+		str, distance metric or None
 	:param lang:
 		str, shorthand for language of annotations. Currently only
 		"en", "fr" and "nl" are supported (default: "en").
@@ -4404,17 +4403,21 @@ def get_distance_label(distance_metric, lang="en"):
 	:return:
 		str, plot axis label.
 	"""
-	if lang == "en":
-		label = "%s distance" % distance_metric
+	if not distance_metric:
+		label = {"en": "Distance", "nl": "Afstand", "fr": "Distance"}[lang]
 	else:
-		if distance_metric.lower() == "hypocentral":
-			label = {"nl": "Hypocentrale afstand", "fr": "Distance hypocentrale"}[lang]
-		elif distance_metric.lower() == "epicentral":
-			label = {"nl": "Epicentrale afstand", "fr": u"Distance épicentrale"}[lang]
-		elif distance_metric.lower() == "rupture":
-			label = {"nl": "Ruptuur-afstand", "fr": "Distance de rupture"}[lang]
-		elif distance_metric.lower() == "joyner-boore":
-			label = {"nl": "Joyner-Boore afstand", "fr": "Distance Joyner-Boore"}[lang]
+		if lang == "en":
+			label = "%s distance" % distance_metric
+		else:
+			if distance_metric.lower() == "hypocentral":
+				label = {"nl": "Hypocentrale afstand", "fr": "Distance hypocentrale"}[lang]
+			elif distance_metric.lower() == "epicentral":
+				label = {"nl": "Epicentrale afstand", "fr": u"Distance épicentrale"}[lang]
+			elif distance_metric.lower() == "rupture":
+				label = {"nl": "Ruptuur-afstand", "fr": "Distance de rupture"}[lang]
+			elif distance_metric.lower() == "joyner-boore":
+				label = {"nl": "Joyner-Boore afstand", "fr": "Distance Joyner-Boore"}[lang]
+	label += ' (km)'
 	return label
 
 
