@@ -304,7 +304,9 @@ class TransferFunction:
 
 
 
-def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels=[], want_freq=True, title="", fig_filespec=None, dpi=300):
+def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[],
+					labels=[], want_freq=True, ymax=None,
+					title="", fig_filespec=None, dpi=300):
 	"""
 	Magnitude plot of transfer functions
 
@@ -359,6 +361,10 @@ def plot_TF_magnitude(TF_list, colors=[], line_styles=[], line_widths=[], labels
 		linestyle = line_styles[i%len(line_styles)]
 		linewidth = line_widths[i%len(line_widths)]
 		pylab.semilogx(x_values, TF.magnitudes, color=color, linestyle=linestyle, linewidth=linewidth, label=label)
+
+	if ymax is not None:
+		pylab.ylim(ymax=ymax)
+
 	if want_freq:
 		pylab.xlabel("Frequency (Hz)", fontsize="x-large")
 	else:
