@@ -3778,6 +3778,23 @@ class Anbazhagan2013(NhlibGMPE):
 		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
 
 
+class Atkinson2015(NhlibGMPE):
+	"""
+	"""
+	def __init__(self):
+		name, short_name = "Atkinson2015", "Atk2015"
+		distance_metric = "Hypocentral"
+		Mmin, Mmax = 3.0, 6.0
+		dmin, dmax = 1., 40.
+		Mtype = "MW"
+		dampings = [5.]
+
+		NhlibGMPE.__init__(self, name, short_name, distance_metric, Mmin, Mmax, dmin, dmax, Mtype, dampings)
+
+	def __call__(self, M, d, h=0., imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, vs30measured=None, z1pt0=None, z2pt5=None, kappa=None, mechanism="normal", damping=5):
+		return NhlibGMPE.__call__(self, M, d, h=h, imt=imt, T=T, imt_unit=imt_unit, epsilon=epsilon, vs30=vs30, vs30measured=vs30measured, z1pt0=z1pt0, z2pt5=z2pt5, kappa=kappa, mechanism=mechanism, damping=damping)
+
+
 def adjust_hard_rock_to_rock(imt, periods, gm, gm_logsigma=None):
 	"""
 	Adjust hard rock (vs30=2800 m/s) to rock (vs30=760 m/s, kappa=0.03)
@@ -3984,7 +4001,7 @@ def convert_distance_metric(distances, metric_from, metric_to, mag):
 	:param mag:
 		float, magnitude to use for conversion
 	"""
-	if metric_from == None or metric_from == metric_to:
+	if metric_to is None or metric_from == metric_to:
 		return distances
 	else:
 		ztor = 21. - 2.5 * mag
@@ -3993,7 +4010,7 @@ def convert_distance_metric(distances, metric_from, metric_to, mag):
 		elif metric_from == "Joyner-Boore" and metric_to == "Rupture":
 			return np.sqrt(distances ** 2 + ztor ** 2)
 		else:
-			raise "conversion not supported" # TODO: support other conversion
+			raise Exception("Conversion not supported") # TODO: support other conversion
 
 
 def plot_distance(gmpe_list, mags, dmin=None, dmax=None, distance_metric=None, h=0, imt="PGA", T=0, imt_unit="g", epsilon=0, soil_type="rock", vs30=None, kappa=None, mechanism="normal", damping=5, plot_style="loglog", amin=None, amax=None, colors=None, fig_filespec=None, title="", want_minor_grid=False, legend_location=0, lang="en"):
@@ -4098,7 +4115,7 @@ def plot_distance(gmpe_list, mags, dmin=None, dmax=None, distance_metric=None, h
 			dmin = 0.1
 		distances = logrange(max(dmin, gmpe.dmin), min(dmax, gmpe.dmax), 25)
 		for j, M in enumerate(mags):
-			converted_distances = convert_distance_metric(distances, distance_metric, gmpe.distance_metric, M)
+			converted_distances = convert_distance_metric(distances, gmpe.distance_metric, distance_metric, M)
 			Avalues = gmpe(M, converted_distances, h=h, imt=imt, T=T, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 			style = colors[i%len(colors)] + linestyles[j%len(linestyles)]
 			plotfunc(distances, Avalues, style, linewidth=3, label=gmpe.name+" (M=%.1f)" % M)
