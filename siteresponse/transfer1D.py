@@ -165,7 +165,7 @@ class ElasticLayerModel:
 		Rho = np.array(zip(self.Rho, self.Rho)).flatten()
 		QS = np.array(zip(self.QS, self.QS)).flatten()
 		pylab.semilogx(VS, depths, 'r', linewidth=2, label="VS (m/s)")
-		pylab.semilogx(Rho, depths, 'b', linewidth=2, label="Density (kg/m^3)")
+		pylab.semilogx(Rho, depths, 'b', linewidth=2, label="Density (kg/dm^3)")
 		pylab.semilogx(QS, depths, 'g', linewidth=2, label="QS")
 		pylab.grid(True)
 		pylab.ylabel("Depth (m)")
