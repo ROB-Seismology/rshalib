@@ -568,7 +568,11 @@ class SoilSiteModel(nhlib.site.SiteCollection):
 		for i in range(self.num_sites):
 			lon = self.mesh.lons[i]
 			lat = self.mesh.lats[i]
-			depth = 0
+			## Note: depth requires patch in oqhazlib
+			if self.mesh.depths:
+				depth = self.mesh.depths[i]
+			else:
+				depth = 0
 			vs30 = self.vs30[i]
 			vs30measured = self.vs30measured[i]
 			z1pt0 = self.z1pt0[i]
