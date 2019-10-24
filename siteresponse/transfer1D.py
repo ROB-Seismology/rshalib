@@ -1018,6 +1018,13 @@ class ElasticContinuousModel:
 
 	def __len__(self):
 		return len(self.VS)
+	
+	def __getitem__(self, item):
+		Z = self.Z.__getitem__(item)
+		VS = self.VS.__getitem__(item)
+		Rho = self.Rho.__getitem__(item)
+		QS = self.QS.__getitem__(item)
+		return self.__class__(Z, VS, Rho, QS)
 
 	@classmethod
 	def from_mdl_file(self, mdl_filespec, units="kps"):
