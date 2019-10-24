@@ -234,6 +234,15 @@ class ElasticLayerModel:
 		#weights = np.array(Th, 'f') / np.sum(Th)
 		#return np.average(VS, weights=weights)
 
+	def get_travel_time(self):
+		"""
+		Compute total travel time through sediment model
+
+		:return:
+			float, travel time (in s)
+		"""
+		return np.sum(self.Th / self.VS)
+
 	def get_VS30(self):
 		"""
 		Compute VS30
