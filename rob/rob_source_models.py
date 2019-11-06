@@ -4,6 +4,7 @@ Module to create nrml objects and files for ROB source models
 
 
 ### imports
+from ..pmf.distributions import (get_normal_distribution, get_uniform_distribution)
 from ..source import import_source_model_from_gis
 
 
