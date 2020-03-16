@@ -2,7 +2,28 @@
 # Empty file necessary for python to recognise directory as package
 #
 
-import utils
-reload(utils)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from utils import interpolate, logrange, wquantiles, seq, LevelNorm
+
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
+
+
+if not reloading:
+	from . import utils
+else:
+	reload(utils)
+from .utils import *
