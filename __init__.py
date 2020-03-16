@@ -19,6 +19,28 @@ Models built with rshalib can be:
 	- exported to Openquake NRML format
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+
+
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
+
+
+## Import submodules
 ## Because of the reloads, the order of imported submodules is important,
 ## as this may result in the following type of error:
 
@@ -29,74 +51,111 @@ Models built with rshalib can be:
 ## i.e. a submodule depending on another one, should be loaded after that one.
 
 
-## No internal dependencies
-import nrml
-reload(nrml)
+## nrml (no internal dependencies)
+if not reloading:
+	from . import nrml
+else:
+	reload(nrml)
 
-## No internal dependencies
-import utils
-reload(utils)
+## utils( no internal dependencies)
+if not reloading:
+	from . import utils
+else:
+	reload(utils)
 
-## No internal dependencies
-import poisson
-reload(poisson)
+## poisson (no internal dependencies)
+if not reloading:
+	from . import poisson
+else:
+	reload(poisson)
 
-## No internal dependencies
-import cav
-reload(cav)
+## cav (no internal dependencies)
+if not reloading:
+	from . import cav
+else:
+	reload(cav)
 
-## No internal dependencies
-import calc
-reload(calc)
+## calc (no internal dependencies)
+if not reloading:
+	from . import calc
+else:
+	reload(calc)
 
-## Depends on nrml
-import geo
-reload(geo)
+## geo (depends on nrml)
+if not reloading:
+	from . import geo
+else:
+	reload(geo)
 
-## Depends on geo, nrml
-import site
-reload(site)
+## site (depends on geo, nrml)
+if not reloading:
+	from . import site
+else:
+	reload(site)
 
-## Depends on utils, cav
-import gsim
-reload(gsim)
+## gsim (depends on utils, cav)
+if not reloading:
+	from . import gsim
+else:
+	reload(gsim)
 
-## Depends on geo, nrml, utils
-import pmf
-reload(pmf)
+## pmf (depends on geo, nrml, utils)
+if not reloading:
+	from . import pmf
+else:
+	reload(pmf)
 
-## Depends on nrml
-import mfd
-reload(mfd)
+## mfd (depends on nrml)
+if not reloading:
+	from . import mfd
+else:
+	reload(mfd)
 
-## Depends on geo, mfd, nrml
-import source
-reload(source)
+## source (depends on geo, mfd, nrml)
+if not reloading:
+	from . import source
+else:
+	reload(source)
 
-## Depends on geo, mfd, pmf, source
-import rob
-reload(rob)
+## rob (depends on geo, mfd, pmf, source)
+if not reloading:
+	from . import rob
+else:
+	reload(rob)
 
-## Depends on nrml, pmf, site, utils
-import result
-reload(result)
+## result (depends on nrml, pmf, site, utils)
+if not reloading:
+	from . import result
+else:
+	reload(result)
 
-## Depends on calc, utils, result
-import siteresponse
-reload(siteresponse)
+## siteresponse (depends on calc, utils, result)
+if not reloading:
+	from . import siteresponse
+else:
+	reload(siteresponse)
 
-## Depends on mfd, result, source
-import crisis
-reload(crisis)
+## crisis (depends on mfd, result, source)
+if not reloading:
+	from . import crisis
+else:
+	reload(crisis)
 
-## Depends on nrml, result, site
-import openquake
-reload(openquake)
+## openquake (depends on nrml, result, site)
+if not reloading:
+	from . import openquake
+else:
+	reload(openquake)
 
-## Depends on nrml, pmf, source
-import logictree
-reload(logictree)
+## logictree (depends on nrml, pmf, source)
+if not reloading:
+	from .import logictree
+else:
+	reload(logictree)
 
-## Depends on calc, crisis, geo, gsim, logictree, openquake, pmf, result, site, source
-import shamodel
-reload(shamodel)
+## shamodel (depends on calc, crisis, geo, gsim, logictree, openquake, pmf,
+## result, site, source)
+if not reloading:
+	from . import shamodel
+else:
+	reload(shamodel)
