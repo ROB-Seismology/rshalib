@@ -1,12 +1,45 @@
+"""
+Utilities
+"""
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import numpy as np
-import numpy.ma as ma
-import matplotlib
 
 
+__all__ = ['interpolate', 'logrange', 'wquantiles', 'seq']
 
-def interpolate(xin, yin, xout):
+
+def interpolate(xin, yin, xout, lib='numpy', left=None, right=None, **kwargs):
 	"""
-	Wrapper for linear interpolation function
+	Wrapper for linear interpolation function in numpy or scipy
+
+	Automatically reorders xin/yin if necessary, and ignores inf values
+
+	:param xin:
+		1D array, input X values
+	:param yin:
+		1D array, input Y values
+	:param xout:
+		1D array, X values that should be interpolated
+	:param lib:
+		str, which library to use for the interpolation: 'numpy',
+		'scipy' or 'cwp'
+		(default: 'numpy')
+	:param left:
+		float, value to return for x < xout[0], e.g. np.nan
+		Note that scipy also supports the string "extrapolate", but
+		for both left and right values
+		(default: None, will use yin[0])
+	:param right:
+		float, value to return for x > xout[0], e.g. np.nan
+		(default: None, will use yin[-1])
+	:param kwargs:
+		additional keyword-arguments understood by :func:`np.interp`
+		or :class:`scipy.interpolate.interp1d`
+
+	:return:
+		1D array, interpolated Y values
 	"""
 	## Ignore inf values
 	if np.isinf(xin).any():
@@ -20,21 +53,38 @@ def interpolate(xin, yin, xout):
 		xin = xin[idxs]
 		yin = yin[idxs]
 
-	## Scipy and numpy interpolation don't work as exceedance rates
-	## are in decreasing order,
-	if np.all(np.diff(xin) <= 0):
-		xin, yin = xin[::-1], yin[::-1]
-	## SciPy
-	#from scipy.interpolate import interp1d
-	#interpolator = interp1d(xin, yin, bounds_error=False)
-	#yout = interpolator(xout)
+	## Scipy and numpy interpolation don't work if input arrays are
+	## in decreasing order
+	if lib in ('numpy', 'scipy'):
+		if np.all(np.diff(xin) <= 0):
+			xin, yin = xin[::-1], yin[::-1]
+
+	## Out-of-bounds values
+	if left is None:
+		left = yin[0]
+	if right is None:
+		right = yin[-1]
 
 	## Numpy
-	yout = np.interp(xout, xin, yin, left=yin[0], right=yin[-1])
+	if lib == 'numpy':
+		yout = np.interp(xout, xin, yin, left=left, right=right, **kwargs)
+
+	## SciPy
+	elif lib == 'scipy':
+		from scipy.interpolate import interp1d
+		kwargs['bounds_error'] = kwargs.get('bounds_error', False)
+		if 'extrapolate' in (left, right):
+			fill_value = 'extrapolate'
+		else:
+			fill_value = (left, right)
+		kwargs['fill_value'] = kwargs.get('fill_value', fill_value)
+		interpolator = interp1d(xin, yin, **kwargs)
+		yout = interpolator(xout)
 
 	## CWP intlin
-	#from geosurvey.cwp import *
-	#yout = intlin(xin, yin, xout)
+	elif lib == 'cwp':
+		from geosurvey.cwp import intlin
+		yout = intlin(xin, yin, xout, yinl=left, yinr=right)
 
 	return yout
 
@@ -94,6 +144,7 @@ def wquantiles(data, weights, quantile_levels, interpol=True):
 
 	return quantile_intercepts
 
+
 def seq(start, stop, step):
 	"""
 	Alternative to scitools.numpytools.seq function to avoid
@@ -131,32 +182,3 @@ def seq(start, stop, step):
 	diff = float(stop - start)
 	nvals = int(round(diff / step)) + 1
 	return start + np.arange(nvals) * step
-
-
-class LevelNorm(matplotlib.colors.Normalize):
-	"""
-	Normalize a given value to the 0-1 range according to pre-defined levels,
-	for use in matplotlib plotting functions involving color maps.
-
-	:param levels:
-		list or array, containing a number of levels in ascending order,
-		including the maximum value. These levels will be uniformly spaced
-		in the color domain.
-	"""
-	def __init__(self, levels):
-		vmin = levels[0]
-		vmax = levels[1]
-		self.levels = levels
-		matplotlib.colors.Normalize.__init__(self, vmin, vmax)
-
-	def __call__(self, value, clip=None):
-		level_values = np.linspace(0, 1, len(self.levels))
-		out_values = interpolate(self.levels, level_values, value)
-		try:
-			mask = value.mask
-		except:
-			mask = None
-		out_values = ma.masked_array(out_values, mask)
-		return out_values
-
-
