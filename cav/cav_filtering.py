@@ -10,8 +10,10 @@ import scipy.stats
 
 
 
-__all__ = ['calc_ln_cav', 'calc_cav_exceedance_prob', 'calc_ln_pga_given_sa',
-           'calc_ln_sa_given_pga']
+__all__ = ['calc_ln_cav', 'calc_ln_dur_uni', 'calc_cav_exceedance_prob',
+			'calc_ln_pga_given_sa', 'calc_ln_sa_given_pga',
+			'calc_sa_exceedance_prob_given_pga',
+			'cav_filtering_from_deagg_pga', 'cav_filtering_from_deagg_sa']
 
 
 def calc_ln_cav2(pga, M, vs30):
