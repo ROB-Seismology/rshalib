@@ -385,7 +385,7 @@ class GMPE(object):
 		"""
 		import scipy.stats
 		from ..utils import interpolate
-		from ..cav import calc_CAV_exceedance_prob
+		from ..cav import calc_cav_exceedance_prob
 
 		## TODO: if soil_type is used, convert to vs30
 		if vs30 is None and soil_type == "rock":
@@ -414,7 +414,7 @@ class GMPE(object):
 			pga = self.__call__(M, d, h=h, imt="PGA", T=0, epsilon=eps_pga, imt_unit=imt_unit, soil_type=soil_type, vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping)
 			pga_eps_pga_list[e] = pga
 			## CAV exceedance probability for PGA
-			cav_exceedance_prob[e] = calc_CAV_exceedance_prob(pga, M, vs30, CAVmin=cav_min, duration_dependent=True)
+			cav_exceedance_prob[e] = calc_cav_exceedance_prob(pga, M, vs30, cav_min=cav_min, duration_dependent=True)
 
 		joint_exceedance_prob = np.zeros_like(iml)
 
