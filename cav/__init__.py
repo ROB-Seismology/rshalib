@@ -24,7 +24,7 @@ else:
 
 
 if not reloading:
-	from . import CAVfiltering
+	from . import cav_filtering
 else:
-	reload(CAVfiltering)
-from .CAVfiltering import *
+	reload(cav_filtering)
+from .cav_filtering import *
