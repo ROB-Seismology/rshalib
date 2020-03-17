@@ -4,6 +4,8 @@
 nrml (and gml) namespace
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 
 ## Namespace declaration
 NRML_NS = "http://openquake.org/xmlns/nrml/0.4"
@@ -30,7 +32,7 @@ NAME = "name"
 ID = "id"
 TECTONIC_REGION_TYPE = "tectonicRegion"
 
-## MFD's
+## MFDs
 TRUNCATED_GUTENBERG_RICHTER_MFD = "%struncGutenbergRichterMFD" % NRML
 A_VALUE = "aValue"
 B_VALUE = "bValue"
