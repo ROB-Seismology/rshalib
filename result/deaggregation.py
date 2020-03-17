@@ -1407,7 +1407,7 @@ class DeaggregationCurve(DeaggBase):
 			instance of :class:`DeaggregationCurve`
 		"""
 		import scipy.stats
-		from ..cav import calc_ln_SA_given_PGA, calc_ln_PGA_given_SA, calc_CAV_exceedance_prob
+		from ..cav import calc_ln_sa_given_pga, calc_ln_pga_given_sa, calc_cav_exceedance_prob
 
 		num_intensities = len(self.intensities)
 
@@ -1424,7 +1424,7 @@ class DeaggregationCurve(DeaggBase):
 			CAV_exceedance_probs = np.zeros((num_intensities, self.nmags), 'd')
 			for k in range(num_intensities):
 				zk = intensities[k]
-				CAV_exceedance_probs[k] = calc_CAV_exceedance_prob(zk, self.mag_bin_centers, vs30, CAVmin)
+				CAV_exceedance_probs[k] = calc_cav_exceedance_prob(zk, self.mag_bin_centers, vs30, cav_min)
 			CAV_exceedance_probs = CAV_exceedance_probs[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 
 		elif self.imt == "SA":
@@ -1442,7 +1442,7 @@ class DeaggregationCurve(DeaggBase):
 				for r in range(self.ndists):
 					R = self.dist_bin_centers[r]
 					M = self.mag_bin_centers
-					ln_pga_given_sa, sigma_ln_pga_given_sa = calc_ln_PGA_given_SA(sa[k], M, R, T, vs30, gmpe_name)
+					ln_pga_given_sa, sigma_ln_pga_given_sa = calc_ln_pga_given_sa(sa[k], M, R, T, vs30, gmpe_name)
 					# Note: ln_sa in line below cannot be correct
 					epsilon_pga_given_sa = (ln_sa[k] - ln_pga_given_sa) / sigma_ln_pga_given_sa
 					prob_pga_given_sa[k,:,r] = scipy.stats.norm.pdf(epsilon_pga_given_sa)
@@ -1464,11 +1464,11 @@ class DeaggregationCurve(DeaggBase):
 					#epsilon = gmpe.get_epsilon(sa[k], M, R, imt=self.imt, T=T, vs30=vs30)
 					## Compute PGA corresponding to epsilon
 					#pga[k,:,r] = gmpe(M, R, imt="PGA", T=0, epsilon=epsilon, vs30=vs30)
-					ln_pga_given_sa, sigma_ln_pga_given_sa = calc_ln_PGA_given_SA(sa[k], M, R, T, vs30, gmpe_name)
+					ln_pga_given_sa, sigma_ln_pga_given_sa = calc_ln_pga_given_sa(sa[k], M, R, T, vs30, gmpe_name)
 					pga_given_sa[k,:,r] = np.exp(ln_pga_given_sa)
 					## Compute SA given PGA
 					## This is ignored at the moment
-					#ln_sa_given_pga, sigma_ln_sa_given_pga = calc_ln_SA_given_PGA(pga[k,:,r], M, R, T, vs30, gmpe_name)
+					#ln_sa_given_pga, sigma_ln_sa_given_pga = calc_ln_sa_given_pga(pga[k,:,r], M, R, T, vs30, gmpe_name)
 					## Compute epsilon of SA given PGA
 					#epsilon_sa_given_pga = (ln_sa[k] - ln_sa_given_pga) / sigma_ln_sa_given_pga
 					## Compute probability that SA is equal to (or greater than?) sa given PGA
@@ -1481,7 +1481,7 @@ class DeaggregationCurve(DeaggBase):
 				for r in range(self.ndists):
 					zk = pga_given_sa[k,:,r]
 					#zk = pga[k,:,r]
-					CAV_exceedance_probs[k,:,r] = calc_CAV_exceedance_prob(zk, self.mag_bin_centers, vs30, CAVmin)
+					CAV_exceedance_probs[k,:,r] = calc_cav_exceedance_prob(zk, self.mag_bin_centers, vs30, cav_min)
 			#CAV_exceedance_probs *= prob_sa_given_pga
 			CAV_exceedance_probs = CAV_exceedance_probs[:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 
@@ -1669,14 +1669,14 @@ class SpectralDeaggregationCurve(DeaggBase):
 		timespan = deagg_curves[0].timespan
 		return SpectralDeaggregationCurve(bin_edges, deagg_matrix, site, imt, intensities, periods, return_periods, timespan)
 
-	def filter_cav(self, vs30, CAVmin=0.16, gmpe_name=""):
+	def filter_cav(self, vs30, cav_min=0.16, gmpe_name=""):
 		"""
 		Apply CAV filtering to each spectral deaggregation curve,
 		and reconstruct into a spectral deaggregation curve
 
 		:param vs30:
 			Float, shear-wave velocity in the top 30 m (m/s)
-		:param CAVmin:
+		:param cav_min:
 			Float, minimum CAV value in g.s (default: 0.16)
 		:param gmpe_name:
 			Str, name of GMPE (needed when imt is spectral)
@@ -1686,7 +1686,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		"""
 		CAV_curves = []
 		for curve in self:
-			CAV_deagg_curve = curve.filter_cav(vs30, CAVmin=CAVmin, gmpe_name=gmpe_name)
+			CAV_deagg_curve = curve.filter_cav(vs30, cav_min=cav_min, gmpe_name=gmpe_name)
 			CAV_curves.append(CAV_deagg_curve)
 		return SpectralDeaggregationCurve.from_deaggregation_curves(CAV_curves)
 
