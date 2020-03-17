@@ -3793,7 +3793,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		f.close()
 
 	@classmethod
-	def from_csv(self, csv_filespec, col_spec=1, intensity_unit="g", model_name=""):
+	def from_csv(cls, csv_filespec, col_spec=1, intensity_unit="g", model_name=""):
 		"""
 		Read response spectrum from a csv file.
 		First line should contain column names
@@ -3851,7 +3851,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		else:
 			imt = ""
 
-		return ResponseSpectrum(model_name, periods, imt, intensities, intensity_unit)
+		return cls(model_name, periods, imt, intensities, intensity_unit)
 
 	def get_vertical_spectrum(self, guidance="RG1.60"):
 		"""
