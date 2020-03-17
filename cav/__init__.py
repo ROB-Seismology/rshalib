@@ -1,8 +1,30 @@
-#
-# Empty file necessary for python to recognise directory as package
-#
+"""
+cav submodule
+"""
 
-import CAVfiltering
-reload(CAVfiltering)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from CAVfiltering import (calc_ln_CAV, calc_CAV_exceedance_prob, calc_ln_PGA_given_SA, calc_ln_SA_given_PGA)
+
+
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
+
+
+if not reloading:
+	from . import CAVfiltering
+else:
+	reload(CAVfiltering)
+from .CAVfiltering import *
