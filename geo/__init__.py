@@ -1,12 +1,36 @@
-#
-# Empty file necessary for python to recognise directory as package
-#
+"""
+geo submodule
+"""
 
-import shapes
-reload(shapes)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-import angle
-reload(angle)
 
-from shapes import Point, Line, Polygon, NodalPlane
-from angle import mean_angle, delta_angle
+
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
+
+
+if not reloading:
+	from . import shapes
+else:
+	reload(shapes)
+from .shapes import *
+
+if not reloading:
+	from . import angle
+else:
+	reload(angle)
+from .angle import *
