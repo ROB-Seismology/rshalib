@@ -8,13 +8,19 @@ Thus, objects instantiated from these classes can be used directly in oqhazlib,
 as well as to generate input files for OpenQuake.
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 from lxml import etree
 
 import numpy as np
 import openquake.hazardlib as oqhazlib
 
 from ..nrml import ns
-from ..nrml.common import *
+#from ..nrml.common import *
+
+
+
+__all__ = ['Point', 'Line', 'Polygon', 'NodalPlane']
 
 
 class Polygon(oqhazlib.geo.Polygon):
@@ -35,20 +41,6 @@ class Polygon(oqhazlib.geo.Polygon):
 		Allow slicing
 		"""
 		return self.points.__getitem__(item)
-
-	"""
-	def __iter__(self):
-		self._current_index = 0
-		return self
-
-	def next(self):
-		if self._current_index >= len(self.lons):
-			raise StopIteration
-		else:
-			lon, lat = self.lons[self._current_index], self.lats[self._current_index]
-			self._current_index += 1
-			return oqhazlib.geo.Point(lon, lat)
-	"""
 
 	def to_line(self):
 		"""
