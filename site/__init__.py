@@ -42,3 +42,10 @@ if not reloading:
 else:
 	reload(site)
 from .site import *
+
+## site_model (depends on site)
+if not reloading:
+	from . import site_model
+else:
+	reload(site_model)
+from .site_model import *
