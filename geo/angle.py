@@ -1,4 +1,14 @@
+"""
+Some functions handling angular calculations
+"""
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import numpy as np
+
+
+
+__all__ = ['mean_angle', 'delta_angle']
 
 
 def mean_angle(angles, weights=None):
@@ -32,13 +42,6 @@ def delta_angle(angle1, angle2):
 	:return:
 		Float, angle difference in degrees
 	"""
-#	delta = angle2 - angle1;
-#	if delta < -180:
-#		delta += 360
-#	if delta > 180:
-#		delta -= 360;
-#	return delta
-
 	## Convert angles to unit vectors
 	rad_angle1 = np.radians(angle1)
 	rad_angle2 = np.radians(angle2)
