@@ -2,6 +2,8 @@
 Functions related to multiprocessing
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import os
 import multiprocessing
 import numpy as np
@@ -34,12 +36,17 @@ def run_parallel(func, job_arg_list, num_processes, shared_arr=None, verbose=Tru
 	:param num_processes:
 		int, number of parallel processes. Actual number of processes
 			may be lower depending on available cores
+	:param shared_arr:
+		array that will be shared between different processes
+		(default: None)
 	:param verbose:
 		bool, whether or not to print some progress information
 
 	:return:
 		list with values returned by func for each job in order
 	"""
+	from functools import partial
+
 	# TODO: logging with mp.get_logger().info(), mp.get_logger().error(), ...
 	num_processes = min(multiprocessing.cpu_count(), num_processes)
 	num_processes = min(num_processes, len(job_arg_list))
@@ -48,26 +55,30 @@ def run_parallel(func, job_arg_list, num_processes, shared_arr=None, verbose=Tru
 	if shared_arr is None:
 		pool = multiprocessing.Pool(processes=num_processes)
 	else:
-		pool = multiprocessing.Pool(processes=num_processes, initializer=init_shared_arr, initargs=(shared_arr,))
-	job_arg_list = [(func, job_args) for job_args in job_arg_list]
-	result = pool.map(mp_func_wrapper, job_arg_list, chunksize=1)
+		pool = multiprocessing.Pool(processes=num_processes, initializer=init_shared_arr,
+									initargs=(shared_arr,))
+	#job_arg_list = [(func, job_args) for job_args in job_arg_list]
+	#result = pool.map(mp_func_wrapper, job_arg_list, chunksize=1)
+	## Use functools.partial instead of mp_func_wrapper
+	result = pool.map(partial(func), job_arg_list, chunksize=1)
 	pool.close()
 	return result
 
 
-def mp_func_wrapper((func, args)):
+def mp_func_wrapper(func_args_tuple):
 	"""
 	Wrapper function to be used with multiprocessing pool.map
+	This function is no longer needed, as we use functools.partial
 
-	:param func:
-		function object
-	:param args:
-		tuple or list with arguments for :param:`func`
+	:param func_args_tuple:
+		(func, args) tuple:
+		- func: function object
+		- args: tuple or list with arguments for :param:`func`
 
 	:return:
 		return value of :param:`func`
 	"""
-	# TODO: use functools.partial instead??
+	func, args = func_args_tuple
 	return func(*args)
 
 
@@ -101,7 +112,7 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 		3-D numpy array [i,k,l] with probabilities of non-exceedance
 	"""
 	if verbose:
-		print source.source_id
+		print(source.source_id)
 	sources = [source]
 	sites = psha_model.get_soil_site_model()
 	gsims = psha_model._get_trt_gsim_dict()
@@ -131,14 +142,15 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 					curves[:,k,:] *= r_sites.expand(
 						(1 - prob) ** poes, total_sites, placeholder=1
 					)
-		except Exception, err:
+		except Exception as err:
 			msg = 'An error occurred with source id=%s. Error: %s'
 			msg %= (source.source_id, err.message)
 			raise RuntimeError(msg)
 	return curves
 
 
-def calc_shcf_psha_model(psha_model, curve_name, curve_path, cav_min, combine_pga_and_sa, calc_id, verbose):
+def calc_shcf_psha_model(psha_model, curve_name, curve_path, cav_min,
+						combine_pga_and_sa, calc_id, verbose):
 	"""
 	Stand-alone function that will compute hazard curves for a single
 	PSHA model, e.g., a logic-tree sample.
@@ -169,8 +181,9 @@ def calc_shcf_psha_model(psha_model, curve_name, curve_path, cav_min, combine_pg
 		print("Starting hazard-curve calculation of curve %s..." % curve_name)
 
 	try:
-		im_shcf_dict = psha_model.calc_shcf(cav_min=cav_min, combine_pga_and_sa=combine_pga_and_sa)
-	except Exception, err:
+		im_shcf_dict = psha_model.calc_shcf(cav_min=cav_min,
+										combine_pga_and_sa=combine_pga_and_sa)
+	except Exception as err:
 		msg = 'Warning: An error occurred with curve %s. Error: %s'
 		msg %= (curve_name, err.message)
 		#raise RuntimeError(msg)
@@ -180,15 +193,19 @@ def calc_shcf_psha_model(psha_model, curve_name, curve_path, cav_min, combine_pg
 		## Write XML file, creating directory if necessary
 		for im, shcf in im_shcf_dict.items():
 			if im == "SA":
-				psha_model.write_oq_shcf(shcf, curve_name, curve_path=curve_path, calc_id=calc_id)
+				psha_model.write_oq_shcf(shcf, curve_name, curve_path=curve_path,
+										calc_id=calc_id)
 			else:
 				hcf = shcf.getHazardCurveField(period_spec=0)
-				psha_model.write_oq_hcf(hcf, curve_name, curve_path=curve_path, calc_id=calc_id)
+				psha_model.write_oq_hcf(hcf, curve_name, curve_path=curve_path,
+										calc_id=calc_id)
 
 		return 0
 
 
-def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape, site_imtls, deagg_site_model, mag_bins, dist_bins, eps_bins, lon_bins, lat_bins, dtype, verbose):
+def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
+						site_imtls, deagg_site_model, mag_bins, dist_bins,
+						eps_bins, lon_bins, lat_bins, dtype, verbose):
 	"""
 	Stand-alone function that will deaggregate for a single source.
 	The computed non-exceedance probabilities will be multiplied with
@@ -238,11 +255,11 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape, site_
 		0 (successful execution) or 1 (error occurred)
 	"""
 	# TODO: make param deagg_site_model in agreement with deaggregate_psha_model
-	import openquake.hazardlib as oqhazlib
 	from openquake.hazardlib.site import SiteCollection
 
 	try:
-		## Initialize deaggregation matrix with ones representing NON-exceedance probabilities !
+		## Initialize deaggregation matrix with ones representing
+		## NON-exceedance probabilities !
 		src_deagg_matrix = np.ones(deagg_matrix_shape[:-1], dtype=dtype)
 
 		## Perform deaggregation
@@ -259,7 +276,7 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape, site_
 				enumerate(source_site_filter(sources_sites)):
 
 			if verbose:
-				print source.source_id
+				print(source.source_id)
 
 			tect_reg = source.tectonic_region_type
 			gsim = gsims[tect_reg]
@@ -297,16 +314,17 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape, site_
 					site_key = (site.location.longitude, site.location.latitude)
 					imtls = site_imtls[site_key]
 					imts = imtls.keys()
-					sctx2, rctx2, dctx2 = gsim.make_contexts(SiteCollection([site]), rupture)
+					sctx2, rctx2, dctx2 = gsim.make_contexts(SiteCollection([site]),
+															rupture)
 					for imt_idx, imt_tuple in enumerate(imts):
 						imls = imtls[imt_tuple]
 						## Reconstruct imt from tuple
 						imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
 						## In contrast to what is stated in the documentation,
 						## disaggregate_poe does handle more than one iml
-						poes_given_rup_eps = gsim.disaggregate_poe(
-							sctx2, rctx2, dctx2, imt, imls, psha_model.truncation_level, n_epsilons
-						)
+						poes_given_rup_eps = gsim.disaggregate_poe(sctx2, rctx2,
+									dctx2, imt, imls, psha_model.truncation_level,
+									n_epsilons)
 
 						## Probability of non-exceedance
 						pone = (1. - prob_one_or_more) ** poes_given_rup_eps
@@ -324,7 +342,7 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape, site_
 				shared_deagg_matrix = shared_deagg_matrix.reshape(deagg_matrix_shape)
 				shared_deagg_matrix[site_idx,:,:,:,:,:,:,:,src_idx] *= src_deagg_matrix[site_idx]
 
-	except Exception, err:
+	except Exception as err:
 		msg = 'Warning: An error occurred with source %s. Error: %s'
 		msg %= (source.source_id, err.message)
 		#raise RuntimeError(msg)
@@ -334,9 +352,13 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape, site_
 		return 0
 
 
-def deaggregate_psha_model(psha_model, curve_name, curve_path, deagg_sites, deagg_imt_periods, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, calc_id, interpolate_rp, verbose):
+def deaggregate_psha_model(psha_model, curve_name, curve_path, deagg_sites,
+							deagg_imt_periods, mag_bin_width, distance_bin_width,
+							num_epsilon_bins, coordinate_bin_width, dtype,
+							calc_id, interpolate_rp, verbose):
 	"""
-	Stand-alone function that will deaggregate a single PSHA model, e.g. a logic-tree sample.
+	Stand-alone function that will deaggregate a single PSHA model,
+	e.g. a logic-tree sample.
 	Intensity measure levels corresponding to psha_model.return_periods
 	will be interpolated first, so the hazard curves must have been
 	computed before.
@@ -386,12 +408,12 @@ def deaggregate_psha_model(psha_model, curve_name, curve_path, deagg_sites, deag
 	folder of the PSHA model.
 	"""
 	if verbose:
-		print psha_model.name
+		print(psha_model.name)
 
 	if interpolate_rp:
 		## Determine intensity levels from saved hazard curves
-		site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, curve_path, deagg_sites,
-													deagg_imt_periods, calc_id=calc_id)
+		site_imtls = psha_model._interpolate_oq_site_imtls(curve_name, curve_path,
+								deagg_sites, deagg_imt_periods, calc_id=calc_id)
 	else:
 		## Deaggregate for all available intensity levels
 		site_imtls = psha_model._get_deagg_site_imtls(deagg_sites, deagg_imt_periods)
@@ -403,8 +425,10 @@ def deaggregate_psha_model(psha_model, curve_name, curve_path, deagg_sites, deag
 		print("Starting deaggregation of curve %s..." % curve_name)
 
 	try:
-		spectral_deagg_curve_dict = psha_model.deaggregate(site_imtls, mag_bin_width, distance_bin_width, num_epsilon_bins, coordinate_bin_width, dtype, verbose=False)
-	except Exception, err:
+		spectral_deagg_curve_dict = psha_model.deaggregate(site_imtls, mag_bin_width,
+												distance_bin_width, num_epsilon_bins,
+												coordinate_bin_width, dtype, verbose=False)
+	except Exception as err:
 		msg = 'Warning: An error occurred with curve %s. Error: %s'
 		msg %= (curve_path, err.message)
 		#raise RuntimeError(msg)
@@ -414,7 +438,8 @@ def deaggregate_psha_model(psha_model, curve_name, curve_path, deagg_sites, deag
 		## Write XML file(s), creating directory if necessary
 		for (lon, lat) in spectral_deagg_curve_dict.keys():
 			sdc = spectral_deagg_curve_dict[(lon, lat)]
-			psha_model.write_oq_disagg_matrix_multi(sdc, curve_name, curve_path=curve_path, calc_id=calc_id)
+			psha_model.write_oq_disagg_matrix_multi(sdc, curve_name,
+										curve_path=curve_path, calc_id=calc_id)
 
 		## Don't return deaggregation results to preserve memory
 		return 0
@@ -463,7 +488,8 @@ def calc_gmf_with_fixed_epsilon(
 	imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
 
 	if integration_distance:
-		rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(integration_distance)
+		rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(
+															integration_distance)
 		## Trim *_epsilons arrays to sites within integration_distance
 		jb_dist = rupture.surface.get_joyner_boore_distance(sites.mesh)
 		indices = (jb_dist <= integration_distance)
@@ -578,7 +604,8 @@ def calc_random_gmf(
 	imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
 
 	if integration_distance:
-		rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(integration_distance)
+		rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(
+															integration_distance)
 	else:
 		rupture_site_filter = oqhazlib.calc.filters.rupture_site_noop_filter
 
@@ -593,7 +620,7 @@ def calc_random_gmf(
 			r, g, k = shared_arr_idx
 			shared_gmf_matrix[r,g,:,:,k] = gmf_dict[imt]
 
-	except Exception, err:
+	except Exception as err:
 		msg = 'Warning: An error occurred with field #%s. Error: %s'
 		msg %= (shared_arr_idx, err.message)
 		#raise RuntimeError(msg)
@@ -624,4 +651,7 @@ def do_nothing(sample_idx, psha_model):
 
 
 if __name__ == "__main__":
-	print run_parallel(np_array, range(10), 3)
+	## Test
+	result = run_parallel(np_array, range(10), 3)
+	for ar in result:
+		print(ar)
