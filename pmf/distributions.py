@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 
 """
-Classes representing source-model elements in Openquake/nhlib. Where possible,
-the classes are inherited from nhlib classes. All provide methods to create
+Classes representing probability mass functions in Openquake/oqhazlib. Where possible,
+the classes are inherited from oqhazlib classes. All provide methods to create
 XML elements, which are used to write a complete source-model NRML file.
-Thus, objects instantiated from these classes can be used directly in nhlib,
+Thus, objects instantiated from these classes can be used directly in oqhazlib,
 as well as to generate input files for OpenQuake.
 """
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+from builtins import int
 
 from lxml import etree
 import decimal
@@ -15,7 +18,7 @@ from decimal import Decimal
 import numpy as np
 from scipy import stats
 
-import openquake.hazardlib as nhlib
+import openquake.hazardlib as oqhazlib
 
 from ..nrml import ns
 from ..nrml.common import *
@@ -24,7 +27,15 @@ from ..utils import interpolate, wquantiles
 
 
 
-class PMF(nhlib.pmf.PMF):
+__all__ = ['PMF', 'NumericPMF', 'GMPEPMF', 'SourceModelPMF',
+			'MmaxPMF', 'MFDPMF', 'NodalPlaneDistribution',
+			'HypocentralDepthDistribution',
+			'get_normal_distribution', 'get_uniform_distribution',
+			'get_uniform_weights', 'get_normal_distribution_bin_edges',
+			'adjust_decimal_weights', 'create_nodal_plane_distribution']
+
+
+class PMF(oqhazlib.pmf.PMF):
 	def __init__(self, data):
 		super(PMF, self).__init__(data)
 
@@ -116,7 +127,8 @@ class NumericPMF(PMF):
 		"""
 		quantile_levels = np.array(percentiles, 'f') / 100.
 		weights = self.weights.astype('d')
-		percentile_intercepts = wquantiles(self.values, weights, quantile_levels, interpol=interpol)
+		percentile_intercepts = wquantiles(self.values, weights, quantile_levels,
+										interpol=interpol)
 		return percentile_intercepts
 
 	def rebin_equal_weight(self, num_bins=5, precision=4):
@@ -228,7 +240,8 @@ class GMPEPMF(PMF):
 	"""
 	def __init__(self, gmpe_names, weights):
 		if len(gmpe_names) != len(weights):
-			raise Exception("Number of weights and number of GMPE names must be identical!")
+			raise Exception("Number of weights and number of GMPE names "
+							"must be identical!")
 		data = data = PMF.from_values_and_weights(gmpe_names, weights).data
 		super(GMPEPMF, self).__init__(data)
 
@@ -248,7 +261,8 @@ class SourceModelPMF(PMF):
 	"""
 	def __init__(self, source_models, weights):
 		if len(source_models) != len(weights):
-			raise Exception("Number of weights and number of source models must be identical!")
+			raise Exception("Number of weights and number of source models "
+							"must be identical!")
 		data = PMF.from_values_and_weights(source_models, weights).data
 		super(SourceModelPMF, self).__init__(data)
 
@@ -266,12 +280,13 @@ class MmaxPMF(NumericPMF):
 	:param weights:
 		list of corresponding weights
 	:param absolute:
-		Bool, whether Mmax values are absolute (True) or relative (False) values
+		bool, whether Mmax values are absolute (True) or relative (False)
 		(default: False)
 	"""
 	def __init__(self, max_mags, weights, absolute=True):
 		if len(max_mags) != len(weights):
-			raise Exception("Number of weights and number of magnitudes must be identical!")
+			raise Exception("Number of weights and number of magnitudes "
+							"must be identical!")
 		data = PMF.from_values_and_weights(max_mags, weights).data
 		super(MmaxPMF, self).__init__(data)
 		self.absolute = absolute
@@ -295,7 +310,8 @@ class MFDPMF(PMF):
 	"""
 	def __init__(self, mfd_values, weights):
 		if len(mfd_values) != len(weights):
-			raise Exception("Number of weights and number of MFD values must be identical!")
+			raise Exception("Number of weights and number of MFD values "
+							"must be identical!")
 		data = data = PMF.from_values_and_weights(mfd_values, weights).data
 		super(MFDPMF, self).__init__(data)
 
@@ -350,7 +366,8 @@ class NodalPlaneDistribution(PMF):
 	"""
 	def __init__(self, nodal_planes, weights):
 		if len(nodal_planes) != len(weights):
-			raise Exception("Number of weights and number of nodal planes must be identical!")
+			raise Exception("Number of weights and number of nodal planes "
+							"must be identical!")
 		data = zip(weights, nodal_planes)
 		super(NodalPlaneDistribution, self).__init__(data)
 
@@ -465,9 +482,11 @@ class NodalPlaneDistribution(PMF):
 		Print strike, dip, rake and weight of all nodal planes
 		in distribution
 		"""
-		print "Strike Dip Rake Weight"
+		print("Strike Dip Rake Weight")
 		for nodal_plane, weight in zip(self.nodal_planes, self.weights):
-			print "   %3d  %2d %4d %s" % (nodal_plane.strike, nodal_plane.dip, nodal_plane.rake, weight)
+			msg = "   %3d  %2d %4d %s"
+			msg %= (nodal_plane.strike, nodal_plane.dip, nodal_plane.rake, weight)
+			print(msg)
 
 
 class HypocentralDepthDistribution(NumericPMF):
@@ -481,7 +500,8 @@ class HypocentralDepthDistribution(NumericPMF):
 	"""
 	def __init__(self, hypo_depths, weights):
 		if len(hypo_depths) != len(weights):
-			raise Exception("Number of weights and number of hypocentral depths must be identical!")
+			raise Exception("Number of weights and number of hypocentral "
+							"depths must be identical!")
 		data = zip(weights, hypo_depths)
 		super(HypocentralDepthDistribution, self).__init__(data)
 
@@ -508,9 +528,9 @@ class HypocentralDepthDistribution(NumericPMF):
 		Print strike, dip, rake and weight of all nodal planes
 		in distribution
 		"""
-		print "Depth Weight"
+		print("Depth Weight")
 		for depth, weight in zip(self.hypo_depths, self.weights):
-			print "%5.2f %s" % (depth, weight)
+			print("%5.2f %s" % (depth, weight))
 
 
 def adjust_decimal_weights(weights, precision=4):
@@ -521,7 +541,8 @@ def adjust_decimal_weights(weights, precision=4):
 	:param weights:
 		list or array of decimal weights
 	:param precision:
-		Integer, decimal precision of weights (default: 4)
+		Integer, decimal precision of weights
+		(default: 4)
 
 	:return:
 		list or array of decimal weights
@@ -531,7 +552,8 @@ def adjust_decimal_weights(weights, precision=4):
 		## We suppose that if there is only 1 weight, it is equal to 1
 		decimal.getcontext().prec = precision
 		quantize_str = '0.' + '0' * precision
-		weights = [w.quantize(Decimal(quantize_str), rounding=decimal.ROUND_HALF_EVEN) for w in weights]
+		weights = [w.quantize(Decimal(quantize_str), rounding=decimal.ROUND_HALF_EVEN)
+					for w in weights]
 		## Increase precision by 1 to check if sum == 1 !
 		decimal.getcontext().prec = precision + 1
 		if np.sum(weights) != 1:
@@ -554,7 +576,8 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range, precisi
 		- Tuple (min_rake, max_rake, delta_rake) in degrees
 		- Single rake value (integer or float)
 	:param precision:
-		Integer, decimal precision of weights (default: 4)
+		Integer, decimal precision of weights
+		(default: 4)
 
 	:return:
 		instance of :class:`NodalPlaneDistribution`
@@ -563,25 +586,31 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range, precisi
 		strikes, strike_weights = [strike_range], [Decimal(1.0)]
 	elif len(strike_range) == 3:
 		min_strike, max_strike, delta_strike = strike_range
-		strikes, strike_weights = get_uniform_distribution(min_strike, max_strike, delta_strike, precision=precision*2)
+		strikes, strike_weights = get_uniform_distribution(min_strike, max_strike,
+												delta_strike, precision=precision*2)
 	else:
-		raise Exception("strike_range tuple must contain 3 elements: min, max, and delta.")
+		raise Exception("strike_range tuple must contain 3 elements: "
+						"min, max, and delta.")
 
 	if isinstance(dip_range, (int, float)):
 		dips, dip_weights = [dip_range], [Decimal(1.0)]
 	elif len(dip_range) == 3:
 		min_dip, max_dip, delta_dip = dip_range
-		dips, dip_weights = get_uniform_distribution(min_dip, max_dip, delta_dip, precision=precision*2)
+		dips, dip_weights = get_uniform_distribution(min_dip, max_dip, delta_dip,
+													precision=precision*2)
 	else:
-		raise Exception("dip_range tuple must contain 3 elements: min, max, and delta.")
+		raise Exception("dip_range tuple must contain 3 elements: "
+						"min, max, and delta.")
 
 	if isinstance(rake_range, (int, float)):
 		rakes, rake_weights = [rake_range], [Decimal(1.0)]
 	elif len(rake_range) == 3:
 		min_rake, max_rake, delta_rake = rake_range
-		rakes, rake_weights = get_uniform_distribution(min_rake, max_rake, delta_rake, precision=precision*2)
+		rakes, rake_weights = get_uniform_distribution(min_rake, max_rake, delta_rake,
+														precision=precision*2)
 	else:
-		raise Exception("rake_range tuple must contain 3 elements: min, max, and delta.")
+		raise Exception("rake_range tuple must contain 3 elements: "
+						"min, max, and delta.")
 
 	nodal_planes, nodal_plane_weights = [], []
 	for strike, strike_weight in zip(strikes, strike_weights):
@@ -594,28 +623,32 @@ def create_nodal_plane_distribution(strike_range, dip_range, rake_range, precisi
 	return NodalPlaneDistribution(nodal_planes, nodal_plane_weights)
 
 
-def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4, centers=True):
+def get_normal_distribution(min, max, num_bins, sigma_range=2, precision=4,
+							centers=True):
 	"""
 	Get normal distribution with bin centers as values.
 
 	:param min:
-		Float for minimum value of distribution.
+		float for minimum value of distribution.
 	:param max:
-		Float for maximum value of distribution.
+		float for maximum value of distribution.
 	:param num_bins:
-		Integer with number of bins for distribution.
+		integer with number of bins for distribution.
 	:param sigma_range:
-		Sigma range for distribution between min and max values (Default: 2).
+		float, Sigma range for distribution between min and max values
+		(default: 2).
 	:param precision:
-		Integer, decimal precision of weights (default: 4)
+		integer, decimal precision of weights
+		(default: 4)
 	:param centers:
-		Bool, whether min and max are to be considered as bin centers
+		bool, whether min and max are to be considered as bin centers
 		(True) or bin edges (False)
 		(default: True)
 
 	:return:
 		tuple (values, weights)
-		- values: Numpy array with distribution values, centers of bins (length = num_bins).
+		- values: Numpy array with distribution values, centers of bins
+			(length = num_bins).
 		- weights: Numpy array with weights of distribution values
 	"""
 	decimal.getcontext().prec = precision
@@ -658,13 +691,16 @@ def get_normal_distribution_bin_edges(min, max, num_bins, sigma_range=2, precisi
 	:param num_bins:
 		Integer with number of bins for distribution.
 	:param sigma_range:
-		Sigma range for distribution between min and max values (Default: 2).
+		Sigma range for distribution between min and max values
+		(default: 2).
 	:param precision:
-		Integer, decimal precision of weights (default: 4)
+		Integer, decimal precision of weights
+		(default: 4)
 
 	:return:
 		tuple (values, weights)
-		- values: Numpy array with distribution values, edges of bins (length = num_bins).
+		- values: Numpy array with distribution values, edges of bins
+		(length = num_bins).
 		- weights: Numpy array with weights of distribution values
 	"""
 	decimal.getcontext().prec = precision
@@ -696,8 +732,10 @@ def get_uniform_distribution(min, max, delta, precision=4):
 
 	:return:
 		tuple (values, weights)
-		- values: Numpy array with distribution values (equally spaced by delta from min to max).
-		- weights: Numpy array with weights of distribution values. See get_uniform_weights.
+		- values: Numpy array with distribution values
+			(equally spaced by delta from min to max).
+		- weights: Numpy array with weights of distribution values.
+		See :meth:`get_uniform_weights`.
 	"""
 	if delta == 0:
 		values = [np.mean([min, max])]
@@ -720,7 +758,8 @@ def get_uniform_weights(num_weights, precision=4):
 		Integer, decimal precision (default: 4)
 
 	:return:
-		Numpy array (length equal to num_weights) of equal weights summing up to 1.0.
+		Numpy array (length equal to num_weights) of equal weights
+		summing up to 1.0.
 	"""
 	decimal.getcontext().prec = precision
 	weights = np.array([Decimal(1) for i in range(num_weights)])
