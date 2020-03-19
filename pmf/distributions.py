@@ -39,6 +39,9 @@ class PMF(oqhazlib.pmf.PMF):
 	def __init__(self, data):
 		super(PMF, self).__init__(data)
 
+	def __repr__(self):
+		return '<PMF (n=%d)>' % len(self)
+
 	@classmethod
 	def from_values_and_weights(cls, values, weights):
 		"""
@@ -85,6 +88,9 @@ class NumericPMF(PMF):
 	"""
 	def __init__(self, data):
 		super(NumericPMF, self).__init__(data)
+
+	def __repr__(self):
+		return '<NumericPMF (n=%d)>' % len(self)
 
 	@property
 	def values(self):
@@ -245,6 +251,9 @@ class GMPEPMF(PMF):
 		data = data = PMF.from_values_and_weights(gmpe_names, weights).data
 		super(GMPEPMF, self).__init__(data)
 
+	def __repr__(self):
+		return '<GMPEPMF (n=%d)>' % len(self)
+
 	@property
 	def gmpe_names(self):
 		return self.values
@@ -265,6 +274,9 @@ class SourceModelPMF(PMF):
 							"must be identical!")
 		data = PMF.from_values_and_weights(source_models, weights).data
 		super(SourceModelPMF, self).__init__(data)
+
+	def __repr__(self):
+		return '<SourceModelPMF (n=%d)>' % len(self)
 
 	@property
 	def source_models(self):
@@ -291,6 +303,9 @@ class MmaxPMF(NumericPMF):
 		super(MmaxPMF, self).__init__(data)
 		self.absolute = absolute
 
+	def __repr__(self):
+		return '<MmaxPMF (n=%d)>' % len(self)
+
 	@property
 	def max_mags(self):
 		return self.values
@@ -314,6 +329,9 @@ class MFDPMF(PMF):
 							"must be identical!")
 		data = data = PMF.from_values_and_weights(mfd_values, weights).data
 		super(MFDPMF, self).__init__(data)
+
+	def __repr__(self):
+		return '<MFDPMF (n=%d)>' % len(self)
 
 	@property
 	def mfd_values(self):
@@ -370,6 +388,9 @@ class NodalPlaneDistribution(PMF):
 							"must be identical!")
 		data = zip(weights, nodal_planes)
 		super(NodalPlaneDistribution, self).__init__(data)
+
+	def __repr__(self):
+		return '<NodalPlaneDistribution (n=%d)>' % len(self)
 
 	@property
 	def nodal_planes(self):
@@ -504,6 +525,9 @@ class HypocentralDepthDistribution(NumericPMF):
 							"depths must be identical!")
 		data = zip(weights, hypo_depths)
 		super(HypocentralDepthDistribution, self).__init__(data)
+
+	def __repr__(self):
+		return '<HypocentralDepthDistribution (n=%d)>' % len(self)
 
 	@property
 	def hypo_depths(self):
