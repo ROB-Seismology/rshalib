@@ -1,11 +1,30 @@
-#
-# Empty file necessary for python to recognise directory as package
-#
+"""
+pmf submodule
+"""
 
-import distributions
-reload(distributions)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from distributions import (PMF, NumericPMF, GMPEPMF, SourceModelPMF,
-  MmaxPMF, MFDPMF, NodalPlaneDistribution, HypocentralDepthDistribution,
-  get_normal_distribution, get_uniform_distribution, get_uniform_weights,
-  get_normal_distribution_bin_edges, create_nodal_plane_distribution)
+
+
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
+
+
+if not reloading:
+	from . import distributions
+else:
+	reload(distributions)
+from .distributions import *
