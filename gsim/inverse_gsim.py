@@ -1,9 +1,16 @@
+"""
+Inverse GSIM
+"""
+
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import numpy as np
 from functools import partial
 
 import openquake.hazardlib as oqhazlib
 
+
+__all__ = ['InverseGSIM']
 
 
 class InverseGSIM():
@@ -22,16 +29,44 @@ class InverseGSIM():
 		self.imt = list(self.gsim.DEFINED_FOR_INTENSITY_MEASURE_TYPES)[0]()
 		self.stddev_type = stddev_type
 
+	def __repr__(self):
+		return '<InverseGSIM %s>' % self.gsim
+
 	def get_distance_metrics(self):
+		"""
+		:return:
+			list of strings, required distance metrics for this GSIM
+		"""
 		return list(self.gsim.REQUIRES_DISTANCES)
 
 	def get_imts(self):
+		"""
+		:return:
+			list with instances of :class:`oqhazlib.imt.IMT` supported
+			by this GSIM
+		"""
 		return [imt() for imt in self.gsim.DEFINED_FOR_INTENSITY_MEASURE_TYPES]
 
 	def get_intensities_from_mag(self, mag, sctx, rctx, dctx, epsilon=0):
 		"""
 		Compute predicted intensities for given magnitude (= forward
 		application of IPE)
+
+		:param mag:
+			float, magnitude
+		:param sctx:
+			dict, site context
+		:param rctx:
+			dict, rupture context
+		:param dctx:
+			dict, distance context
+		:param epsilon:
+			float, number of standard deviations above/below mean
+			intensity
+			(default: 0)
+
+		:return:
+			1D array, predicted intensities
 		"""
 		from copy import deepcopy
 		rctx = deepcopy(rctx)
@@ -45,6 +80,23 @@ class InverseGSIM():
 		"""
 		Compute predicted intensities for given magnitude, and determine
 		mean square error with respect to observed intensities
+
+		:param mag:
+			float, magnitude
+		:param observed intensities
+			1D array, observed intensities
+		:param sctx:
+		:param rctx:
+		:param dctx:
+			dicts, site, rupture and distance contexts
+		:param epsilon:
+			float, number of standard deviations above/below mean
+			intensity
+			(default: 0)
+
+		:return:
+			1D array, mean square errors between predicted and observed
+			intensities
 		"""
 		predicted_intensities = self.get_intensities_from_mag(mag, sctx, rctx,
 														dctx, epsilon=epsilon)
@@ -55,6 +107,25 @@ class InverseGSIM():
 								mag_bounds=(3, 9.5), epsilon=0):
 		"""
 		Given intensities observed at different sites, find magnitude
+
+		:param observed_intensities:
+			1D array, observed intensities
+		:param site_model:
+			instance of :class:`rshalib.site.SoilSiteModel`
+		:param rupture:
+			instance of :class:`oqhazlib.source.Rupture`
+		:param mag_bounds:
+			(lower_mag, upper_mag) tuple, magnitude range to limit
+			search to
+			(default: (3, 9.5))
+		:param epsilon:
+			float, number of standard deviations above/below mean
+			intensity
+			(default: 0)
+
+		:return:
+			float, magnitude
+			or None if no solution is found
 		"""
 		from scipy.optimize import minimize_scalar
 
@@ -67,4 +138,4 @@ class InverseGSIM():
 		if result.success:
 			return result.x
 		else:
-			print result.message
+			print(result.message)
