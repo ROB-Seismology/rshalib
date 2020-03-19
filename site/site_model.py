@@ -20,10 +20,11 @@ import numpy as np
 import openquake.hazardlib as oqhazlib
 from openquake.hazardlib.geo.geodetic import geodetic_distance
 
-from .ref_soil_params import REF_SOIL_PARAMS
 from ..nrml import ns
 from ..nrml.common import (create_nrml_root, xmlstr)
 from ..geo import Point, Polygon
+from .ref_soil_params import REF_SOIL_PARAMS
+from .site import (GenericSite, SoilSite)
 
 try:
 	## Python 2
@@ -139,7 +140,7 @@ class GenericSiteModel(oqhazlib.geo.Mesh):
 		:return:
 			iterator, (lon, lat) or (lon, lat, depth) for each site
 		"""
-		for i in xrange(len(self)):
+		for i in range(len(self)):
 			yield self.__getitem__(i)
 
 	def __contains__(self, site):
@@ -454,9 +455,10 @@ class GenericSiteModel(oqhazlib.geo.Mesh):
 		else:
 			return None
 
-	def get_geographic_distances(self, lon, lat):
+	def get_spherical_distances(self, lon, lat):
 		"""
-		Get the geographic distance each site in the model to a given site.
+		Get the spherical distance between each site in the model and a
+		given point.
 
 		:param lon:
 			float, lon of site
