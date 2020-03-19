@@ -1,20 +1,25 @@
 """
-Module containing various ROB extensions to nhlib
+Ground-motion model
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-import openquake.hazardlib as nhlib
+import openquake.hazardlib as oqhazlib
+
+
+
+__all__ = ['GroundMotionModel']
 
 
 class GroundMotionModel(object):
 	"""
-	Class defining a ground motion model, this is a mapping of tectonic region
-	types to gsims (one gsim per tectonic region type).
+	Class defining a ground motion model, this is a mapping of tectonic
+	region types to gsims (one gsim per tectonic region type).
 	Usually used together with an instance of :class:`SourceModel`
 	in an instance of :class:`PSHAModel`
 
 	:param name:
-		String, defining name of ground motion model.
+		str, defining name of ground motion model.
 	:param trts_gsims_map:
 		dict, mapping tectonic region types (string) to gsims (string).
 	"""
@@ -36,6 +41,9 @@ class GroundMotionModel(object):
 
 	def __str__(self):
 		return self.name
+
+	def __repr__(self):
+		return '<GroundMotionModel %s>' % self.name
 
 	def get_optimized_model(self, source_model):
 		"""
