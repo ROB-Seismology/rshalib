@@ -1031,18 +1031,18 @@ class CauzziFaccioli2008GMPE(GMPE):
 			dmin, dmax = 10., 100.
 			amin, amax = 0.01, 5.
 		self.plot_distance(mags=[M], dmin=dmin, dmax=dmax, epsilon=1,
-							amin=amin, amax=amax, mechanism="strike-slip",
-							plot_style="loglog", imt_unit="ms2",
-							want_minor_grid=True)
+							ymin=amin, ymax=amax, mechanism="strike-slip",
+							xscaling="log", yscaling="log", imt_unit="ms2",
+							xgrid=2, ygrid=2)
 
 	def plot_Ameri_figure11(self):
 		"""
 		Plot Figure 11 in the report by Ameri et al.
 		"Strong-motion parameters of the Mw=6.3 Abruzzo (Central Italy) earthquake"
 		"""
-		self.plot_distance(mags=[6.3], dmin=1., dmax=200, amin=0.01, amax=50,
-							imt_unit="ms2", plot_style="loglog", epsilon=1,
-							want_minor_grid=True)
+		self.plot_distance(mags=[6.3], dmin=1., dmax=200, ymin=0.01, ymax=50,
+							imt_unit="ms2", xscaling="log", yscaling="log",
+							epsilon=1, xgrid=2, ygrid=2)
 
 
 if __name__ == "__main__":
