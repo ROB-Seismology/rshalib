@@ -303,7 +303,7 @@ class AmbraseysEtAl1996GMPE(GMPE):
 		"""
 		Plot Figure 4 in the paper of Ambraseys et al. (1996)
 		"""
-		self.plot_distance(mags=[5., 6., 7.], dmin=1, dmax=1E3, amin=1E-3, amax=1)
+		self.plot_distance(mags=[5., 6., 7.], dmin=1, dmax=1E3, ymin=1E-3, ymax=1)
 
 	def plot_figure17(self, soil_type="rock"):
 		"""
