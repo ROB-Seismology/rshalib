@@ -1037,111 +1037,122 @@ class GMPE(object):
 						h=0, imt="PGA", T=0, imt_unit="g", epsilon=0,
 						soil_type="rock", vs30=None, kappa=None,
 						mechanism="normal", damping=5,
-						plot_style="loglog", amin=None, amax=None, color='k',
-						fig_filespec=None, title="", want_minor_grid=False,
-						legend_location=0, lang="en"):
+						xscaling='log', yscaling='log', xgrid=1, ygrid=1,
+						color='k', linestyles=None, linewidths=None,
+						legend_location=0, lang='en', title='',
+						fig_filespec=None, **kwargs):
 		"""
-		Plot ground motion versus distance for this GMPE.
-		Horizontal axis: distances.
-		Vertical axis: ground motion values.
-
 		:param mags:
 			list of floats, magnitudes to plot
 		:param dmin:
-			float, lower distance in km. If None, use the lower bound of
-			the distance range of each GMPE
-			(default: None).
+			float, lower distance in km. If None, use the lower bound of the
+			distance range of each GMPE
+			(default: None)
 		:param dmax:
-			float, upper distance in km. If None, use the lower bound of
-			the valid distance range of each GMPE
-			(default: None).
+			float, upper distance in km. If None, use the lower bound of the
+			valid distance range of each GMPE
+			(default: None)
 		:param distance_metric:
-			str, distance_metric to plot (options: "rjb", "rrup")
+			str, distance_metric to plot (options: "Joyner-Boore", "Rupture")
 			(default: None, distance metrics of gmpes are used)
 		:param h:
 			float, depth in km. Ignored if distance metric of GMPE is
 			epicentral or Joyner-Boore
-			(default: 0).
+			(default: 0)
 		:param imt:
 			str, one of the supported intensity measure types.
-			(default: "PGA").
+			(default: 'PGA')
 		:param T:
-			float, period to plot
+			float, spectral period to plot if imt is not peak-ground motion
 			(default: 0).
 		:param imt_unit:
 			str, unit in which intensities should be expressed,
 			depends on IMT
-			(default: "g")
+			(default: 'g')
 		:param epsilon:
-			float, number of standard deviations above or below the mean
-			to plot in addition to the mean
-			(default: 0).
+			float, number of standard deviations above or below the mean to
+			plot in addition to the mean
+			(default: 0)
 		:param soil_type:
 			str, one of the soil types supported by the particular GMPE
-			(default: "rock").
+			(default: "rock")
 		:param vs30:
 			float, shear-wave velocity in the upper 30 m (in m/s).
-			If not None, it takes precedence over the soil_type parameter
-			(default: None).
+			If not None, it takes precedence over :param:`soil_type`
+			(default: None)
 		:param kappa:
-			float, kappa value, in seconds (default: None)
+			float, kappa value, in seconds
+			(default: None)
 		:param mechanism:
 			str, fault mechanism: either "normal", "reverse" or "strike-slip"
-			(default: "normal").
+			(default: 'normal')
 		:param damping:
 			float, damping in percent
-			(default: 5).
-		:param plot_style:
-			str, plotting style ("lin", "loglin", "linlog" or "loglog").
-			First term refers to horizontal axis, second term to vertical axis.
-			(default: "loglog").
-		:param amin:
-			float, lower ground-motion value to plot
-			(default: None).
-		:param amax:
-			upper ground-motion value to plot
-			(default: None).
+			(default: 5)
+		:param xscaling:
+			str, scaling to use for X axis ('lin' or 'log')
+			Prepend '-' to invert orientation of X axis
+			(default: 'log')
+		:param yscaling:
+			cf. :param:`xscaling`, but for Y axis
+			(default: 'log')
+		:param xgrid:
+			int, 0/1/2/3 = draw no/major/minor/major+minor X grid lines
+			(default: 1)
+		:param ygrid:
+			cf. :param:`xgrid`, but for Y axis
+			(default: 1)
 		:param color:
 			matplotlib color specification
 			(default: 'k')
-		:param fig_filespec:
-			str, full path specification of output file
-			(default: None).
-		:param title:
-			str, plot title
-			(default: "")
-		:param want_minor_grid:
-			bool, whether or not to plot minor gridlines
-			(default: False).
+		:param linestyles:
+			list of strings, matplotlib linestyle specifications for each
+			magnitude
+			(default: None)
+		:param linewiths:
+			list of 2 floats, line widths for median and +/- epsilon curves
+			(default: None)
 		:param legend_location:
-			Integer, location of legend (matplotlib location code):
-			"best" 	0
-			"upper right" 	1
-			"upper left" 	2
-			"lower left" 	3
-			"lower right" 	4
-			"right" 	5
-			"center left" 	6
-			"center right" 	7
-			"lower center" 	8
-			"upper center" 	9
-			"center" 	10
+			int or str, location of legend (matplotlib location code):
+				"best" 	0
+				"upper right" 	1
+				"upper left" 	2
+				"lower left" 	3
+				"lower right" 	4
+				"right" 	5
+				"center left" 	6
+				"center right" 	7
+				"lower center" 	8
+				"upper center" 	9
+				"center" 	10
 			(default: 0)
 		:param lang:
 			str, shorthand for language of annotations.
 			Currently only "en" and "nl" are supported
-			(default: "en").
+			(default: "en")
+		:param title:
+			str, plot title
+			If None, a default title will be shown
+			(default: "")
+		:param fig_filespec:
+			str, full path specification of output file
+			(default: None)
+		:param kwargs:
+			additional keyword arguments understood by :func:`generic_mpl.plot_xy`
+
+		:return:
+			matplotlib Axes instances
 		"""
 		from .plot import plot_distance
 
-		plot_distance([self], mags=mags, dmin=dmin, dmax=dmax,
+		return plot_distance([self], mags=mags, dmin=dmin, dmax=dmax,
 					distance_metric=distance_metric, h=h, imt=imt, T=T,
 					imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type,
 					vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping,
-					plot_style=plot_style, amin=amin, amax=amax, colors=[color],
-					fig_filespec=fig_filespec, title=title,
-					want_minor_grid=want_minor_grid, legend_location=legend_location,
-					lang=lang)
+					xscaling=xscaling, yscaling=yscaling, xgrid=xgrid, ygrid=ygrid,
+					colors=[color], linestyles=linestyles, linewidths=linewidths,
+					legend_location=legend_location, lang=lang, title=title,
+					fig_filespec=fig_filespec, **kwargs)
 
 	def plot_spectrum(self, mags, d, h=0, imt="SA", Tmin=None, Tmax=None,
 					imt_unit="g", epsilon=0, soil_type="rock", vs30=None,
