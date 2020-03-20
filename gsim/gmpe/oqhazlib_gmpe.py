@@ -16,7 +16,18 @@ from .base import *
 
 
 
-__all__ = ['OqhazlibGMPE']
+__all__ = ['OqhazlibGMPE', 'AbrahamsonSilva2008', 'AkkarBommer2010',
+			'AkkarEtAl2013', 'Anbazhagan2013', 'Atkinson2015',
+			'AtkinsonBoore2006', 'AtkinsonBoore2006Prime',
+			'BindiEtAl2011', 'BooreAtkinson2008', 'BooreAtkinson2008Prime',
+			'Campbell2003', 'Campbell2003adjusted', 'Campbell2003HTT',
+			'Campbell2003SHARE', 'CampbellBozorgnia2008',
+			'CauzziFaccioli2008', 'ChiouYoungs2008',
+			'FaccioliEtAl2010', 'FaccioliEtAl2010Ext', 'PezeshkEtAl2011',
+			'RietbrockEtAl2013MD', 'RietbrockEtAl2013MDHTT',
+			'RietbrockEtAl2013SS', 'ToroEtAl2002', 'ToroEtAl2002adjusted',
+			'ToroEtAl2002HTT', 'ToroEtAl2002SHARE',
+			'ZhaoEtAl2006Asc', 'ZhaoEtAl2006AscMOD']
 
 
 IMT_DICT = {"PGD": PGD, "PGV": PGV, "PGA": PGA, "SA": SA, "MMI": MMI}
@@ -158,7 +169,7 @@ class OqhazlibGMPE(GMPE):
 											trt, rms, rar, usd, lsd, msr)
 
 		## Create site collection
-		from ..site import SHASiteModel
+		from ...site import SHASiteModel
 
 		azimuth = 90
 		if self.distance_metric in ("Rupture", "rrup", "Hypocentral", "rhypo"):
@@ -349,7 +360,7 @@ class AbrahamsonSilva2008(OqhazlibGMPE):
 			(default: 1.)
 		"""
 		self.plot_distance(mags=[5., 6., 7., 8.], plot_style="loglog",
-							amin=0.001, amax=1, dmin=1, dmax=200,
+							ymin=0.001, ymax=1, dmin=1, dmax=200,
 							mechanism="strike-slip", vs30=760.)
 
 	def plot_figure7_Abrahamson_2008(self):
@@ -432,9 +443,9 @@ class AkkarEtAl2013(OqhazlibGMPE):
 							distance_metric="Joyner-Boore", h=0,
 							imt={0: "PGA", 0.2: "SA", 1.: "SA", 4.: "SA"}[period],
 							T=period, imt_unit="g", mechanism="strike-slip",
-							vs30=750., damping=5, plot_style="loglog",
-							amin={0: 0.001, 0.2: 0.001, 1.: 0.0001, 4.: 0.0001}[period],
-							amax=2., want_minor_grid=True)
+							vs30=750., damping=5, xscaling="log", yscaling="log",
+							ymin={0: 0.001, 0.2: 0.001, 1.: 0.0001, 4.: 0.0001}[period],
+							ymax=2., xgrid=2, ygrid=2)
 
 
 class AtkinsonBoore2006(OqhazlibGMPE):
@@ -482,8 +493,9 @@ class AtkinsonBoore2006(OqhazlibGMPE):
 			amin, amax = 1E-2, 1E+3
 		else:
 			amin, amax = 1E-1, 1E+4
-		self.plot_distance(mags=[5., 6., 7., 8.], imt=imt, T=T, plot_style="loglog",
-						vs30=1999., imt_unit="cms2", amin=amin, amax=amax)
+		self.plot_distance(mags=[5., 6., 7., 8.], imt=imt, T=T, xscaling="log",
+						yscaling="log", 	vs30=1999., imt_unit="cms2",
+						ymin=amin, ymax=amax)
 
 	def plot_figure_Boore_notes(self, T=0.2):
 		"""
@@ -559,9 +571,9 @@ class AtkinsonBoore2006Prime(OqhazlibGMPE):
 		self.plot_distance(mags=[5., 6., 7.5], dmin=5., dmax=500.,
 							distance_metric="Joyner-Boore", h=0, imt="SA",
 							T=period, imt_unit="cms2", mechanism="normal",
-							damping=5, plot_style="loglog",
-							amin={0.1: 0.5, 1.: 0.2}[period],
-							amax={0.1: 5000, 1.: 2000}[period], want_minor_grid=True)
+							damping=5, xscaling="log", yscaling="log",
+							ymin={0.1: 0.5, 1.: 0.2}[period],
+							ymax={0.1: 5000, 1.: 2000}[period], xgrid=2, ygrid=2)
 
 
 class BindiEtAl2011(OqhazlibGMPE):
@@ -618,7 +630,7 @@ class BindiEtAl2011(OqhazlibGMPE):
 		title = "Bindi et al. (2011) - Figure 11 - soil type %s" % soil_type
 		self.plot_distance(mags=[6.3], dmin=0, dmax=300, imt=imt, T=T,
 							imt_unit="ms2", epsilon=1, soil_type=soil_type,
-							amin=0.01, amax=50., color="r", want_minor_grid=True,
+							ymin=0.01, ymax=50., color="r", xgrid=2, ygrid=2,
 							title=title)
 
 	def plot_figure12(self, imt="PGA", soil_type="A"):
@@ -643,7 +655,7 @@ class BindiEtAl2011(OqhazlibGMPE):
 		title = "Bindi et al. (2011) - Figure 12 - soil type %s" % soil_type
 		self.plot_distance(mags=[4.6], dmin=0, dmax=300, imt=imt, T=T,
 							imt_unit="ms2", epsilon=1, soil_type=soil_type,
-							amin=0.001, amax=amax, color="r", want_minor_grid=True,
+							ymin=0.001, ymax=amax, color="r", xgrid=2, ygrid=2,
 							title=title)
 
 
@@ -708,7 +720,7 @@ class BooreAtkinson2008(OqhazlibGMPE):
 			amin, amax = 0.05, 500
 		self.plot_distance(mags=[5., 6., 7., 8.], imt="SA", T=T, soil_type="rock",
 							mechanism="strike-slip", imt_unit="cms2",
-							amin=amin, amax=amax, plot_style="loglog",
+							ymin=amin, ymax=amax, xscaling="log", yscaling="log",
 							dmin=0.05, dmax=400)
 
 	def plot_figure12(self, T=0.2):
@@ -727,8 +739,8 @@ class BooreAtkinson2008(OqhazlibGMPE):
 		for vs30 in (180, 250, 360):
 			self.plot_distance(mags=[7.], imt="SA", T=T, vs30=vs30,
 								mechanism="strike-slip", imt_unit="cms2",
-								amin=amin, amax=amax, plot_style="loglog",
-								dmin=0.5, dmax=200)
+								ymin=amin, ymax=amax, dmin=0.5, dmax=200,
+								xscaling="log", yscaling="log")
 
 
 class BooreAtkinson2008Prime(OqhazlibGMPE):
@@ -776,9 +788,9 @@ class BooreAtkinson2008Prime(OqhazlibGMPE):
 		"""
 		plot_distance([self, BooreAtkinson2008()], mags=[4.], dmin=1., dmax=200.,
 						h=0, imt="SA", T=period, imt_unit="cms2",
-						mechanism="normal", damping=5, plot_style="loglog",
-						amin={0.3: 0.01, 1.: 0.001}[period],
-						amax={0.3: 1000, 1.: 100}[period], want_minor_grid=True)
+						mechanism="normal", damping=5, xscaling="log",
+						yscaling="log", ymin={0.3: 0.01, 1.: 0.001}[period],
+						ymax={0.3: 1000, 1.: 100}[period], xgrid=2, ygrid=2)
 
 
 class Campbell2003(OqhazlibGMPE):
@@ -822,7 +834,7 @@ class Campbell2003(OqhazlibGMPE):
 		else:
 			amin, amax = 1E-4, 1E1
 		self.plot_distance(mags=[5., 6., 7., 8.], imt=imt, T=T,
-							soil_type="hard rock", dmin=1, amin=amin, amax=amax)
+							soil_type="hard rock", dmin=1, ymin=amin, ymax=amax)
 
 	def plot_figure3(self, r=3.):
 		"""
@@ -1235,8 +1247,8 @@ class ZhaoEtAl2006Asc(OqhazlibGMPE):
 		Plot Figure 2a in the paper of Zhao et al. (2006)
 		"""
 		self.plot_distance(mags=[7.], mechanism="strike-slip", soil_type="SC II",
-							epsilon=1, dmin=0.3, dmax=400, amin=2E-3, amax=3.0,
-							plot_style="loglog")
+							epsilon=1, dmin=0.3, dmax=400, ymin=2E-3, ymax=3.0,
+							xscaling="log", yscaling="log")
 
 	def plot_figure3a(self):
 		"""
@@ -1246,7 +1258,7 @@ class ZhaoEtAl2006Asc(OqhazlibGMPE):
 		"""
 		self.plot_distance(mags=[5., 6., 7., 8.], mechanism="strike-slip",
 							soil_type="SC II", dmin=1, dmax=400,
-							amin=5E-4, amax=3.0, plot_style="loglog")
+							ymin=5E-4, ymax=3.0, xscaling="log", yscaling="log")
 
 
 class ZhaoEtAl2006AscMOD(ZhaoEtAl2006Asc):
@@ -1330,7 +1342,7 @@ class RietbrockEtAl2013SS(OqhazlibGMPE):
 			imt = "SA"
 		self.plot_distance(mags=[4., 6.], imt=imt, imt_unit="cms2", T=T,
 							soil_type="hard rock", dmin=1, dmax=300,
-							amin=0.01, amax=2000)
+							ymin=0.01, ymax=2000)
 
 
 class RietbrockEtAl2013MD(RietbrockEtAl2013SS):
