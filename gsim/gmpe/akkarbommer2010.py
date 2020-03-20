@@ -490,10 +490,10 @@ class AkkarBommer2010GMPE(GMPE):
 			String, fault mechanism: either "normal", "reverse" or "strike-slip"
 			(default: strike-slip)
 		"""
-		self.plot_distance(mags=[5., 7.6], dmin=1, dmax=1E2, amin=1E-1, amax=100,
-							imt="PGV", imt_unit="cms", plot_style="loglog",
+		self.plot_distance(mags=[5., 7.6], dmin=1, dmax=1E2, ymin=1E-1, ymax=100,
+							imt="PGV", imt_unit="cms", xscaling="log", yscaling="log",
 							soil_type=soil_type, mechanism=mechanism,
-							want_minor_grid=True)
+							xgrid=2, ygrid=2)
 
 
 if __name__ == "__main__":
