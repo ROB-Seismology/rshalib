@@ -1741,8 +1741,8 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 		ax = fig.add_subplot(1, 1, 1)
 		interactive = True
 	else:
-		ax.cla()
-		fig = pylab.gcf()
+		#ax.cla()
+		fig = ax.get_figure()
 		interactive = False
 
 	if not colors:
@@ -1875,9 +1875,11 @@ def plot_MFD(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_in
 	ax.axis((Mrange[0], Mrange[1], Freq_range[0], Freq_range[1]))
 
 	ax.set_xlabel("Magnitude ($M_%s$)" % mfd.Mtype[1].upper(), fontsize="x-large")
-	label = {"en": "Annual number of earthquakes", "nl": "Aantal aardbevingen per jaar", "fr": u"Nombre de séismes par année"}[lang.lower()]
-	ax.set_ylabel(label, fontsize="x-large")
-	ax.set_title(title, fontsize='x-large')
+	label = {"en": "Annual number of earthquakes", "nl": "Aantal aardbevingen per jaar", "fr": u"Nombre de séismes par année"}.get(lang.lower())
+	if label is not None:
+		ax.set_ylabel(label, fontsize="x-large")
+	if title is not None:
+		ax.set_title(title, fontsize='x-large')
 	ax.grid(True)
 	if labels:
 		font = FontProperties(size='medium')
