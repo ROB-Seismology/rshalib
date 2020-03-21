@@ -11,7 +11,7 @@ import numpy as np
 
 import openquake.hazardlib as oqhazlib
 
-from .base import MFD
+from .base import (MFD, sum_mfds)
 
 
 
@@ -61,7 +61,7 @@ class EvenlyDiscretizedMFD(oqhazlib.mfd.EvenlyDiscretizedMFD, MFD):
 
 	def __add__(self, other):
 		if isinstance(other, MFD):
-			return sum_MFDs([self, other])
+			return sum_mfds([self, other])
 		else:
 			raise TypeError("Operand must be MFD")
 
@@ -89,8 +89,7 @@ class EvenlyDiscretizedMFD(oqhazlib.mfd.EvenlyDiscretizedMFD, MFD):
 	def max_mag(self):
 		return self.get_min_mag_edge() + len(self.occurrence_rates) * self.bin_width
 
-	# TODO: maybe replace get_copy with copy?
-	def get_copy(self):
+	def copy(self):
 		"""
 		Return a copy of the MFD
 
