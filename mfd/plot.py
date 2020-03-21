@@ -6,6 +6,14 @@ plot MFDs
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+try:
+	## Python 2
+	basestring
+except:
+	## Python 3
+	basestring = str
+
+
 import datetime
 
 import numpy as np
@@ -110,7 +118,7 @@ def plot_mfds(mfd_list, colors=[], styles=[], labels=[], discrete=[], cumul_or_i
 	if isinstance(discrete, bool):
 		discrete = [discrete] * len(mfd_list)
 
-	if isinstance(cumul_or_inc, (str, unicode)):
+	if isinstance(cumul_or_inc, basestring):
 		cumul_or_inc = [cumul_or_inc] * len(mfd_list)
 
 	## Plot
