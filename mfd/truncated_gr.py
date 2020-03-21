@@ -12,7 +12,7 @@ import numpy as np
 
 import openquake.hazardlib as oqhazlib
 
-from .base import MFD
+from .base import (MFD, sum_mfds)
 
 
 
@@ -90,7 +90,7 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 
 	def __add__(self, other):
 		if isinstance(other, MFD):
-			return sum_MFDs([self, other])
+			return sum_mfds([self, other])
 		else:
 			raise TypeError("Operand must be MFD")
 
@@ -115,7 +115,7 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 
 	@property
 	def occurrence_rates(self):
-		return np.array(zip(*self.get_annual_occurrence_rates())[1])
+		return np.array(list(zip(*self.get_annual_occurrence_rates()))[1])
 
 	@property
 	def beta(self):
@@ -125,7 +125,7 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 	def alpha(self):
 		return np.log(10) * self.a_val
 
-	def get_copy(self):
+	def copy(self):
 		"""
 		Return a copy of the MFD
 
