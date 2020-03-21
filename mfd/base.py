@@ -31,7 +31,7 @@ class MFD(object):
 		:return:
 			numpy float array
 		"""
-		return np.array(zip(*self.get_annual_occurrence_rates())[0])
+		return np.array(list(zip(*self.get_annual_occurrence_rates()))[0])
 
 	def get_magnitude_bin_edges(self):
 		"""
@@ -132,7 +132,7 @@ class MFD(object):
 		taking into account completeness
 
 		:param completeness:
-			instance of :class:`Completeness`
+			instance of :class:`eqcatalog.Completeness`
 		:param end_date:
 			datetime.date or int, end date with respect to which
 			observation periods will be determined
@@ -256,11 +256,12 @@ class MFD(object):
 			instance of :class:`EQCatalog`
 		"""
 		import random
-		## TODO: remove mxDateTime !!!
-		import mx.DateTime as mxDateTime
+		from eqcatalog import EQCatalog, LocalEarthquake
+		from eqcatalog.time import date_from_fractional_year
+
 		rnd = random.Random()
 		rnd.seed(random_seed)
-		from eqcatalog.eqcatalog import EQCatalog, LocalEarthquake
+
 		inter_event_times = self.sample_inter_event_times(timespan, skip_time,
 															method, random_seed)
 		eq_list = []
@@ -271,15 +272,12 @@ class MFD(object):
 			num_lon_lats = len(lons)
 		except:
 			num_lon_lats = 0
-		start_date = mxDateTime.Date(start_year, 1, 1)
+		start_date = np.datetime64('%d-01-01' % start_year, dtype='M8[D]')
 		for M, iets in zip(self.get_magnitude_bin_centers(), inter_event_times):
 
 			fractional_years = np.add.accumulate(iets)
-			for year in fractional_years:
-				days_in_year = (mxDateTime.Date(int(year), 12, 31)
-							- mxDateTime.Date(int(year), 1, 1)).days
-				days = int((year - int(year)) * days_in_year)
-				date = start_date + mxDateTime.RelativeDate(years=int(year), days=days)
+			eq_dates = date_from_fractional_year(fractional_years + start_year)
+			for date in eq_dates:
 				if num_lon_lats == 0:
 					lon, lat = 0., 0.
 				else:
@@ -289,7 +287,8 @@ class MFD(object):
 									{self.Mtype: M}, name=name)
 				eq_list.append(eq)
 				ID += 1
-		end_date = start_date + mxDateTime.RelativeDate(years=timespan) - mxDateTime.RelativeDate(days=1)
+		end_year = start_year + timespan -1
+		end_date = np.datetime64('%d-12-31' % end_year, dtype='M8[D]')
 		return EQCatalog(eq_list, start_date, end_date)
 
 	def get_incremental_moment_rates(self):
@@ -312,7 +311,7 @@ class MFD(object):
 		:return:
 			float, total moment rate in N.m/yr
 		"""
-		return np.cumsum(self.get_incremental_moment_rates())
+		return np.sum(self.get_incremental_moment_rates())
 
 	def get_return_periods(self):
 		"""
@@ -343,9 +342,8 @@ def sum_mfds(mfd_list, weights=[]):
 	Sum two or more MFD's
 
 	:param mfd_list:
-		List containing instances of :class:`EvenlyDiscretizedMFD` or
-		:class:`TruncatedGRMFD`
-
+		List containing instances of :class:`TruncatedGRMFD` or
+		(descendants of) :class:`EvenlyDiscretizedMFD`
 	:param weights:
 		List or array containing weights of each MFD (default: [])
 
@@ -360,11 +358,9 @@ def sum_mfds(mfd_list, weights=[]):
 	from .truncated_gr import TruncatedGRMFD
 	from .evenly_discretized import EvenlyDiscretizedMFD
 
-	#TODO: check if Characteristic and YoungsCoppersmith are supported too!
-
 	if weights in ([], None):
 		weights = np.ones(len(mfd_list), 'd')
-	total_weight = np.cumsum(weights)
+	total_weight = np.sum(weights)
 	weights = (np.array(weights) / total_weight) * len(mfd_list)
 	bin_width = min([mfd.bin_width for mfd in mfd_list])
 	Mtype = mfd_list[0].Mtype
@@ -377,7 +373,7 @@ def sum_mfds(mfd_list, weights=[]):
 	all_max_mags = set([mfd.max_mag for mfd in mfd_list])
 
 	## If all MFD's are TruncatedGR, and have same min_mag, max_mag, and b_val
-	## return TrucatedGR, else return EvenlyDiscretized
+	## return TruncatedGR, else return EvenlyDiscretized
 	is_truncated = np.array([isinstance(mfd, TruncatedGRMFD) for mfd in mfd_list])
 	if is_truncated.all():
 		all_bvals = set([mfd.b_val for mfd in mfd_list])
@@ -385,7 +381,7 @@ def sum_mfds(mfd_list, weights=[]):
 			## TruncatedGR's can be summed into another TruncatedGR object
 			all_avals = np.array([mfd.a_val for mfd in mfd_list])
 			N0 = 10**all_avals
-			N0sum = np.cumsum(N0 * weights)
+			N0sum = np.sum(N0 * weights)
 			a = np.log10(N0sum)
 			## Error propagation, see http://chemwiki.ucdavis.edu/Analytical_Chemistry/Quantifying_Nature/Significant_Digits/Propagation_of_Error
 			Nsum_sigma = np.sum([mfd.get_N0_sigma() * w
