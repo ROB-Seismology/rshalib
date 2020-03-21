@@ -53,7 +53,7 @@ class YoungsCoppersmith1985MFD(oqhazlib.mfd.YoungsCoppersmith1985MFD, EvenlyDisc
 
 	@property
 	def occurrence_rates(self):
-		return np.array(zip(*self.get_annual_occurrence_rates())[1])
+		return np.array(list(zip(*self.get_annual_occurrence_rates()))[1])
 
 	@property
 	def beta(self):
