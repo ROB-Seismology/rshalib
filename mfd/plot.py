@@ -165,17 +165,19 @@ def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 
 	## Determine plot limits
 	mfd = mfd_list[0]
-	Mmin, Mmax = mfd.get_magnitude_bin_edges()[0::len(mfd)-1]
-	Mmax += mfd.bin_width
-	fmax, fmin = mfd.get_cumulative_rates()[0::len(mfd)-1]
+	mag_bin_edges = mfd.get_magnitude_bin_edges()
+	Mmin, Mmax = mag_bin_edges[0], mag_bin_edges[-1] + mfd.bin_width
+	cumul_rates = mfd.get_cumulative_rates()
+	fmax, fmin = cumul_rates[0], cumul_rates[-1]
 	for mfd in mfd_list[1:]:
-		_Mmin, _Mmax = mfd.get_magnitude_bin_edges()[0::len(mfd)-1]
-		_Mmax += mfd.bin_width
+		mag_bin_edges = mfd.get_magnitude_bin_edges()
+		_Mmin, _Mmax = mag_bin_edges[0], mag_bin_edges[-1] + mfd.bin_width
 		if _Mmin < Mmin:
 			Mmin = _Mmin
 		if _Mmax > Mmax:
 			Mmax = _Mmax
-		_fmax, _fmin = mfd.get_cumulative_rates()[0::len(mfd)-1]
+		cumul_rates = mfd.get_cumulative_rates()
+		_fmax, _fmin = cumul_rates[0], cumul_rates[-1]
 		if _fmin < fmin:
 			fmin = _fmin
 		if _fmax > fmax:
