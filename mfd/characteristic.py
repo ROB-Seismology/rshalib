@@ -59,6 +59,11 @@ class CharacteristicMFD(EvenlyDiscretizedMFD):
 		EvenlyDiscretizedMFD.__init__(self, Mmin, bin_width, occurrence_rates,
 									Mtype=Mtype)
 
+	def __repr__(self):
+		txt = '<CharacteristicMFD | %s=%.2f +/- %.2f (x %s)>'
+		txt %= (self.Mtype, self.char_mag, self.M_sigma, self.num_sigma)
+		return txt
+
 	def modify_set_char_mag(self, char_mag, force_bin_alignment=True):
 		"""
 		Set characteristic magnitude
