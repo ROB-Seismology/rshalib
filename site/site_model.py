@@ -17,7 +17,7 @@ from lxml import etree
 
 import numpy as np
 
-import openquake.hazardlib as oqhazlib
+from .. import oqhazlib
 from openquake.hazardlib.geo.geodetic import geodetic_distance
 
 from ..nrml import ns
@@ -118,7 +118,7 @@ class GenericSiteModel(oqhazlib.geo.Mesh):
 		self.name = name
 
 	def __repr__(self):
-		return '<GenericSiteModel %s (n=%d)>' % (self.name, len(self))
+		return '<GenericSiteModel "%s" (n=%d)>' % (self.name, len(self))
 
 	def __getitem__(self, index):
 		"""
@@ -656,7 +656,7 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 			return False
 
 	def __repr__(self):
-		return '<SoilSiteModel %s (n=%d)>' % (self.name, len(self))
+		return '<SoilSiteModel "%s" (n=%d)>' % (self.name, len(self))
 
 	def __getitem__(self, index):
 		"""

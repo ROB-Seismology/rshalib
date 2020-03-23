@@ -7,7 +7,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import numpy as np
 from functools import partial
 
-import openquake.hazardlib as oqhazlib
+from .. import oqhazlib
 
 
 __all__ = ['InverseGSIM']

@@ -13,10 +13,9 @@ as well as to generate input files for OpenQuake.
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 
-import openquake.hazardlib as oqhazlib
-
-from .ref_soil_params import REF_SOIL_PARAMS
+from .. import oqhazlib
 from ..geo import Point
+from .ref_soil_params import REF_SOIL_PARAMS
 
 
 

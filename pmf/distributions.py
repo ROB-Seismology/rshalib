@@ -18,7 +18,7 @@ from decimal import Decimal
 import numpy as np
 from scipy import stats
 
-import openquake.hazardlib as oqhazlib
+from .. import oqhazlib
 
 from ..nrml import ns
 from ..nrml.common import *

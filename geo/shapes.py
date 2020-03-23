@@ -13,8 +13,8 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from lxml import etree
 
 import numpy as np
-import openquake.hazardlib as oqhazlib
 
+from .. import oqhazlib
 from ..nrml import ns
 #from ..nrml.common import *
 

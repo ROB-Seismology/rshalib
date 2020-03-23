@@ -9,7 +9,7 @@ import numpy as np
 from scipy.constants import g
 import pylab
 
-import openquake.hazardlib as oqhazlib
+from ... import oqhazlib
 from openquake.hazardlib.imt import PGD, PGV, PGA, SA, MMI
 
 from .base import *

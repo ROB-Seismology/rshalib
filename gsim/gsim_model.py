@@ -4,7 +4,7 @@ Ground-motion model
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import openquake.hazardlib as oqhazlib
+from .. import oqhazlib
 
 
 
