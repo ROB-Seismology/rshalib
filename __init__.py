@@ -75,11 +75,24 @@ if not reloading:
 else:
 	reload(cav)
 
+## Following submodules depend on oqhazlib.
+## We import it only once, here at the top level
+if not reloading:
+	import openquake.hazardlib as oqhazlib
+else:
+	reload(oqhazlib)
+
 ## calc (no internal dependencies)
 if not reloading:
 	from . import calc
 else:
 	reload(calc)
+
+## mfd (depends on nrml)
+if not reloading:
+	from . import mfd
+else:
+	reload(mfd)
 
 ## geo (depends on nrml)
 if not reloading:
@@ -93,23 +106,11 @@ if not reloading:
 else:
 	reload(site)
 
-## gsim (depends on utils, cav)
-if not reloading:
-	from . import gsim
-else:
-	reload(gsim)
-
-## pmf (depends on geo, nrml, utils)
+## pmf (depends on geo, nrml, utils, mfd)
 if not reloading:
 	from . import pmf
 else:
 	reload(pmf)
-
-## mfd (depends on nrml)
-if not reloading:
-	from . import mfd
-else:
-	reload(mfd)
 
 ## source (depends on geo, mfd, nrml)
 if not reloading:
@@ -128,6 +129,14 @@ if not reloading:
 	from . import result
 else:
 	reload(result)
+
+## TODO: move below rob, oqhazlib_gmpe depends on source.rupture!!
+## Or better: below result, as we want get_spectrum to return ResponseSpectrum
+## gsim (depends on utils, cav)
+if not reloading:
+	from . import gsim
+else:
+	reload(gsim)
 
 ## siteresponse (depends on calc, utils, result)
 if not reloading:
