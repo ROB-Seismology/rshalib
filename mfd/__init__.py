@@ -21,19 +21,12 @@ else:
 		## Python 2
 		pass
 
-#TODO: maybe also define __all__ ??
 
 if not reloading:
 	from . import base
 else:
 	reload(base)
 from .base import *
-
-if not reloading:
-	from . import plot
-else:
-	reload(plot)
-from .plot import *
 
 if not reloading:
 	from . import evenly_discretized
@@ -60,3 +53,10 @@ if not reloading:
 else:
 	reload(youngs_coppersmith_1985)
 from .youngs_coppersmith_1985 import *
+
+## depends on truncated_gr
+if not reloading:
+	from . import plot
+else:
+	reload(plot)
+from .plot import *
