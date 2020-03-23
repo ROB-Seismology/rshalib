@@ -10,7 +10,7 @@ from builtins import int
 
 import numpy as np
 
-import openquake.hazardlib as oqhazlib
+from .. import oqhazlib
 
 from .base import (MFD, sum_mfds)
 
@@ -65,6 +65,12 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		self.a_sigma = a_sigma
 		self.b_sigma = b_sigma
 		self.Mtype = Mtype
+
+	def __repr__(self):
+		txt = '<TruncatedGRMFD | %s=%.2f:%.2f:%.2f | a=%.2f, b=%.2f>'
+		txt %= (self.Mtype, self.min_mag, self.max_mag, self.bin_width,
+				self.a_val, self.b_val)
+		return txt
 
 	def __div__(self, other):
 		if isinstance(other, (int, float)):
@@ -284,10 +290,12 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 
 		return tgr_elem
 
-	def plot(self, color='k', style="-", label="", discrete=False,
-			cumul_or_inc="cumul", completeness=None, end_year=None,
-			Mrange=(), Freq_range=(), title="", lang="en", y_log_labels=True,
-			fig_filespec=None, ax=None, fig_width=0, dpi=300):
+	def plot(self, label="", color='k', style=None, lw_or_ms=None,
+			discrete=False, cumul_or_inc="cumul",
+			completeness=None, end_year=None,
+			xgrid=1, ygrid=1,
+			title="", lang="en", legend_location=1,
+			fig_filespec=None, **kwargs):
 		"""
 		Plot magnitude-frequency distribution
 
@@ -351,13 +359,13 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		"""
 		from .plot import plot_mfds
 
-		return plot_mfds([self], colors=[color], styles=[style], labels=[label],
+		return plot_mfds([self], colors=[color], labels=[label],
+						styles=[style], lw_or_ms=[lw_or_ms],
 						discrete=[discrete], cumul_or_inc=[cumul_or_inc],
 						completeness=completeness, end_year=end_year,
-						Mrange=Mrange, Freq_range=Freq_range, title=title,
-						lang=lang, y_log_labels=y_log_labels,
-						fig_filespec=fig_filespec, ax=ax, fig_width=fig_width,
-						dpi=dpi)
+						xgrid=xgrid, ygrid=ygrid,
+						title=title, lang=lang, legend_location=legend_location,
+						fig_filespec=fig_filespec, **kwargs)
 
 	def to_truncated_GR_mfd(self, min_mag=None, max_mag=None, bin_width=None):
 		"""
