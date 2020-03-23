@@ -8,7 +8,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import numpy as np
 
-import openquake.hazardlib as oqhazlib
+from .. import oqhazlib
 
 from .evenly_discretized import EvenlyDiscretizedMFD
 
@@ -21,6 +21,10 @@ class YoungsCoppersmith1985MFD(oqhazlib.mfd.YoungsCoppersmith1985MFD, EvenlyDisc
 	"""
 	Class implementing the MFD for the 'Characteristic Earthquake Model'
 	by Youngs & Coppersmith (1985)
+
+	Note: the parameters of the Gutenberg-Richter and characteristic parts
+	must match, so it is best to create this MFD using
+	:meth:`from_characteristic_rate` or :meth:`from_toal_moment_rate` !
 
 	:param min_mag:
 		The lowest possible magnitude for this MFD. The first bin in the
@@ -46,10 +50,13 @@ class YoungsCoppersmith1985MFD(oqhazlib.mfd.YoungsCoppersmith1985MFD, EvenlyDisc
 	:param bin_width:
 		A positive float value -- the width of a single histogram bin.
 	"""
-	def __init__(self, min_mag, a_val, b_val, char_mag, char_rate, bin_width):
-		super(YoungsCoppersmith1985MFD, self).__init__(min_mag, a_val, b_val,
-												char_mag, char_rate, bin_width)
-		self.Mtype = "MW"
+	Mtype = "MW"
+
+	def __repr__(self):
+		txt = '<YoungsCoppersmith1985MFD | %s=%.2f:%.2f+/-0.25:%.2f | a=%.2f, b=%.2f>'
+		txt %= (self.Mtype, self.min_mag, self.char_mag, self.bin_width,
+				self.a_val, self.b_val)
+		return txt
 
 	@property
 	def occurrence_rates(self):
@@ -84,77 +91,3 @@ class YoungsCoppersmith1985MFD(oqhazlib.mfd.YoungsCoppersmith1985MFD, EvenlyDisc
 			Float
 		"""
 		return self.min_mag + self.bin_width / 2
-
-	def plot(self, color='k', style="-", label="", discrete=True,
-			cumul_or_inc="both", completeness=None, end_year=None,
-			Mrange=(), Freq_range=(), title="", lang="en", y_log_labels=True,
-			fig_filespec=None, ax=None, fig_width=0, dpi=300):
-		"""
-		Plot magnitude-frequency distribution
-
-		:param color:
-			matplotlib color specification
-			(default: 'k')
-		:param style:
-			matplotlib symbol style or line style
-			(default: '-')
-		:param label:
-			str, plot labels (default: "")
-		:param discrete:
-			bool, whether or not to plot discrete MFD
-			(default: True)
-		:param cumul_or_inc:
-			str, either "cumul", "inc" or "both", indicating
-			whether to plot cumulative MFD, incremental MFD or both
-			(default: "both")
-		:param completeness:
-			instance of :class:`Completeness`, used to plot completeness
-			limits
-			(default: None)
-		:param end_year:
-			int, end year of catalog (used when plotting completeness limits)
-			(default: None, will use current year)
-		:param Mrange:
-			(Mmin, Mmax) tuple, minimum and maximum magnitude in X axis
-			(default: ())
-		:param Freq_range:
-			(Freq_min, Freq_max) tuple, minimum and maximum values in
-			frequency (Y) axis
-			(default: ())
-		:param title:
-			str, plot title (default: "")
-		:param lang:
-			str, language of plot axis labels
-			(default: "en")
-		:param y_log_labels:
-			bool, whether or not Y axis labels are plotted as 10 to a power
-			(default: True)
-		:param fig_filespec:
-			str, full path to output image file, if None plot to screen
-			(default: None)
-		:param ax:
-			instance of :class:`~matplotlib.axes.Axes` in which plot will
-			be made
-			(default: None, will create new figure and axes)
-		:param fig_width:
-			float, figure width in cm, used to recompute :param:`dpi` with
-			respect to default figure width
-			(default: 0)
-		:param dpi:
-			int, image resolution in dots per inch
-			(default: 300)
-
-		:return:
-			if both :param:`ax` and :param:`fig_filespec` are None, a
-			(ax, fig) tuple will be returned
-		"""
-		#TODO: is there a difference with plot method of EvenlyDiscretizedMFD??
-		from .plot import plot_mfds
-
-		return plot_mfds([self], colors=[color], styles=[style], labels=[label],
-						discrete=[discrete], cumul_or_inc=[cumul_or_inc],
-						completeness=completeness, end_year=end_year,
-						Mrange=Mrange, Freq_range=Freq_range,
-						title=title, lang=lang, y_log_labels=y_log_labels,
-						fig_filespec=fig_filespec,
-						ax=ax, fig_width=fig_width, dpi=dpi)
