@@ -24,7 +24,7 @@ from .evenly_discretized import EvenlyDiscretizedMFD
 
 __all__ = ['plot_mfds']
 
-
+# TODO: update docstring!
 
 def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 				discrete=[], cumul_or_inc=[],
@@ -33,6 +33,71 @@ def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 				title="", lang="en", legend_location=1,
 				fig_filespec=None, **kwargs):
 	"""
+	Plot one or more magnitude-frequency distributions
+
+	:param mfd_list:
+		List with instance of :class:`EvenlyDiscretizedMFD`
+		or :class:`TruncatedGRMFD`
+	:param colors:
+		List with matplotlib color specifications, one for each mfd
+		(default: [])
+	:param styles:
+		List with matplotlib symbol styles or line styles, one for each mfd
+		(default: [])
+	:param labels:
+		List with plot labels, one for each mfd
+		(default: [])
+	:param discrete:
+		List of bools, whether or not to plot discrete MFD's
+		(default: [])
+	:param cumul_or_inc:
+		List of strings, either "cumul", "inc" or "both", indicating
+		whether to plot cumulative MFD, incremental MFD or both
+		(default: [])
+	:param completeness:
+		instance of :class:`Completeness`, used to plot completeness
+		limits
+		(default: None)
+	:param end_year:
+		int, end year of catalog (used when plotting completeness limits)
+		(default: None, will use current year)
+	:param Mrange:
+		(Mmin, Mmax) tuple, minimum and maximum magnitude in X axis
+		(default: ())
+	:param Freq_range:
+		(Freq_min, Freq_max) tuple, minimum and maximum values in
+		frequency (Y) axis
+		(default: ())
+	:param title:
+		str, plot title
+		(default: "")
+	:param lang:
+		str, language of plot axis labels
+		(default: "en")
+	:param legend_location:
+		int or str, matplotlib specification for legend location
+		(default: 1)
+	:param y_log_labels:
+		bool, whether or not Y axis labels are plotted as 10 to a power
+		(default: True)
+	:param fig_filespec:
+		str, full path to output image file, if None plot to screen
+		(default: None)
+	:param ax:
+		instance of :class:`~matplotlib.axes.Axes` in which plot will
+		be made
+		(default: None, will create new figure and axes)
+	:param fig_width:
+		float, figure width in cm, used to recompute :param:`dpi` with
+		respect to default figure width
+		(default: 0)
+	:param dpi:
+		int, image resolution in dots per inch
+		(default: 300)
+
+	:return:
+		if both :param:`ax` and :param:`fig_filespec` are None, a
+		(ax, fig) tuple will be returned
 	"""
 	COLORS = colors or pylab.rcParams['axes.prop_cycle'].by_key()['color']
 	LABELS = labels or [""] * len(mfd_list)
