@@ -1,3 +1,8 @@
+"""
+FaultNetwork class
+"""
+
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 
 # Perhaps see also:
@@ -161,10 +166,10 @@ if __name__ == "__main__":
 					'F05': (['F02'], ['F06']),
 					'F06': ([], ['F05'])}
 	fn = FaultNetwork(fault_links)
-	print fn.check_consistency()
-	#print fn.get_opposite_links(3, 2)
-	#print fn.get_neighbours(2)
+	print(fn.check_consistency())
+	#print(fn.get_opposite_links(3, 2))
+	#print(fn.get_neighbours(2))
 	#for conn in fn.get_connections(1, 2):
 	for conn in fn.get_all_connections(3):
-		print conn
+		print(conn)
 
