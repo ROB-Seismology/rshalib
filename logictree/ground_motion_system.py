@@ -1,6 +1,11 @@
-import openquake.hazardlib as nhlib
+"""
+Ground-motion logic tree
+"""
 
-from logictree import LogicTreeBranch, LogicTreeBranchSet, LogicTreeBranchingLevel, LogicTree
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+
+from .logictree import *
 
 
 
@@ -32,6 +37,9 @@ class GroundMotionSystem(LogicTree):
 		self._construct_lt()
 		self.connect_branches()
 
+	def __repr__(self):
+		return '<GroundMotionSystem "%s">' % self.id
+
 	def _construct_lt(self):
 		"""
 		Construct logic tree
@@ -42,13 +50,16 @@ class GroundMotionSystem(LogicTree):
 			names of GMPEs (default: True)
 		"""
 		from ..gsim import gmpe as gmpe_module
-		for i, tectonicRegionType in enumerate(self.tectonicRegionTypes):
+		for i, trt in enumerate(self.tectonic_region_types):
 			branchingLevelID = "bl%02d" % i
 			#branchSetID = "%s_bs01" % branchingLevelID
-			branchSetID = "".join([word[0].upper() for word in tectonicRegionType.split()])
-			branch_set = LogicTreeBranchSet.from_PMF(branchSetID, self.gmpe_system_def[tectonicRegionType], applyToTectonicRegionType=tectonicRegionType)
+			branchSetID = "".join([word[0].upper() for word in trt.split()])
+			branch_set = LogicTreeBranchSet.from_pmf(branchSetID,
+												self.gmpe_system_def[trt],
+												applyToTectonicRegionType=trt)
 			## Rename branch ID's:
-			for branch, gmpe_name in zip(branch_set.branches, self.gmpe_system_def[tectonicRegionType].gmpe_names):
+			for branch, gmpe_name in zip(branch_set.branches,
+										self.gmpe_system_def[trt].gmpe_names):
 				# TODO: consider avoiding dependency on rshalib gmpe module
 				try:
 					gmpe = getattr(gmpe_module, gmpe_name)()
@@ -67,34 +78,36 @@ class GroundMotionSystem(LogicTree):
 		LogicTree.validate(self)
 		for branchingLevel in self.branchingLevels:
 			if len(branchingLevel.branchSets) > 1:
-				raise NRMLError("Branching Level %s: GroundMotionSystem can contain only one branchSet per branchingLevel!" % branchingLevel.ID)
+				raise NRMLError("Branching Level %s: GroundMotionSystem can contain only one branchSet per branchingLevel!"
+								% branchingLevel.ID)
 			if branchingLevel.branchSets[0].uncertaintyType != "gmpeModel":
-				raise NRMLError("Branching Level %s: GroundMotionSystem only allows uncertainties of type gmpeModel" % branchingLevel.ID)
+				raise NRMLError("Branching Level %s: GroundMotionSystem only allows uncertainties of type gmpeModel"
+								% branchingLevel.ID)
 
 	@property
-	def tectonicRegionTypes(self):
+	def tectonic_region_types(self):
 		"""
 		Return list of tectonic region types in the ground motion system
 		"""
 		return self.gmpe_system_def.keys()
 
-	def get_gmpe_names(self, tectonicRegionType):
+	def get_gmpe_names(self, trt):
 		"""
 		Return list of GMPE model names for a specific tectonic region type
 
-		:param tectonicRegionType:
+		:param trt:
 			string, tectonic region type
 		"""
-		return self.gmpe_system_def[tectonicRegionType].values
+		return self.gmpe_system_def[trt].values
 
-	def get_gmpe_weights(self, tectonicRegionType):
+	def get_gmpe_weights(self, trt):
 		"""
 		Return list of GMPE model weights for a specific tectonic region type
 
-		:param tectonicRegionType:
+		:param trt:
 			string, tectonic region type
 		"""
-		return self.gmpe_system_def[tectonicRegionType].weights
+		return self.gmpe_system_def[trt].weights
 
 	def get_unique_gmpe_names(self):
 		"""
@@ -124,5 +137,6 @@ class GroundMotionSystem(LogicTree):
 				used_trts.add(src.tectonic_region_type)
 		for trt in used_trts:
 			optimized_gmpe_system_def[trt] = self.gmpe_system_def[trt]
-		return GroundMotionSystem(self.id, optimized_gmpe_system_def, use_short_names=self.use_short_names)
+		return GroundMotionSystem(self.id, optimized_gmpe_system_def,
+									use_short_names=self.use_short_names)
 
