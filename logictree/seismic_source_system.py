@@ -1,3 +1,9 @@
+"""
+Source model logic tree
+"""
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import os
 import copy
 import pprint
@@ -9,10 +15,14 @@ except ImportError:
 
 import numpy as np
 
-from logictree import LogicTreeBranch, LogicTreeBranchSet, LogicTreeBranchingLevel, LogicTree
-from configobj import ConfigObj
+
+from .logictree import *
 from ..pmf import SourceModelPMF, MmaxPMF, MFDPMF, get_uniform_weights
 from ..source import SourceModel
+
+
+
+__all__ = ['SeismicSourceSystem']
 
 
 class SeismicSourceSystem(LogicTree):
@@ -28,13 +38,16 @@ class SeismicSourceSystem(LogicTree):
 	After initialization, additional uncertainty levels can be
 	appended using :meth:`append_independent_uncertainty_level`
 	"""
-	def __init__(self, ID, source_model_pmf=None):
-		super(SeismicSourceSystem, self).__init__(ID, [])
+	def __init__(self, id, source_model_pmf=None):
+		super(SeismicSourceSystem, self).__init__(id, [])
 		if source_model_pmf:
 			if isinstance(source_model_pmf, SourceModel):
 				source_model = source_model_pmf
 				source_model_pmf = SourceModelPMF([source_model], [1])
 			self.set_root_uncertainty_level(source_model_pmf)
+
+	def __repr__(self):
+		return '<SeismicSourceSystem "%s">' % self.id
 
 	@property
 	def source_models(self):
@@ -50,7 +63,8 @@ class SeismicSourceSystem(LogicTree):
 		:return:
 			instance ov :class:`rshalib.source.SourceModel`
 		"""
-		[source_model] = [somo for somo in self.source_models if somo.name == source_model_name]
+		[source_model] = [somo for somo in self.source_models
+							if somo.name == source_model_name]
 		return source_model
 
 	def get_max_mag(self):
@@ -121,7 +135,8 @@ class SeismicSourceSystem(LogicTree):
 
 		## Parse using oq-engine's logictree
 		basepath, filename = os.path.split(xml_filespec)
-		smlt = SourceModelLogicTree(None, basepath=basepath, filename=filename, calc_id=None, validate=validate)
+		smlt = SourceModelLogicTree(None, basepath=basepath, filename=filename,
+									calc_id=None, validate=validate)
 
 		def convert_branchset(branchset):
 			## Convert oq-engine BranchSet to rshalib LogicTreeBranchSet
@@ -133,9 +148,14 @@ class SeismicSourceSystem(LogicTree):
 				applyToBranches = branchset.applyToBranches
 			else:
 				applyToBranches = []
-			new_bs = LogicTreeBranchSet(branchset.id, branchset.uncertainty_type, branchset.branches, applyToBranches=applyToBranches, applyToSources=applyToSources, applyToSourceType=applyToSourceType, applyToTectonicRegionType=applyToTectonicRegionType)
+			new_bs = LogicTreeBranchSet(branchset.id, branchset.uncertainty_type,
+								branchset.branches, applyToBranches=applyToBranches,
+								applyToSources=applyToSources,
+								applyToSourceType=applyToSourceType,
+								applyToTectonicRegionType=applyToTectonicRegionType)
 			for i, branch in enumerate(new_bs):
-				new_bs.branches[i] = LogicTreeBranch(branch.branch_id, branch.weight, branch.value, parent_branchset=new_bs)
+				new_bs.branches[i] = LogicTreeBranch(branch.branch_id, branch.weight,
+											branch.value, parent_branchset=new_bs)
 			return new_bs
 
 		## Reconstruct branching levels from branches
@@ -144,7 +164,8 @@ class SeismicSourceSystem(LogicTree):
 		branching_level_id = "bl%02d" % branching_level_nr
 		branchset_id = "%s_bs00" % branching_level_id
 		smlt.root_branchset.id = branchset_id
-		branching_levels.append(LogicTreeBranchingLevel(branching_level_id, [smlt.root_branchset]))
+		bl = LogicTreeBranchingLevel(branching_level_id, [smlt.root_branchset])
+		branching_levels.append(bl)
 		branchsets = [smlt.root_branchset]
 		while branchsets:
 			branching_level_nr += 1
@@ -158,13 +179,15 @@ class SeismicSourceSystem(LogicTree):
 						try:
 							index = branching_level.branch_sets.index(child_branchset)
 						except ValueError:
-							branchset_id = "%s_bs%02d" % (branching_level_id, branchset_nr)
+							branchset_id = "%s_bs%02d"
+							branchset_id %= (branching_level_id, branchset_nr)
 							child_branchset.id = branchset_id
 							child_branchset.applyToBranches = [branch.branch_id]
 							branching_level.branch_sets.append(child_branchset)
 							branchset_nr += 1
 						else:
-							branching_level.branch_sets[index].applyToBranches.append(branch.branch_id)
+							branching_level.branch_sets[index].applyToBranches.append(
+																	branch.branch_id)
 
 			if len(branching_level.branch_sets) > 0:
 				branching_levels.append(branching_level)
@@ -173,7 +196,8 @@ class SeismicSourceSystem(LogicTree):
 				branchsets = []
 
 		for branching_level in branching_levels:
-			converted_branchsets = [convert_branchset(bs) for bs in branching_level.branch_sets]
+			converted_branchsets = [convert_branchset(bs)
+									for bs in branching_level.branch_sets]
 			branching_level.branch_sets = converted_branchsets
 		sss = SeismicSourceSystem(filename, None)
 		sss.branching_levels = branching_levels
@@ -203,7 +227,8 @@ class SeismicSourceSystem(LogicTree):
 				for sm_name in bl_branch_ids.keys():
 					if len(bl_branch_ids[sm_name]) == bl_index:
 						for parent_branch in parent_branches:
-							if parent_branch.branch_id in bl_branch_ids[sm_name][prev_bl_index]:
+							if (parent_branch.branch_id
+								in bl_branch_ids[sm_name][prev_bl_index]):
 								try:
 									bl_branch_ids[sm_name][bl_index].update(branch_ids)
 								except IndexError:
@@ -241,7 +266,8 @@ class SeismicSourceSystem(LogicTree):
 					else:
 						if len(bl_branch_sets[sm_name]) == prev_bl_index:
 							for parent_branch in parent_branches:
-								if parent_branch.branch_id in [b.branch_id for b in bl_branch_sets[sm_name][prev_bl_index-1].branches]:
+								if (parent_branch.branch_id
+									in [b.branch_id for b in bl_branch_sets[sm_name][prev_bl_index-1].branches]):
 									if len(bl_branch_sets[sm_name]) == prev_bl_index:
 										bl_branch_sets[sm_name].append(branchset)
 
@@ -337,7 +363,8 @@ class SeismicSourceSystem(LogicTree):
 		"""
 		import copy
 
-		for (branch_path, weight) in self.enumerate_branch_paths_by_source(source_model_name, src):
+		for (branch_path, weight) in self.enumerate_branch_paths_by_source(
+														source_model_name, src):
 			for i, branch in enumerate(branch_path):
 				if i == 0:
 					## Note: copy MFD explicitly, as not all source attributes are
@@ -388,7 +415,7 @@ class SeismicSourceSystem(LogicTree):
 		branching_level_id = "bl00"
 		#branch_set_id = "%s_bs00" % branching_level_id
 		branch_set_id = "SM"
-		branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, source_model_pmf)
+		branch_set = LogicTreeBranchSet.from_pmf(branch_set_id, source_model_pmf)
 		branching_level = LogicTreeBranchingLevel(branching_level_id, [branch_set])
 		self.branching_levels.append(branching_level)
 		self.connect_branches()
@@ -413,7 +440,8 @@ class SeismicSourceSystem(LogicTree):
 		"""
 		if self.root_branchset is None:
 			raise Exception("Root uncertainty level must be set first!")
-		source_model_names = [os.path.splitext(branch.value)[0] for branch in self.root_branchset]
+		source_model_names = [os.path.splitext(branch.value)[0]
+							for branch in self.root_branchset]
 
 		## This dictionary will contain lists of branch id's in each branching
 		## level for the different source models
@@ -439,33 +467,43 @@ class SeismicSourceSystem(LogicTree):
 				sm_src_ids = [src.source_id for src in source_model]
 				for src_id in src_unc_pmf_dict.keys():
 					if src_id != None and src_id not in sm_src_ids:
-						raise Exception("Source %s not in source model %s!" % (src_id, sm_name))
+						raise Exception("Source %s not in source model %s!"
+										% (src_id, sm_name))
 
 			if sm_name is None:
 				## Source model, and hence sources unspecified
 				## Only one branching level will be added
 				applyToSources = []
-				num_branching_levels = [len(bl_branch_ids[key]) for key in bl_branch_ids.keys()]
+				num_branching_levels = [len(bl_branch_ids[key])
+										for key in bl_branch_ids.keys()]
 				if len(bl_branch_ids) == 1 or len(set(num_branching_levels)) == 1:
 					## Same branching level for different source models
 					applyToBranches = []
 					applyToSources = []
 					branch_set_id = "None--None--%s" % (unc_type)
 					branching_level_nr = len(bl_branch_ids[bl_branch_ids.keys()[0]])
-					branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc_pmf_dict[None], applyToBranches=applyToBranches, applyToSources=applyToSources)
+					branch_set = LogicTreeBranchSet.from_pmf(branch_set_id,
+												src_unc_pmf_dict[None],
+												applyToBranches=applyToBranches,
+												applyToSources=applyToSources)
 					self._append_branchset(branch_set, branching_level_nr)
 					for sm_name in source_model_names:
-						bl_branch_ids[sm_name].append(set([branch.branch_id for branch in branch_set]))
+						bl_branch_ids[sm_name].append(set([branch.branch_id
+													for branch in branch_set]))
 				else:
 					## Branching level different for different source models
 					for prev_level_sm_name in bl_branch_ids.keys():
 						applyToBranches = bl_branch_ids[prev_level_sm_name][-1]
 						branch_set_id = "%s--None--%s" % (prev_level_sm_name, unc_type)
 						#branch_set_id = "%s_bs%02d" % (branching_level_id, branch_set_nr)
-						branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc_pmf_dict[None], applyToBranches=applyToBranches, applyToSources=applyToSources)
+						branch_set = LogicTreeBranchSet.from_pmf(branch_set_id,
+												src_unc_pmf_dict[None],
+												applyToBranches=applyToBranches,
+												applyToSources=applyToSources)
 						branching_level_nr = len(bl_branch_ids[prev_level_sm_name])
 						self._append_branchset(branch_set, branching_level_nr)
-						bl_branch_ids[prev_level_sm_name].append(set([branch.branch_id for branch in branch_set]))
+						bl_branch_ids[prev_level_sm_name].append(set([branch.branch_id
+														for branch in branch_set]))
 			else:
 				## Source model specified
 				last_branching_level_nr = len(bl_branch_ids[sm_name])
@@ -473,10 +511,13 @@ class SeismicSourceSystem(LogicTree):
 					## If other source models have same branch ID's in last
 					## branching level, then it means source model was None
 					## in previous branching level
-					bl_other_end_branch_ids = [bl_branch_ids[key][-1] for key in source_model_names if not key == sm_name]
+					bl_other_end_branch_ids = [bl_branch_ids[key][-1]
+							for key in source_model_names if not key == sm_name]
 					bl_end_branch_ids = bl_branch_ids[sm_name][-1]
-					if len(bl_end_branch_ids.difference(*bl_other_end_branch_ids)) < len(bl_end_branch_ids):
-						raise Exception("Not possible to connect source model %s" % sm_name)
+					if (len(bl_end_branch_ids.difference(*bl_other_end_branch_ids))
+						< len(bl_end_branch_ids)):
+						raise Exception("Not possible to connect source model %s"
+										% sm_name)
 				sm_index = source_model_names.index(sm_name)
 				if correlated == True:
 					## Correlated uncertainties
@@ -484,9 +525,12 @@ class SeismicSourceSystem(LogicTree):
 					applyToSources = []
 					branching_level_nr = last_branching_level_nr
 					branch_set_id = "%s--CORR--%s" % (sm_name, unc_type)
-					branch_set = LogicTreeBranchSet.from_PMF_dict(branch_set_id, src_unc_pmf_dict, applyToBranches=applyToBranches)
+					branch_set = LogicTreeBranchSet.from_pmf_dict(branch_set_id,
+												src_unc_pmf_dict,
+												applyToBranches=applyToBranches)
 					self._append_branchset(branch_set, branching_level_nr)
-					bl_branch_ids[sm_name].append(set([branch.branch_id for branch in branch_set]))
+					bl_branch_ids[sm_name].append(set([branch.branch_id
+												for branch in branch_set]))
 				else:
 					## Uncorrelated uncertainties
 					for i, src_id in enumerate(src_unc_pmf_dict.keys()):
@@ -500,10 +544,14 @@ class SeismicSourceSystem(LogicTree):
 						branching_level_nr = last_branching_level_nr + i
 						#branch_set_id = "%s_bs%02d" % (branching_level_id, branch_set_nr)
 						branch_set_id = "%s--%s--%s" % (sm_name, src_id, unc_type)
-						branch_set = LogicTreeBranchSet.from_PMF(branch_set_id, src_unc_pmf_dict[src_id], applyToBranches=applyToBranches, applyToSources=applyToSources)
+						branch_set = LogicTreeBranchSet.from_pmf(branch_set_id,
+												src_unc_pmf_dict[src_id],
+												applyToBranches=applyToBranches,
+												applyToSources=applyToSources)
 						self._append_branchset(branch_set, branching_level_nr)
-						bl_branch_ids[sm_name].append(set([branch.branch_id for branch in branch_set]))
-						#print sm_name, src_id, branching_level_nr, len(bl_branch_ids[sm_name]), len(branching_levels)
+						bl_branch_ids[sm_name].append(set([branch.branch_id
+													for branch in branch_set]))
+						#print(sm_name, src_id, branching_level_nr, len(bl_branch_ids[sm_name]), len(branching_levels))
 
 		self.connect_branches()
 
@@ -529,23 +577,28 @@ class SeismicSourceSystem(LogicTree):
 			self.branching_levels.append(branching_level)
 
 	@classmethod
-	def from_independent_uncertainty_levels(cls, sss_id, source_model_pmf, unc2_pmf_dict, unc3_pmf_dict, unc2_correlated=False, unc3_correlated=False):
+	def from_independent_uncertainty_levels(cls, sss_id, source_model_pmf,
+									unc2_pmf_dict, unc3_pmf_dict,
+									unc2_correlated=False, unc3_correlated=False):
 		source_model_lt = SeismicSourceSystem(sss_id, None)
 		print("Setting root uncertainty level")
 		source_model_lt.set_root_uncertainty_level(source_model_pmf)
 		if unc2_pmf_dict:
 			print("Appending second uncertainty level")
-			source_model_lt.append_independent_uncertainty_level(unc2_pmf_dict, correlated=unc2_correlated)
+			source_model_lt.append_independent_uncertainty_level(unc2_pmf_dict,
+													correlated=unc2_correlated)
 		if unc3_pmf_dict:
 			print("Appending third uncertainty level")
 			#assert unc2_pmf_dict.keys() != [None], "If sources are specified, then source model must be specified in the previous uncertainty level"
-			source_model_lt.append_independent_uncertainty_level(unc3_pmf_dict, correlated=unc3_correlated)
+			source_model_lt.append_independent_uncertainty_level(unc3_pmf_dict,
+													correlated=unc3_correlated)
 		return source_model_lt
 
 	## Note: in the case of dependent uncertainties (e.g., MFD depends on Mmax),
 	## we need to alternate the two uncertainties for each source
 
-	def plot_uncertainty_levels_diagram(self, source_model_pmf, unc_pmf_dicts, branch_labels=True, fig_filespec=None, dpi=300):
+	def plot_uncertainty_levels_diagram(self, source_model_pmf, unc_pmf_dicts,
+								branch_labels=True, fig_filespec=None, dpi=300):
 		import networkx as nx
 		import pylab
 
@@ -635,20 +688,33 @@ class SeismicSourceSystem(LogicTree):
 				graph.add_edge(sm_name, src)
 
 		## Draw nodes
-		nx.draw_networkx_nodes(graph, pos, nodelist=[root_node], node_shape='>', node_color='red', node_size=300, label="ROOT")
-		nx.draw_networkx_nodes(graph, pos, nodelist=source_model_nodes, node_shape='o', node_color='white', node_size=300, label="_nolegend_")
-		nx.draw_networkx_nodes(graph, pos, nodelist=all_source_nodes, node_shape='s', node_color='red', node_size=300, label="sources")
-		nx.draw_networkx_nodes(graph, pos, nodelist=branchset_nodes["Mmax"], node_shape=">", node_color="green", node_size=300, label="Mmax")
-		nx.draw_networkx_nodes(graph, pos, nodelist=branchset_nodes["MFD"], node_shape=">", node_color="yellow", node_size=300, label="MFD")
-		nx.draw_networkx_nodes(graph, pos, nodelist=branch_nodes, node_shape="o", node_color="white", node_size=300, label="branches")
+		nx.draw_networkx_nodes(graph, pos, nodelist=[root_node], node_shape='>',
+								node_color='red', node_size=300, label="ROOT")
+		nx.draw_networkx_nodes(graph, pos, nodelist=source_model_nodes, node_shape='o',
+								node_color='white', node_size=300, label="_nolegend_")
+		nx.draw_networkx_nodes(graph, pos, nodelist=all_source_nodes, node_shape='s',
+								node_color='red', node_size=300, label="sources")
+		nx.draw_networkx_nodes(graph, pos, nodelist=branchset_nodes["Mmax"],
+								node_shape=">", node_color="green", node_size=300,
+								label="Mmax")
+		nx.draw_networkx_nodes(graph, pos, nodelist=branchset_nodes["MFD"],
+								node_shape=">", node_color="yellow", node_size=300,
+								label="MFD")
+		nx.draw_networkx_nodes(graph, pos, nodelist=branch_nodes, node_shape="o",
+								node_color="white", node_size=300, label="branches")
 
 		## Draw edges
 		nx.draw_networkx_edges(graph, pos)
 
 		## Draw labels
 		if branch_labels:
-			nx.draw_networkx_labels(graph, pos, font_size=10, horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
-		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=10, horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
+			nx.draw_networkx_labels(graph, pos, font_size=10,
+						horizontalalignment="center", verticalalignment="bottom",
+						xytext=(0,20), textcoords="offset points")
+		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels,
+									font_size=10, horizontalalignment="center",
+									verticalalignment="bottom", xytext=(0,20),
+									textcoords="offset points")
 
 		## Plot decoration
 		pylab.legend(loc=2, scatterpoints=1, markerscale=0.75, prop={'size': 12})
@@ -682,7 +748,8 @@ class SeismicSourceSystem(LogicTree):
 		"""
 		source_model = self.get_source_model_by_name(source_model_name)
 		src = source_model[src_id]
-		sss = SeismicSourceSystem("%s--%s" % (source_model.name, src.source_id), source_model)
+		sss_id = "%s--%s" % (source_model.name, src.source_id)
+		sss = SeismicSourceSystem(sss_id, source_model)
 		branch_sets = self.get_source_branch_sets(source_model.name, src)
 		for bl_index, bs in enumerate(branch_sets):
 			pmf_dict = {source_model.name: bs.to_pmf_dict(source_model)}
@@ -714,6 +781,7 @@ class SeismicSourceSystem(LogicTree):
 		return sss
 
 
+## The following is probably obsolete
 
 class SeismicSourceSystem_v1(LogicTree):
 	def __init__(self, ID, source_system_dict={}, sourceModelObjs=[]):
@@ -889,6 +957,8 @@ class SeismicSourceSystem_v1(LogicTree):
 					raise NRMLError("Wrong number of sources in source model %s!" % sourceModelID)
 
 	def import_cfg(self, cfg_filespec):
+		from configobj import ConfigObj
+
 		self.source_system_dict = ConfigObj(cfg_filespec)
 		self._construct_lt()
 
@@ -899,6 +969,8 @@ class SeismicSourceSystem_v1(LogicTree):
 		self._construct_lt()
 
 	def export_cfg(self, out_filespec):
+		from configobj import ConfigObj
+
 		if type(self.source_system_dict) is dict:
 			self.source_system_dict = ConfigObj(self.source_system_dict, indent_type="	")
 
@@ -911,6 +983,8 @@ class SeismicSourceSystem_v1(LogicTree):
 		f.close()
 
 	def print_system_dict(self):
+		from configobj import ConfigObj
+
 		pp = pprint.PrettyPrinter()
 		if isinstance(self.source_system_dict, ConfigObj):
 			pp.pprint(self.source_system_dict.dict())
@@ -967,6 +1041,8 @@ class SeismicSourceSystem_v2(LogicTree):
 		Argument:
 			source_system_dict: source system dictionary
 		"""
+		from configobj import ConfigObj
+
 		if not isinstance(source_system_dict, ConfigObj):
 			self.source_system_dict = ConfigObj(source_system_dict, indent_type="\t")
 		else:
@@ -1083,7 +1159,7 @@ class SeismicSourceSystem_v2(LogicTree):
 			yield []
 		else:
 			for key, value in topLevel.items():
-				if value.has_key("models"):
+				if "models" in value:
 					if current_depth < (max_depth - 1):
 						for subkey in self.walk_ssd_branches(value["models"], max_depth=max_depth, current_depth=current_depth+1):
 							yield [key] + subkey
@@ -1103,7 +1179,7 @@ class SeismicSourceSystem_v2(LogicTree):
 			topLevel: any uncertainty level that has a "models" subdictionary,
 		"""
 		for key, value in topLevel.items():
-			if value.has_key("models"):
+			if "models" in value:
 				for subkey in self.walk_ssd_end_branches(value["models"]):
 					yield [key] + subkey
 			else:
@@ -1147,14 +1223,14 @@ class SeismicSourceSystem_v2(LogicTree):
 				for uncertainty_level_depth, branching_level_type in enumerate(source["uncertainty_levels"]):
 					branchingLevelNum = uncertainty_level_depth + 2
 					branchingLevelID = "lbl%03d" % branchingLevelNum
-					#print branchingLevelID
+					#print(branchingLevelID)
 					## Loop over topLevelIDs above this uncertainty level
 					for topLevelIDs in self.walk_ssd_branches(source["models"], max_depth=uncertainty_level_depth):
-						#print uncertainty_level_depth, topLevelIDs
+						#print(uncertainty_level_depth, topLevelIDs)
 						if len(topLevelIDs) == uncertainty_level_depth:
 							## Create a new branch set for this uncertainty level
 							branchSetID = branchingLevelID + "--lbs%03d" % branchSetNum[uncertainty_level_depth]
-							#print branchSetID
+							#print(branchSetID)
 							unc_type = self.getBranchUncertaintyType(sourceModelID, sourceID, topLevelIDs)
 							if branching_level_type == "Mmax":
 								uncertaintyType = {"absolute": "maxMagGRAbsolute", "relative": "maxMagGRRelative"}[unc_type]
@@ -1173,7 +1249,7 @@ class SeismicSourceSystem_v2(LogicTree):
 							## Loop over the different uncertainty models in this uncertainty level
 							## and add them as branches to the current branching set
 							for label, model in self.getBranchModels(sourceModelID, sourceID, topLevelIDs):
-								#print "\t%s" % label
+								#print("\t%s" % label)
 								branchID = "%s--%s" % (sourceModelID, sourceID) + "".join(["--" + ID for ID in topLevelIDs]) + "--%s" % label
 								if branching_level_type == "Mmax":
 									if unc_type == "absolute":
@@ -1198,6 +1274,8 @@ class SeismicSourceSystem_v2(LogicTree):
 		Arguments:
 			cfg_filespec: full path to config file
 		"""
+		from configobj import ConfigObj
+
 		source_system_dict = ConfigObj(cfg_filespec)
 		self._set_source_system_dict(source_system_dict)
 
@@ -1235,6 +1313,8 @@ class SeismicSourceSystem_v2(LogicTree):
 		"""
 		Pretty print the source system dictionary
 		"""
+		from configobj import ConfigObj
+
 		pp = pprint.PrettyPrinter()
 		if isinstance(self.source_system_dict, ConfigObj):
 			pp.pprint(self.source_system_dict.dict())
@@ -1345,6 +1425,8 @@ def create_basic_seismicSourceSystem(sourceModels, weights=[]):
 	Return value:
 		source_system_lt: SeismicSourceSystem object
 	"""
+	from configobj import ConfigObj
+
 	ssd = ConfigObj(indent_type="	")
 
 	if len(weights) == 0:
