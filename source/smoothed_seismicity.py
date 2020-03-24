@@ -12,7 +12,7 @@ from scipy.stats import norm
 
 from ..geo import Point
 from ..mfd import EvenlyDiscretizedMFD
-from .source import PointSource
+from .point import PointSource
 from .source_model import SourceModel
 
 # TODO: to be completed

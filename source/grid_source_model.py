@@ -9,7 +9,7 @@ import numpy as np
 from ..geo import (Point, NodalPlane)
 from ..mfd import EvenlyDiscretizedMFD
 from ..pmf import (NodalPlaneDistribution, HypocentralDepthDistribution)
-from .source import PointSource
+from .point import PointSource
 from .source_model import SourceModel
 
 
