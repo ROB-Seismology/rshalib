@@ -1,9 +1,15 @@
 """
 source submodule
+
+Classes representing source-model elements in Openquake/oqhazlib.
+Where possible, the classes are inherited from oqhazlib classes.
+All provide methods to create XML elements, which are used to write
+a complete source-model NRML file.
+Thus, objects instantiated from these classes can be used directly
+in oqhazlib, as well as to generate input files for OpenQuake.
 """
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-
 
 
 ## Reloading mechanism
@@ -23,20 +29,58 @@ else:
 		pass
 
 
+## rupture (no internal dependencies)
 if not reloading:
 	from . import rupture
 else:
 	reload(rupture)
-from .rupture import Rupture
+from .rupture import *
 
+## rupture_source (no internal dependencies)
 if not reloading:
-	from . import source
+	from . import rupture_source
 else:
-	reload(source)
-from .source import (PointSource, AreaSource, SimpleFaultSource,
-                    ComplexFaultSource, CharacteristicFaultSource,
-                    RuptureSource)
+	reload(rupture_source)
+from .rupture_source import *
 
+## point (depends on rupture_source)
+if not reloading:
+	from . import point
+else:
+	reload(point)
+from .point import *
+
+## area (depends on rupture_source, point)
+if not reloading:
+	from . import area
+else:
+	reload(area)
+from .area import *
+
+## simple_fault (depends on rupture_source, point)
+if not reloading:
+	from . import simple_fault
+else:
+	reload(simple_fault)
+from .simple_fault import *
+
+## complex_fault (depends on rupture_source)
+if not reloading:
+	from . import complex_fault
+else:
+	reload(complex_fault)
+from .complex_fault import *
+
+## characteristic (depends on rupture_source)
+if not reloading:
+	from . import characteristic
+else:
+	reload(characteristic)
+from .characteristic import *
+
+
+"""
+## source_model
 if not reloading:
 	from . import source_model
 else:
@@ -63,3 +107,10 @@ if not reloading:
 else:
 	reload(smoothed_seismicity)
 from .smoothed_seismicity import SmoothedSeismicity
+
+if not reloading:
+	from . import fault_network
+else:
+	reload(fault_network)
+from .fault_network import FaultNetwork
+"""
