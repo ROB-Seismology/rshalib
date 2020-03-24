@@ -29,8 +29,7 @@ __all__ = ['plot_mfds']
 def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 				discrete=[], cumul_or_inc=[],
 				completeness=None, end_year=None,
-				xgrid=1, ygrid=1,
-				title="", lang="en", legend_location=1,
+				title="", lang="en",
 				fig_filespec=None, **kwargs):
 	"""
 	Plot one or more magnitude-frequency distributions
@@ -38,15 +37,19 @@ def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 	:param mfd_list:
 		List with instance of :class:`EvenlyDiscretizedMFD`
 		or :class:`TruncatedGRMFD`
+	:param labels:
+		List with legend labels, one for each mfd
+		(default: [])
 	:param colors:
 		List with matplotlib color specifications, one for each mfd
 		(default: [])
 	:param styles:
-		List with matplotlib symbol styles or line styles, one for each mfd
+		List with matplotlib marker styles (for discrete plots)
+		or line styles (for non-discrete plots), one for each mfd
 		(default: [])
-	:param labels:
-		List with plot labels, one for each mfd
-		(default: [])
+	:param lw_or_ms:
+		list with marker sizes (for discrete plots) or line widths
+		(for non-discrete plots), one for each mfd
 	:param discrete:
 		List of bools, whether or not to plot discrete MFD's
 		(default: [])
@@ -61,43 +64,21 @@ def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 	:param end_year:
 		int, end year of catalog (used when plotting completeness limits)
 		(default: None, will use current year)
-	:param Mrange:
-		(Mmin, Mmax) tuple, minimum and maximum magnitude in X axis
-		(default: ())
-	:param Freq_range:
-		(Freq_min, Freq_max) tuple, minimum and maximum values in
-		frequency (Y) axis
-		(default: ())
 	:param title:
 		str, plot title
 		(default: "")
 	:param lang:
 		str, language of plot axis labels
 		(default: "en")
-	:param legend_location:
-		int or str, matplotlib specification for legend location
-		(default: 1)
-	:param y_log_labels:
-		bool, whether or not Y axis labels are plotted as 10 to a power
-		(default: True)
 	:param fig_filespec:
 		str, full path to output image file, if None plot to screen
 		(default: None)
-	:param ax:
-		instance of :class:`~matplotlib.axes.Axes` in which plot will
-		be made
-		(default: None, will create new figure and axes)
-	:param fig_width:
-		float, figure width in cm, used to recompute :param:`dpi` with
-		respect to default figure width
-		(default: 0)
-	:param dpi:
-		int, image resolution in dots per inch
-		(default: 300)
+	:kwargs:
+		additional keyword arguments understood by
+		:func:`generic_mpl.plot_xy`
 
 	:return:
-		if both :param:`ax` and :param:`fig_filespec` are None, a
-		(ax, fig) tuple will be returned
+		matplotlib Axes instance
 	"""
 	COLORS = colors or pylab.rcParams['axes.prop_cycle'].by_key()['color']
 	LABELS = labels or [""] * len(mfd_list)
@@ -228,6 +209,9 @@ def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 	xscaling = kwargs.pop('xscaling', 'lin')
 	yscaling = kwargs.pop('yscaling', 'log')
 
+	xgrid = kwargs.pop('xgrid', 1)
+	ygrid = kwargs.pop('ygrid', 1)
+
 	## Determine plot limits
 	mfd = mfd_list[0]
 	mag_bin_edges = mfd.get_magnitude_bin_edges()
@@ -256,6 +240,8 @@ def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 		fmax = 10**np.ceil(np.log10(fmax))
 	ymin = kwargs.pop('ymin', fmin)
 	ymax = kwargs.pop('ymax', fmax)
+
+	legend_location = kwargs.pop('legend_location', 1)
 
 	ax = plot_xy(datasets, labels=labels, colors=colors,
 				linestyles=linestyles, linewidths=linewidths,
