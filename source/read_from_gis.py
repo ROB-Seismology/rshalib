@@ -19,8 +19,9 @@ from .. import oqhazlib
 
 from ..mfd import TruncatedGRMFD, EvenlyDiscretizedMFD
 from ..geo import Point, Line, Polygon, NodalPlane, mean_angle
-from ..pmf.distributions import (NumericPMF, NodalPlaneDistribution,
-								HypocentralDepthDistribution)
+from ..pmf import (NumericPMF, NodalPlaneDistribution,
+					HypocentralDepthDistribution, adjust_decimal_weights,
+					get_normal_distribution, get_uniform_distribution)
 
 from mapping.geotools.read_gis import read_gis_file
 
