@@ -343,7 +343,7 @@ class SeismicSourceSystem(LogicTree):
 					## Note: copy MFD explicitly, as not all source attributes are
 					## instantiated properly when deepcopy is used!
 					modified_src = copy.copy(src)
-					modified_src.mfd = src.mfd.get_copy()
+					modified_src.mfd = src.mfd.copy()
 				bs = branch.parent_branchset
 				bs.apply_uncertainty(branch.value, modified_src)
 			branch_path = [b.branch_id for b in branch_path]
@@ -357,7 +357,7 @@ class SeismicSourceSystem(LogicTree):
 			## Note: copy MFD explicitly, as not all source attributes are
 			## instantiated properly when deepcopy is used!
 			modified_src = copy.copy(src)
-			modified_src.mfd = src.mfd.get_copy()
+			modified_src.mfd = src.mfd.copy()
 			bs0.apply_uncertainty(branch.value, modified_src)
 			branch_path[0] = branch.branch_id
 
