@@ -271,7 +271,7 @@ class EvenlyDiscretizedMFD(oqhazlib.mfd.EvenlyDiscretizedMFD, MFD):
 			print("Warning: Mc has been changed by %f to align with bin width!" % dM)
 		self.extend(characteristic_mfd)
 
-	def to_truncated_GR_mfd(self, completeness, end_date, method="Weichert",
+	def to_truncated_gr_mfd(self, completeness, end_date, method="Weichert",
 							b_val=None, Mmax=None, verbose=False):
 		"""
 		Calculate truncated Gutenberg-Richter MFD using maximum likelihood
