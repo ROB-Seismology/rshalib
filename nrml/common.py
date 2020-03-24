@@ -56,8 +56,8 @@ def xmlstr(s, encoding='latin1'):
 	if isinstance(s, basestring):
 		for char in INVALID_XML_CHARS:
 			s = s.replace(char, '')
-	if not isinstance(s, unicode):
-		s = s.decode(encoding)
+		if not isinstance(s, unicode):
+			s = s.decode(encoding)
 	if isinstance(s, unicode):
 		return s.encode('ascii', 'xmlcharrefreplace')
 	else:
