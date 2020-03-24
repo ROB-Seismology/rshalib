@@ -1,19 +1,41 @@
-#
-# Empty file necessary for python to recognise directory as package
-#
+"""
+ROB-specific hazard stuff
+"""
 
-import rob_source_models
-reload(rob_source_models)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from rob_source_models import (read_rob_source_model,
-						create_rob_source_model, create_rob_source,
-						create_rob_area_source, create_rob_simple_fault_source)
 
-import gmpe_lt
-reload(gmpe_lt)
-from gmpe_lt import construct_gmpe_lt
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
 
-import ec8
-reload(ec8)
 
-from ec8 import read_ec8_information
+if not reloading:
+	from . import rob_source_models
+else:
+	reload(rob_source_models)
+from .rob_source_models import *
+
+if not reloading:
+	from . import gmpe_lt
+else:
+	reload(gmpe_lt)
+from .gmpe_lt import *
+
+if not reloading:
+	from . import ec8
+else:
+	reload(ec8)
+from .ec8 import *
