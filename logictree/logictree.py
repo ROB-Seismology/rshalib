@@ -6,20 +6,29 @@ Classes representing NRML elements used in OpenQuake logic trees
 to generate xml elements that can be used to build a NRML document
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+
 import numpy as np
 import pprint
-from lxml import etree
 from decimal import Decimal
 
 import openquake.engine.input.logictree as oqlt
+
+from lxml import etree
 from ..nrml import ns
-from ..nrml.common import *
+from ..nrml.common import (xmlstr, create_nrml_root)
 from ..pmf import *
+
+
+__all__ = ['LogicTreeBranch', 'LogicTreeBranchSet',
+			'LogicTreeBranchingLevel', 'LogicTree']
 
 
 ### Logic Tree elements
 
 # TODO: elaborate validation
+
 
 class LogicTreeBranch(oqlt.Branch):
 	"""
@@ -27,6 +36,8 @@ class LogicTreeBranch(oqlt.Branch):
 
 	:param branch_id:
 		string, identifier
+	:param weight:
+		Decimal, specifying the probability/weight associated to the value
 	:param value:
 		single value (string, float, tuple) or dictionary {src_id: value}
 		identifying an uncertainty model; the content varies with the
@@ -36,12 +47,17 @@ class LogicTreeBranch(oqlt.Branch):
 		Evidently, this is also the case if value is a single value, and
 		the applyToSources property of the parent branchset contains more
 		than 1 source ID (or is an empty list).
-	:param weight:
-		Decimal, specifying the probability/weight associated to the value
+	:param parent_branchset:
+		instance of :class:`LogicTreeBranchset`, branch set this branch
+		belongs to
+		(default: None)
 	"""
 	def __init__(self, branch_id, weight, value, parent_branchset=None):
 		super(LogicTreeBranch, self).__init__(branch_id, weight, value)
 		self.parent_branchset = parent_branchset
+
+	def __repr__(self):
+		return '<LogicTreeBranch "%s">' % self.branch_id
 
 	def validate(self):
 		pass
@@ -78,41 +94,52 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 	a branching level. It identifies a collection of LogicTreeBranch objects.
 	There is no restriction on the number of branches in a branch set, as
 	long as their uncertainty weights sum to 1.0
-	Arguments:
-		id: identifier
-		uncertainty_type: required attribute
-			Possible values for the uncertainty_type attribute are:
-			- gmpeModel: identifying epistemic uncertainties on ground motion
-				prediction equations
-			- sourceModel: identifying epistemic uncertainties on source models
-			- maxMagGRRelative: identifying epistemic uncertainties (relative:
-				that is increments) to be added (or subtracted, depending on the
-				sign of the increment) to the Gutenberg-Richter maximum magnitude value.
-			- bGRRelative: identifying epistemic uncertainties (relative) to be
-				applied to the Gutenberg-Richter b value.
-			- abGRAbsolute:identifying epistemic uncertainties (absolute: that is
-				new values used to replace original values) on the Gutenberg-Richter
-				a and b values.
-			- maxMagGRAbsolute: identifying epistemic uncertainties (absolute)
-				on the Gutenberg-Richter maximum magnitude.
-		branches: list of LogicTreeBranch objects
-		applyToBranches: optional attribute, specifying to which logicTreeBranch
-			elements (one or more) in the previous branching level, the branch set
-			is linked to. Given as a string of space-separated branch id's, or
-			the keyword "ALL", which means that the branch set is linked to all
-			branches in the previous branching level (default: "")
-		applyToSources: optional attribute, specifying to which source in a
-			source model the uncertainty applies to. Specified as a list of
-			strings corresponding to source ids (default: [])
-		applyToSourceType: optional attribute, specifying to which source type
-			the uncertainty applies to. Only one source typology can be defined:
-			area, point, simpleFault or complexFault (default: "")
-		applyToTectonicRegionType: optional attribute, specifying to which
-			tectonic region type the uncertainty applies to. Only one tectonic
-			region type can be defined: Active Shallow Crust, Stable Shallow Crust,
-			Subduction Interface, Subduction IntraSlab or Volcanic (default: "")
+
+	:param id:
+		str, identifier
+	:param uncertainty_type:
+		Possible values for the uncertainty_type attribute are:
+		- gmpeModel: identifying epistemic uncertainties on ground motion
+			prediction equations
+		- sourceModel: identifying epistemic uncertainties on source models
+		- maxMagGRRelative: identifying epistemic uncertainties (relative:
+			that is increments) to be added (or subtracted, depending on the
+			sign of the increment) to the Gutenberg-Richter maximum magnitude value.
+		- bGRRelative: identifying epistemic uncertainties (relative) to be
+			applied to the Gutenberg-Richter b value.
+		- abGRAbsolute:identifying epistemic uncertainties (absolute: that is
+			new values used to replace original values) on the Gutenberg-Richter
+			a and b values.
+		- maxMagGRAbsolute: identifying epistemic uncertainties (absolute)
+			on the Gutenberg-Richter maximum magnitude.
+	:param branches:
+		list with instances of :class:`LogicTreeBranch`
+	:param applyToBranches:
+		optional attribute, specifying to which logicTreeBranch
+		elements (one or more) in the previous branching level, the branch set
+		is linked to. Given as a string of space-separated branch id's, or
+		the keyword "ALL", which means that the branch set is linked to all
+		branches in the previous branching level
+		(default: "")
+	:param applyToSources:
+		optional attribute, specifying to which source in a
+		source model the uncertainty applies to. Specified as a list of
+		strings corresponding to source ids
+		(default: [])
+	:param applyToSourceType:
+		optional attribute, specifying to which source type
+		the uncertainty applies to. Only one source typology can be defined:
+		area, point, simpleFault or complexFault
+		(default: "")
+	:param applyToTectonicRegionType:
+		optional attribute, specifying to which
+		tectonic region type the uncertainty applies to. Only one tectonic
+		region type can be defined: Active Shallow Crust, Stable Shallow Crust,
+		Subduction Interface, Subduction IntraSlab or Volcanic
+		(default: "")
 	"""
-	def __init__(self, id, uncertainty_type, branches, applyToBranches=[], applyToSources=[], applyToSourceType="", applyToTectonicRegionType=""):
+	def __init__(self, id, uncertainty_type, branches, applyToBranches=[],
+				applyToSources=[], applyToSourceType="", applyToTectonicRegionType=""):
 		# TODO: are applyToBranches and applyToSources strings or lists?
 		filters = {}
 		self.applyToBranches = applyToBranches
@@ -122,6 +149,11 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		super(LogicTreeBranchSet, self).__init__(uncertainty_type, filters)
 		self.id = id
 		self.branches = branches
+
+	def __repr__(self):
+		txt = '<LogicTreeBranchSet "%s" (%d branches)>'
+		txt %= (self.id, len(self.branches))
+		return txt
 
 	@property
 	def applyToSources(self):
@@ -155,7 +187,8 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		return [src.source_id for src in source_model.sources if self.filter_source(src)]
 
 	@classmethod
-	def from_PMF_dict(cls, id, pmf_dict, applyToBranches=[], applyToSourceType="", applyToTectonicRegionType=""):
+	def from_pmf_dict(cls, id, pmf_dict, applyToBranches=[], applyToSourceType="",
+					applyToTectonicRegionType=""):
 		"""
 		Construct branch set from a PMF dictionary, defining correlated
 		uncertainties for a number of sources.
@@ -165,7 +198,8 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		:param id:
 			String, branch set identifier
 		:param pmf_dict:
-			dict, mapping source ID's to instances of :class:`MmaxPMF` or :class:`MFDPMF`
+			dict, mapping source ID's to instances of :class:`MmaxPMF`
+			or :class:`MFDPMF`
 			Note that the number of uncertainties and their weights must
 			be identical for the different sources.
 		:param applyToBranches:
@@ -199,20 +233,26 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 				if s == 0:
 					value = {src_id: value}
 					branch_id = "%s%02d" % (id, i+1)
-					branch = LogicTreeBranch(branch_id, weight, value, parent_branchset=None)
+					branch = LogicTreeBranch(branch_id, weight, value,
+											parent_branchset=None)
 					branches.append(branch)
 				else:
 					branch = branches[i]
 					assert weight == branch.weight, "Weights for correlated uncertainties must be identical!"
 					branch.value[src_id] = value
 
-		branchset = LogicTreeBranchSet(id, uncertainty_type, branches, applyToBranches=applyToBranches, applyToSources=applyToSources, applyToSourceType=applyToSourceType, applyToTectonicRegionType=applyToTectonicRegionType)
+		branchset = LogicTreeBranchSet(id, uncertainty_type, branches,
+									applyToBranches=applyToBranches,
+									applyToSources=applyToSources,
+									applyToSourceType=applyToSourceType,
+									applyToTectonicRegionType=applyToTectonicRegionType)
 		for branch in branchset:
 			branch.parent_branchset = branchset
 		return branchset
 
 	@classmethod
-	def from_PMF(cls, id, pmf, applyToBranches=[], applyToSources=[], applyToSourceType="", applyToTectonicRegionType=""):
+	def from_pmf(cls, id, pmf, applyToBranches=[], applyToSources=[],
+				applyToSourceType="", applyToTectonicRegionType=""):
 		"""
 		Construct branch set from a PMF
 
@@ -257,7 +297,11 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 				branch_id = "%s%02d" % (id, i+1)
 			branch = LogicTreeBranch(branch_id, weight, model, parent_branchset=None)
 			branches.append(branch)
-		branchset = LogicTreeBranchSet(id, uncertainty_type, branches, applyToBranches=applyToBranches, applyToSources=applyToSources, applyToSourceType=applyToSourceType, applyToTectonicRegionType=applyToTectonicRegionType)
+		branchset = LogicTreeBranchSet(id, uncertainty_type, branches,
+									applyToBranches=applyToBranches,
+									applyToSources=applyToSources,
+									applyToSourceType=applyToSourceType,
+									applyToTectonicRegionType=applyToTectonicRegionType)
 		for branch in branchset:
 			branch.parent_branchset = branchset
 		return branchset
@@ -269,7 +313,8 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		:param source_model:
 			instance of :class:`rshalib.source.SourceModel`
 		:return:
-			dict mapping source IDs to lists with instances of :class:`rshalib.pmf.PMF`
+			dict mapping source IDs to lists with instances of
+			:class:`rshalib.pmf.PMF`
 		"""
 		pmf_dict = {}
 		values = [b.value for b in self.branches]
@@ -284,9 +329,11 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 					pmf = SourceModelPMF(src_values, weights)
 				elif self.uncertainty_type == "gmpeModel":
 					pmf = GMPEPMF(src_values, weights)
-				elif self.uncertainty_type in ("maxMagGRAbsolute", "maxMagGRRelative"):
+				elif self.uncertainty_type in ("maxMagGRAbsolute",
+												"maxMagGRRelative"):
 					pmf = MmaxPMF(src_values, weights)
-				elif self.uncertainty_type in ("bGRRelative", "abGRAbsolute", "incrementalMFDRates"):
+				elif self.uncertainty_type in ("bGRRelative", "abGRAbsolute",
+												"incrementalMFDRates"):
 					pmf = MFDPMF(src_values, weights)
 				pmf_dict[src.source_id] = pmf
 		return pmf_dict
@@ -305,9 +352,11 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		Validate uncertainty type
 		"""
 		if self.uncertainty_type not in ENUM_OQ_UNCERTAINTYTYPES:
-			raise NRMLError("BranchSet %s: uncertainty type %s not supported!" % (self.id, self.uncertainty_type))
+			raise NRMLError("BranchSet %s: uncertainty type %s not supported!"
+							% (self.id, self.uncertainty_type))
 		if self.uncertainty_type == "gmpeModel" and not self.applyToTectonicRegionType:
-			raise NRMLError("BranchSet %s: applyToTectonicRegionType must be defined if uncertainty_type is gmpeModel" % self.id)
+			raise NRMLError("BranchSet %s: applyToTectonicRegionType must be defined if uncertainty_type is gmpeModel"
+							% self.id)
 
 	def validate(self):
 		"""
@@ -322,15 +371,18 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		"""
 		Create xml element (NRML logicTreeBranchSet element)
 		"""
-		lbs_elem = etree.Element(ns.LOGICTREE_BRANCHSET, branchSetID=xmlstr(self.id), uncertaintyType=self.uncertainty_type)
+		lbs_elem = etree.Element(ns.LOGICTREE_BRANCHSET, branchSetID=xmlstr(self.id),
+								uncertaintyType=self.uncertainty_type)
 		if self.applyToBranches:
 			lbs_elem.set("applyToBranches", " ".join(map(str, self.applyToBranches)))
 		if self.filters["applyToSources"]:
-			lbs_elem.set("applyToSources", " ".join(map(str, self.filters["applyToSources"])))
+			lbs_elem.set("applyToSources",
+						" ".join(map(str, self.filters["applyToSources"])))
 		if self.filters["applyToSourceType"]:
 			lbs_elem.set("applyToSourceType", self.filters["applyToSourceType"])
 		if self.filters["applyToTectonicRegionType"]:
-			lbs_elem.set("applyToTectonicRegionType", self.filters["applyToTectonicRegionType"])
+			lbs_elem.set("applyToTectonicRegionType",
+						self.filters["applyToTectonicRegionType"])
 		for branch in self.branches:
 			lb_elem = branch.create_xml_element()
 			lbs_elem.append(lb_elem)
@@ -344,13 +396,20 @@ class LogicTreeBranchingLevel():
 	It contains a sequence of logicTreeBranchSet elements.
 	There are no restrictions on the number of branch sets that can be defined
 	inside a branching level.
-	Arguments:
-		id: identifier
-		branch_sets: list of LogicTreeBranchSet objects
+
+	:param id:
+		str, identifier
+	:param branch_sets:
+		list with instances of :class:`LogicTreeBranchSet`
 	"""
 	def __init__(self, id, branch_sets):
 		self.id = id
 		self.branch_sets = branch_sets
+
+	def __repr__(self):
+		txt = '<LogicTreeBranchingLevel "%s" (%d branch sets)>'
+		txt %= (self.id, len(self.branch_sets))
+		return txt
 
 	def __iter__(self):
 		return iter(self.branch_sets)
@@ -369,7 +428,8 @@ class LogicTreeBranchingLevel():
 		"""
 		Create xml element (NRML logicTreeBranchingLevel element)
 		"""
-		lbl_elem = etree.Element(ns.LOGICTREE_BRANCHINGLEVEL, branchingLevelID=xmlstr(self.id))
+		lbl_elem = etree.Element(ns.LOGICTREE_BRANCHINGLEVEL,
+								branchingLevelID=xmlstr(self.id))
 		for branch_set in self.branch_sets:
 			lbs_elem = branch_set.create_xml_element()
 			lbl_elem.append(lbs_elem)
@@ -384,13 +444,19 @@ class LogicTree(object):
 	branching level is located. That is, the first LogicTreeBranchingLevel object
 	in the sequence represents the first level in the tree, the second object
 	the second level in the tree, and so on.
-	Arguments:
-		id: identifier
-		branching_levels: list of LogicTreeBranchingLevel objects
+
+	:param id:
+		str, identifier
+	:param branching_levels:
+		list with instances of :class:`LogicTreeBranchingLevel`
 	"""
 	def __init__(self, id, branching_levels):
 		self.id = id
 		self.branching_levels = branching_levels
+
+	def __repr__(self):
+		txt = '<LogicTree "%s" (%d branching levels)>'
+		txt %= (self.id, len(self.branching_levels))
 
 	def __iter__(self):
 		return iter(self.branching_levels)
@@ -429,7 +495,8 @@ class LogicTree(object):
 				element (default: True)
 		"""
 		tree = create_nrml_root(self, encoding=encoding)
-		return etree.tostring(tree, xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+		return etree.tostring(tree, xml_declaration=True, encoding=encoding,
+								pretty_print=pretty_print)
 
 	def write_xml(self, filespec, encoding='latin1', pretty_print=True):
 		"""
@@ -446,13 +513,14 @@ class LogicTree(object):
 			raise IOError("Can't write to file %s" % filespec)
 		else:
 			tree = create_nrml_root(self, encoding=encoding)
-			tree.write(of, xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+			tree.write(of, xml_declaration=True, encoding=encoding,
+						pretty_print=pretty_print)
 
 	def print_xml(self, encoding='latin1', pretty_print=True):
 		"""
 		Print XML to screen
 		"""
-		print self.get_xml_string(encoding=encoding, pretty_print=pretty_print)
+		print(self.get_xml_string(encoding=encoding, pretty_print=pretty_print))
 
 	def connect_branches(self):
 		"""
@@ -472,7 +540,8 @@ class LogicTree(object):
 			for branch_set in branching_level.branch_sets:
 				connecting_branch_ids = branch_set.applyToBranches
 				if not connecting_branch_ids:
-					connecting_branch_ids = [branch.branch_id for branch in all_branches[-1]]
+					connecting_branch_ids = [branch.branch_id
+											for branch in all_branches[-1]]
 				for branch in all_branches[-1]:
 					if branch.branch_id in connecting_branch_ids:
 						branch.child_branchset = branch_set
@@ -546,7 +615,8 @@ class LogicTree(object):
 		"""
 		applyToBranches = branchset.applyToBranches
 		if applyToBranches:
-			branches = [self.get_branch_by_id(branch_id) for branch_id in applyToBranches]
+			branches = [self.get_branch_by_id(branch_id)
+						for branch_id in applyToBranches]
 		else:
 			branches = []
 			if branchset != self.root_branchset:
@@ -558,7 +628,8 @@ class LogicTree(object):
 
 	def get_root_branches(self, branchset):
 		"""
-		Return a list with root branches the given branch set is connected with.
+		Return a list with root branches the given branch set is connected
+		with.
 
 		:param branchset:
 			instance of :class:`LogicTreeBranchSet`
@@ -586,7 +657,10 @@ class LogicTree(object):
 			list with instances of :class:`LogicTreeBranchSet`
 		"""
 		branchsets = []
-		unc_types_dict = {"gmpe": ["gmpeModel"], "source_model": ["sourceModel"], "mfd": ["abGRAbsolute", "bGRRelative", "incrementalMFDRates"], "mmax": ["maxMagGRRelative", "maxMagGRAbsolute"]}
+		unc_types_dict = {"gmpe": ["gmpeModel"],
+						"source_model": ["sourceModel"],
+						"mfd": ["abGRAbsolute", "bGRRelative", "incrementalMFDRates"],
+						"mmax": ["maxMagGRRelative", "maxMagGRAbsolute"]}
 
 		for branching_level in self:
 			if not unc_class:
@@ -594,7 +668,8 @@ class LogicTree(object):
 			else:
 				for branchset in branching_level:
 					unc_type = branchset.uncertainty_type
-					if unc_type == unc_class or unc_type in unc_types_dict.get(unc_class, []):
+					if (unc_type == unc_class
+						or unc_type in unc_types_dict.get(unc_class, [])):
 						branchsets.append(branchset)
 		return branchsets
 
@@ -629,7 +704,8 @@ class LogicTree(object):
 			for s, branchset in enumerate(branching_level):
 				num_branches = len(branchset)
 				parent_branches = self.get_parent_branches(branchset)
-				parent_branch_y = np.array([pos[pb.branch_id][1] for pb in parent_branches], dtype='f')
+				parent_branch_y = np.array([pos[pb.branch_id][1]
+											for pb in parent_branches], dtype='f')
 				ymean = parent_branch_y.mean()
 				pos[branchset.id] = (l+1, ymean)
 
@@ -658,7 +734,9 @@ class LogicTree(object):
 						pos[branch.branch_id] = (l+1+0.5, ymin + b*(dy/(num_branches-1)))
 		return pos
 
-	def plot_diagram(self, highlight_path=[], highlight_label="", branch_label="branch_id", branchset_label="", title=None, legend_location=0, fig_filespec=None, dpi=300):
+	def plot_diagram(self, highlight_path=[], highlight_label="",
+					branch_label="branch_id", branchset_label="",
+					title=None, legend_location=0, fig_filespec=None, dpi=300):
 		"""
 		Plot diagram of logic tree using networkx or pygraphviz.
 		Requires branches to be connected.
@@ -722,15 +800,30 @@ class LogicTree(object):
 
 		## Draw branchset nodes
 		if self.root_branchset.uncertainty_type == "sourceModel":
-			nx.draw_networkx_nodes(graph, pos, nodelist=[self.root_branchset.id], node_shape='>', node_color='red', node_size=300, label="sourceModel")
-		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_abs_branchset_nodes, node_shape='>', node_color='green', node_size=300, label="maxMagGRAbsolute")
-		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_rel_branchset_nodes, node_shape='>', node_color='lightgreen', node_size=300, label="maxMagGRRelative")
-		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_abs_branchset_nodes, node_shape='>', node_color='yellow', node_size=300, label="abGRAbsolute")
-		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_rel_branchset_nodes, node_shape='>', node_color='khaki', node_size=300, label="bGRRelative")
-		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_inc_branchset_nodes, node_shape='>', node_color='yellowgreen', node_size=300, label="incrementalMFDRates")
-		nx.draw_networkx_nodes(graph, pos, nodelist=gmpe_branchset_nodes, node_shape='>', node_color='blue', node_size=500, label="gmpeModel")
+			nx.draw_networkx_nodes(graph, pos, nodelist=[self.root_branchset.id],
+								node_shape='>', node_color='red', node_size=300,
+								label="sourceModel")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_abs_branchset_nodes,
+								node_shape='>', node_color='green', node_size=300,
+								label="maxMagGRAbsolute")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mmax_rel_branchset_nodes,
+								node_shape='>', node_color='lightgreen',
+								node_size=300, label="maxMagGRRelative")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_abs_branchset_nodes,
+								node_shape='>', node_color='yellow', node_size=300,
+								label="abGRAbsolute")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_rel_branchset_nodes,
+								node_shape='>', node_color='khaki', node_size=300,
+								label="bGRRelative")
+		nx.draw_networkx_nodes(graph, pos, nodelist=mfd_inc_branchset_nodes,
+								node_shape='>', node_color='yellowgreen',
+								node_size=300, label="incrementalMFDRates")
+		nx.draw_networkx_nodes(graph, pos, nodelist=gmpe_branchset_nodes,
+								node_shape='>', node_color='blue', node_size=500,
+								label="gmpeModel")
 		## Draw branch nodes
-		nx.draw_networkx_nodes(graph, pos, nodelist=branch_nodes, node_color='white', node_size=250, label="Branches")
+		nx.draw_networkx_nodes(graph, pos, nodelist=branch_nodes,
+							node_color='white', node_size=250, label="Branches")
 
 		## Draw edges
 		nx.draw_networkx_edges(graph, pos)
@@ -739,10 +832,12 @@ class LogicTree(object):
 			for branch_id in highlight_path:
 				branch = self.get_branch_by_id(branch_id)
 				parent_branchset_id = branch.parent_branchset.id
-				nx.draw_networkx_edges(graph, pos, edgelist=[(parent_branchset_id, branch_id)], edge_color='r', width=3)
+				nx.draw_networkx_edges(graph, pos, edge_color='r', width=3,
+									edgelist=[(parent_branchset_id, branch_id)])
 				if branch.child_branchset:
 					child_branchset_id = branch.child_branchset.id
-					nx.draw_networkx_edges(graph, pos, edgelist=[(branch_id, child_branchset_id)], edge_color='r', width=3)
+					nx.draw_networkx_edges(graph, pos, edge_color='r', width=3,
+									edgelist=[(branch_id, child_branchset_id)])
 
 		## Draw node and edge labels
 		node_labels = {}
@@ -778,13 +873,21 @@ class LogicTree(object):
 		for key in pos.keys():
 			x, y = pos[key]
 			label_pos[key] = (x, y+label_offset)
-		nx.draw_networkx_labels(graph, label_pos, labels=node_labels, font_size=10, horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
+		nx.draw_networkx_labels(graph, label_pos, labels=node_labels, font_size=10,
+								horizontalalignment="center", verticalalignment="bottom",
+								xytext=(0,20), textcoords="offset points")
 		if highlight_label:
-			nx.draw_networkx_labels(graph, label_pos, labels=node_hl_labels, font_size=10, font_color='r', horizontalalignment="center", verticalalignment="bottom", xytext=(0,20), textcoords="offset points")
-		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, label_pos=0.5, font_size=10)
+			nx.draw_networkx_labels(graph, label_pos, labels=node_hl_labels,
+									font_size=10, font_color='r',
+									horizontalalignment="center",
+									verticalalignment="bottom", xytext=(0,20),
+									textcoords="offset points")
+		nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels,
+									label_pos=0.5, font_size=10)
 
 		## Plot decoration
-		pylab.legend(loc=legend_location, scatterpoints=1, markerscale=0.75, prop={'size': 12})
+		pylab.legend(loc=legend_location, scatterpoints=1, markerscale=0.75,
+					prop={'size': 12})
 		pylab.axis((-0.5, len(self.branching_levels), 0, 1.2))
 		pylab.xticks(range(len(self.branching_levels) + 1))
 		pylab.yticks([])
@@ -869,16 +972,16 @@ if __name__ == '__main__':
 	#source_system_lt.print_xml()
 	source_system_lt.write_xml(r"C:\Temp\source_model_system.xml")
 	source_system_lt.export_cfg(r"C:\Temp\source_model_system.cfg")
-	print
+	print()
 	source_system_lt.print_system_dict()
-	print source_system_lt.getNumberOfBranches(sourceModelid, sourceid)
+	print(source_system_lt.getNumberOfBranches(sourceModelid, sourceid))
 	"""
 
 	## Test walk_ssd_branches function
 	"""
 	topLevel = source_system_lt.source_system_dict[sourceModelid]["sources"][sourceid]["models"]
 	for info in source_system_lt.walk_ssd_end_branches(topLevel):
-		print info
+		print(info)
 	"""
 
 	## Creation of basic source_system_dict
