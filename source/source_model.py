@@ -39,9 +39,9 @@ class NumpyFloatHandler(jsonpickle.handlers.BaseHandler):
         """
         return round(obj,6)
 
-jsonpickle.handlers.registry.register(numpy.float, NumpyFloatHandler)
-jsonpickle.handlers.registry.register(numpy.float32, NumpyFloatHandler)
-jsonpickle.handlers.registry.register(numpy.float64, NumpyFloatHandler)
+jsonpickle.handlers.registry.register(np.float, NumpyFloatHandler)
+jsonpickle.handlers.registry.register(np.float32, NumpyFloatHandler)
+jsonpickle.handlers.registry.register(np.float64, NumpyFloatHandler)
 
 
 class NDArrayHandler(jsonpickle.handlers.BaseHandler):
@@ -65,10 +65,10 @@ class NDArrayHandler(jsonpickle.handlers.BaseHandler):
 
 	def restore(self, data):
 		byte_str = zlib.decompress(base64.b64decode(data['bytes']))
-		array = numpy.fromstring(byte_str, dtype=data['dtype'])
+		array = np.fromstring(byte_str, dtype=data['dtype'])
 		return array.reshape(data['shape'])
 
-jsonpickle.handlers.registry.register(numpy.ndarray, NDArrayHandler)
+jsonpickle.handlers.registry.register(np.ndarray, NDArrayHandler)
 
 
 class SourceModel():
@@ -386,10 +386,10 @@ class SourceModel():
 
 		for bg_zone_name, fault_source_group in fault_source_groups.items():
 			bg_zone = getattr(self, bg_zone_name)
-			moment_rates = numpy.zeros(len(fault_source_group), 'd')
+			moment_rates = np.zeros(len(fault_source_group), 'd')
 			for i, fault in enumerate(fault_source_group):
 				moment_rates[i] = fault.get_moment_rate()
-			moment_rate_weights = moment_rates / numpy.add.reduce(moment_rates)
+			moment_rate_weights = moment_rates / np.sum(moment_rates)
 			fault_mfds = bg_zone.mfd.divide(moment_rate_weights)
 			for fault, fault_mfd in zip(fault_source_group, fault_mfds):
 				min_mag, max_mag = fault.mfd.min_mag, fault.mfd.max_mag
@@ -406,7 +406,7 @@ class SourceModel():
 		"""
 		# TODO: implement for complex fault sources as well
 		regions = [src.get_bounding_box() for src in self.sources]
-		regions = numpy.array(regions)
+		regions = np.array(regions)
 		w, _, s, _ = regions.min(axis=0)
 		_, e, _, n = regions.max(axis=0)
 		return (w, e, s, n)
@@ -549,7 +549,7 @@ class SourceModel():
 		seismogenic_thicknesses = [src.get_seismogenic_thickness()
 									for src in self.get_area_sources()]
 		areas = [src.get_area() for src in self.get_area_sources()]
-		return numpy.average(seismogenic_thicknesses, weights=areas)
+		return np.average(seismogenic_thicknesses, weights=areas)
 
 	def get_moment_rate_from_strain_rate(self, strain_rate, rigidity=3E+10):
 		"""
