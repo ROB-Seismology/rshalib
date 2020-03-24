@@ -138,7 +138,7 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		:return:
 			instance of :class:`TruncatedGRMFD`
 		"""
-		return self.to_truncated_GR_mfd()
+		return self.to_truncated_gr_mfd()
 
 	def get_min_mag_edge(self):
 		"""
@@ -350,7 +350,7 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 						title=title, lang=lang,
 						fig_filespec=fig_filespec, **kwargs)
 
-	def to_truncated_GR_mfd(self, min_mag=None, max_mag=None, bin_width=None):
+	def to_truncated_gr_mfd(self, min_mag=None, max_mag=None, bin_width=None):
 		"""
 		Copy to another instance of :class:`TruncatedGRMFD`
 		Optionally, non-defining parameters can be changed
