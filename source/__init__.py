@@ -1,39 +1,65 @@
-#
-# Empty file necessary for python to recognise directory as package
-#
+"""
+source submodule
+"""
 
-import rupture
-reload(rupture)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-import source
-reload(source)
 
-import source_model
-reload(source_model)
 
-import grid_source_model
-reload(grid_source_model)
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
 
-import read_from_gis
-reload(read_from_gis)
 
-import smoothed_seismicity
-reload(smoothed_seismicity)
+if not reloading:
+	from . import rupture
+else:
+	reload(rupture)
+from .rupture import Rupture
 
-from rupture import Rupture
-
-from source import (PointSource, AreaSource, SimpleFaultSource,
+if not reloading:
+	from . import source
+else:
+	reload(source)
+from .source import (PointSource, AreaSource, SimpleFaultSource,
                     ComplexFaultSource, CharacteristicFaultSource,
                     RuptureSource)
 
-from source_model import SourceModel
+if not reloading:
+	from . import source_model
+else:
+	reload(source_model)
+from .source_model import SourceModel
 
-from grid_source_model import SimpleUniformGridSourceModel
+if not reloading:
+	from . import grid_source_model
+else:
+	reload(grid_source_model)
+from .grid_source_model import SimpleUniformGridSourceModel
 
-from read_from_gis import (import_source_model_from_gis,
+if not reloading:
+	from . import read_from_gis
+else:
+	reload(read_from_gis)
+from .read_from_gis import (import_source_model_from_gis,
 							import_source_from_gis_record,
 							import_point_or_area_source_from_gis_record,
 							import_simple_fault_source_from_gis_record)
 
-from smoothed_seismicity import SmoothedSeismicity
-
+if not reloading:
+	from . import smoothed_seismicity
+else:
+	reload(smoothed_seismicity)
+from .smoothed_seismicity import SmoothedSeismicity
