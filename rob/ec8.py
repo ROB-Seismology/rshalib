@@ -2,7 +2,21 @@
 Read EC8 information from GIS files
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+import os
+import platform
+if platform.uname()[0] == "Windows":
+	GIS_root = "D:\\GIS-data"
+else:
+	GIS_root = os.path.join(os.environ["HOME"], "gis-data")
+
 from mapping.geotools.read_gis import read_gis_file
+
+
+
+__all__ = ['read_ec8_information']
+
 
 def read_ec8_information():
 	"""
@@ -10,9 +24,10 @@ def read_ec8_information():
 		village_ec8_PGA_dict: dict, mapping village names to tuple of
 		EC8 zone (int) and reference PGA (float)
 	"""
-	village_filespec = r"D:\GIS-data\Belgium\Bel_main_village_points.TAB"
+	village_filespec = os.path.join(GIS_root, 'Belgium',
+									'Bel_main_village_points.TAB')
 	village_records = read_gis_file(village_filespec)
-	ec8_filespec = r"D:\GIS-data\KSB-ORB\EC8_2002-2011.TAB"
+	ec8_filespec = os.path.join(GIS_root, 'KSB-ORB', 'EC8_2002-2011.TAB')
 	ec8_records = read_gis_file(ec8_filespec, encoding=None)
 
 	village_ID_dict = {}
@@ -37,4 +52,4 @@ def read_ec8_information():
 
 if __name__ == "__main__":
 	commune = "Dessel"
-	print commune, read_ec8_information()[commune]
+	print(commune, read_ec8_information()[commune])

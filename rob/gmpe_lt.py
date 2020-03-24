@@ -8,6 +8,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 
 
+__all__ = ['construct_gmpe_lt']
+
+
 def construct_gmpe_lt(version=2015, site_conditions="rock"):
 	"""
 	Construct GMPE logic tree corresponding to different versions
@@ -164,7 +167,8 @@ def construct_gmpe_lt(version=2015, site_conditions="rock"):
 			asc_pmf = ssc_pmf
 
 		else:
-			raise Exception("%s site conditions not yet supported!" % site_conditions)
+			raise Exception("%s site conditions not yet supported!"
+							% site_conditions)
 
 	gmpe_system_def = {}
 	gmpe_system_def["Stable Shallow Crust"] = ssc_pmf

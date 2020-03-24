@@ -2,15 +2,18 @@
 Module to create nrml objects and files for ROB source models
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 
 ### imports
-from ..pmf.distributions import (get_normal_distribution, get_uniform_distribution)
 from ..source import import_source_model_from_gis
 
 
 # set precision for weights calculation
 #decimal.getcontext().prec = 4
 
+
+__all__ = ['read_rob_source_model']
 
 
 def read_rob_source_model(
@@ -274,7 +277,7 @@ def create_rob_area_source(
 	name = str(source_rec.get(column_map['name'], column_map['name']))
 	name = name.decode('latin1')
 	if verbose:
-		print source_id
+		print(source_id)
 
 	## Tectonic region type
 	tectonic_region_type = source_rec.get(column_map['tectonic_region_type'], column_map['tectonic_region_type'])
@@ -493,7 +496,7 @@ def create_rob_simple_fault_source(
 	name = str(source_rec.get(column_map['name'], column_map['name']))
 	name = name.decode('latin1')
 	if verbose:
-		print source_id
+		print(source_id)
 
 	## Tectonic region type
 	tectonic_region_type = source_rec.get(column_map['tectonic_region_type'], column_map['tectonic_region_type'])
@@ -595,11 +598,11 @@ if __name__ == '__main__':
 
 	# show distributions
 #	x,y = get_normal_distribution(5., 20., 15., sigma_range=1)
-#	print x,y
+#	print(x,y)
 #	pyplot.plot(x,y,color='r')
 
 #	x,y = get_normal_distribution(5., 20., 15., sigma_range=4)
-#	print x,y
+#	print(x,y)
 #	pyplot.plot(x,y,color='b')
 
 #	pyplot.show()
