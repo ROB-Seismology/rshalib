@@ -1,28 +1,36 @@
 # -*- coding: utf-8 -*-
 
 """
-Classes representing source-model elements in Openquake/nhlib. Where possible,
-the classes are inherited from nhlib classes. All provide methods to create
-XML elements, which are used to write a complete source-model NRML file.
-Thus, objects instantiated from these classes can be used directly in nhlib,
-as well as to generate input files for OpenQuake.
+SourceModel class
 """
 
-from lxml import etree
+from __future__ import absolute_import, division, print_function, unicode_literals
+from builtins import int
+
+try:
+	## Python 2
+	basestring
+except:
+	## Python 3
+	basestring = str
+
+
 import numpy as np
 
-import openquake.hazardlib as oqhazlib
-from openquake.hazardlib.scalerel import WC1994
+from .. import oqhazlib
 
-from ..nrml import ns
-from ..nrml.common import *
-from ..mfd import *
-from source import (PointSource, AreaSource, SimpleFaultSource, ComplexFaultSource,
-					CharacteristicFaultSource)
+from ..mfd import sum_mfds
+from . import (PointSource, AreaSource, SimpleFaultSource, ComplexFaultSource,
+				CharacteristicFaultSource)
 
 import jsonpickle
+
+
+__all__ = ['SourceModel']
+
+
+# Note: not sure if these handlers are necessary (for to/from_json methods?)
 import base64, zlib
-import numpy
 
 class NumpyFloatHandler(jsonpickle.handlers.BaseHandler):
     def flatten(self, obj, data):
@@ -68,13 +76,13 @@ class SourceModel():
 	Class representing a complete source model
 
 	:param name:
-		String, source model name
+		str, source model name
 	:param sources:
 		list of source objects (instances of :class:`PointSource`,
 		:class:`AreaSource`, :class:`SimpleFaultSource` and/or
 		:class:`ComplexFaultSource`)
 	:param description:
-		String, containing optional description (e.g. logic-tree path)
+		str, containing optional description (e.g. logic-tree path)
 		(default: "")
 	"""
 	def __init__(self, name, sources, description=""):
@@ -102,7 +110,7 @@ class SourceModel():
 		"""
 		if isinstance(index_or_name, (int, slice)):
 			index = index_or_name
-		elif isinstance(index_or_name, (str, unicode)):
+		elif isinstance(index_or_name, basestring):
 			name = index_or_name
 			source_ids = self.source_ids
 			if name in source_ids:
@@ -129,29 +137,35 @@ class SourceModel():
 		return jsonpickle.encode(self)
 
 	@classmethod
-	def from_json(self, json_string):
+	def from_json(cls, json_string):
 		return jsonpickle.decode(json_string)
 
 	@classmethod
-	def from_eq_catalog(self, eq_catalog, Mtype="MW", Mrelation={}, area_source_model_name=None,
-				tectonic_region_type="Stable Shallow Crust",
-				magnitude_scaling_relationship=WC1994(),
-				rupture_mesh_spacing=1., rupture_aspect_ratio=1.,
-				upper_seismogenic_depth=5., lower_seismogenic_depth=25.,
-				nodal_plane_distribution=None, hypocenter_distribution=None,
-				synthetic=False):
+	def from_eq_catalog(cls, eq_catalog, Mtype="MW", Mrelation={},
+					area_source_model_name=None,
+					tectonic_region_type="Stable Shallow Crust",
+					magnitude_scaling_relationship='WC1994',
+					rupture_mesh_spacing=1., rupture_aspect_ratio=1.,
+					upper_seismogenic_depth=5., lower_seismogenic_depth=25.,
+					nodal_plane_distribution=None, hypocenter_distribution=None,
+					synthetic=False):
 		"""
 		Construct point source model from earthquake catalog.
 
-		Note: if area_source_model is provided, it overrides trt, usd,
-		lsd, npd and hdd. See :meth:`from_eq_record` for order of
+		Note: if :param:`area_source_model_name` is provided, it
+		overrides trt, usd, lsd, npd and hdd.
+		See :meth:`PointSource.from_eq_record` for order of
 		precedence for determining nodal_plane_distribution and
 		hypocenter_distribution
 
 		:param eq_catalog:
 			instance of :class:`EQCatalog`
 
-		...
+		:param area_source_model_name:
+			str, name of ROB area source model.
+			If given, only earthquakes situated inside area sources
+			in the model are included
+			(default: None)
 
 		:param synthetic:
 			bool, whether catalog is synthetic or not, to avoid lookup
@@ -161,15 +175,18 @@ class SourceModel():
 		:return:
 			instance of :class:`SourceModel`
 		"""
-		if isinstance(magnitude_scaling_relationship, (str, unicode)):
-			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)()
+		if isinstance(magnitude_scaling_relationship, basestring):
+			magnitude_scaling_relationship = getattr(oqhazlib.scalerel,
+												magnitude_scaling_relationship)()
 		src_list = []
 		if area_source_model_name:
 			#from ..rob import create_rob_source_model
 			from ..rob import read_rob_source_model
-			zone_catalogs = eq_catalog.split_into_zones(area_source_model_name, verbose=False)
+			zone_catalogs = eq_catalog.split_into_zones(area_source_model_name,
+														verbose=False)
 			#source_model = create_rob_source_model(area_source_model_name, min_mag=2., verbose=False)
-			source_model = read_rob_source_model(area_source_model_name, min_mag=2., verbose=False)
+			source_model = read_rob_source_model(area_source_model_name, min_mag=2.,
+												verbose=False)
 			for zone_id in zone_catalogs.keys():
 				zone_catalog = zone_catalogs[zone_id]
 				source_zone = source_model[zone_id]
@@ -199,7 +216,7 @@ class SourceModel():
 					synthetic=synthetic)
 				src_list.append(pt_src)
 
-		return SourceModel(eq_catalog.name, src_list)
+		return cls(eq_catalog.name, src_list)
 
 	def append(self, source):
 		"""
@@ -240,8 +257,13 @@ class SourceModel():
 		Create xml element (NRML SourceModel element)
 
 		:param encoding:
-			String, unicode encoding (default: 'latin1')
+			String, unicode encoding
+			(default: 'latin1')
 		"""
+		from lxml import etree
+		from ..nrml import ns
+		from ..nrml.common import xmlstr
+
 		sourceModel_elem = etree.Element(ns.SOURCE_MODEL)
 		sourceModel_elem.set(ns.NAME, self.name)
 
@@ -262,16 +284,22 @@ class SourceModel():
 			boolean, indicating whether or not to indent each element
 			(default: True)
 		"""
+		from ..nrml.common import create_nrml_root
+
 		tree = create_nrml_root(self, encoding=encoding)
-		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+		tree.write(open(filespec, 'w'), xml_declaration=True, encoding=encoding,
+					pretty_print=pretty_print)
 
 	def print_xml(self):
 		"""
 		Print XML to screen
 		"""
+		from ..nrml.common import create_nrml_root
+
 		encoding='latin1'
 		tree = create_nrml_root(self, encoding=encoding)
-		print etree.tostring(tree, xml_declaration=True, encoding=encoding, pretty_print=True)
+		print(etree.tostring(tree, xml_declaration=True, encoding=encoding,
+							pretty_print=True))
 
 	@property
 	def min_mag(self):
@@ -324,28 +352,29 @@ class SourceModel():
 			return getattr(self, meth_name)()
 
 	def get_point_sources(self):
-		return [source for source in self.sources if isinstance(source, PointSource)]
+		return [src for src in self.sources if isinstance(source, PointSource)]
 
 	def get_area_sources(self):
-		return [source for source in self.sources if isinstance(source, AreaSource)]
+		return [src for src in self.sources if isinstance(source, AreaSource)]
 
 	def get_non_area_sources(self):
-		return [source for source in self.sources if not isinstance(source, AreaSource)]
+		return [src for src in self.sources if not isinstance(source, AreaSource)]
 
 	def get_simple_fault_sources(self):
-		return [source for source in self.sources if isinstance(source, SimpleFaultSource)]
+		return [src for src in self.sources if isinstance(source, SimpleFaultSource)]
 
 	def get_complex_fault_sources(self):
-		return [source for source in self.sources if isinstance(source, ComplexFaultSource)]
+		return [src for src in self.sources if isinstance(source, ComplexFaultSource)]
 
 	def get_fault_sources(self):
-		return [source for source in self.sources if isinstance(source, (SimpleFaultSource, ComplexFaultSource, CharacteristicFaultSource))]
+		return [src for src in self.sources if isinstance(source,
+				(SimpleFaultSource, ComplexFaultSource, CharacteristicFaultSource))]
 
-	def set_fault_MFDs_from_BG_zones(self):
+	def set_fault_mfds_from_bg_zones(self):
 		"""
 		Set MFD's of fault sources in the model from MFD of background zone,
-		weighted by moment rate of fault sources. min_mag and max_mag of original
-		fault MFD's will be preserved.
+		weighted by moment rate of fault sources.
+		min_mag and max_mag of original fault MFD's will be preserved.
 		"""
 		fault_sources = self.get_fault_sources()
 		fault_source_groups = {}
@@ -517,7 +546,8 @@ class SourceModel():
 		Determine average seismogenic thickness of all area sources,
 		weighted by area.
 		"""
-		seismogenic_thicknesses = [src.get_seismogenic_thickness() for src in self.get_area_sources()]
+		seismogenic_thicknesses = [src.get_seismogenic_thickness()
+									for src in self.get_area_sources()]
 		areas = [src.get_area() for src in self.get_area_sources()]
 		return numpy.average(seismogenic_thicknesses, weights=areas)
 
@@ -529,7 +559,8 @@ class SourceModel():
 		:param strain_rate:
 			float, strain rate in 1/yr
 		:param rigidity:
-			float, rigidity (default: 3E+10)
+			float, rigidity
+			(default: 3E+10)
 
 		:return:
 			float, moment rate in N.m/yr
@@ -545,7 +576,7 @@ class SourceModel():
 			instance of :class:`EvenlyDiscretizedMFD` or :class:`TruncatedGRMFD`
 		"""
 		mfd_list = [src.mfd for src in self.sources]
-		return sum_MFDs(mfd_list)
+		return sum_mfds(mfd_list)
 
 	def get_summed_fault_mfd(self):
 		"""
@@ -555,7 +586,7 @@ class SourceModel():
 			instance of :class:`EvenlyDiscretizedMFD` or :class:`TruncatedGRMFD`
 		"""
 		mfd_list = [src.mfd for src in self.get_fault_sources()]
-		return sum_MFDs(mfd_list)
+		return sum_mfds(mfd_list)
 
 	def get_summed_area_source_mfd(self):
 		"""
@@ -565,7 +596,7 @@ class SourceModel():
 			instance of :class:`EvenlyDiscretizedMFD` or :class:`TruncatedGRMFD`
 		"""
 		mfd_list = [src.mfd for src in self.get_area_sources()]
-		return sum_MFDs(mfd_list)
+		return sum_mfds(mfd_list)
 
 	def to_lbm_data(self, fault_geom_type="line"):
 		"""
@@ -598,18 +629,20 @@ class SourceModel():
 				pt = source.to_lbm_data()
 				point_data.append(pt)
 			else:
-				print("Warning: Skipped source %s, source type not supported" % source.source_id)
+				print("Warning: Skipped source %s, source type not supported"
+						% source.source_id)
 		sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data,
 									points=point_data)
 		return sm_data
 
-	def get_plot(self, region=None, projection="merc", resolution="i", graticule_interval=(1., 1.),
+	def get_plot(self, region=None, projection="merc", resolution="i",
+				graticule_interval=(1., 1.),
 				point_source_style="default", area_source_style="default",
 				fault_source_style="default", countries_style="default",
 				coastline_style="default", label_style="default",
 				title=None, ax=None, **kwargs):
 		"""
-		Plot hazard map
+		Plot source model map
 
 		:param region:
 			(west, east, south, north) tuple specifying rectangular region
@@ -696,9 +729,11 @@ class SourceModel():
 
 		## Coastlines and national boundaries
 		if coastline_style:
-			map_layers.append(lbm.MapLayer(lbm.BuiltinData("coastlines"), coastline_style, name="coastlines"))
+			map_layers.append(lbm.MapLayer(lbm.BuiltinData("coastlines"),
+											coastline_style, name="coastlines"))
 		if countries_style:
-			map_layers.append(lbm.MapLayer(lbm.BuiltinData("countries"), countries_style, name="countries"))
+			map_layers.append(lbm.MapLayer(lbm.BuiltinData("countries"),
+											countries_style, name="countries"))
 
 		## Source model
 		legend_label = {}
@@ -739,7 +774,9 @@ class SourceModel():
 		if len(sm_data.point_data) and not legend_label.has_key("points"):
 			legend_label["points"] = "Point sources"
 		sm_style = source_model_style
-		map_layers.append(lbm.MapLayer(sm_data, sm_style, legend_label=legend_label, name="source_model"))
+		layer = lbm.MapLayer(sm_data, sm_style, legend_label=legend_label,
+							name="source_model")
+		map_layers.append(layer)
 
 		## Title
 		if title is None:
@@ -747,7 +784,11 @@ class SourceModel():
 
 		legend_style = lbm.LegendStyle(location=0)
 		graticule_style = lbm.GraticuleStyle(annot_axes="SE")
-		map = lbm.LayeredBasemap(map_layers, title, projection, region=region, graticule_interval=graticule_interval, resolution=resolution, graticule_style=graticule_style, legend_style=legend_style, ax=ax, **kwargs)
+		map = lbm.LayeredBasemap(map_layers, title,
+								projection, region=region, resolution=resolution,
+								graticule_interval=graticule_interval,
+								graticule_style=graticule_style,
+								legend_style=legend_style, ax=ax, **kwargs)
 		return map
 
 	@classmethod
@@ -792,7 +833,8 @@ class SourceModel():
 		description = "Imported from %s" % nrml_filespec
 		return cls(src_model.name, sources, description=description)
 
-	def get_fault_network(self, max_gap=4, max_strike_delta=45, allow_triple_junctions=True):
+	def get_fault_network(self, max_gap=4, max_strike_delta=45,
+						allow_triple_junctions=True):
 		"""
 		Generate fault network
 
@@ -825,7 +867,7 @@ class SourceModel():
 		:return:
 			instance of :class:`fault_network.FaultNetwork`
 		"""
-		from fault_network import FaultNetwork
+		from .fault_network import FaultNetwork
 
 		def get_strike_delta(strike1, strike2):
 			strike_delta = np.abs(strike1 - strike2)
@@ -840,8 +882,11 @@ class SourceModel():
 		faults = self.get_simple_fault_sources()
 		start_points = [flt.fault_trace[0] for flt in faults]
 		end_points = [flt.fault_trace[-1] for flt in faults]
-		subfaults_dict = {flt.source_id: flt.discretize_along_strike() for flt in faults}
-		subfault_strike_dict = {flt.source_id: [subflt.get_mean_strike() for subflt in subfaults_dict[flt.source_id]] for flt in faults}
+		subfaults_dict = {flt.source_id: flt.discretize_along_strike()
+							for flt in faults}
+		subfault_strike_dict = {flt.source_id: [subflt.get_mean_strike()
+									for subflt in subfaults_dict[flt.source_id]]
+									for flt in faults}
 
 		fault_links = {}
 		for f, flt in enumerate(faults):
@@ -919,7 +964,8 @@ class SourceModel():
 
 		return FaultNetwork(fault_links)
 
-	def get_linked_subfaults(self, fault_links, min_aspect_ratio=0.67, characteristic=True):
+	def get_linked_subfaults(self, fault_links, min_aspect_ratio=0.67,
+							characteristic=True):
 		"""
 		:param min_aspect_ratio:
 			float, minimum aspect ratio (length / width)
@@ -963,7 +1009,7 @@ class SourceModel():
 			if reverse:
 				fault_trace = fault_trace[::-1]
 			#for pt in fault_trace:
-			#	print pt.longitude, pt.latitude
+			#	print(pt.longitude, pt.latitude)
 			fault_trace = Line(fault_trace)
 
 			## Constrain fault width to max. 2 times the fault length
@@ -980,7 +1026,7 @@ class SourceModel():
 				print("Fault construction failed for %s" % fault_id)
 				continue
 			else:
-				fault.mfd = fault.get_MFD_characteristic()
+				fault.mfd = fault.get_characteristic_mfd()
 				if characteristic:
 					fault = fault.to_characteristic_source(convert_mfd=False)
 				faults.append(fault)
@@ -1043,7 +1089,7 @@ if __name__ == '__main__':
 
 	## Test iteration
 	for source in sm:
-		print source.source_id
+		print(source.source_id)
 	sources = list(sm)
-	print sources[0].source_id
+	print(sources[0].source_id)
 
