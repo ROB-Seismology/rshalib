@@ -104,6 +104,16 @@ class SourceModel():
 	#	else:
 	#		return self.sources[index]
 
+	def __repr__(self):
+		num_pts = len(self.get_point_sources())
+		num_areas = len(self.get_area_sources())
+		num_simple_flts = len(self.get_simple_fault_sources())
+		num_complex_flts = len(self.get_complex_fault_sources())
+
+		txt =  '<SourceModel "%s" (n=%d P, %d A, %d SF, %d CF)>'
+		txt % (self.name, num_pts, num_areas, num_simple_flts, num_complex_flts)
+		return txt
+
 	def __getitem__(self, index_or_name):
 		"""
 		Make sources accessible with their ID as key
