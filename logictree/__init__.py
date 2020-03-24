@@ -1,18 +1,42 @@
-#
-# Empty file necessary for python to recognise directory as package
-#
+"""
+logictree submodule
+"""
 
-import logictree
-reload(logictree)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-import ground_motion_system
-reload(ground_motion_system)
 
-import seismic_source_system
-reload(seismic_source_system)
 
-from logictree import LogicTreeBranch, LogicTreeBranchSet, LogicTreeBranchingLevel, LogicTree
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
 
-from ground_motion_system import GroundMotionSystem
 
-from seismic_source_system import SeismicSourceSystem, SeismicSourceSystem_v1, SeismicSourceSystem_v2, SymmetricRelativeSeismicSourceSystem, create_basic_seismicSourceSystem
+if not reloading:
+	from . import logictree
+else:
+	reload(logictree)
+from .logictree import *
+
+if not reloading:
+	from . import ground_motion_system
+else:
+	reload(ground_motion_system)
+from .ground_motion_system import GroundMotionSystem
+
+if not reloading:
+	from . import seismic_source_system
+else:
+	reload(seismic_source_system)
+from .seismic_source_system import *
