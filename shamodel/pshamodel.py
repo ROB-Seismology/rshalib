@@ -2118,7 +2118,7 @@ class PSHAModelTree(PSHAModelBase):
 					## Note: copy MFD explicitly, as not all source attributes are
 					## instantiated properly when deepcopy is used!
 					modified_src = copy.copy(src)
-					modified_src.mfd = src.mfd.get_copy()
+					modified_src.mfd = src.mfd.copy()
 					apply_uncertainties = self.ltp.parse_source_model_logictree_path(path)
 					apply_uncertainties(modified_src)
 					if verbose:
