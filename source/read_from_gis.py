@@ -2,21 +2,36 @@
 Read source models from GIS files
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import os
 from decimal import Decimal
+import sys
+
+if sys.version_info.major == 2:
+	PY2 = True
+else:
+	PY2 = False
 
 import numpy as np
 
-import openquake.hazardlib as oqhazlib
+from .. import oqhazlib
 
 from ..mfd import TruncatedGRMFD, EvenlyDiscretizedMFD
 from ..geo import Point, Line, Polygon, NodalPlane, mean_angle
-from ..pmf.distributions import *
+from ..pmf.distributions import (NumericPMF, NodalPlaneDistribution,
+								HypocentralDepthDistribution)
 
 from mapping.geotools.read_gis import read_gis_file
 
 
-common_source_params = [
+__all__ = ['import_source_model_from_gis',
+			'import_source_from_gis_record',
+			'import_point_or_area_source_from_gis_record',
+			'import_simple_fault_source_from_gis_record']
+
+
+COMMON_SOURCE_PARAMS = [
 	'id',
 	'name',
 	'tectonic_region_type',
@@ -32,7 +47,7 @@ common_source_params = [
 	'max_mag',
 	'max_mag_distribution']
 
-point_source_params = common_source_params + [
+POINT_SOURCE_PARAMS = COMMON_SOURCE_PARAMS + [
 	'min_dip',
 	'max_dip',
 	'dip_delta',
@@ -48,10 +63,10 @@ point_source_params = common_source_params + [
 	'max_hypo_depth',
 	'hypo_bin_width']
 
-area_source_params = point_source_params + [
+AREA_SOURCE_PARAMS = POINT_SOURCE_PARAMS + [
 	'area_discretization']
 
-simple_fault_source_params = common_source_params + [
+SIMPLE_FAULT_SOURCE_PARAMS = COMMON_SOURCE_PARAMS + [
 	'dip',
 	'dip_distribution',
 	'rake',
@@ -61,9 +76,9 @@ simple_fault_source_params = common_source_params + [
 	'bg_zone']
 
 
-default_point_source_column_map = dict((p,p) for p in point_source_params)
-default_area_source_column_map = dict((p,p) for p in area_source_params)
-default_simple_fault_source_column_map = dict((p,p) for p in simple_fault_source_params)
+DEFAULT_POINT_SOURCE_COLUMN_MAP = dict((p,p) for p in POINT_SOURCE_PARAMS)
+DEFAULT_AREA_SOURCE_COLUMN_MAP = dict((p,p) for p in AREA_SOURCE_PARAMS)
+DEFAULT_SIMPLE_FAULT_SOURCE_COLUMN_MAP = dict((p,p) for p in SIMPLE_FAULT_SOURCE_PARAMS)
 
 
 def import_param(
@@ -99,7 +114,7 @@ def import_param(
 	if param_name in column_map:
 		val = source_rec.get(column_map[param_name], column_map[param_name])
 	if val is not None and type:
-		if isinstance(val, unicode) and type == str:
+		if PY2 and isinstance(val, unicode) and type == str:
 			val = val.decode(encoding)
 		else:
 			val = type(val)
@@ -244,7 +259,8 @@ def read_gr_mfd(
 	(min_mag, max_mag, mfd_bin_width, a_val, b_val, a_sigma, b_sigma) = read_gr_mfd_params(
 		source_rec, column_map, min_mag, max_mag, mfd_bin_width, a_val, b_val, a_sigma, b_sigma)
 	if max_mag <= min_mag:
-		print("Warning: Mmax (%s) of source %s not higher than Mmin!" % (max_mag, source_id))
+		print("Warning: Mmax (%s) of source %s not higher than Mmin!"
+				% (max_mag, source_id))
 		max_mag = min_mag + mfd_bin_width
 	mfd = TruncatedGRMFD(min_mag, max_mag, mfd_bin_width, a_val, b_val, a_sigma, b_sigma)
 	return mfd
@@ -287,12 +303,13 @@ def get_gr_mfd_from_catalog(
 		instance of :class:`TruncatedGRMFD`
 	"""
 	if min_mag is None:
-		raise Exception("min_mag must be specified if MFD is determined from catalog")
+		raise Exception("min_mag must be specified if MFD is determined "
+						"from catalog")
 
 	## Lower magnitude to compute MFD
 	## Note: using lowest magnitude in completeness object
 	## is more robust than using min_mag
-	if catalog_params.has_key('completeness'):
+	if 'completeness' in catalog_params:
 		min_mag_mfd = catalog_params['completeness'].min_mag
 	else:
 		min_mag_mfd = min_mag
@@ -311,7 +328,7 @@ def get_gr_mfd_from_catalog(
 
 	try:
 		## Weichert computation
-		mfd = catalog.get_estimated_MFD(min_mag_mfd, max_mag, mfd_bin_width,
+		mfd = catalog.get_estimated_mfd(min_mag_mfd, max_mag, mfd_bin_width,
 				method="Weichert", b_val=b_val, verbose=False, **catalog_params)
 	except ValueError as err:
 		print("Warning: Weichert MFD computation: %s" % err.args[0])
@@ -323,7 +340,7 @@ def get_gr_mfd_from_catalog(
 
 def import_point_or_area_source_from_gis_record(
 	source_rec,
-	column_map=default_area_source_column_map,
+	column_map=DEFAULT_AREA_SOURCE_COLUMN_MAP,
 	tectonic_region_type="",
 	upper_seismogenic_depth=None,
 	lower_seismogenic_depth=None,
@@ -370,7 +387,7 @@ def import_point_or_area_source_from_gis_record(
 		representing area source.
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
-		(default: default_area_source_column_map).
+		(default: DEFAULT_AREA_SOURCE_COLUMN_MAP).
 	:param tectonic_region_type:
 		str, tectonic region type
 		(default: "")
@@ -484,13 +501,13 @@ def import_point_or_area_source_from_gis_record(
 	:return:
 		instance of :class:`PointSource` or :class:`AreaSource`
 	"""
-	from ..source import PointSource, AreaSource
+	from . import PointSource, AreaSource
 
 	## ID and name
 	source_id = import_param(source_rec, column_map, 'id', str, encoding=encoding)
 	name = import_param(source_rec, column_map, 'name', str, encoding=encoding)
 	if verbose:
-		print source_id
+		print(source_id)
 
 	## Tectonic region type
 	if not tectonic_region_type:
@@ -546,7 +563,8 @@ def import_point_or_area_source_from_gis_record(
 			## to real fault directions, and allow only these values
 			if max_strike - min_strike == 180.:
 				strike_delta = 180.
-			strikes, strike_weights = get_uniform_distribution(min_strike, max_strike, strike_delta)
+			strikes, strike_weights = get_uniform_distribution(min_strike, max_strike,
+																strike_delta)
 
 			## Dip
 			if min_dip is None:
@@ -602,14 +620,17 @@ def import_point_or_area_source_from_gis_record(
 
 		if not hypocentral_distribution:
 			if min_hypo_depth is None:
-				min_hypo_depth = import_param(source_rec, column_map, 'min_hypo_depth', float)
+				min_hypo_depth = import_param(source_rec, column_map,
+											'min_hypo_depth', float)
 			min_hypo_depth = max(min_hypo_depth, upper_seismogenic_depth)
 			if max_hypo_depth is None:
-				max_hypo_depth = import_param(source_rec, column_map, 'max_hypo_depth', float)
+				max_hypo_depth = import_param(source_rec, column_map,
+											'max_hypo_depth', float)
 			max_hypo_depth = min(max_hypo_depth, lower_seismogenic_depth)
 
 			if hypo_bin_width is None:
-				hypo_bin_width = import_param(source_rec, column_map, 'hypo_bin_width', float)
+				hypo_bin_width = import_param(source_rec, column_map,
+											'hypo_bin_width', float)
 			num_bins = max(1, (max_hypo_depth - min_hypo_depth) / hypo_bin_width + 1)
 			hypo_depths, weights = get_normal_distribution(min_hypo_depth, max_hypo_depth,
 														num_bins=num_bins)
@@ -619,7 +640,7 @@ def import_point_or_area_source_from_gis_record(
 	if hypocentral_distribution.values[0] <= upper_seismogenic_depth:
 		msg = "Warning: usd (%.1f) >= min. hypo depth (%.1f) in src %s"
 		msg %= (upper_seismogenic_depth, hypocentral_distribution.values[0], source_id)
-		print (msg)
+		print(msg)
 		if upper_seismogenic_depth == 0:
 			hypocentral_distribution.values[0] -= 1
 		else:
@@ -628,7 +649,7 @@ def import_point_or_area_source_from_gis_record(
 	if hypocentral_distribution.values[-1] >= lower_seismogenic_depth:
 		msg = "Warning: lsd (%.1f) <= max. hypo depth (%.1f) in src %s"
 		msg %= (lower_seismogenic_depth, hypocentral_distribution.values[-1], source_id)
-		print (msg)
+		print(msg)
 		lower_seismogenic_depth = hypocentral_distribution.values[-1] + 1
 
 	## Geometry
@@ -666,7 +687,8 @@ def import_point_or_area_source_from_gis_record(
 	## Override max_mag with mean from max_mag_distribution (SHARE...)
 	max_mag_dist = None
 	if 'max_mag_distribution' in column_map:
-		max_mag_dist = import_distribution(source_rec, column_map, 'max_mag_distribution')
+		max_mag_dist = import_distribution(source_rec, column_map,
+											'max_mag_distribution')
 		if max_mag_dist:
 			max_mag = max_mag_dist.get_mean()
 
@@ -693,12 +715,14 @@ def import_point_or_area_source_from_gis_record(
 		if not mfd:
 			try:
 				## Fall back to average SCR MFD by Johnston et al. (1994) for area sources
-				mfd = source.get_MFD_Johnston1994(min_mag, max_mag, mfd_bin_width)
+				mfd = source.get_Johnston1994_mfd(min_mag, max_mag, mfd_bin_width)
 			except (AttributeError, ValueError):
 				mfd = None
-				print("Warning: MFD could not be determined for source %s" % source_id)
+				print("Warning: MFD could not be determined for source %s"
+						% source_id)
 			else:
-				print("Warning: Falling back to average SCR MFD for source %s" % source_id)
+				print("Warning: Falling back to average SCR MFD for source %s"
+						% source_id)
 
 		## Sum weighted MFDs with different Mmax to incremental MFD
 		if mfd and max_mag_dist:
@@ -721,7 +745,7 @@ import_area_source_from_gis_record = import_point_or_area_source_from_gis_record
 
 def import_simple_fault_source_from_gis_record(
 	source_rec,
-	column_map=default_simple_fault_source_column_map,
+	column_map=DEFAULT_SIMPLE_FAULT_SOURCE_COLUMN_MAP,
 	tectonic_region_type="",
 	upper_seismogenic_depth=None,
 	lower_seismogenic_depth=None,
@@ -754,7 +778,7 @@ def import_simple_fault_source_from_gis_record(
 		representing simple fault source.
 	:param column_map:
 		dict, mapping source parameter names to GIS columns or scalars
-		(default: default_simple_fault_source_column_map)
+		(default: DEFAULT_SIMPLE_FAULT_SOURCE_COLUMN_MAP)
 	:param tectonic_region_type:
 		str, tectonic region type
 		(default: "")
@@ -835,13 +859,13 @@ def import_simple_fault_source_from_gis_record(
 	:return:
 		instance of :class:`SimpleFaultSource`
 	"""
-	from ..source import SimpleFaultSource
+	from . import SimpleFaultSource
 
 	## ID and name
 	source_id = import_param(source_rec, column_map, 'id', str, encoding=encoding)
 	name = import_param(source_rec, column_map, 'name', str, encoding=encoding)
 	if verbose:
-		print source_id
+		print(source_id)
 
 	## Tectonic region type
 	if not tectonic_region_type:
@@ -901,7 +925,8 @@ def import_simple_fault_source_from_gis_record(
 
 	## Slip rate
 	if 'slip_rate_distribution' in column_map:
-		slip_rate_dist = import_distribution(source_rec, column_map, 'slip_rate_distribution')
+		slip_rate_dist = import_distribution(source_rec, column_map,
+											'slip_rate_distribution')
 		if slip_rate_dist:
 			slip_rate = slip_rate_dist.get_mean()
 	if slip_rate is None:
@@ -938,7 +963,8 @@ def import_simple_fault_source_from_gis_record(
 
 	## Override max_mag if there is a distribution (SHARE...)
 	if 'max_mag_distribution' in column_map:
-		max_mag_dist = import_distribution(source_rec, column_map, 'max_mag_distribution')
+		max_mag_dist = import_distribution(source_rec, column_map,
+											'max_mag_distribution')
 		if max_mag_dist:
 			max_mag = max_mag_dist.get_mean()
 
@@ -977,13 +1003,15 @@ def import_simple_fault_source_from_gis_record(
 				if max_mag and mfd_bin_width:
 					max_mag = np.ceil(max_mag / mfd_bin_width) * mfd_bin_width
 				simple_fault_source.mfd.max_mag = max_mag
-				mfd = simple_fault_source.get_MFD_characteristic(bin_width=mfd_bin_width,
+				mfd = simple_fault_source.get_characteristic_mfd(bin_width=mfd_bin_width,
 													force_bin_alignment=False)
 			except:
 				mfd = None
-				print("Warning: MFD could not be determined for source %s" % source_id)
+				print("Warning: MFD could not be determined for source %s"
+						% source_id)
 			else:
-				print("Warning: Falling back to characteristic MFD for source %s" % source_id)
+				print("Warning: Falling back to characteristic MFD for source %s"
+						% source_id)
 
 	simple_fault_source.mfd = mfd
 
@@ -1028,12 +1056,12 @@ def import_source_from_gis_record(
 	obj_type = source_rec["obj"].GetGeometryName()
 	if obj_type in ("POINT", "POLYGON"):
 		if obj_type == "POINT":
-			default_column_map = default_point_source_column_map
+			default_column_map = DEFAULT_POINT_SOURCE_COLUMN_MAP
 		else:
-			default_column_map = default_area_source_column_map
+			default_column_map = DEFAULT_AREA_SOURCE_COLUMN_MAP
 		func = import_point_or_area_source_from_gis_record
 	elif obj_type in "LINESTRING":
-		default_column_map = default_simple_fault_source_column_map
+		default_column_map = DEFAULT_SIMPLE_FAULT_SOURCE_COLUMN_MAP
 		func = import_simple_fault_source_from_gis_record
 	else:
 		print("Warning: %s geometry not supported!" % obj_type)
@@ -1101,7 +1129,7 @@ def import_source_model_from_gis(
 	:return:
 		instance of :class:`..source.SourceModel`
 	"""
-	from ..source import SourceModel
+	from .source_model import SourceModel
 
 	sources = []
 	source_records = read_gis_file(gis_filespec, encoding=None, verbose=verbose)
