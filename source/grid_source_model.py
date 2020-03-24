@@ -1,11 +1,19 @@
+"""
+Gridded source model
+"""
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+from builtins import int
 
 import numpy as np
 from ..geo import (Point, NodalPlane)
 from ..mfd import EvenlyDiscretizedMFD
 from ..pmf import (NodalPlaneDistribution, HypocentralDepthDistribution)
-from source import PointSource
-from source_model import SourceModel
+from .source import PointSource
+from .source_model import SourceModel
+
+
+# TODO: Needs to be developed further
 
 
 class SimpleUniformGridSourceModel():
@@ -18,6 +26,8 @@ class SimpleUniformGridSourceModel():
 				upper_seismogenic_depth=0, lower_seismogenic_depth=None,
 				rupture_mesh_spacing=2.5, rupture_aspect_ratio=1,
 				tectonic_region_type="TRT"):
+		"""
+		"""
 		self.grid_outline = grid_outline
 		if isinstance(grid_spacing, (int, float)):
 			grid_spacing = (grid_spacing, grid_spacing)
