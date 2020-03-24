@@ -293,8 +293,7 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 	def plot(self, label="", color='k', style=None, lw_or_ms=None,
 			discrete=False, cumul_or_inc="cumul",
 			completeness=None, end_year=None,
-			xgrid=1, ygrid=1,
-			title="", lang="en", legend_location=1,
+			title="", lang="en",
 			fig_filespec=None, **kwargs):
 		"""
 		Plot magnitude-frequency distribution
@@ -302,14 +301,18 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		:param color:
 			matplotlib color specification
 			(default: 'k')
-		:param style:
-			matplotlib symbol style or line style
-			(default: '-')
 		:param label:
-			str, plot labels
+			str, legend label
 			(default: "")
+		:param style:
+			matplotlib marker style (for discrete plots) or line style
+			(for non-discrete plots)
+			(default: None = 'o'/'-' for :param:`discrete` True/False)
+		:param lw_or_ms:
+			float, marker size (discrete plots) or line width (non-discrete)
+			(default: None = 8 / 2.5 for :param:`discrete` True/False)
 		:param discrete:
-			Bool, whether or not to plot discrete MFD
+			bool, whether or not to plot discrete MFD
 			(default: False)
 		:param cumul_or_inc:
 			str, either "cumul", "inc" or "both", indicating
@@ -322,40 +325,21 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		:param end_year:
 			int, end year of catalog (used when plotting completeness limits)
 			(default: None, will use current year)
-		:param Mrange:
-			(Mmin, Mmax) tuple, minimum and maximum magnitude in X axis
-			(default: ())
-		:param Freq_range:
-			(Freq_min, Freq_max) tuple, minimum and maximum values in
-			frequency (Y) axis
-			(default: ())
 		:param title:
 			str, plot title
 			(default: "")
 		:param lang:
 			str, language of plot axis labels
 			(default: "en")
-		:param y_log_labels:
-			bool, whether or not Y axis labels are plotted as 10 to a power
-			(default: True)
 		:param fig_filespec:
 			str, full path to output image file, if None plot to screen
 			(default: None)
-		:param ax:
-			instance of :class:`~matplotlib.axes.Axes` in which plot will
-			be made
-			(default: None, will create new figure and axes)
-		:param fig_width:
-			float, figure width in cm, used to recompute :param:`dpi` with
-			respect to default figure width
-			(default: 0)
-		:param dpi:
-			int, image resolution in dots per inch
-			(default: 300)
+		:kwargs:
+			additional keyword arguments understood by
+			:func:`generic_mpl.plot_xy`
 
 		:return:
-			if both :param:`ax` and :param:`fig_filespec` are None, a
-			(ax, fig) tuple will be returned
+			matplotlib Axes instance
 		"""
 		from .plot import plot_mfds
 
@@ -363,8 +347,7 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 						styles=[style], lw_or_ms=[lw_or_ms],
 						discrete=[discrete], cumul_or_inc=[cumul_or_inc],
 						completeness=completeness, end_year=end_year,
-						xgrid=xgrid, ygrid=ygrid,
-						title=title, lang=lang, legend_location=legend_location,
+						title=title, lang=lang,
 						fig_filespec=fig_filespec, **kwargs)
 
 	def to_truncated_GR_mfd(self, min_mag=None, max_mag=None, bin_width=None):
