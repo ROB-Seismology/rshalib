@@ -704,7 +704,7 @@ def import_point_or_area_source_from_gis_record(
 		if mfd and max_mag_dist:
 			mfd_list = []
 			for Mmax, weight in max_mag_dist:
-				mfd2 = mfd.get_copy()
+				mfd2 = mfd.copy()
 				mfd2.max_mag = Mmax
 				mfd2 *= float(weight)
 				mfd_list.append(mfd2)
