@@ -94,9 +94,6 @@ class SourceModel():
 	# Note: __getattr__ causes recursion when used in conjunction with
 	# multiprocesing
 	#def __getattr__(self, name):
-		"""
-		Make sources accessible with their ID as object properties
-		"""
 	#	try:
 	#		index = self.source_ids.index(name)
 	#	except ValueError:
@@ -111,7 +108,7 @@ class SourceModel():
 		num_complex_flts = len(self.get_complex_fault_sources())
 
 		txt =  '<SourceModel "%s" (n=%d P, %d A, %d SF, %d CF)>'
-		txt % (self.name, num_pts, num_areas, num_simple_flts, num_complex_flts)
+		txt %= (self.name, num_pts, num_areas, num_simple_flts, num_complex_flts)
 		return txt
 
 	def __getitem__(self, index_or_name):
@@ -146,6 +143,7 @@ class SourceModel():
 	def to_json(self):
 		return jsonpickle.encode(self)
 
+	# TODO: not sure if this worked before, but it doesn't work now
 	@classmethod
 	def from_json(cls, json_string):
 		return jsonpickle.decode(json_string)
@@ -188,6 +186,10 @@ class SourceModel():
 		if isinstance(magnitude_scaling_relationship, basestring):
 			magnitude_scaling_relationship = getattr(oqhazlib.scalerel,
 												magnitude_scaling_relationship)()
+
+		if not Mrelation:
+			Mrelation = eq_catalog.default_Mrelations.get(Mtype, {})
+
 		src_list = []
 		if area_source_model_name:
 			#from ..rob import create_rob_source_model
@@ -304,6 +306,7 @@ class SourceModel():
 		"""
 		Print XML to screen
 		"""
+		from lxml import etree
 		from ..nrml.common import create_nrml_root
 
 		encoding='latin1'
@@ -362,22 +365,22 @@ class SourceModel():
 			return getattr(self, meth_name)()
 
 	def get_point_sources(self):
-		return [src for src in self.sources if isinstance(source, PointSource)]
+		return [src for src in self.sources if isinstance(src, PointSource)]
 
 	def get_area_sources(self):
-		return [src for src in self.sources if isinstance(source, AreaSource)]
+		return [src for src in self.sources if isinstance(src, AreaSource)]
 
 	def get_non_area_sources(self):
-		return [src for src in self.sources if not isinstance(source, AreaSource)]
+		return [src for src in self.sources if not isinstance(src, AreaSource)]
 
 	def get_simple_fault_sources(self):
-		return [src for src in self.sources if isinstance(source, SimpleFaultSource)]
+		return [src for src in self.sources if isinstance(src, SimpleFaultSource)]
 
 	def get_complex_fault_sources(self):
-		return [src for src in self.sources if isinstance(source, ComplexFaultSource)]
+		return [src for src in self.sources if isinstance(src, ComplexFaultSource)]
 
 	def get_fault_sources(self):
-		return [src for src in self.sources if isinstance(source,
+		return [src for src in self.sources if isinstance(src,
 				(SimpleFaultSource, ComplexFaultSource, CharacteristicFaultSource))]
 
 	def set_fault_mfds_from_bg_zones(self):
@@ -776,12 +779,12 @@ class SourceModel():
 			else:
 				print("Warning: Skipped plotting source %s, source type not supported" % source.source_id)
 		"""
-		sm_data = self.to_geo_data()
-		if len(sm_data.polygon_data) and not legend_label.has_key("polygons"):
+		sm_data = self.to_lbm_data()
+		if len(sm_data.polygons) and not legend_label.has_key("polygons"):
 			legend_label["polygons"] = "Area sources"
-		if len(sm_data.line_data) and not legend_label.has_key("lines"):
+		if len(sm_data.lines) and not legend_label.has_key("lines"):
 			legend_label["lines"] = "Fault sources"
-		if len(sm_data.point_data) and not legend_label.has_key("points"):
+		if len(sm_data.points) and not legend_label.has_key("points"):
 			legend_label["points"] = "Point sources"
 		sm_style = source_model_style
 		layer = lbm.MapLayer(sm_data, sm_style, legend_label=legend_label,
