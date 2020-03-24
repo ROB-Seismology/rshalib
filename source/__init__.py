@@ -78,39 +78,38 @@ else:
 	reload(characteristic)
 from .characteristic import *
 
-
-"""
-## source_model
+## source_model (depends on point, area, simple_fault, complex_fault, characteristic)
 if not reloading:
 	from . import source_model
 else:
 	reload(source_model)
 from .source_model import SourceModel
 
+## read_from_gis (depends on point, area, simple_fault, source_model)
+if not reloading:
+	from . import read_from_gis
+else:
+	reload(read_from_gis)
+from .read_from_gis import *
+
+## fault_network (no internal dependencies)
+if not reloading:
+	from . import fault_network
+else:
+	reload(fault_network)
+from .fault_network import FaultNetwork
+
+## grid_source_model (depends on point, source_model)
 if not reloading:
 	from . import grid_source_model
 else:
 	reload(grid_source_model)
 from .grid_source_model import SimpleUniformGridSourceModel
 
-if not reloading:
-	from . import read_from_gis
-else:
-	reload(read_from_gis)
-from .read_from_gis import (import_source_model_from_gis,
-							import_source_from_gis_record,
-							import_point_or_area_source_from_gis_record,
-							import_simple_fault_source_from_gis_record)
 
+## smoothed_seismicity (depends on point, source_model)
 if not reloading:
 	from . import smoothed_seismicity
 else:
 	reload(smoothed_seismicity)
 from .smoothed_seismicity import SmoothedSeismicity
-
-if not reloading:
-	from . import fault_network
-else:
-	reload(fault_network)
-from .fault_network import FaultNetwork
-"""
