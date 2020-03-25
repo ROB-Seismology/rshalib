@@ -24,10 +24,15 @@ else:
 
 
 if not reloading:
+	from . import base
+else:
+	reload(base)
+
+if not reloading:
 	from . import dshamodel
 else:
 	reload(dshamodel)
-from .dshamodel import DSHAModel
+from .dshamodel import *
 
 if not reloading:
 	from . import pshamodel
