@@ -106,9 +106,7 @@ class RuptureDSHAModel(SHAModelBase):
 		:return:
 			instance of :class:`openquake.hazardlib.gsim.GroundShakingIntensityModel
 		"""
-		from openquake.hazardlib.gsim import get_available_gsims
-
-		return get_available_gsims()[self.gsim_name]()
+		return super(RuptureDSHAModel, self)._get_gsim(self.gsim_name)
 
 	def run_hazardlib(self):
 		"""
@@ -208,20 +206,6 @@ class DSHAModel(SHAModelBase):
 				msg = "Source type (%s) of source %s not allowed!"
 				msg %= (src.__class__, src.source_id)
 				raise Exception(msg)
-
-	def _get_gsim(self, gsim_name):
-		"""
-		Fetch gsim
-
-		:param gsim_name:
-			str, name of ground shaking intensity model
-
-		:return:
-			instance of :class:`openquake.hazardlib.gsim.GroundShakingIntensityModel
-		"""
-		from openquake.hazardlib.gsim import get_available_gsims
-
-		return get_available_gsims()[gsim_name]()
 
 	def calc_random_gmf(self, num_realizations=1, correlation_model=None,
 				np_aggregation="avg", gmpe_aggregation="avg", src_aggregation="max",

@@ -162,6 +162,20 @@ class SHAModelBase(object):
 		"""
 		return self.get_soil_site_model().get_generic_sites()
 
+	def _get_gsim(self, gsim_name):
+		"""
+		Fetch gsim
+
+		:param gsim_name:
+			str, name of ground shaking intensity model
+
+		:return:
+			instance of :class:`openquake.hazardlib.gsim.GroundShakingIntensityModel
+		"""
+		from openquake.hazardlib.gsim import get_available_gsims
+
+		return get_available_gsims()[gsim_name]()
+
 
 
 if __name__ == "__main__":
