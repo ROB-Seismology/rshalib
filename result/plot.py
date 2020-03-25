@@ -3,14 +3,11 @@
 functions for plotting hazard results
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 # TODO: All functions should have intensity_unit parameter
 
 ### imports
-## Kludge because matplotlib is broken on seissrv3. Sigh...
-import platform
-if platform.uname()[1] == "seissrv3":
-	import matplotlib
-	matplotlib.use('AGG')
 import numpy as np
 import pylab
 from matplotlib.font_manager import FontProperties
@@ -167,9 +164,9 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 						interpol_y = interpol_prob
 					else:
 						interpol_pga = None
-						print "fixed_life_time must be set if interpol_prob is used!"
+						print("fixed_life_time must be set if interpol_prob is used!")
 				if interpol_pga != None:
-					print "%s" % interpol_pga
+					print("%s" % interpol_pga)
 					#pylab.semilogy([0.0, interpol_pga, interpol_pga, interpol_pga], [interpol_y, interpol_y, interpol_y, 1E-10], color=color, linestyle=':', linewidth=linewidth, label="_nolegend_")
 					for ipga, iy in zip(interpol_pga, interpol_y):
 						pylab.semilogy([0.0, ipga, ipga, ipga], [iy, iy, iy, 1E-10], color=color, linestyle=':', linewidth=linewidth, label="_nolegend_")
@@ -425,7 +422,7 @@ def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_c
 	ax2.yaxis.tick_right()
 
 	mean_acc = np.average(intensities, weights=weights)
-	print "Mean: %.3f" % mean_acc
+	print("Mean: %.3f" % mean_acc)
 	pylab.plot([mean_acc, mean_acc], [0.0, 1.0], 'r--', linewidth=3)
 
 	majorLocator = MultipleLocator(0.1)
@@ -496,7 +493,7 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		ax1 = mpl_toolkits.mplot3d.Axes3D(fig, rect=mr_rect)
 
 		xpos, ypos = np.meshgrid(distances, magnitudes)
-		#print mr_values.shape, xpos.shape
+		#print(mr_values.shape, xpos.shape)
 		xpos = xpos.flatten()
 		ypos = ypos.flatten()
 		zpos = np.zeros_like(xpos)
@@ -554,7 +551,7 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		#eps_values = np.concatenate([[0.], eps_values])
 		#eps_values = eps_values[1:] - eps_values[:-1]
 		#eps_values /= eps_values[-1]
-		eps_labels = map(str, eps_bin_edges)
+		eps_labels = list(map(str, eps_bin_edges))
 		cmap = cm.Spectral_r
 		#cmap = cm.jet
 		colors = []
@@ -593,7 +590,7 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 			reds = interpolate(color_ar, reds, source_ar)
 			greens = interpolate(color_ar, greens, source_ar)
 			blues = interpolate(color_ar, blues, source_ar)
-		colors = np.asarray(zip(reds, greens, blues))
+		colors = np.asarray(list(zip(reds, greens, blues)))
 		colors = np.concatenate([colors[large_slice_indexes], np.ones((1,3), 'f')])
 		ax3.pie(fue_values, labels=fue_labels, autopct='%1.1f%%', shadow=False, colors=colors)
 		ax3.set_title('By source')

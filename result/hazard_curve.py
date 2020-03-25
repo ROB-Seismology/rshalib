@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=W0142, W0312, C0103, R0913
 """
 Blueprint for classes representing hazard results of both OpenQuake and CRISIS
 """
 
-# pylint: disable=W0142, W0312, C0103, R0913
+from __future__ import absolute_import, division, print_function, unicode_literals
+from builtins import int
 
 try:
+	## Python 2
 	basestring
 except:
+	## Python 3
 	basestring = str
 
 
@@ -23,9 +27,9 @@ import pylab
 from ..nrml import ns
 
 from ..nrml.common import *
-from ..site import SHASite
-from plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram
-from ..utils import interpolate, logrange, wquantiles, LevelNorm
+from ..site import GenericSite
+from .plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram
+from ..utils import interpolate, logrange, wquantiles
 from ..pmf import NumericPMF
 
 
@@ -482,7 +486,7 @@ class HazardField:
 		Set site names from a list of SHA sites
 
 		:param sites:
-			list with instances of :class:`SHASite`
+			list with instances of :class:`GenericSite`
 		"""
 		for i in range(self.num_sites):
 			lon, lat = (self.sites[i].lon, self.sites[i].lat)
@@ -655,11 +659,11 @@ class HazardField:
 			site_index = site_spec
 		elif isinstance(site_spec, basestring):
 			site_index = self.site_names.index(site_spec)
-		elif isinstance(site_spec, SHASite):
+		elif isinstance(site_spec, GenericSite):
 			site_index = self.sites.index(site_spec)
 		elif isinstance(site_spec, (list, tuple)) and len(site_spec) >= 2:
 			lon, lat = site_spec[:2]
-			site = SHASite(lon, lat)
+			site = GenericSite(lon, lat)
 			site_index = self.sites.index(site)
 		else:
 			raise Exception("Invalid site specification: %s" % site_spec)
@@ -672,7 +676,7 @@ class HazardField:
 
 		:param site_specs:
 			list of site specifications: can be int (site index),
-			str (site name), tuple (lon, lat) or instance of :class:`SHASite`
+			str (site name), tuple (lon, lat) or instance of :class:`GenericSite`
 
 		:return:
 			list of ints, site indexes
@@ -682,12 +686,12 @@ class HazardField:
 			return site_specs
 		elif isinstance(site_spec0, basestring):
 			site_spec_index_dict = {self.site_names[i]: i for i in range(self.num_sites)}
-		elif isinstance(site_spec0, SHASite):
+		elif isinstance(site_spec0, GenericSite):
 			site_specs = [site.name for site in site_specs]
 			site_spec_index_dict = {self.site_names[i]: i for i in range(self.num_sites)}
 			#site_spec_index_dict = {self.sites[i]: i for i in range(self.num_sites)}
 		elif isinstance(site_spec0, (list, tuple)) and len(site_spec) >= 2:
-			site_specs = [SHASite(*ss).get_name_from_position() for ss in site_specs]
+			site_specs = [GenericSite(*ss).get_name_from_position() for ss in site_specs]
 			site_spec_index_dict = {site.get_name_from_position(): i for i, site in enumerate(self.sites)}
 		else:
 			raise Exception("Invalid site specification: %s" % site_spec0)
@@ -699,14 +703,14 @@ class HazardField:
 		Determine index of nearest site
 
 		:param site_spec:
-			instance of :class:`SHASite` or (lon, lat) tuple
+			instance of :class:`GenericSite` or (lon, lat) tuple
 
 		:return:
 			int, index of nearest site
 		"""
 		from openquake.hazardlib.geo.geodetic import geodetic_distance
 
-		if isinstance(site_spec, SHASite):
+		if isinstance(site_spec, GenericSite):
 			lon, lat = site_spec.longitude, site_spec.latitude
 		elif isinstance(site_spec, (list, tuple)) and len(site_spec) >= 2:
 			lon, lat = site_spec[:2]
@@ -839,10 +843,10 @@ class HazardTree(HazardResult):
 						branch_indexes.add(j)
 
 		if negate:
-			print branch_indexes
+			print(branch_indexes)
 			all_branch_indexes = set(range(self.num_branches))
 			branch_indexes = all_branch_indexes.difference(set(branch_indexes))
-			print branch_indexes
+			print(branch_indexes)
 
 		branch_indexes = sorted(branch_indexes)
 
@@ -1354,7 +1358,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		if recalc or self.percentiles is None or not perc in self.percentiles:
 			hazard_values = self.calc_percentiles([perc], weighted=weighted)[:,:,:,0]
 		else:
-			print "No recalculaton!"
+			print("No recalculaton!")
 			perc_index = self.percentile_levels.index(perc)
 			hazard_values = self.percentiles[:,:,:,perc_index]
 
@@ -1606,8 +1610,8 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		perc_labels, perc_colors = {}, {}
 		p = 0
 		for perc in percentile_levels:
-			if not perc_labels.has_key(perc):
-				if not perc_labels.has_key(100 - perc):
+			if not perc in perc_labels:
+				if not (100 - perc) in perc_labels:
 					perc_labels[perc] = "P%02d" % perc
 					perc_colors[perc] = ["b", "g", "r", "c", "m", "k"][p%6]
 					p += 1
@@ -1676,8 +1680,8 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		perc_labels, perc_linestyles = {}, {}
 		p = 0
 		for perc in percentile_levels:
-			if not perc_labels.has_key(perc):
-				if not perc_labels.has_key(100 - perc):
+			if not perc in perc_labels:
+				if not (100 - perc) in perc_labels:
 					perc_labels[perc] = "P%02d" % perc
 					perc_linestyles[perc] = ["--", ":", "-:"][p%3]
 					p += 1
@@ -3353,8 +3357,8 @@ class UHSFieldTree(HazardTree, HazardField, HazardSpectrum):
 		perc_labels, perc_colors = {}, {}
 		p = 0
 		for perc in percentile_levels:
-			if not perc_labels.has_key(perc):
-				if not perc_labels.has_key(100 - perc):
+			if not perc in perc_labels:
+				if not (100 - perc) in perc_labels:
 					perc_labels[perc] = "P%02d" % perc
 					perc_colors[perc] = ["b", "g", "r", "c", "m", "k"][p%6]
 					p += 1
@@ -3753,8 +3757,8 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult):
 		from ..siteresponse import ComplexTransferFunction
 
 		irvt = self.get_fas_irvt(pgm_freq=pgm_freq, mag=mag, distance=distance, region=region)
-		#print irvt.freqs.min(), irvt.freqs.max()
-		#print tf.freqs.min(), tf.freqs.max()
+		#print(irvt.freqs.min(), irvt.freqs.max())
+		#print(tf.freqs.min(), tf.freqs.max())
 		if isinstance(tf, ComplexTransferFunction):
 			tf = tf.to_transfer_function()
 		tf2 = tf.interpolate(irvt.freqs)
@@ -4094,7 +4098,7 @@ class UHS(HazardResult, ResponseSpectrum):
 		:param csv_filespec:
 			str, full path to csv file
 		:param site:
-			SHASite object, representing site for which UHS was computed
+			GenericSite object, representing site for which UHS was computed
 		:param col_spec:
 			str or int, name or index of column containing intensities to be read
 			(default: 1)
@@ -4268,7 +4272,7 @@ class UHSCollection:
 		:param csv_filespec:
 			str, full path to csv file
 		:param site:
-			SHASite object, representing site for which UHS was computed
+			GenericSite object, representing site for which UHS was computed
 		:param intensity_unit:
 			str, unit of intensities in csv file (default: "g")
 		:param model_name:
@@ -4296,7 +4300,7 @@ class UHSCollection:
 				else:
 					freqs = False
 			else:
-				col_values = map(float, line.split(','))
+				col_values = list(map(float, line.split(',')))
 				T = col_values[0]
 				a = col_values[1:]
 				periods.append(T)
@@ -4534,7 +4538,7 @@ class HazardMap(HazardResult, HazardField):
 
 		model_name = self.model_name + " (interpolated)"
 		filespec = self.filespec
-		sites = zip(grid_lons.flatten(), grid_lats.flatten())
+		sites = list(zip(grid_lons.flatten(), grid_lats.flatten()))
 		period = self.period
 		IMT = self.IMT
 		intensity_unit = self.intensity_unit
@@ -4589,7 +4593,7 @@ class HazardMap(HazardResult, HazardField):
 			if not abs:
 				residuals /= grid_intensities1.flatten()
 				residuals *= 100
-			sites = zip(grid_lons.flatten(), grid_lats.flatten())
+			sites = list(zip(grid_lons.flatten(), grid_lats.flatten()))
 			vs30s = None
 
 		model_name = "Residuals (%s - %s)" % (self.model_name, other_map.model_name)
@@ -4618,7 +4622,7 @@ class HazardMap(HazardResult, HazardField):
 		Extract partial map
 
 		:param sites:
-			list with instances of SHASite or (lon, lat) tuples
+			list with instances of GenericSite or (lon, lat) tuples
 		:param interpolate:
 			bool or string
 			If False, sites must match exactly, otherwise
@@ -4632,7 +4636,7 @@ class HazardMap(HazardResult, HazardField):
 			instance of :class:`HazardMap`
 		"""
 		if interpolate:
-			if isinstance(sites[0], SHASite):
+			if isinstance(sites[0], GenericSite):
 				lons = [site.lon for site in sites]
 				lats = [site.lat for site in sites]
 			else:
@@ -4751,7 +4755,7 @@ class HazardMap(HazardResult, HazardField):
 			num_cells = (nlons, nlats)
 
 		extent = (lonmin, lonmax, latmin, latmax)
-		#print extent, cell_size, num_cells
+		#print(extent, cell_size, num_cells)
 
 		intensities = self.get_grid_intensities(extent=extent, num_cells=num_cells,
 							method=interpol_method, intensity_unit=intensity_unit,
@@ -4886,7 +4890,7 @@ class HazardMap(HazardResult, HazardField):
 			additional layers may be added before final plotting.
 		"""
 		import mapping.layeredbasemap as lbm
-		from plot import get_intensity_unit_label
+		from .plot import get_intensity_unit_label
 
 		## Construct default styles:
 		if site_style == "default":
@@ -5036,18 +5040,18 @@ class HazardMap(HazardResult, HazardField):
 				for source in source_model:
 					if isinstance(source, AreaSource):
 						polygon_data.append(lbm.PolygonData(source.longitudes, source.latitudes))
-						if not legend_label.has_key("polygons") and show_legend:
+						if not "polygons" in legend_label and show_legend:
 							legend_label["polygons"] = "Area sources"
 					elif isinstance(source, (SimpleFaultSource, CharacteristicFaultSource)):
 						pg = source.get_polygon()
 						polygon_data.append(lbm.PolygonData(pg.lons, pg.lats))
 						fault_trace = source.fault_trace
 						line_data.append(lbm.LineData(fault_trace.lons, fault_trace.lats))
-						if not legend_label.has_key("lines") and show_legend:
+						if not "lines" in legend_label and show_legend:
 							legend_label["lines"] = "Fault sources"
 					elif isinstance(source, PointSource):
 						point_data.append(lbm.PointData(source.location.longitude, source.location.latitude))
-						if not legend_label.has_key("points") and show_legend:
+						if not "points" in legend_label and show_legend:
 							legend_label["points"] = "Point sources"
 					else:
 						print("Warning: Skipped plotting source %s, source type not supported" % source.source_id)
@@ -5306,57 +5310,57 @@ if __name__ == "__main__":
 	import rhlib.crisis.IO as IO
 
 	## Convert CRISIS .MAP file to HazardMapSet
-	#filespec = r"Test files\CRISIS\VG_Ambr95DD_Leynaud_EC8.MAP"
-	filespec = r"D:\PSHA\LNE\CRISIS\VG_Ambr95DD_Leynaud_EC8.MAP"
+	#filespec = "Test files\\CRISIS\\VG_Ambr95DD_Leynaud_EC8.MAP"
+	filespec = "D:\\PSHA\\LNE\\CRISIS\\VG_Ambr95DD_Leynaud_EC8.MAP"
 	hazardmapset = IO.read_MAP(filespec, model_name="VG_Ambr95DD_Leynaud_EC8", convert_to_g=True, IMT="PGA", verbose=True)
-	print hazardmapset.longitudes
+	print(hazardmapset.longitudes)
 	for hazardmap in hazardmapset:
-		print hazardmap.intensities.shape
-		print hazardmap.return_period
+		print(hazardmap.intensities.shape)
+		print(hazardmap.return_period)
 	hazardmap = hazardmapset[0]
 	intensity_grid = hazardmap.create_grid()
-	print intensity_grid.shape
-	print hazardmap.min(), hazardmap.max()
-	print hazardmap.poe
-	#hazardmap.export_VM(r"C:\Temp\hazardmap.grd")
+	print(intensity_grid.shape)
+	print(hazardmap.min(), hazardmap.max())
+	print(hazardmap.poe)
+	#hazardmap.export_VM("C:\\Temp\\hazardmap.grd")
 	hazardmap.plot(parallel_interval=0.5, hide_sea=True, want_basemap=False)
 	print
 
 
 	## Convert CRISIS .GRA file to SpectralHazardCurveField
 	"""
-	#filespec = r"Test files\CRISIS\MC000.GRA"
-	#filespec = r"D:\PSHA\NIRAS\LogicTree\PGA\Seismotectonic\BergeThierry2003\3sigma\Mmax+0_00\MC000.GRA"
-	#filespec = r"D:\PSHA\NIRAS\LogicTree\Spectral\Seismotectonic\BergeThierry2003\3sigma\Mmax+0_00\MC000.GRA"
-	filespec = r"D:\PSHA\NIRAS\LogicTree\Spectral\Spectral_BT2003.AGR"
-	#filespec = r"D:\PSHA\LNE\CRISIS\VG_Ambr95DD_Leynaud_EC8.gra"
+	#filespec = "Test files\\CRISIS\\MC000.GRA"
+	#filespec = "D:\\PSHA\\NIRAS\\LogicTree\\PGA\\Seismotectonic\\BergeThierry2003\\3sigma\\Mmax+0_00\\MC000.GRA"
+	#filespec = "D:\\PSHA\\NIRAS\\LogicTree\\Spectral\\Seismotectonic\\BergeThierry2003\\3sigma\\Mmax+0_00\\MC000.GRA"
+	filespec = "D:\\PSHA\\NIRAS\\LogicTree\\Spectral\\Spectral_BT2003.AGR"
+	#filespec = "D:\\PSHA\\LNE\\CRISIS\\VG_Ambr95DD_Leynaud_EC8.gra"
 	shcf = IO.read_GRA(filespec, verbose=True)
-	print shcf.intensities.shape, shcf.exceedance_rates.shape
-	print shcf.mean.shape
-	print shcf.percentiles.shape
-	print shcf.percentile_levels
-	print shcf.periods
-	print shcf.sites
+	print(shcf.intensities.shape, shcf.exceedance_rates.shape)
+	print(shcf.mean.shape)
+	print(shcf.percentiles.shape)
+	print(shcf.percentile_levels)
+	print(shcf.periods)
+	print(shcf.sites)
 	shc = shcf[0]
 	hc = shc[0]
-	print hc.interpolate_return_periods([1E+3, 1E+4, 1E+5])
+	print(hc.interpolate_return_periods([1E+3, 1E+4, 1E+5]))
 	#hc.plot(want_poe=False)
 	UHSfieldset = shcf.interpolate_return_periods([10000])
 	UHSfield = UHSfieldset[0]
 	#UHSfield.plot()
 	uhs = UHSfield[0]
-	print uhs.periods, uhs.intensities
-	print uhs[1./34]
+	print(uhs.periods, uhs.intensities)
+	print(uhs[1./34])
 	uhs.export_csv()
 	uhs.plot(linestyle='x', Tmin=1./40, Tmax=1./30, amin=0, color='r')
-	print UHSfieldset.return_periods
-	print UHSfieldset.intensities
-	print UHSfieldset.poes
+	print(UHSfieldset.return_periods)
+	print(UHSfieldset.intensities)
+	print(UHSfieldset.poes)
 	hazardmapset = UHSfieldset.interpolate_period(1./34)
-	print hazardmapset.return_periods
-	print hazardmapset.poes
+	print(hazardmapset.return_periods)
+	print(hazardmapset.poes)
 	hazardmap = hazardmapset[-1]
-	print hazardmap.poe
+	print(hazardmap.poe)
 	"""
 
 
@@ -5366,10 +5370,10 @@ if __name__ == "__main__":
 	GRA_filespecs = LogicTree.slice_logictree()
 	hcft = IO.read_GRA_multi(GRA_filespecs, model_name="Test")
 	hcft.plot()
-	#hcft.write_statistics_AGR(r"C:\Temp\Test.AGR", weighted=False)
+	#hcft.write_statistics_AGR("C:\\Temp\\Test.AGR", weighted=False)
 	#hcft2 = hcft.slice_by_branch_indexes(range(50), "Subset")
 	hcft2 = hcft.slice_by_branch_names(["BergeThierry"], "BergeThierry", strict=False)
-	print len(hcft2)
+	print(len(hcft2))
 	import np.random
 	hcft2.weights = np.random.rand(len(hcft2))
 	uhsft = hcft2.interpolate_return_period(10000)
@@ -5377,7 +5381,7 @@ if __name__ == "__main__":
 	#hcft.plot()
 	hcft.plot_subsets(["BergeThierry", "Ambraseys"], labels=["BergeThierry", "Ambraseys"], percentile_levels=[84,95])
 	hcf = hcft[0]
-	print hcf.periods
+	print(hcf.periods)
 	hcf.plot()
 	#hcf2 = hcf.interpolate_periods([0.05, 0.275, 1, 2, 10])
 	shc = hcf.getSpectralHazardCurve(0)

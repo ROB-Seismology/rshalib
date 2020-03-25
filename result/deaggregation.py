@@ -1,10 +1,15 @@
+"""
+"""
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 from decimal import Decimal
 import numpy as np
 
 import openquake.hazardlib.calc.disagg as disagg
 
-from plot import plot_deaggregation
-from hazard_curve import Poisson, HazardCurve
+from .plot import plot_deaggregation
+from .hazard_curve import Poisson, HazardCurve
 
 
 # TODO: add intensity_unit parameter to DeaggregationSlice, DeaggregationCurve and SpectralDeaggregationCurve
@@ -1340,7 +1345,7 @@ class DeaggregationCurve(DeaggBase):
 		:return:
 			instance of :class:`HazardCurve`
 		"""
-		from hazard_curve import ExceedanceRateArray, ProbabilityArray, HazardCurve
+		from .hazard_curve import ExceedanceRateArray, ProbabilityArray, HazardCurve
 		hazard_values = self.deagg_matrix.fold_axes([6,5,4,3,2,1])
 		if isinstance(self.deagg_matrix, ExceedanceRateMatrix):
 			hazard_values = ExceedanceRateArray(hazard_values)
@@ -1620,7 +1625,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		neps = len(eps_bins) - 1
 		ntrts = len(trts)
 		shape = (num_periods, num_intensities, nmags, ndists, nlons, nlats, neps, ntrts)
-		print shape
+		print(shape)
 		deagg_matrix = matrix_class(np.zeros(shape, dtype))
 		return deagg_matrix
 
@@ -1733,12 +1738,12 @@ class SpectralDeaggregationCurve(DeaggBase):
 		dims = ",".join(map(str, self.matrix.shape[2:]))
 		sdc_elem.set("dims", dims)
 		for dc in self:
-			#print dc, time.time()
+			#print(dc, time.time())
 			dc_elem = etree.SubElement(sdc_elem, "deaggregationCurve")
 			dc_elem.set("IMT", str(dc.imt))
 			dc_elem.set("saPeriod", str(dc.period))
 			for ds_idx, ds in enumerate(dc):
-				#print ds, time.time()
+				#print(ds, time.time())
 				ds_elem = etree.SubElement(dc_elem, "deaggregationSlice")
 				ds_elem.set("iml", str(ds.iml))
 				## Write intended poe, not actual poe
@@ -1895,7 +1900,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 		:return:
 			instance of :class:`SpectralHazardCurve`
 		"""
-		from hazard_curve import ExceedanceRateArray, ProbabilityArray, SpectralHazardCurve
+		from .hazard_curve import ExceedanceRateArray, ProbabilityArray, SpectralHazardCurve
 		hazard_values = self.deagg_matrix.fold_axes([7,6,5,4,3,2])
 		if isinstance(self.deagg_matrix, ExceedanceRateMatrix):
 			hazard_values = ExceedanceRateArray(hazard_values)
