@@ -158,7 +158,7 @@ class SHAModelBase(object):
 		Get generic sites.
 
 		:return:
-			list with instances of :class:`SHASite`
+			list with instances of :class:`GenericSite`
 		"""
 		return self.get_soil_site_model().get_generic_sites()
 
