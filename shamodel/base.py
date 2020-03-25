@@ -2,10 +2,12 @@
 :mod:`rshalib.shamodel.base` exports :class:`rshalib.shamodel.base.SHAModelBase`
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-import openquake.hazardlib as oqhazlib
 
-from ..site import SHASiteModel, REF_SOIL_PARAMS
+from .. import oqhazlib
+
+from ..site import GenericSiteModel, SoilSiteModel, REF_SOIL_PARAMS
 
 
 class SHAModelBase(object):
@@ -13,56 +15,60 @@ class SHAModelBase(object):
 	Base class for SHA models, holding common attributes and methods.
 	"""
 
-	def __init__(self, name, sites=None, grid_outline=None, grid_spacing=None, soil_site_model=None, ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]}, truncation_level=3, integration_distance=200.):
+	def __init__(self, name,
+				site_model, ref_soil_params=REF_SOIL_PARAMS,
+				imt_periods={'PGA': [0]},
+				truncation_level=3, integration_distance=200.):
 		"""
 		:param name:
-			str, name for sha model
-		:param sites:
-			see :class:`rshalib.site.SHASiteModel` (default: None)
-		:param grid_outline:
-			see :class:`rshalib.site.SHASiteModel` (default: None)
-		:param grid_spacing:
-			see :class:`rshalib.site.SHASiteModel` (default: None)
-		:param soil_site_model:
-			instance of :class:`rshalib.site.SHASiteModel` (default: None)
+			str, name for SHA model
+		:param site_model:
+			instance of :class:`rshalib.site.GenericSiteModel`
+			or :class:`rshalib.site.SoilSiteModel`
 		:param ref_soil_params:
 			dict, value for each soil parameter of :class:`rshalib.site.SoilSite`
+			Required if :param:`site_model` is generic, ignored otherwise
 			(default: REF_SOIL_PARAMS)
 		:param imt_periods:
-			{str: list of floats} dict, mapping intensity measure types (e.g. "PGA", "SA", "PGV", "PGD") to periods in seconds (default: {'PGA': [0]}).
+			{str: list of floats} dict, mapping intensity measure types
+			(e.g. "PGA", "SA", "PGV", "PGD") to periods in seconds
 			Periods must be monotonically increasing or decreasing.
+			(default: {'PGA': [0]}).
 		:param truncation_level:
 			float >= 0, truncation level of gsims in times standard deviation
 			(default: 3.)
 		:param integration_distance:
-			Float, defining integration distance in km (default: 200.).
+			float, defining integration distance in km
+			(default: 200.).
 		"""
 		self.name = name
-		if not sites and not grid_outline:
-			assert soil_site_model
-			self.sha_site_model = None
-			self.sites = sites
-			self.grid_outline = grid_outline
-			self.grid_spacing = grid_spacing
+
+		assert isinstance(site_model, (GenericSiteModel, SoilSiteModel))
+		assert isinstance(site_model, SoilSiteModel) or ref_soil_params
+		self.site_model = site_model
+		if isinstance(site_model, GenericSiteModel):
+			self.ref_soil_params = ref_soil_params
 		else:
-			self._set_sha_sites(sites, grid_outline, grid_spacing)
-		self.soil_site_model = soil_site_model
-		self.ref_soil_params = ref_soil_params
+			self.ref_soil_params = {}
+
 		self.imt_periods = imt_periods
+
 		self.truncation_level = truncation_level
 		self.integration_distance = integration_distance
 
 	@property
 	def source_site_filter(self):
 		if self.integration_distance:
-			return oqhazlib.calc.filters.source_site_distance_filter(self.integration_distance)
+			return oqhazlib.calc.filters.source_site_distance_filter(
+													self.integration_distance)
 		else:
 			return oqhazlib.calc.filters.source_site_noop_filter
 
 	@property
 	def rupture_site_filter(self):
 		if self.integration_distance:
-			return oqhazlib.calc.filters.rupture_site_distance_filter(self.integration_distance)
+			return oqhazlib.calc.filters.rupture_site_distance_filter(
+													self.integration_distance)
 		else:
 			return oqhazlib.calc.filters.rupture_site_noop_filter
 
@@ -119,26 +125,24 @@ class SHAModelBase(object):
 			imts.remove("PGD")
 		return imts
 
-	def _set_sha_sites(self, sites, grid_outline, grid_spacing):
+	def get_soil_site_model(self):
 		"""
-		Set SHA sites from list of sites or grid outline and grid spacing.
-		Note: Use this method only if :param:`soil_site_model` is None.
+		If no soil site model is given one is created from sha site model with
+		ref_soil_params. If one is given it is used if no sha site model is
+		given, else the sites from the sha site model are extracted from it.
 
-		:param sites:
-			list with instances of class:`SHASite`
-		:param grid_outline:
-			(lon_min, lon_max, lat_min, lat_max) tuple
-		:param grid_spacing:
-			float, grid spacing
+		:returns:
+			instance of :class:`rshalib.site.SoilSiteModel`
 		"""
-		self.sites = sites
-		self.grid_outline = grid_outline
-		self.grid_spacing = grid_spacing
-		self.sha_site_model = SHASiteModel(
-				sites=sites,
-				grid_outline=grid_outline,
-				grid_spacing=grid_spacing,
-				)
+		if isinstance(self.site_model, SoilSiteModel):
+			## Extract soil sites corresponding to generic sites.
+			## Not sure if this was ever used
+			#if self.sha_site_model:
+			#	return self.soil_site_model.filter(self.soil_site_model.mesh._geodetic_min_distance(self.sha_site_model, True))
+			return self.site_model
+		else:
+			soil_site_model = self.site_model.to_soil_site_model(name=None,
+											ref_soil_params=self.ref_soil_params)
 
 	def get_sites(self):
 		"""
@@ -149,41 +153,15 @@ class SHAModelBase(object):
 		"""
 		return self.get_soil_site_model().get_sites()
 
-	def get_sha_sites(self):
+	def get_generic_sites(self):
 		"""
-		Get SHA sites.
+		Get generic sites.
 
 		:return:
 			list with instances of :class:`SHASite`
 		"""
-		return self.get_soil_site_model().get_sha_sites()
+		return self.get_soil_site_model().get_generic_sites()
 
-	#@property
-	#def grid_outline(self):
-	#	if self.sha_site_model:
-	#		return self.sha_site_model.grid_outline
-
-	#@property
-	#def grid_spacing(self):
-	#	if self.sha_site_model:
-	#		return self.sha_site_model.grid_spacing
-
-	def get_soil_site_model(self):
-		"""
-		If no soil site model is given one is created from sha site model with
-		ref_soil_params. If one is given it is used if no sha site model is
-		given, else the sites from the sha site model are extracted from it.
-
-		:returns:
-			instance of :class:`rshalib.site.SoilSiteModel`
-		"""
-		if self.soil_site_model:
-			if self.sha_site_model:
-				return self.soil_site_model.filter(self.soil_site_model.mesh._geodetic_min_distance(self.sha_site_model, True))
-			else:
-				return self.soil_site_model
-		else:
-			return self.sha_site_model.to_soil_site_model(name="", ref_soil_params=self.ref_soil_params)
 
 
 if __name__ == "__main__":
