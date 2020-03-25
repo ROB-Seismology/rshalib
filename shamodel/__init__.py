@@ -1,13 +1,36 @@
-#
-# Empty file necessary for python to recognise directory as package
-#
+"""
+shamodel submodule
+"""
 
-import dshamodel
-reload(dshamodel)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from dshamodel import DSHAModel
 
-import pshamodel
-reload(pshamodel)
 
-from pshamodel import PSHAModel, PSHAModelTree, DecomposedPSHAModelTree
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
+
+
+if not reloading:
+	from . import dshamodel
+else:
+	reload(dshamodel)
+from .dshamodel import DSHAModel
+
+if not reloading:
+	from . import pshamodel
+else:
+	reload(pshamodel)
+from .pshamodel import PSHAModel, PSHAModelTree, DecomposedPSHAModelTree
