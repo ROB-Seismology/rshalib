@@ -8,13 +8,10 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import numpy as np
 
 from .. import oqhazlib
-from openquake.hazardlib.calc import ground_motion_fields
-#from openquake.hazardlib.calc.filters import rupture_site_distance_filter, rupture_site_noop_filter
 from openquake.hazardlib.imt import *
 
 from ..result import HazardMap, HazardMapSet, UHSField, UHSFieldTree
 from ..site.ref_soil_params import REF_SOIL_PARAMS
-from ..calc import mp
 from .base import SHAModelBase
 
 
@@ -94,6 +91,9 @@ class RuptureDSHAModel(SHAModelBase):
 			function, filter for sites further away from rupture than
 			integration_distance
 		"""
+		from openquake.hazardlib.calc.filters import (rupture_site_distance_filter,
+														rupture_site_noop_filter)
+
 		if self.integration_distance:
 			return rupture_site_distance_filter(self.integration_distance)
 		else:
@@ -115,6 +115,8 @@ class RuptureDSHAModel(SHAModelBase):
 		:returns:
 			instance of :class:`..results.HazardMapSet`
 		"""
+		from openquake.hazardlib.calc import ground_motion_fields
+
 		soil_site_model = self.get_soil_site_model()
 		gsim = self._get_gsim()
 		imts = self._get_imts()
@@ -165,7 +167,12 @@ class DSHAModel(SHAModelBase):
 	:param gmpe_system_def:
 		dict, mapping tectonic region types to GMPEPMF objects
 	:param site_model:
+		instance of :class:`rshalib.site.GenericSiteModel`
+		or :class:`rshalib.site.SoilSiteModel`
 	:param ref_soil_params:
+		dict, value for each soil parameter of :class:`rshalib.site.SoilSite`
+		Required if :param:`site_model` is generic, ignored otherwise
+		(default: REF_SOIL_PARAMS)
 	:param imt_periods:
 		dict, mapping IMTs to lists of periods
 		(default: {'PGA': [0]})
@@ -201,6 +208,20 @@ class DSHAModel(SHAModelBase):
 				msg = "Source type (%s) of source %s not allowed!"
 				msg %= (src.__class__, src.source_id)
 				raise Exception(msg)
+
+	def _get_gsim(self, gsim_name):
+		"""
+		Fetch gsim
+
+		:param gsim_name:
+			str, name of ground shaking intensity model
+
+		:return:
+			instance of :class:`openquake.hazardlib.gsim.GroundShakingIntensityModel
+		"""
+		from openquake.hazardlib.gsim import get_available_gsims
+
+		return get_available_gsims()[gsim_name]()
 
 	def calc_random_gmf(self, num_realizations=1, correlation_model=None,
 				np_aggregation="avg", gmpe_aggregation="avg", src_aggregation="max",
@@ -240,6 +261,8 @@ class DSHAModel(SHAModelBase):
 			instance of :class:`UHSFieldTree`
 		"""
 		# TODO: should uncertainties for different IMTs be correlated?
+		from openquake.hazardlib.calc import ground_motion_fields
+
 		assert self.truncation_level >= 0
 		if self.truncation_level > 0:
 			np.random.seed(seed=random_seed)
@@ -265,7 +288,7 @@ class DSHAModel(SHAModelBase):
 			trt = src.tectonic_region_type
 			gmpe_pmf = self.gmpe_system_def[trt]
 			for (gmpe_name, gmpe_weight) in gmpe_pmf:
-				gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
+				gsim = self._get_gsim(gmpe_name)
 				gmpe_gmf = np.zeros(gmf_shape)
 				total_rupture_probability = 0
 				for r, rup in enumerate(src.iter_ruptures(fake_tom)):
@@ -365,6 +388,7 @@ class DSHAModel(SHAModelBase):
 			instance of :class:`UHSFieldTree`
 		"""
 		import random
+		from ..calc import mp
 
 		MAX_SINT_32 = (2**31) - 1
 		rnd = random.Random()
@@ -399,7 +423,7 @@ class DSHAModel(SHAModelBase):
 			for r, rup in enumerate(src.iter_ruptures(fake_tom)):
 				total_rupture_probability += rup.occurrence_rate
 				for g, gmpe_name in enumerate(gmpe_pmf.gmpe_names):
-					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
+					gsim = self._get_gsim(gmpe_name)
 					for k, imt in enumerate(imt_list):
 						if k == 0 or not correlate_imt_uncertainties:
 							random_seed2 = rnd.randint(0, MAX_SINT_32)
@@ -531,6 +555,8 @@ class DSHAModel(SHAModelBase):
 		:return:
 			instance of :class:`UHSField`
 		"""
+		from ..calc import mp
+
 		soil_site_model = self.get_soil_site_model()
 		num_sites = len(soil_site_model)
 		imt_list = self._get_imts()
@@ -560,7 +586,7 @@ class DSHAModel(SHAModelBase):
 				trt = src.tectonic_region_type
 				gmpe_pmf = self.gmpe_system_def[trt]
 				for (gmpe_name, gmpe_weight) in gmpe_pmf:
-					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
+					gsim = self._get_gsim(gmpe_name)
 					gmpe_gmf = np.zeros(len(soil_site_model))
 					total_rupture_probability = 0
 					for r, rup in enumerate(src.iter_ruptures(fake_tom)):
@@ -681,7 +707,7 @@ class DSHAModel(SHAModelBase):
 				trt = src.tectonic_region_type
 				gmpe_pmf = self.gmpe_system_def[trt]
 				for (gmpe_name, gmpe_weight) in gmpe_pmf:
-					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
+					gsim = self._get_gsim(gmpe_name)
 					gmpe_gmf = np.zeros(len(soil_site_model))
 					for rup in src.iter_ruptures(fake_tom):
 						# TODO: check if CharacteristicFaultSources return only 1 rupture
@@ -702,7 +728,7 @@ class DSHAModel(SHAModelBase):
 				trt = src.tectonic_region_type
 				gmpe_pmf = self.gmpe_system_def[trt]
 				for (gmpe_name, gmpe_weight) in gmpe_pmf:
-					gsim = oqhazlib.gsim.get_available_gsims()[gmpe_name]()
+					gsim = self._get_gsim(gmpe_name)
 					gmpe_gmf = np.zeros(len(soil_site_model))
 					total_rupture_probability = 0
 					for r, rup in enumerate(src.iter_ruptures(fake_tom)):
