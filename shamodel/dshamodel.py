@@ -26,42 +26,43 @@ __all__ = ['RuptureDSHAModel', 'DSHAModel']
 class RuptureDSHAModel(SHAModelBase):
 	"""
 	Class representing a single DSHA model.
-	"""
 
+	:param name:
+		str, name for DSHA model
+	:param ruptures:
+		list of instances of :class:`rshalib.source.Rupture`
+	:param gsim_name:
+		str, name of supported GMPE
+	:param site_model:
+		instance of :class:`rshalib.site.GenericSiteModel`
+		or :class:`rshalib.site.SoilSiteModel`,
+		sites where ground motions will be computed
+	:param ref_soil_params:
+		dict, value for each soil parameter of :class:`rshalib.site.SoilSite`
+		Required if :param:`site_model` is generic, ignored otherwise
+		(default: REF_SOIL_PARAMS)
+	:param imt_periods:
+		see :class:`..shamodel.SHAModelBase`
+		(default: {'PGA': [0]})
+	:param truncation_level:
+		see :class:`..shamodel.SHAModelBase`
+		(default: 0.)
+	:param realizations:
+		int, number of realizations
+		(default: 1)
+	:param correlation_model:
+		instance of subclass of :class:`openquake.hazardlib.correlation.BaseCorrelationModel`
+		(default: None)
+	:param integration_distance:
+		see :class:`..shamodel.SHAModelBase`
+		(default: 200.)
+	"""
 	def __init__(self, name, ruptures, gsim_name,
 				site_model, ref_soil_params=REF_SOIL_PARAMS,
 				imt_periods={'PGA': [0]},
 				truncation_level=0., realizations=1.,
 				correlation_model=None, integration_distance=200.):
 		"""
-		:param name:
-			str, name for DSHA model
-		:param ruptures:
-			list of instances of :class:`rshalib.source.Rupture`
-		:param gsim_name:
-			str, name of supported GMPE
-		:param site_model:
-			instance of :class:`rshalib.site.GenericSiteModel`
-			or :class:`rshalib.site.SoilSiteModel`
-		:param ref_soil_params:
-			dict, value for each soil parameter of :class:`rshalib.site.SoilSite`
-			Required if :param:`site_model` is generic, ignored otherwise
-			(default: REF_SOIL_PARAMS)
-		:param imt_periods:
-			see :class:`..shamodel.SHAModelBase`
-			(default: {'PGA': [0]})
-		:param truncation_level:
-			see :class:`..shamodel.SHAModelBase`
-			(default: 0.)
-		:param realizations:
-			int, number of realizations
-			(default: 1)
-		:param correlation_model:
-			instance of subclass of :class:`openquake.hazardlib.correlation.BaseCorrelationModel`
-			(default: None)
-		:param integration_distance:
-			see :class:`..shamodel.SHAModelBase`
-			(default: 200.)
 		"""
 		SHAModelBase.__init__(self, name, site_model, ref_soil_params,
 							imt_periods, truncation_level, integration_distance)
@@ -166,7 +167,8 @@ class DSHAModel(SHAModelBase):
 		dict, mapping tectonic region types to GMPEPMF objects
 	:param site_model:
 		instance of :class:`rshalib.site.GenericSiteModel`
-		or :class:`rshalib.site.SoilSiteModel`
+		or :class:`rshalib.site.SoilSiteModel`,
+		sites where ground motions will be computed
 	:param ref_soil_params:
 		dict, value for each soil parameter of :class:`rshalib.site.SoilSite`
 		Required if :param:`site_model` is generic, ignored otherwise

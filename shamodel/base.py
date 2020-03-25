@@ -24,7 +24,8 @@ class SHAModelBase(object):
 			str, name for SHA model
 		:param site_model:
 			instance of :class:`rshalib.site.GenericSiteModel`
-			or :class:`rshalib.site.SoilSiteModel`
+			or :class:`rshalib.site.SoilSiteModel`,
+			sites where ground motions will be computed
 		:param ref_soil_params:
 			dict, value for each soil parameter of :class:`rshalib.site.SoilSite`
 			Required if :param:`site_model` is generic, ignored otherwise
