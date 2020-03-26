@@ -24,8 +24,8 @@ from scipy.stats import mstats, scoreatpercentile
 import matplotlib
 import pylab
 
+from ..poisson import poisson_conv
 from ..nrml import ns
-
 from ..nrml.common import *
 from ..site import GenericSite
 from .plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram
@@ -68,33 +68,6 @@ common_plot_docstring = """
 			lang: language to use for labels: en=English, nl=Dutch (default: en)
             dpi: Int, image resolution in dots per inch (default: 300)
 """
-
-
-def Poisson(life_time=None, return_period=None, prob=None):
-	"""
-	Compute return period, life time or probability of exceedance from any
-		combination of two of the other parameters for a Poisson distribution
-	Parameters:
-		life_time: life time (default: None)
-		return_period: return period (default: None)
-		prob: probability (default: None)
-	Two parameters need to be specified, the value will be computed for the
-	missing parameter
-	"""
-	## Ignore division warnings
-	np.seterr(divide='ignore', invalid='ignore')
-
-	## Return period
-	if return_period is None:
-		return -life_time / np.log(1.0 - prob)
-	## Life time
-	elif life_time is None:
-		return -return_period * np.log(1.0 - prob)
-	## Probability of exceedance
-	elif prob is None:
-		return 1.0 - np.exp(-life_time * 1.0 / return_period)
-	else:
-		raise TypeError("Need to specify 2 parameters")
 
 
 def is_empty_array(ar):
@@ -155,7 +128,7 @@ class ExceedanceRateArray(HazardCurveArray):
 		return ExceedanceRateMatrix(self.array)
 
 	def to_probabilities(self, timespan):
-		return Poisson(life_time=timespan, return_period=1./self.array)
+		return poisson_conv(t=timespan, tau=1./self.array)
 
 	def to_probability_array(self, timespan):
 		return ProbabilityArray(self.to_probabilities(timespan))
@@ -217,7 +190,7 @@ class ProbabilityArray(HazardCurveArray):
 		## Ignore division warnings
 		np.seterr(divide='ignore', invalid='ignore')
 
-		return 1. / Poisson(life_time=timespan, prob=self.array)
+		return 1. / poisson_conv(t=timespan, poe=self.array)
 
 	def to_exceedance_rate_array(self, timespan):
 		return ExceedanceRateArray(self.to_exceedance_rates(timespan))
@@ -229,7 +202,7 @@ class ProbabilityArray(HazardCurveArray):
 		return ProbabilityArray(self.array)
 
 	def to_return_periods(self, timespan):
-		return Poisson(prob=self.array, life_time=timespan)
+		return poisson_conv(poe=self.array, t=timespan)
 
 	def mean(self, axis, weights=None):
 		## exceedance probabilities are not additive, but non-exceedance

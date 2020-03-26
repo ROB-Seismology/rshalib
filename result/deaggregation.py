@@ -8,8 +8,9 @@ import numpy as np
 
 import openquake.hazardlib.calc.disagg as disagg
 
+from ..poisson import poisson_conv
 from .plot import plot_deaggregation
-from .hazard_curve import Poisson, HazardCurve
+from .hazard_curve import HazardCurve
 
 
 # TODO: add intensity_unit parameter to DeaggregationSlice, DeaggregationCurve and SpectralDeaggregationCurve
@@ -202,7 +203,7 @@ class ExceedanceRateMatrix(FractionalContributionMatrix):
 		:param timespan:
 			Float, time span in Poisson formula.
 		"""
-		return Poisson(life_time=timespan, return_period=1./self.get_total_exceedance_rate())
+		return poisson_conv(t=timespan, tau=1./self.get_total_exceedance_rate())
 
 	def to_probability_matrix(self, timespan):
 		"""
@@ -214,7 +215,7 @@ class ExceedanceRateMatrix(FractionalContributionMatrix):
 		:return:
 			instance of :class:`ProbabilityMatrix`
 		"""
-		return ProbabilityMatrix(Poisson(life_time=timespan, return_period=1./self.matrix))
+		return ProbabilityMatrix(poisson_conv(t=timespan, tau=1./self.matrix))
 
 	def to_exceedance_rate_matrix(self, timespan=None):
 		"""
@@ -278,7 +279,7 @@ class ProbabilityMatrix(DeaggMatrix):
 		:param timespan:
 			Float, time span in Poisson formula.
 		"""
-		return 1. / Poisson(life_time=timespan, prob=self.get_total_probability())
+		return 1. / poisson_conv(t=timespan, poe=self.get_total_probability())
 
 	def get_total_probability(self, timespan=None):
 		"""
@@ -318,7 +319,7 @@ class ProbabilityMatrix(DeaggMatrix):
 		## Ignore division warnings
 		np.seterr(divide='ignore', invalid='ignore')
 
-		return ExceedanceRateMatrix(1. / Poisson(life_time=timespan, prob=self.matrix))
+		return ExceedanceRateMatrix(1. / poisson_conv(t=timespan, poe=self.matrix))
 
 	def to_fractional_contribution_matrix(self):
 		"""
@@ -1748,7 +1749,7 @@ class SpectralDeaggregationCurve(DeaggBase):
 				ds_elem.set("iml", str(ds.iml))
 				## Write intended poe, not actual poe
 				#poe = ds.deagg_matrix.get_total_probability(timespan=self.timespan)
-				poe = Poisson(return_period=self.return_periods[ds_idx], life_time=self.timespan)
+				poe = poisson_conv(tau=self.return_periods[ds_idx], t=self.timespan)
 				ds_elem.set("poE", str(poe))
 				matrix = ds.deagg_matrix.to_probability_matrix(timespan=self.timespan)
 				for i, nonzero in np.ndenumerate(matrix > min_poe):
