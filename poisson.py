@@ -7,10 +7,45 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import numpy as np
 from scipy.misc import factorial
-import pylab
 
 
-__all__ = ['PoissonTau', 'PoissonT']
+__all__ = ['PoissonTau', 'PoissonT', 'poisson_conv']
+
+
+
+def poisson_conv(t=None, tau=None, poe=None):
+	"""
+	Compute return period, life time or probability of exceedance
+	from any combination of two of the other parameters for a
+	Poisson distribution
+
+	:param t:
+		float or array, life time corresponding to exceedance probability
+		(default: None)
+	:param tau:
+		float or array, return period
+		(default: None)
+	:param poe:
+		float or array, probability of exceedance
+		(default: None)
+
+	Two parameters need to be specified, the value will be computed
+	for the missing parameter
+	"""
+	## Ignore division warnings
+	np.seterr(divide='ignore', invalid='ignore')
+
+	## Return period
+	if tau is None:
+		return -t / np.log(1.0 - poe)
+	## Life time
+	elif t is None:
+		return -tau * np.log(1.0 - poe)
+	## Probability of exceedance
+	elif poe is None:
+		return 1.0 - np.exp(-t * 1.0 / tau)
+	else:
+		raise TypeError("Need to specify 2 parameters")
 
 
 class PoissonTau:
