@@ -20,138 +20,10 @@ from .base import SHAModelBase
 
 
 
-__all__ = ['RuptureDSHAModel', 'DSHAModel']
+__all__ = ['DSHAModel']
 
 
-class RuptureDSHAModel(SHAModelBase):
-	"""
-	Class representing a single DSHA model.
-
-	:param name:
-		str, name for DSHA model
-	:param ruptures:
-		list of instances of :class:`rshalib.source.Rupture`
-	:param gsim_name:
-		str, name of supported GMPE
-	:param site_model:
-		instance of :class:`rshalib.site.GenericSiteModel`
-		or :class:`rshalib.site.SoilSiteModel`,
-		sites where ground motions will be computed
-	:param ref_soil_params:
-		dict, value for each soil parameter of :class:`rshalib.site.SoilSite`
-		Required if :param:`site_model` is generic, ignored otherwise
-		(default: REF_SOIL_PARAMS)
-	:param imt_periods:
-		see :class:`..shamodel.SHAModelBase`
-		(default: {'PGA': [0]})
-	:param truncation_level:
-		see :class:`..shamodel.SHAModelBase`
-		(default: 0.)
-	:param realizations:
-		int, number of realizations
-		(default: 1)
-	:param correlation_model:
-		instance of subclass of :class:`openquake.hazardlib.correlation.BaseCorrelationModel`
-		(default: None)
-	:param integration_distance:
-		see :class:`..shamodel.SHAModelBase`
-		(default: 200.)
-	"""
-	def __init__(self, name, ruptures, gsim_name,
-				site_model, ref_soil_params=REF_SOIL_PARAMS,
-				imt_periods={'PGA': [0]},
-				truncation_level=0., realizations=1.,
-				correlation_model=None, integration_distance=200.):
-		"""
-		"""
-		SHAModelBase.__init__(self, name, site_model, ref_soil_params,
-							imt_periods, truncation_level, integration_distance)
-
-		self.ruptures = ruptures
-		self.gsim_name = gsim_name
-		self.realizations = realizations
-		self.correlation_model = correlation_model
-
-	def _get_hazardlib_imts(self):
-		"""
-		:returns:
-			list of instances of subclasses of :class:`openquake.hazardlib._IMT`
-		"""
-		imts = []
-		for imt in self.imt_periods:
-			if imt == "SA":
-				for period in self.imt_periods[imt]:
-					imts.append(eval(imt)(period, 5.))
-			else:
-				imts.append(eval(imt)())
-		return imts
-
-	def _get_hazardlib_rsdf(self):
-		"""
-		:returns:
-			function, filter for sites further away from rupture than
-			integration_distance
-		"""
-		from openquake.hazardlib.calc.filters import (rupture_site_distance_filter,
-														rupture_site_noop_filter)
-
-		if self.integration_distance:
-			return rupture_site_distance_filter(self.integration_distance)
-		else:
-			return rupture_site_noop_filter
-
-	def _get_gsim(self):
-		"""
-		Fetch gsim
-
-		:return:
-			instance of :class:`openquake.hazardlib.gsim.GroundShakingIntensityModel
-		"""
-		return super(RuptureDSHAModel, self)._get_gsim(self.gsim_name)
-
-	def run_hazardlib(self):
-		"""
-		:returns:
-			instance of :class:`..results.HazardMapSet`
-		"""
-		from openquake.hazardlib.calc import ground_motion_fields
-
-		soil_site_model = self.get_soil_site_model()
-		gsim = self._get_gsim()
-		imts = self._get_imts()
-		rsdf = self.rupture_site_filter
-		array_shape = (len(soil_site_model), len(self.ruptures), self.realizations)
-		intensities = {imt: np.zeros(array_shape) for imt in imts}
-		for i, rupture in enumerate(self.ruptures):
-			gmfs = ground_motion_fields(rupture, soil_site_model, imts, gsim,
-										self.truncation_level, self.realizations,
-										self.correlation_model, rsdf)
-			for imt, gmf in gmfs.items():
-				if self.correlation_model:
-					intensities[imt][:,i,:] = gmf.getA()
-				else:
-					intensities[imt][:,i,:] = gmf
-
-		hazard_map_sets = {}
-		sites = self.get_generic_sites()
-		return_periods = np.ones(self.realizations)
-		for imt in imts:
-			if isinstance(imt, SA):
-				period = imt.period
-				IMT = "SA"
-				key = period
-			else:
-				period = 0
-				# TODO: need a more elegant solution
-				IMT = {PGV(): "PGV", PGD(): "PGD", PGA(): "PGA", MMI(): "MMI"}[imt]
-				key = IMT
-			hms = HazardMapSet("", [""]*self.realizations, sites, period, IMT,
-								np.amax(intensities[imt], axis=1).T,
-								intensity_unit="g", timespan=1, poes=None,
-								return_periods=return_periods, vs30s=None)
-			hazard_map_sets[key] = hms
-		return hazard_map_sets
-
+## Probably obsolete
 
 class DSHAModel(SHAModelBase):
 	"""
@@ -774,6 +646,137 @@ class DSHAModel(SHAModelBase):
 		imt = self.get_imt_families()[0]
 		return UHSField(self.name, "", sites, periods, imt, gmf_envelope,
 						intensity_unit="", timespan=1, return_period=1)
+
+
+
+class RuptureDSHAModel(SHAModelBase):
+	"""
+	Class representing a single DSHA model.
+
+	:param name:
+		str, name for DSHA model
+	:param ruptures:
+		list of instances of :class:`rshalib.source.Rupture`
+	:param gsim_name:
+		str, name of supported GMPE
+	:param site_model:
+		instance of :class:`rshalib.site.GenericSiteModel`
+		or :class:`rshalib.site.SoilSiteModel`,
+		sites where ground motions will be computed
+	:param ref_soil_params:
+		dict, value for each soil parameter of :class:`rshalib.site.SoilSite`
+		Required if :param:`site_model` is generic, ignored otherwise
+		(default: REF_SOIL_PARAMS)
+	:param imt_periods:
+		see :class:`..shamodel.SHAModelBase`
+		(default: {'PGA': [0]})
+	:param truncation_level:
+		see :class:`..shamodel.SHAModelBase`
+		(default: 0.)
+	:param realizations:
+		int, number of realizations
+		(default: 1)
+	:param correlation_model:
+		instance of subclass of :class:`openquake.hazardlib.correlation.BaseCorrelationModel`
+		(default: None)
+	:param integration_distance:
+		see :class:`..shamodel.SHAModelBase`
+		(default: 200.)
+	"""
+	def __init__(self, name, ruptures, gsim_name,
+				site_model, ref_soil_params=REF_SOIL_PARAMS,
+				imt_periods={'PGA': [0]},
+				truncation_level=0., realizations=1.,
+				correlation_model=None, integration_distance=200.):
+		"""
+		"""
+		SHAModelBase.__init__(self, name, site_model, ref_soil_params,
+							imt_periods, truncation_level, integration_distance)
+
+		self.ruptures = ruptures
+		self.gsim_name = gsim_name
+		self.realizations = realizations
+		self.correlation_model = correlation_model
+
+	def _get_hazardlib_imts(self):
+		"""
+		:returns:
+			list of instances of subclasses of :class:`openquake.hazardlib._IMT`
+		"""
+		imts = []
+		for imt in self.imt_periods:
+			if imt == "SA":
+				for period in self.imt_periods[imt]:
+					imts.append(eval(imt)(period, 5.))
+			else:
+				imts.append(eval(imt)())
+		return imts
+
+	def _get_hazardlib_rsdf(self):
+		"""
+		:returns:
+			function, filter for sites further away from rupture than
+			integration_distance
+		"""
+		from openquake.hazardlib.calc.filters import (rupture_site_distance_filter,
+														rupture_site_noop_filter)
+
+		if self.integration_distance:
+			return rupture_site_distance_filter(self.integration_distance)
+		else:
+			return rupture_site_noop_filter
+
+	def _get_gsim(self):
+		"""
+		Fetch gsim
+
+		:return:
+			instance of :class:`openquake.hazardlib.gsim.GroundShakingIntensityModel
+		"""
+		return super(RuptureDSHAModel, self)._get_gsim(self.gsim_name)
+
+	def run_hazardlib(self):
+		"""
+		:returns:
+			instance of :class:`..results.HazardMapSet`
+		"""
+		from openquake.hazardlib.calc import ground_motion_fields
+
+		soil_site_model = self.get_soil_site_model()
+		gsim = self._get_gsim()
+		imts = self._get_imts()
+		rsdf = self.rupture_site_filter
+		array_shape = (len(soil_site_model), len(self.ruptures), self.realizations)
+		intensities = {imt: np.zeros(array_shape) for imt in imts}
+		for i, rupture in enumerate(self.ruptures):
+			gmfs = ground_motion_fields(rupture, soil_site_model, imts, gsim,
+										self.truncation_level, self.realizations,
+										self.correlation_model, rsdf)
+			for imt, gmf in gmfs.items():
+				if self.correlation_model:
+					intensities[imt][:,i,:] = gmf.getA()
+				else:
+					intensities[imt][:,i,:] = gmf
+
+		hazard_map_sets = {}
+		sites = self.get_generic_sites()
+		return_periods = np.ones(self.realizations)
+		for imt in imts:
+			if isinstance(imt, SA):
+				period = imt.period
+				IMT = "SA"
+				key = period
+			else:
+				period = 0
+				# TODO: need a more elegant solution
+				IMT = {PGV(): "PGV", PGD(): "PGD", PGA(): "PGA", MMI(): "MMI"}[imt]
+				key = IMT
+			hms = HazardMapSet("", [""]*self.realizations, sites, period, IMT,
+								np.amax(intensities[imt], axis=1).T,
+								intensity_unit="g", timespan=1, poes=None,
+								return_periods=return_periods, vs30s=None)
+			hazard_map_sets[key] = hms
+		return hazard_map_sets
 
 
 
