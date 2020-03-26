@@ -358,6 +358,83 @@ class GenericSiteModel(oqhazlib.geo.Mesh):
 		super(GenericSiteModel, self).__init__(lons=lons, lats=lats, depths=depths)
 		self.site_names = None
 
+	@staticmethod
+	def _degree_to_km(degree, lat=0.):
+		"""
+		Convert distance in arc degrees to distance in km assuming a
+		spherical earth.
+		Distance is along a great circle, unless latitude is specified.
+
+		:param degree:
+			float, distance in arc degrees.
+		:param lat:
+			float, latitude in degrees (default: 0.).
+		"""
+		return (40075./360.) * degree * np.cos(np.radians(lat))
+
+	@staticmethod
+	def _km_to_degree(km, lat=0.):
+		"""
+		Convert distance in km to distance in arc degrees assuming a
+		spherical earth
+
+		:param km:
+			float, distance in km.
+		:param lat:
+			float, latitude in degrees (default: 0.).
+		"""
+		return km / ((40075./360.) * np.cos(np.radians(lat)))
+
+	def _get_grid_spacing_km(self):
+		"""
+		Return grid spacing in km
+
+		:return:
+			float
+		"""
+		if self.grid_spacing:
+			grid_outline = self._parse_grid_outline(self.grid_outline)
+			grid_spacing = self._parse_grid_spacing(self.grid_spacing)
+			if isinstance(grid_spacing, basestring) and grid_spacing[-2:] == 'km':
+				grid_spacing_km = float(grid_spacing[:-2])
+			else:
+				central_latitude = np.mean([site[1] for site in grid_outline])
+				grid_spacing_km1 = self._degree_to_km(grid_spacing[0], central_latitude)
+				grid_spacing_km2 = self._degree_to_km(grid_spacing[1])
+				grid_spacing_km = min(grid_spacing_km1, grid_spacing_km2)
+
+			return grid_spacing_km
+
+	def _get_grid_spacing_degrees(self, adjust_lat=True):
+		"""
+		Return grid spacing in degrees as a tuple
+
+		:return:
+			(grid_spacing_x, grid_spacing_y) tuple of floats
+		"""
+		if self.grid_spacing:
+			grid_outline = self._parse_grid_outline(self.grid_outline)
+			grid_spacing = self._parse_grid_spacing(self.grid_spacing)
+			central_latitude = np.mean([site[1] for site in grid_outline])
+			if isinstance(grid_spacing, basestring) and grid_spacing[-2:] == 'km':
+				grid_spacing_km = float(grid_spacing[:-2])
+				grid_spacing_lon = self._km_to_degree(grid_spacing_km, central_latitude)
+				if adjust_lat:
+					grid_spacing_lat = self._km_to_degree(grid_spacing_km)
+					grid_spacing = (grid_spacing_lon, grid_spacing_lat)
+				else:
+					grid_spacing = (grid_spacing_lon, grid_spacing_lon)
+			elif isinstance(grid_spacing, (int, float)):
+				if adjust_lat:
+					grid_spacing = (grid_spacing,
+									grid_spacing * np.cos(np.radians(central_latitude)))
+				else:
+					grid_spacing = (grid_spacing, grid_spacing)
+			else:
+				grid_spacing = grid_spacing
+
+		return grid_spacing
+
 	@classmethod
 	def from_grid_spec(cls, grid_outline, grid_spacing, depth=None):
 		"""
