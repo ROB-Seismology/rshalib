@@ -81,6 +81,9 @@ class PSHAModel(PSHAModelBase):
 		self.source_model = source_model
 		self.ground_motion_model = ground_motion_model
 
+	def __repr__(self):
+		txt = '<PSHAModel "%s">' % self.name
+
 	@property
 	def smlt_path(self):
 		try:

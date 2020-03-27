@@ -51,6 +51,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 							return_periods, time_span, truncation_level,
 							integration_distance, num_lt_samples, random_seed)
 
+	def __repr__(self):
+		txt = '<DecomposedPSHAModelTree "%s">' % self.name
+
 	def _get_curve_path(self, source_model_name, trt, source_id, gmpe_name):
 		"""
 		Construct subfolder path for decomposed calculation

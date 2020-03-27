@@ -78,6 +78,9 @@ class PSHAModelTree(PSHAModelBase):
 		self.ltp = LogicTreeProcessor(self.source_model_lt, self.gmpe_lt)
 		self._init_rnd()
 
+	def __repr__(self):
+		txt = '<PSHAModelTree "%s">' % self.name
+
 	@property
 	def source_models(self):
 		return self.source_model_lt.source_models
