@@ -82,7 +82,7 @@ def is_empty_array(ar):
 	:return:
 		bool
 	"""
-	if ar is None or len(ar) == 0 or ar[0] is None:
+	if ar is None or len(ar) == 0 or np.all(ar == None):
 		return True
 	else:
 		return False
@@ -125,7 +125,7 @@ class ExceedanceRateArray(HazardCurveArray):
 		return self.array
 
 	def to_exceedance_rate_array(self, timespan=None):
-		return ExceedanceRateMatrix(self.array)
+		return ExceedanceRateArray(self.array)
 
 	def to_probabilities(self, timespan):
 		return poisson_conv(t=timespan, tau=1./self.array)
