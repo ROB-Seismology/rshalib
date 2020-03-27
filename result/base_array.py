@@ -1,21 +1,427 @@
 """
 Base arrays for hazard results
+
+Contain rules for calculating with exceedance rates and exceedance
+probabilities:
+- exceedance rates are additive
+- non-exceedance probabilities are multiplicative
+- logs of non-exceedance probabilities are additive
 """
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-#from decimal import Decimal
 import numpy as np
+from scipy.stats import mstats
 
 from ..poisson import poisson_conv
+from ..utils import interpolate, wquantiles
 
 
-# TODO: common base class for ExceedanceRateArray, ExceedanceRateMatrix etc.
-
-
-__all__ = ['DeaggMatrix', 'ExceedanceRateMatrix', 'ProbabilityMatrix',
+__all__ = ['is_empty_array', 'as_array',
+			'HazardCurveArray', 'ExceedanceRateArray', 'ProbabilityArray',
+			'DeaggMatrix', 'ExceedanceRateMatrix', 'ProbabilityMatrix',
 			'FractionalContributionMatrix']
 
+
+
+def is_empty_array(ar):
+	"""
+	Determine whether or not a given array is empty, i.e. if:
+	- array is None or []
+	- all elements in array are None
+
+	:param ar:
+		numpy array, list or None
+
+	:return:
+		bool
+	"""
+	if ar is None or len(ar) == 0 or np.all(ar == None):
+		return True
+	else:
+		return False
+
+
+def as_array(values):
+	"""
+	Convert values to array if it is not None or already a numpy array
+	"""
+	if is_empty_array(values):
+		values = None
+	else:
+		values = {True: values,
+				False: np.array(values, dtype='d')}[isinstance(values, np.ndarray)]
+	return values
+
+
+## Hazard curve arrays
+## Note: ExceedanceRateArray and ProbabilityArray have the same methods
+## with the same arguments, so that code using these classes can be agnostic
+## which one of the two it is
+
+
+class HazardCurveArray(np.ndarray):
+	"""
+	Base class for hazard curve array, subclassed from numpy ndarray
+
+	:param data:
+		ndarray, n-d float array containing exceedance rates or
+		probabilities of exceedance
+	"""
+	def __new__(cls, data):
+		obj = np.asarray(data).view(cls)
+		return obj
+
+	def __array_finalize__(self, obj):
+		if obj is None:
+			return
+
+	@property
+	def array(self):
+		return np.asarray(self)
+
+	@property
+	def num_axes(self):
+		return len(self.shape)
+
+
+class ExceedanceRateArray(HazardCurveArray):
+	"""
+	Class representing a hazard curve containing exceedance rates
+
+	:param data:
+		ndarray, n-d float array containing exceedance rates
+	"""
+	def to_exceedance_rates(self, timespan=None):
+		"""
+		Return array of exceedance rates
+
+		:param timespan:
+			None, parameter is present to be compatible with the
+			same method in :class:`ProbabilityArray`, but is ignored
+
+		:return:
+			ndarray
+		"""
+		return self.array
+
+	def to_exceedance_rate_array(self, timespan=None):
+		"""
+		Copy to another exceedance-rate array.
+		This method is present to be compatible with
+		:class:`ProbabilityArray`
+
+		:param timespan:
+			None, parameter is present to be compatible with the
+			same method in :class:`ProbabilityArray`, but is ignored
+
+		:return:
+			instance of :class:`ExceedanceRateArray`
+		"""
+		return ExceedanceRateArray(self.array.copy())
+
+	def to_probabilities(self, timespan):
+		"""
+		Compute exceedance probabilities for given time span
+
+		:param timespan:
+			float, time span
+
+		:return:
+			ndarray
+		"""
+		return poisson_conv(t=timespan, tau=1./self.array)
+
+	def to_probability_array(self, timespan):
+		"""
+		Compute exceedance probability array for given time span
+
+		:param timespan:
+			float, time span
+
+		:return:
+			instance of :class:`ProbabilityArray`
+		"""
+		return ProbabilityArray(self.to_probabilities(timespan))
+
+	def to_return_periods(self, timespan=None):
+		"""
+		Convert exceedance rates to return periods
+
+		:param timespan:
+			None, parameter is present to be compatible with the
+			same method in :class:`ProbabilityArray`, but is ignored
+
+		:return:
+			ndarray
+		"""
+		return 1./self.array
+
+	def mean(self, axis, weights=None):
+		"""
+		Compute (weighted) mean exceedance rate
+
+		:param axis:
+			int, array axis to compute mean for
+		:param weights:
+			ndarray, optional weights for each element in array axis
+			(default: None)
+
+		:return:
+			instance of :class:`ExceedanceRateArray`
+		"""
+		if weights is None:
+			return self.__class__(np.mean(self.array, axis=axis))
+		else:
+			return self.__class__(np.average(self.array, axis=axis,
+											weights=weights))
+
+	def mean_and_variance(self, axis, weights=None):
+		"""
+		Compute the weighted average and variance.
+
+		:param axis:
+		:param weights:
+			see :meth:`mean`
+
+		:return:
+			(mean, variance) tuple of instances of
+			:class:`ExceedanceRateArray`
+		"""
+		mean = self.mean(axis, weights=weights)
+		if weights is None:
+			variance = np.var(self.array, axis=axis)
+		else:
+			variance = np.average((self.array - mean)**2, axis=axis,
+									weights=weights)
+		variance = self.__class__(variance)
+		return (mean, variance)
+
+	def scoreatpercentile(self, axis, percentile_levels, weights=None,
+						interpol=True):
+		"""
+		Compute percentile exceedance rates
+
+		:param axis:
+			int, array axis to compute percentiles for
+		:param percentile_levels:
+			list of percentile levels (in the range 0 -100)
+		:param weights
+			ndarray, optional weights for each element in array axis
+			(default: None)
+		:param interpol:
+			bool, whether or not to interpolate percentile intercept
+			in case :param:`weights` is not None
+			(default: True)
+
+		:return:
+			instance of :class:`ExceedanceRateArray`
+		"""
+		quantile_levels = np.array(percentile_levels, 'f') / 100.
+		if weights is None:
+			percentiles = np.apply_along_axis(mstats.mquantiles, axis, self.array,
+											quantile_levels)
+		else:
+			percentiles = np.apply_along_axis(wquantiles, axis, self.array,
+											weights, quantile_levels, interpol)
+		## Rotate percentile axis to last position
+		# TODO: consider first position for percentile axis
+		ndim = self.array.ndim
+		percentiles = np.rollaxis(percentiles, axis, ndim)
+		return self.__class__(percentiles)
+
+
+class ProbabilityArray(HazardCurveArray):
+	"""
+	Class representing a hazard curve containing probabilities of
+	exceedance
+
+	:param data:
+		ndarray, n-d float array containing exceedance probabilities
+	"""
+	def __add__(self, other):
+		"""
+		Sum exceedance probabilities
+		"""
+		assert isinstance(other, ProbabilityArray)
+		return ProbabilityArray(1 - ((1 - self.array) * (1 - other.array)))
+
+	def __sub__(self, other):
+		"""
+		Subtract exceedance probabilities
+		"""
+		assert isinstance(other, ProbabilityArray)
+		return ProbabilityArray(1 - ((1 - self.array) / (1 - other.array)))
+
+	def __mul__(self, other):
+		"""
+		Multiply exceedance probabilities with scalar or other
+		probability array
+		"""
+		assert np.isscalar(other) or isinstance(other, ProbabilityArray)
+		#return ProbabilityArray(1 - np.exp(np.log(1 - self.array) * float(number)))
+		return ProbabilityArray(1 - (1 - self.array) ** other)
+
+	def __div__(self, other):
+		"""
+		Divide exceedance probabilities by scalar or other
+		probability array
+		"""
+		assert np.isscalar(other) or isinstance(other, ProbabilityArray)
+		#return ProbabilityArray(1 - np.exp(np.log(1 - self.array) / float(number)))
+		return self.__mul__(1./other)
+
+	def to_exceedance_rates(self, timespan):
+		"""
+		Compute exceedance rates:
+
+		:param timespan:
+			float, time span
+
+		:return:
+			ndarray
+		"""
+		## Ignore division warnings
+		np.seterr(divide='ignore', invalid='ignore')
+
+		return 1. / poisson_conv(t=timespan, poe=self.array)
+
+	def to_exceedance_rate_array(self, timespan):
+		"""
+		Compute exceedance-rate array
+
+		:param timespan:
+			float, time span
+
+		:return:
+			instance of :class:`ExceedanceRateArray`
+		"""
+		return ExceedanceRateArray(self.to_exceedance_rates(timespan))
+
+	def to_probabilities(self, timespan=None):
+		"""
+		Return array of probabilities
+
+		:param timespan:
+			None, parameter is present to be compatible with the
+			same method in :class:`ExceedanceRateArray`, but is ignored
+
+		:return:
+			ndarray
+		"""
+		return self.array
+
+	def to_probability_array(self, timespan=None):
+		"""
+		Copy to another probability array.
+		This method is present to be compatible with
+		:class:`ExceedanceRateArray`
+
+		:param timespan:
+			None, parameter is present to be compatible with the
+			same method in :class:`ExceedanceRateArray`, but is ignored
+
+		:return:
+			instance of :class:`ProbabilityArray`
+		"""
+		return ProbabilityArray(self.array.copy())
+
+	def to_return_periods(self, timespan):
+		"""
+		Convert probabilities to return periods
+
+		:param timespan:
+			float, time span
+
+		:return:
+			ndarray
+		"""
+		return poisson_conv(poe=self.array, t=timespan)
+
+	def mean(self, axis, weights=None):
+		"""
+		Compute mean probability of exceedance
+
+		:param axis:
+			int, array axis to compute mean for
+		:param weights:
+			ndarray, optional weights for each element in array axis
+			(default: None)
+
+		:return:
+			instance of :class:`ProbabilityArray`
+		"""
+		## exceedance probabilities are not additive, but non-exceedance
+		## probabilities are multiplicative, so the logs of non-exceedance
+		## probabilities are additive. So, we can take the mean of these logs,
+		## take the exponent to obtain the mean non-exceedance probability,
+		## then convert back to exceedance probability
+
+		# TODO: this is different from openquake.engine.calculators.post_processing,
+		# where the simple mean of the poes is computed.
+		# In practice, the differences appear to be minor
+		return self.__class__(1 - np.exp(np.average(np.log(1 - self.array),
+											axis=axis, weights=weights)))
+
+	def mean_and_variance(self, axis, weights=None):
+		"""
+		Compute the weighted average and variance.
+
+		:param axis:
+		:param weights:
+			see :meth:`mean`
+
+		:return:
+			(mean, variance) tuple of instances of
+			:class:`ProbabilityArray`
+		"""
+		log_non_exceedance_probs = np.log(1 - self.array)
+		mean = np.average(log_non_exceedance_probs, axis=axis, weights=weights)
+		_mean = np.expand_dims(mean, axis)
+		variance = np.average((log_non_exceedance_probs - _mean)**2, axis=axis,
+								weights=weights)
+		#np.sum(weights * (log_non_exceedance_probs - _mean)**2, axis=axis) / np.sum(weights)
+		mean = self.__class__(1 - np.exp(mean))
+		# TODO: from Wikipedia, but probably not correct
+		variance = (np.exp(variance) - 1.) * np.exp(2 * mean.array + variance)
+		#variance = np.exp(variance)
+		variance = self.__class__(variance)
+		return (mean, variance)
+
+	def scoreatpercentile(self, axis, percentile_levels, weights=None,
+						interpol=True):
+		"""
+		Compute percentile exceedance probabilities
+
+		:param axis:
+			int, array axis to compute percentiles for
+		:param percentile_levels:
+			list of percentile levels (in the range 0 -100)
+		:param weights
+			ndarray, optional weights for each element in array axis
+			(default: None)
+		:param interpol:
+			bool, whether or not to interpolate percentile intercept
+			in case :param:`weights` is not None
+			(default: True)
+
+		:return:
+			instance of :class:`ExceedanceRateArray`
+		"""
+		quantile_levels = np.array(percentile_levels, 'f') / 100.
+		## Note: for probabilities, we need to take 1 - quantile_levels!
+		quantile_levels = 1 - quantile_levels
+		if weights is None:
+			percentiles = np.apply_along_axis(mstats.mquantiles, axis,
+										np.log(1 - self.array), quantile_levels)
+		else:
+			percentiles = np.apply_along_axis(wquantiles, axis,
+											np.log(1 - self.array), weights,
+											quantile_levels, interpol)
+		## Rotate percentile axis to last position
+		ndim = self.array.ndim
+		percentiles = np.rollaxis(percentiles, axis, ndim)
+		return self.__class__(1 - np.exp(percentiles))
 
 
 ## Deaggregation arrays
@@ -80,8 +486,6 @@ class DeaggMatrix(np.ndarray):
 		:return:
 			instance of subclass of :class:`DeaggMatrix`
 		"""
-		from ..utils import interpolate
-
 		def interp_wrapper(yin, xin, xout):
 			return interpolate(xin, yin, xout)
 
@@ -104,8 +508,6 @@ class DeaggMatrix(np.ndarray):
 		:return:
 			instance of subclass of :class:`DeaggMatrix`
 		"""
-		from ..utils import interpolate
-
 		zero = np.zeros(1)
 		def interp_wrapper(yin, xin, xout):
 			yin = np.insert(np.cumsum(yin), 0, zero)
@@ -255,28 +657,37 @@ class ProbabilityMatrix(DeaggMatrix):
 	of exceedance
 
 	:param data:
-		ndarray, n-d float array containing probabilities
+		ndarray, n-d float array containing exceedance probabilities
 	"""
-	#def __new__(cls, data, timespan):
-	#	obj = DeaggMatrix.__new__(cls, data)
-	#	obj.timespan = timespan
-	#	return obj
-
 	def __add__(self, other):
+		"""
+		Sum exceedance probabilities
+		"""
 		assert isinstance(other, ProbabilityMatrix)
 		return ProbabilityMatrix(1 - ((1 - self.matrix) * (1 - other.matrix)))
 
 	def __sub__(self, other):
+		"""
+		Subtract exceedance probabilities
+		"""
 		assert isinstance(other, ProbabilityMatrix)
 		return ProbabilityMatrix(1 - ((1 - self.matrix) / (1 - other.matrix)))
 
 	def __mul__(self, other):
-		#assert isinstance(number, (int, float, Decimal))
+		"""
+		Multiply exceedance probabilities with scalar or other
+		probability matrix
+		"""
+		assert np.isscalar(other) or isinstance(other, ProbabilityMatrix)
 		#return ProbabilityMatrix(1 - np.exp(np.log(1 - self.matrix) * float(number)))
 		return ProbabilityMatrix(1 - (1 - self.matrix) ** other)
 
 	def __div__(self, other):
-		#assert isinstance(number, (int, float, Decimal))
+		"""
+		Divide exceedance probabilities with scalar or other
+		probability matrix
+		"""
+		assert np.isscalar(other) or isinstance(other, ProbabilityMatrix)
 		#return ProbabilityMatrix(1 - np.exp(np.log(1 - self.matrix) / float(number)))
 		return self.__mul__(1./other)
 
@@ -379,5 +790,3 @@ class ProbabilityMatrix(DeaggMatrix):
 		for axis in sorted(axes)[::-1]:
 			matrix = matrix.fold_axis(axis)
 		return matrix
-
-
