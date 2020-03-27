@@ -19,7 +19,7 @@ except:
 import numpy as np
 
 from ..site import GenericSite
-from .base_array import HazardCurveArray
+from .base_array import (as_array, HazardCurveArray)
 
 
 
@@ -69,32 +69,32 @@ class IntensityResult:
 			if src_intensity_unit == "g":
 				conv_factor = {"g": 1.0,
 								"mg": 1E+3,
-								"ms2": g,
+								"m/s2": g,
 								"gal": g*100,
-								"cms2": g*100}[target_intensity_unit]
+								"cm/s2": g*100}[target_intensity_unit]
 			elif src_intensity_unit == "mg":
 				conv_factor = {"g": 1E-3,
 								"mg": 1.0,
-								"ms2": g*1E-3,
+								"m/s2": g*1E-3,
 								"gal": g*1E-1,
-								"cms2": g*1E-1}[target_intensity_unit]
-			elif src_intensity_unit in ("gal", "cms2"):
+								"cm/s2": g*1E-1}[target_intensity_unit]
+			elif src_intensity_unit in ("gal", "cm/s2"):
 				conv_factor = {"g": 0.01/g,
 								"mg": 10./g,
-								"ms2": 1E-2,
+								"m/s2": 1E-2,
 								"gal": 1.0,
-								"cms2": 1.0}[target_intensity_unit]
-			elif src_intensity_unit == "ms2":
+								"cm/s2": 1.0}[target_intensity_unit]
+			elif src_intensity_unit == "m/s2":
 				conv_factor = {"g": 1./g,
 								"mg": 1E+3/g,
-								"ms2": 1.,
+								"m/s2": 1.,
 								"gal": 100.0,
-								"cms2": 100.0}[target_intensity_unit]
+								"cm/s2": 100.0}[target_intensity_unit]
 		elif self.IMT == "PGV":
-			if src_intensity_unit == "ms":
-				conv_factor = {"ms": 1., "cms": 1E+2}[target_intensity_unit]
-			elif src_intensity_unit == "cms":
-				conv_factor = {"ms": 1E-2, "cms": 1.0}[target_intensity_unit]
+			if src_intensity_unit == "m/s":
+				conv_factor = {"m/s": 1., "cm/s": 1E+2}[target_intensity_unit]
+			elif src_intensity_unit == "cm/s":
+				conv_factor = {"m/s": 1E-2, "cm/s": 1.0}[target_intensity_unit]
 		elif self.IMT == "PGD":
 			if src_intensity_unit == "m":
 				conv_factor = {"m": 1., "cm": 1E+2}[target_intensity_unit]
@@ -115,7 +115,7 @@ class IntensityResult:
 
 		:param intensity_unit:
 			string, intensity unit to scale result,
-			either "g", "mg", "ms2", "gal" or "cms2"
+			either "g", "mg", "m/s2", "gal" or "cm/s2"
 			(default: "")
 		"""
 		if intensity_unit and intensity_unit != self.intensity_unit:
@@ -154,7 +154,7 @@ class IntensityResult:
 		if IMT in ("PGA", "SA"):
 			return "g"
 		elif IMT in ("PGV", "SV"):
-			return "ms"
+			return "m/s"
 		elif IMT in ("PGD", "SD"):
 			return "m"
 		elif IMT == "MMI":
@@ -213,14 +213,14 @@ class HazardSpectrum():
 
 	:param periods:
 		1-D array, spectral periods (in s)
-	:param period_index:
+	:param period_axis:
 		int, index in multimensional array of hazard values
 		corresponding to spectral periods
 		(default: None)
 	"""
-	def __init__(self, periods, period_index=None):
+	def __init__(self, periods, period_axis=None):
 		self.periods = as_array(periods)
-		self.period_index = period_index
+		self.period_axis = period_axis
 
 	def __len__(self):
 		return len(self.periods)
@@ -263,7 +263,7 @@ class HazardSpectrum():
 		"""
 		idxs = np.argsort(self.periods)
 		self.periods = self.periods[idxs]
-		# TODO: check if period_index applies to intensities as well
+		# TODO: check if period_axis applies to intensities as well
 		self.intensities = self.intensities.take(idxs, axis=0)
 		if self.period_axis is not None:
 			self._hazard_values = self._hazard_values.take(idxs, axis=self.period_axis)
