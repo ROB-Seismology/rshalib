@@ -585,7 +585,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 
 		model_name = self.model_name + " (%.1f %% damping)" % damping_ratio
 		intensities = self.intensities * conv_factor
-		damping = damping_ratio / 100
+		damping = damping_ratio / 100.
 		return self.__class__(self.periods, intensities, self.intensity_unit,
 							IMT=self.IMT, damping=damping, model_name=model_name)
 
