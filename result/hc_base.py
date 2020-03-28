@@ -22,6 +22,8 @@ from ..site import GenericSite
 from .base_array import (as_array, HazardCurveArray)
 
 
+# TODO: IMT --> imt
+
 
 __all__ = ['IntensityResult', 'HazardResult', 'HazardSpectrum',
 			'HazardField', 'HazardTree']
@@ -31,18 +33,18 @@ class IntensityResult:
 	"""
 	Generic class providing common methods related to intensities
 
-	:param IMT:
-		str, intensity measure type ('PGA', 'PGV', 'PGD', 'SA', 'SV', 'SD')
 	:param intensities:
 		ndarray, intensities (=ground-motion levels)
 	:param intensity_unit:
 		str, intensity unit
-		(default: "", will take default intensity unit for given IMT
+		If not specified, default intensity unit for given IMT will be used
+	:param IMT:
+		str, intensity measure type ('PGA', 'PGV', 'PGD', 'SA', 'SV', 'SD')
 	"""
-	def __init__(self, IMT, intensities, intensity_unit=""):
-		self.IMT = IMT
+	def __init__(self, intensities, intensity_unit, IMT):
 		self.intensities = as_array(intensities)
 		self.intensity_unit = intensity_unit or self.get_default_intensity_unit(IMT)
+		self.IMT = IMT
 
 	@property
 	def num_intensities(self):
@@ -141,7 +143,8 @@ class IntensityResult:
 				self.intensities = intensities
 				self.intensity_unit = target_intensity_unit
 
-	def get_default_intensity_unit(self, IMT):
+	@staticmethod
+	def get_default_intensity_unit(IMT):
 		"""
 		Return default intensity unit for given IMT
 
@@ -160,6 +163,28 @@ class IntensityResult:
 		elif IMT == "MMI":
 			return ""
 
+	@staticmethod
+	def infer_imt_from_intensity_unit(intensity_unit):
+		"""
+		Determine IMT from intensity unit
+
+		:param intensity_unit:
+			str, intensity unit
+
+		:return:
+			str, IMT
+		"""
+		if intensity_unit in ("g", "mg", "m/s2", "cm/s2", "gal"):
+			imt = "SA"
+		elif intensity_unit in ("m/s", "cm/s"):
+			imt = "SV"
+		elif intensity_unit in ("m", "cm"):
+			imt = "SD"
+		else:
+			imt = ""
+
+		return imt
+
 
 class HazardResult(IntensityResult):
 	"""
@@ -172,16 +197,16 @@ class HazardResult(IntensityResult):
 	:param timespan:
 		float, time span for exceedance rates or probabilities
 		(default: 50)
-	:param IMT:
 	:param intensities:
 	:param intensity_unit:
+	:param IMT:
 		see :class:`IntensityResult`
 	"""
 	def __init__(self, hazard_values, timespan=50,
-				IMT="PGA", intensities=None, intensity_unit=""):
+				intensities=None, intensity_unit="", IMT="PGA"):
 		if not isinstance(hazard_values, HazardCurveArray):
 			raise Exception("hazard_values should be instance of HazardCurveArray!")
-		IntensityResult.__init__(self, IMT, intensities, intensity_unit)
+		IntensityResult.__init__(self, intensities, intensity_unit, IMT)
 		self._hazard_values = hazard_values
 		self.timespan = float(timespan)
 
