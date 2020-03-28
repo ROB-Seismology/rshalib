@@ -169,7 +169,7 @@ class OqhazlibGMPE(GMPE):
 											trt, rms, rar, usd, lsd, msr)
 
 		## Create site collection
-		from ...site import SHASiteModel
+		from ...site import GenericSiteModel
 
 		azimuth = 90
 		if self.distance_metric in ("Rupture", "rrup", "Hypocentral", "rhypo"):
@@ -180,7 +180,7 @@ class OqhazlibGMPE(GMPE):
 			d = np.asarray(d)
 		lons, lats = oqhazlib.geo.geodetic.point_at(lon, lat, azimuth, d)
 		depths = np.zeros_like(lons)
-		sha_site_model = SHASiteModel(lons=lons, lats=lats, depths=depths)
+		sha_site_model = GenericSiteModel(lons=lons, lats=lats, depths=depths)
 
 		if not vs30:
 			vs30 = 800.
