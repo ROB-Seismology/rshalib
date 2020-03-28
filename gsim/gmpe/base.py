@@ -946,6 +946,8 @@ class GMPE(object):
 		"""
 		import pylab
 		from matplotlib.ticker import MultipleLocator
+		
+		#TODO: remove ValuePdf dependency!
 		import stats.ValuePdf as ValuePdf
 
 		if not isinstance(sigma_truncations, (list, tuple)):
@@ -964,7 +966,7 @@ class GMPE(object):
 			## Linear horizontal axis
 			pdf_unb = ValuePdf.LogNormalValuePdf(log_ah_mean, log_sigma, base=10,
 									musigma_log=True, num_sigma=5, normalize=False)
-			pdf_unb_area = np.cumsum(pdf_unb.pdf)
+			pdf_unb_area = np.sum(pdf_unb.pdf)
 			pdf_list = []
 			for epsilon in sigma_truncations:
 				#max_val = pdf_unb.geometric_mean() * pdf_unb.geometric_sigma()**sigma
