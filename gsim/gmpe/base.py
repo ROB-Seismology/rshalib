@@ -679,8 +679,12 @@ class GMPE(object):
 		:param pgm_period:
 			float, period (in s) at which to include PGM
 			(default: 0)
+
+		:return:
+			instance of :class:`rshalib.result.ResponseSpectrum`
 		"""
-		# TODO: return ResponseSpectrum
+		from ...result import ResponseSpectrum
+
 		if periods in (None, []):
 			periods = self.imt_periods[imt]
 		intensities = [self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit,
@@ -701,7 +705,12 @@ class GMPE(object):
 					intensities.insert(0, pgm_Avalue)
 					periods = np.concatenate([[pgm_period], periods])
 		intensities = np.array(intensities)
-		return (periods, intensities)
+
+		model_name = '%s (M=%.1f, d=%.1f km)' % (self.name, M, d)
+		rs = ResponseSpectrum(periods, intensities, imt_unit, imt,
+							damping=damping/100., model_name=model_name)
+		return rs
+		#return (periods, intensities)
 
 	def get_crisis_periods(self):
 		"""
@@ -946,7 +955,7 @@ class GMPE(object):
 		"""
 		import pylab
 		from matplotlib.ticker import MultipleLocator
-		
+
 		#TODO: remove ValuePdf dependency!
 		import stats.ValuePdf as ValuePdf
 
@@ -1156,13 +1165,15 @@ class GMPE(object):
 					legend_location=legend_location, lang=lang, title=title,
 					fig_filespec=fig_filespec, **kwargs)
 
-	def plot_spectrum(self, mags, d, h=0, imt="SA", Tmin=None, Tmax=None,
+	def plot_spectrum(self, mags, d, h=0, imt="SA",
+					#Tmin=None, Tmax=None,
 					imt_unit="g", epsilon=0, soil_type="rock", vs30=None,
 					kappa=None, mechanism="normal", damping=5, plot_freq=False,
-					plot_style="loglog", amin=None, amax=None, color='k',
-					label=None, fig_filespec=None, title="",
-					want_minor_grid=False, include_pgm=True, pgm_freq=50,
-					legend_location=0, lang="en"):
+					#plot_style="loglog", amin=None, amax=None,
+					color='k', label=None, fig_filespec=None, title="",
+					#want_minor_grid=False,
+					include_pgm=True, pgm_period=1./50, pgm_marker='o',
+					legend_location=0, lang="en", **kwargs):
 		"""
 		Plot ground motion spectrum for this GMPE.
 		Horizontal axis: spectral periods or frequencies.
@@ -1267,18 +1278,21 @@ class GMPE(object):
 		"""
 		from .plot import plot_spectrum
 
-		if Tmin is None:
-			Tmin = self.Tmin(imt)
-		if Tmax is None:
-			Tmax = self.Tmax(imt)
-		plot_spectrum([self], mags=mags, d=d, h=h, imt=imt, Tmin=Tmin, Tmax=Tmax,
+		#if Tmin is None:
+		#	Tmin = self.Tmin(imt)
+		#if Tmax is None:
+		#	Tmax = self.Tmax(imt)
+		return plot_spectrum([self], mags=mags, d=d, h=h, imt=imt,
+					#Tmin=Tmin, Tmax=Tmax,
 					imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type,
 					vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping,
-					include_pgm=include_pgm, pgm_freq=pgm_freq, plot_freq=plot_freq,
-					plot_style=plot_style, amin=amin, amax=amax, colors=[color],
-					labels=[label], fig_filespec=fig_filespec, title=title,
-					want_minor_grid=want_minor_grid, legend_location=legend_location,
-					lang=lang)
+					include_pgm=include_pgm, pgm_period=pgm_period,
+					pgm_marker=pgm_marker, plot_freq=plot_freq,
+					#plot_style=plot_style, amin=amin, amax=amax,
+					colors=[color], labels=[label],
+					fig_filespec=fig_filespec, title=title,
+					#want_minor_grid=want_minor_grid,
+					legend_location=legend_location, lang=lang, **kwargs)
 
 
 def adjust_hard_rock_to_rock(imt, periods, gm, gm_logsigma=None):
