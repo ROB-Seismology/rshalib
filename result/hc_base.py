@@ -22,8 +22,6 @@ from ..site import GenericSite
 from .base_array import (as_array, HazardCurveArray)
 
 
-# TODO: IMT --> imt
-
 
 __all__ = ['IntensityResult', 'HazardResult', 'HazardSpectrum',
 			'HazardField', 'HazardTree']
@@ -37,14 +35,19 @@ class IntensityResult:
 		ndarray, intensities (=ground-motion levels)
 	:param intensity_unit:
 		str, intensity unit
-		If not specified, default intensity unit for given IMT will be used
-	:param IMT:
+		If not specified, default intensity unit for given imt will be used
+	:param imt:
 		str, intensity measure type ('PGA', 'PGV', 'PGD', 'SA', 'SV', 'SD')
+	:param damping:
+		float, damping corresponding to intensities
+		(expressed as fraction of critical damping)
+		(default: 0.05)
 	"""
-	def __init__(self, intensities, intensity_unit, IMT):
+	def __init__(self, intensities, intensity_unit, imt, damping=0.05):
 		self.intensities = as_array(intensities)
-		self.intensity_unit = intensity_unit or self.get_default_intensity_unit(IMT)
-		self.IMT = IMT
+		self.intensity_unit = intensity_unit or self.get_default_intensity_unit(imt)
+		self.imt = imt
+		self.damping = damping
 
 	@property
 	def num_intensities(self):
@@ -67,7 +70,7 @@ class IntensityResult:
 		"""
 		from scipy.constants import g
 		conv_factor = None
-		if self.IMT in ("PGA", "SA"):
+		if self.imt in ("PGA", "SA"):
 			if src_intensity_unit == "g":
 				conv_factor = {"g": 1.0,
 								"mg": 1E+3,
@@ -92,22 +95,22 @@ class IntensityResult:
 								"m/s2": 1.,
 								"gal": 100.0,
 								"cm/s2": 100.0}[target_intensity_unit]
-		elif self.IMT == "PGV":
+		elif self.imt == "PGV":
 			if src_intensity_unit == "m/s":
 				conv_factor = {"m/s": 1., "cm/s": 1E+2}[target_intensity_unit]
 			elif src_intensity_unit == "cm/s":
 				conv_factor = {"m/s": 1E-2, "cm/s": 1.0}[target_intensity_unit]
-		elif self.IMT == "PGD":
+		elif self.imt == "PGD":
 			if src_intensity_unit == "m":
 				conv_factor = {"m": 1., "cm": 1E+2}[target_intensity_unit]
 			elif src_intensity_unit == "cm":
 				conv_factor = {"m": 1E-2, "cm": 1.0}[target_intensity_unit]
-		elif self.IMT == "MMI":
+		elif self.imt == "MMI":
 			conv_factor = 1.
 
 		if conv_factor is None:
 			raise Exception("Unable to convert intensity unit %s for %s!"
-							% (intensity_unit, self.IMT))
+							% (intensity_unit, self.imt))
 
 		return intensities * conv_factor
 
@@ -144,35 +147,35 @@ class IntensityResult:
 				self.intensity_unit = target_intensity_unit
 
 	@staticmethod
-	def get_default_intensity_unit(IMT):
+	def get_default_intensity_unit(imt):
 		"""
-		Return default intensity unit for given IMT
+		Return default intensity unit for given imt
 
-		:param IMT:
+		:param imt:
 			str
 
 		:return:
 			str, intensity unit
 		"""
-		if IMT in ("PGA", "SA"):
+		if imt in ("PGA", "SA"):
 			return "g"
-		elif IMT in ("PGV", "SV"):
+		elif imt in ("PGV", "SV"):
 			return "m/s"
-		elif IMT in ("PGD", "SD"):
+		elif imt in ("PGD", "SD"):
 			return "m"
-		elif IMT == "MMI":
+		elif imt == "MMI":
 			return ""
 
 	@staticmethod
 	def infer_imt_from_intensity_unit(intensity_unit):
 		"""
-		Determine IMT from intensity unit
+		Determine imt from intensity unit
 
 		:param intensity_unit:
 			str, intensity unit
 
 		:return:
-			str, IMT
+			str, imt
 		"""
 		if intensity_unit in ("g", "mg", "m/s2", "cm/s2", "gal"):
 			imt = "SA"
@@ -199,14 +202,16 @@ class HazardResult(IntensityResult):
 		(default: 50)
 	:param intensities:
 	:param intensity_unit:
-	:param IMT:
+	:param imt:
+	:param damping
 		see :class:`IntensityResult`
 	"""
 	def __init__(self, hazard_values, timespan=50,
-				intensities=None, intensity_unit="", IMT="PGA"):
+				intensities=None, intensity_unit="", imt="PGA", damping=0.05):
 		if not isinstance(hazard_values, HazardCurveArray):
 			raise Exception("hazard_values should be instance of HazardCurveArray!")
-		IntensityResult.__init__(self, intensities, intensity_unit, IMT)
+		IntensityResult.__init__(self, intensities, intensity_unit, imt,
+								damping=damping)
 		self._hazard_values = hazard_values
 		self.timespan = float(timespan)
 
@@ -255,8 +260,9 @@ class HazardSpectrum():
 		Determine index of a particular period:
 
 		:param period_spec:
-			int: period index
-			float: spectral period
+			period specification:
+			- int: period index
+			- float: spectral period
 
 		:return:
 			int, period index
@@ -302,6 +308,10 @@ class HazardField:
 		list with instances of :class:`rshalib.site.GenericSite`
 	"""
 	def __init__(self, sites):
+		## Convert (lon, lat, [z]) tuples to GenericSite instances if necessary
+		site0 = sites[0]
+		if isinstance(site0, (list, tuple)) and len(site0) >= 2:
+			sites = [GenericSite(*site[:3]) for site in sites]
 		self.sites = sites
 
 	def __len__(self):
@@ -512,10 +522,11 @@ class HazardField:
 		Determine index of given site
 
 		:param site_spec:
-			int: site index
-			str: site name
-			instance of :class:`rshalib.site.GenericSite`: site
-			(lon, lat) tuple
+			site specification:
+			- int: site index
+			- str: site name
+			- instance of :class:`rshalib.site.GenericSite`: site
+			- (lon, lat) tuple
 
 		:return:
 			int
@@ -623,10 +634,11 @@ class HazardTree(HazardResult):
 	Inherits from HazardResult
 	"""
 	def __init__(self, hazard_values, branch_names, weights=None, timespan=50,
-				IMT="PGA", intensities=None, intensity_unit="",
+				intensities=None, intensity_unit="", imt="PGA", damping=0.05,
 				mean=None, percentile_levels=None, percentiles=None):
-		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT,
-							intensities=intensities, intensity_unit=intensity_unit)
+		HazardResult.__init__(self, hazard_values, timespan=timespan,
+							intensities=intensities, intensity_unit=intensity_unit,
+							imt=imt, damping=damping)
 		self.branch_names = branch_names
 		if weights in ([], None):
 			weights = np.ones(len(branch_names), 'd') / len(branch_names)
@@ -636,6 +648,10 @@ class HazardTree(HazardResult):
 
 	def __len__(self):
 		return self.num_branches
+
+	@property
+	def num_branches(self):
+		return self.intensities.shape[0]
 
 	@property
 	def num_percentiles(self):
@@ -649,8 +665,9 @@ class HazardTree(HazardResult):
 		Determine index of a particular branch
 
 		:param branch_spec:
-			int: branch index
-			str: branch name
+			Branch specification:
+			- int: branch index
+			- str: branch name
 
 		:return:
 			int, branch index
