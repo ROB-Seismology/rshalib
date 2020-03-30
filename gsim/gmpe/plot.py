@@ -259,14 +259,6 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 	:param imt:
 		str, one of the supported intensity measure types.
 		(default: "SA").
-	:param Tmin:
-		float, lower period to plot. If None, lower bound of valid period
-		range is used
-		(default: None).
-	:param Tmax:
-		float, upper period to plot. If None, upper bound of valid period
-		range is used
-		(default: None).
 	:param imt_unit:
 		str, unit in which intensities should be expressed,
 		depends on IMT
@@ -295,23 +287,18 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 		Boolean, whether or not to include peak ground motion in the plot,
 		if possible
 		(default: True).
-	:param pgm_freq:
-		float, frequency (in Hz) at which to plot PGM if horizontal axis
-		is logarithmic or is in frequencies
-		(default: 50)
+	:param pgm_period:
+		float, period (in s) at which to plot PGM if axis is
+		logarithmic or corresponds to frequencies
+		(default: 0.01)
+	:param pgm_marker:
+		char, matplotlib marker spec to plot PGM
+		If '', PGM will not be plotted; if None, PGM will be connected
+		with spectrum
+		(default: 'o')
 	:param plot_freq:
 		Boolean, whether or not to plot frequencies instead of periods
 		(default: False).
-	:param plot_style:
-		str, plotting style ("lin", "loglin", "linlog" or "loglog").
-		First term refers to horizontal axis, second term to vertical axis.
-		(default: "loglog").
-	:param amin:
-		float, lower ground-motion value to plot
-		(default: None).
-	:param amax:
-		upper ground-motion value to plot
-		(default: None).
 	:param colors:
 		List of matplotlib color specifications
 		(default: None).
@@ -324,9 +311,6 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 	:param title:
 		str, plot title
 		(default: "")
-	:param want_minor_grid:
-		Boolean, whether or not to plot minor gridlines
-		(default: False).
 	:param legend_location:
 		Integer, location of legend (matplotlib location code):
 		"best" 	0
@@ -346,19 +330,6 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 		Currently only "en" and "nl" are supported
 		(default: "en").
 	"""
-	#linestyles = ("", "--", ":", "-.")
-	#if not colors:
-	#	colors = ("k", "r", "g", "b", "c", "m", "y")
-
-	#if plot_style.lower() in ("lin", "linlin"):
-	#	plotfunc = pylab.plot
-	#elif plot_style.lower() == "linlog":
-	#	plotfunc = pylab.semilogy
-	#elif plot_style.lower() == "loglin":
-	#	plotfunc = pylab.semilogx
-	#elif plot_style.lower() == "loglog":
-	#	plotfunc = pylab.loglog
-
 	from robspy.response import plot_response_spectra
 
 	COLORS = colors or pylab.rcParams['axes.prop_cycle'].by_key()['color']
@@ -368,13 +339,8 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 	LABELS = labels or [''] * len(gmpe_list)
 
 	spectra, colors, linestyles, linewidths, labels = [], [], [], [], []
-	Tmin, Tmax = None, None
 	for i, gmpe in enumerate(gmpe_list):
 		periods = gmpe.imt_periods[imt]
-		if Tmin is None or gmpe.Tmin(imt) < Tmin:
-			Tmin = gmpe.Tmin(imt)
-		if Tmax is None or gmpe.Tmax(imt) > Tmax:
-			Tmax = gmpe.Tmax(imt)
 
 		if plot_freq:
 			freqs = gmpe.freqs(imt)
@@ -387,7 +353,6 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 									soil_type=soil_type, vs30=vs30,
 									kappa=kappa, mechanism=mechanism,
 									damping=damping, include_pgm=include_pgm)
-			#Avalues = rs.intensities
 			spectra.append(rs)
 			color = COLORS[i%len(COLORS)]
 			colors.append(color)
@@ -395,54 +360,13 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 			linestyles.append(linestyle)
 			linewidths.append(LINEWIDTHS[0])
 
-			#style = linestyles[j] + colors[i]
-			#if isinstance(labels, (list, tuple)) and len(labels) > i and labels[i] != None:
-			#	gmpe_label = labels[i]
-			#else:
-			#	gmpe_label = gmpe.name
 			gmpe_label = LABELS[i] or gmpe.name
 			if gmpe.is_rake_dependent():
 				gmpe_label += " - %s" % mechanism
 			label = gmpe_label + " (M=%.1f)" % M
 			labels.append(label)
-			#plotfunc(xvalues, Avalues, style, linewidth=3,
-			#		label=gmpe_label+" (M=%.1f)" % M)
-
-			"""
-			pgm = None
-			if include_pgm:
-				try:
-					pgm = {"SA": "PGA", "PSV": "PGV", "SD": "PGD"}[imt]
-				except:
-					pass
-				else:
-					if gmpe.has_imt(pgm):
-						[pgm_Avalue] = gmpe.__call__(M, d, h=h, imt=pgm,
-													imt_unit=imt_unit, epsilon=0,
-													soil_type=soil_type, vs30=vs30,
-													kappa=kappa, mechanism=mechanism,
-													damping=damping)
-						if plot_style in ("loglin", "loglog") or plot_freq == True:
-							pgm_T = 1./pgm_freq
-						else:
-							pgm_T = 0
-						pgm_sigma = gmpe.log_sigma(M, d, h=h, imt=pgm,
-												soil_type=soil_type, vs30=vs30,
-												kappa=kappa, mechanism=mechanism,
-												damping=damping)
-						Tmin = pgm_T
-						# TODO: add outline color and symbol size
-						plotfunc(pgm_T, pgm_Avalue, colors[i]+"o", label="_nolegend_")
-					else:
-						pgm = None
-			"""
 
 			if epsilon:
-				#Asigma_values = np.array([gmpe.log_sigma(M, d, h=h, imt=imt, T=T,
-				#									soil_type=soil_type, vs30=vs30,
-				#									kappa=kappa, mechanism=mechanism,
-				#									damping=damping)[0] for T in periods])
-
 				linewidth = LINEWIDTHS[1]
 				for sign in (1.0, -1.0):
 					num_sigma = epsilon * sign
@@ -457,75 +381,19 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 				label = gmpe_label + " (M=%.1f) $\pm %s \sigma$" % (M, epsilon)
 				labels.extend([label, '_nolegend_'])
 
-				"""
-				sigma_values = 10**(np.log10(Avalues) + epsilon * Asigma_values)
-				plotfunc(xvalues, sigma_values, style, linewidth=1,
-						label=gmpe_label+" (M=%.1f) $\pm %d \sigma$" % (M, epsilon))
-				sigma_values = 10**(np.log10(Avalues) - epsilon * Asigma_values)
-				plotfunc(xvalues, sigma_values, style, linewidth=1, label='_nolegend_')
-
-				if pgm:
-					for sign in (1.0, -1.0):
-						pgm_sigma_value = (10**(np.log10(pgm_Avalue)
-											+ epsilon * sign * pgm_sigma))
-						# TODO: add outline color and symbol size
-						plotfunc(pgm_T, pgm_sigma_value, "o", mec=colors[i],
-								mfc="None", label="_nolegend_")
-				"""
-
 	pgm_period = min(Tmin, pgm_period)
 
-	if plot_freq:
-		fmax, fmin = 1./Tmin, 1./Tmax
-	xmin = kwargs.pop('xmin', None)
-	if xmin is None:
-		xmin = fmin if plot_freq else Tmin
-	xmax = kwargs.pop('xmax', None)
-	if xmax is None:
-		xmax = fmax if plot_freq else Tmax
-	## PLot decoration
-	#pylab.grid(True)
-	#if want_minor_grid:
-	#	pylab.grid(True, which="minor")
 	if title is None:
 		title = "\nd=%.1f km, h=%d km" % (d, int(round(h)))
-	#pylab.title(title)
-	#font = FontProperties(size='medium')
-	#xmin, xmax, ymin, ymax = pylab.axis()
-	#if amin is None:
-	#	amin = ymin
-	#if amax is None:
-	#	amax = ymax
-	#if plot_freq:
-	#	pylab.xlabel("Frequency (Hz)", fontsize="x-large")
-	#	if legend_location == None:
-	#		legend_location = 4
-	#	pylab.axis((1./Tmax, 1./Tmin, amin, amax))
-	#else:
-	#	pylab.xlabel("Period (s)", fontsize="x-large")
-	#	if legend_location == None:
-	#		legend_location = 3
-	#	pylab.axis((Tmin, Tmax, amin, amax))
 	imt_label = (get_imt_label(imt, lang.lower())
 				+ " (%s)" % IMT_UNIT_TO_PLOT_LABEL.get(imt_unit, imt_unit))
 	ylabel = kwargs.pop('ylabel', None) or imt_label
-	print(ylabel)
-	#pylab.ylabel(imt_label, fontsize="x-large")
-	#pylab.legend(loc=legend_location, prop=font)
-	#ax = pylab.gca()
-	#for label in ax.get_xticklabels() + ax.get_yticklabels():
-	#	label.set_size('large')
-	#if fig_filespec:
-	#	pylab.savefig(fig_filespec, dpi=300)
-	#	pylab.clf()
-	#else:
-	#	pylab.show()
 
 	return plot_response_spectra(spectra, labels=labels, colors=colors,
 								linestyles=linestyles, linewidths=linewidths,
 								pgm_period=pgm_period, pgm_marker=pgm_marker,
 								plot_freq=plot_freq, ylabel=ylabel,
-								xmin=xmin, xmax=xmax,
+								#xmin=xmin, xmax=xmax,
 								fig_filespec=fig_filespec, title=title,
 								legend_location=legend_location, **kwargs)
 
