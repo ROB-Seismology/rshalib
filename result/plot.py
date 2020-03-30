@@ -27,9 +27,9 @@ def get_intensity_unit_label(intensity_unit="g"):
 	:return:
 		str, intensity unit label
 	"""
-	if intensity_unit == "ms2":
+	if intensity_unit in ("ms2", "m/s2"):
 		intensity_unit_label = "$m/s^2$"
-	elif intensity_unit == "cms2":
+	elif intensity_unit in ("cms2", "cm/s2"):
 		intensity_unit_label = "$cm/s^2$"
 	elif intensity_unit == "ms":
 		intensity_unit_label = "m/s"
@@ -229,6 +229,67 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 		pylab.show()
 
 	#pylab.clf()
+
+
+def plot_hazard_spectra(spec_list, labels=[], intensity_unit=None,
+						pgm_period=0.01, pgm_marker='o', plot_freq=False,
+						xscaling='log', yscaling='lin', xgrid=1, ygrid=1,
+						title="", fig_filespec=None, lang="en", **kwargs):
+	"""
+	Plot a set of hazard spectra
+
+	:param spec_list:
+		list with instances of :class:`rshalib.result.ResponseSpectrum`
+		or :class:`rshalib.result.UHS`
+	:param intensity_unit:
+		str, ground-motion unit to plot spectral amplitudes
+		(default: None, will take unit of first item in :param:`spec_list`)
+	:param pgm_period:
+	:param pgm_marker:
+	:param plot_freq:
+	:param xscaling:
+	:param yscaling:
+	:param xgrid:
+	:param ygrid:
+	:param title:
+	:param fig_filespec:
+		see :func:`robspy.response.plot_response_spectra`
+	:param lang:
+		str, language to use for axis labels, one of "en", "nl" or "fr"
+		(default: "en")
+	:kwargs:
+		keyword arguments understood by :func:`generic_mpl.plot_xy`
+
+	:return:
+		matplotlib Axes instance
+	"""
+	from robspy.response import plot_response_spectra
+
+	intensity_unit = intensity_unit or spec_list[0].intensity_unit
+	kwargs['unit'] = intensity_unit
+	print(kwargs['unit'])
+
+	if kwargs.get('xlabel') is None:
+		if plot_freq:
+			kwargs['xlabel'] = {"en": "Frequency (Hz)",
+								"nl": "Frequentie (Hz)",
+								"fr": u"Fréquence (Hz)"}.get(lang)
+		else:
+			kwargs['xlabel'] = {"en": "Period (s)",
+								"nl": "Periode (s)",
+								"fr": u"Période (s)"}.get(lang)
+
+	if kwargs.get('ylabel') is None:
+		kwargs['ylabel'] = {"en": "Acceleration",
+							"nl": "Versnelling",
+							"fr": u"Accélération"}.get(lang)
+		kwargs['ylabel'] += " (%s)" % get_intensity_unit_label(intensity_unit)
+
+	return plot_response_spectra(spec_list, labels=labels,
+								pgm_period=pgm_period, pgm_marker=pgm_marker,
+								plot_freq=plot_freq, xgrid=xgrid, ygrid=ygrid,
+								xscaling=xscaling, yscaling=yscaling,
+								title=title, fig_filespec=fig_filespec, **kwargs)
 
 
 def plot_hazard_spectrum(datasets, pgm=None, pgm_period=0.02, labels=[], colors=[],
