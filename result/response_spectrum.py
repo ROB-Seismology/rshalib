@@ -26,8 +26,8 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 		ndarray, intensities (=ground-motion levels)
 	:param intensity_unit:
 		str, intensity unit
-		If not specified, default intensity unit for given IMT will be used
-	:param IMT:
+		If not specified, default intensity unit for given imt will be used
+	:param imt:
 		str, intensity measure type ('PGA', 'PGV', 'PGD', 'SA', 'SV', 'SD')
 	:param damping:
 		float, damping corresponding to response spectrum
@@ -37,7 +37,9 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 		str, name of this model
 		(default: "")
 	"""
-	def __init__(self, periods, intensities, intensity_unit, IMT,
+	_opt_kwargs = ['imt', 'model_name']
+
+	def __init__(self, periods, intensities, intensity_unit, imt,
 				damping=0.05, model_name=""):
 		## Fix position of PGA with respect to spectrum if necessary
 		if periods[0] == 0 and periods[1] > periods[2]:
@@ -49,19 +51,18 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 			periods = np.roll(periods, 1)
 			intensities = np.roll(intensities, 1)
 
-		HazardSpectrum.__init__(self, periods)
-		IntensityResult.__init__(self, intensities, intensity_unit, IMT)
-		response_type = self._get_response_type(IMT)
+		HazardSpectrum.__init__(self, periods, period_axis=None)
+		IntensityResult.__init__(self, intensities, intensity_unit, imt,
+								damping=damping)
+		response_type = self._get_response_type(imt)
 		robspy.ResponseSpectrum.__init__(self, periods, intensities, intensity_unit,
 										damping, response_type)
 
 		self.model_name = model_name
 
-		self._opt_kwargs = ['IMT', 'model_name']
-
 	def __repr__(self):
 		txt = '<ResponseSpectrum %s | T: %s - %s s (n=%d) | %d%% damping>'
-		txt %= (self.IMT, self.Tmin, self.Tmax, len(self), self.damping*100)
+		txt %= (self.imt, self.Tmin, self.Tmax, len(self), self.damping*100)
 		return txt
 
 	def __add__(self, other):
@@ -88,9 +89,9 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 		else:
 			raise TypeError
 
-		return ResponseSpectrum(self.periods, intensities, self.intensity_unit,
-								IMT=self.IMT, damping=self.damping,
-								model_name=model_name)
+		opt_kwargs = {kw: getattr(self, kw) for kw in self._opt_kwargs}
+		return self.__class__(self.periods, intensities, self.intensity_unit,
+							damping=self.damping, **opt_kwargs)
 
 	def __sub__(self, other):
 		"""
@@ -116,9 +117,9 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 		else:
 			raise TypeError
 
-		return ResponseSpectrum(self.periods, intensities, self.intensity_unit,
-								IMT=self.IMT, damping=self.damping,
-								model_name=model_name)
+		opt_kwargs = {kw: getattr(self, kw) for kw in self._opt_kwargs}
+		return self.__class__(self.periods, intensities, self.intensity_unit,
+							damping=self.damping, **opt_kwargs)
 
 	def __mul__(self, other):
 		"""
@@ -144,9 +145,9 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 		else:
 			raise TypeError
 
-		return ResponseSpectrum(self.periods, intensities, self.intensity_unit,
-								IMT=self.IMT, damping=self.damping,
-								model_name=model_name)
+		opt_kwargs = {kw: getattr(self, kw) for kw in self._opt_kwargs}
+		return self.__class__(self.periods, intensities, self.intensity_unit,
+							damping=self.damping, **opt_kwargs)
 
 	def __div__(self, other):
 		"""
@@ -172,23 +173,23 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 		else:
 			raise TypeError
 
-		return ResponseSpectrum(self.periods, intensities, self.intensity_unit,
-								IMT=self.IMT, damping=self.damping,
-								model_name=model_name)
+		opt_kwargs = {kw: getattr(self, kw) for kw in self._opt_kwargs}
+		return self.__class__(self.periods, intensities, self.intensity_unit,
+							damping=self.damping, **opt_kwargs)
 
 	@staticmethod
-	def _get_response_type(IMT):
+	def _get_response_type(imt):
 		"""
 		Determine response type (property of base class in robspy)
-		from IMT
+		from imt
 
-		:param IMT:
+		:param imt:
 			str, intensity measure type ("SA", "SV", "SD")
 
 		:return:
 			str, response type
 		"""
-		response_type = {'SA': 'psa', 'SV': 'psd', 'SD': 'sd'}.get(IMT, IMT.lower())
+		response_type = {'SA': 'psa', 'SV': 'psd', 'SD': 'sd'}.get(imt, imt.lower())
 		return response_type
 
 	interpolate_periods = robspy.ResponseSpectrum.interpolate
@@ -216,7 +217,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 #		"""
 #		intensities = interpolate(self.periods, self.intensities, out_periods)
 #		model_name = "%s (interpolated)" % self.model_name
-#		return ResponseSpectrum(model_name, out_periods, self.IMT, intensities,
+#		return ResponseSpectrum(model_name, out_periods, self.imt, intensities,
 #								self.intensity_unit)
 
 #	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None,
@@ -287,7 +288,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 #		periods = 1./irvt.freqs
 #		periods[irvt.freqs == pgm_freq] = 0
 #		amps = irvt.fourier_amps
-#		return ResponseSpectrum(model_name, periods, self.IMT, amps,
+#		return ResponseSpectrum(model_name, periods, self.imt, amps,
 #								self.intensity_unit)
 
 #	def to_srs(self, tf, pgm_freq=50., mag=6.0, distance=10, region="ENA"):
@@ -339,8 +340,8 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 #		srs_motion = rvt.compute_osc_resp(out_freqs)
 
 #		model_name = self.model_name + " (SRS)"
-#		#return UHS(model_name, "", self.site, out_periods, self.IMT, srs_motion, self.intensity_unit, self.timespan, poe=self.poe, return_period=self.return_period)
-#		return ResponseSpectrum(model_name, out_periods, self.IMT, srs_motion,
+#		#return UHS(model_name, "", self.site, out_periods, self.imt, srs_motion, self.intensity_unit, self.timespan, poe=self.poe, return_period=self.return_period)
+#		return ResponseSpectrum(model_name, out_periods, self.imt, srs_motion,
 #								self.intensity_unit)
 
 #	def export_csv(self, csv_filespec=None, format="%.5E"):
@@ -355,7 +356,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 #			f = open(csv_filespec, "w")
 #		else:
 #			f = sys.stdout
-#		f.write("Period (s), %s (%s)\n" % (self.IMT, self.intensity_unit))
+#		f.write("Period (s), %s (%s)\n" % (self.imt, self.intensity_unit))
 #		for period, intensity in zip(self.periods, self.intensities):
 #			f.write(("%s, %s\n" % (format, format)) % (period, intensity))
 #		f.close()
@@ -461,7 +462,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 		intensities = self.intensities * cnv_factor
 		model_name = self.model_name + " (V)"
 		return self.__class__(self.periods, intensities, self.intensity_unit,
-							IMT=self.IMT, damping=self.damping, model_name=model_name)
+							imt=self.imt, damping=self.damping, model_name=model_name)
 
 	def get_piecewise_linear_envelope(self, corner_freqs=[0.25, 2.5, 9, 33],
 										num_iterations=100):
@@ -553,7 +554,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 		periods = 1. / np.array(corner_freqs)
 		intensities = np.exp(corner_envelope)
 		return self.__class__(periods, intensities, self.intensity_unit,
-							IMT=self.IMT, damping=self.damping, model_name=model_name)
+							imt=self.imt, damping=self.damping, model_name=model_name)
 
 	def get_damped_spectrum(self, damping_ratio):
 		"""
@@ -587,7 +588,7 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 		intensities = self.intensities * conv_factor
 		damping = damping_ratio / 100.
 		return self.__class__(self.periods, intensities, self.intensity_unit,
-							IMT=self.IMT, damping=damping, model_name=model_name)
+							imt=self.imt, damping=damping, model_name=model_name)
 
 	def scale_to_pgm(self, target_pgm):
 		"""
@@ -605,6 +606,6 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 			intensities = self.intensities * target_pgm / current_pgm
 			model_name = self.model_name + " (scaled to PGM=%s)" % target_pgm
 			return self.__class__(self.periods, intensities, self.intensity_unit,
-							IMT=self.IMT, damping=self.damping, model_name=model_name)
+							imt=self.imt, damping=self.damping, model_name=model_name)
 		else:
 			print("Warning: response spectrum doesn't contain PGM!")
