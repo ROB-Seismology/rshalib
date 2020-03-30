@@ -1190,14 +1190,6 @@ class GMPE(object):
 		:param imt:
 			str, one of the supported intensity measure types.
 			(default: "SA").
-		:param Tmin:
-			float, lower period to plot. If None, lower bound of valid
-			period range is used
-			(default: None).
-		:param Tmax:
-			float, upper period to plot. If None, upper bound of valid
-			period range is used
-			(default: None).
 		:param imt_unit:
 			str, unit in which intensities should be expressed,
 			depends on IMT
@@ -1225,23 +1217,18 @@ class GMPE(object):
 			bool, whether or not to include peak ground motion in the plot,
 			if possible (plot_freq == False and plot_style in ("lin", "linlog")
 			(default: True).
-		:param pgm_freq:
-			float, frequency (in Hz) at which to plot PGM if horizontal
-			axis is logarithmic or is in frequencies
-			(default: 50)
+		:param pgm_period:
+			float, period (in s) at which to plot PGM if axis is
+			logarithmic or corresponds to frequencies
+			(default: 0.01)
+		:param pgm_marker:
+			char, matplotlib marker spec to plot PGM
+			If '', PGM will not be plotted; if None, PGM will be connected
+			with spectrum
+			(default: 'o')
 		:param plot_freq:
 			bool, whether or not to plot frequencies instead of periods
 			(default: False).
-		:param plot_style:
-			str, plotting style ("lin", "loglin", "linlog" or "loglog").
-			First term refers to horizontal axis, second term to vertical axis.
-			(default: "loglog").
-		:param amin:
-			float, lower ground-motion value to plot
-			(default: None).
-		:param amax:
-			upper ground-motion value to plot
-			(default: None).
 		:param color:
 			matplotlib color specification
 			(default: 'k')
@@ -1254,9 +1241,6 @@ class GMPE(object):
 		:param title:
 			str, plot title
 			(default: "")
-		:param want_minor_grid:
-			bool, whether or not to plot minor gridlines
-			(default: False).
 		:param legend_location:
 			Integer, location of legend (matplotlib location code):
 			"best" 	0
@@ -1278,20 +1262,13 @@ class GMPE(object):
 		"""
 		from .plot import plot_spectrum
 
-		#if Tmin is None:
-		#	Tmin = self.Tmin(imt)
-		#if Tmax is None:
-		#	Tmax = self.Tmax(imt)
 		return plot_spectrum([self], mags=mags, d=d, h=h, imt=imt,
-					#Tmin=Tmin, Tmax=Tmax,
 					imt_unit=imt_unit, epsilon=epsilon, soil_type=soil_type,
 					vs30=vs30, kappa=kappa, mechanism=mechanism, damping=damping,
 					include_pgm=include_pgm, pgm_period=pgm_period,
 					pgm_marker=pgm_marker, plot_freq=plot_freq,
-					#plot_style=plot_style, amin=amin, amax=amax,
 					colors=[color], labels=[label],
 					fig_filespec=fig_filespec, title=title,
-					#want_minor_grid=want_minor_grid,
 					legend_location=legend_location, lang=lang, **kwargs)
 
 
