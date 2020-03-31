@@ -385,8 +385,8 @@ class HazardField:
 		:return:
 			(lonmin, lonmax, latmin, latmax) tuple of floats
 		"""
-		lons = self.longitudes()
-		lats = self.latitudes()
+		lons = self.longitudes
+		lats = self.latitudes
 
 		return (lons.min(), lons.max(), lats.min(), lats.max())
 
