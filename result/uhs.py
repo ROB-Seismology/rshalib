@@ -364,12 +364,11 @@ class UHSField(HazardSpectrum, HazardResult, HazardField):
 		except:
 			raise IndexError("Period index %s out of range" % period_index)
 		intensities = self.intensities[:, period_index]
-		return HazardMap(self.sites,
+		return HazardMap(self.sites, period,
 						intensities, self.intensity_unit, self.imt,
-						period,
 						model_name=self.model_name, filespec=self.filespec,
 						timespan=self.timespan, return_period=self.return_period,
-						damping=damping, vs30s=self.vs30s)
+						damping=self.damping, vs30s=self.vs30s)
 
 	def interpolate_period(self, period):
 		"""
@@ -386,12 +385,11 @@ class UHSField(HazardSpectrum, HazardResult, HazardField):
 			period_intensities[i] = interpolate(self.periods,
 												self.intensities[i], [period])
 
-		return HazardMap(self.sites,
+		return HazardMap(self.sites, period,
 						period_intensities, self.intensity_unit, self.imt,
-						period,
 						model_name=self.model_name, filespec=self.filespec,
 						timespan=self.timespan, return_period=self.return_period,
-						damping=damping, vs30s=self.vs30s)
+						damping=self.damping, vs30s=self.vs30s)
 
 	def to_uhs_collection(self, labels=[], colors=[], linestyles=[], linewidths=[]):
 		"""
