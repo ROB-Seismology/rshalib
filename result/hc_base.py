@@ -292,6 +292,14 @@ class HazardSpectrum():
 	def frequencies(self):
 		return 1./self.periods
 
+	@property
+	def Tmin(self):
+		return self.periods.min()
+
+	@property
+	def Tmax(self):
+		return self.periods.max()
+
 	def reorder_periods(self):
 		"""
 		Reorder spectral periods from shortest to longest
