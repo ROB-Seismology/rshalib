@@ -16,82 +16,63 @@ except:
 
 
 ### imports
-import os, sys
-from decimal import Decimal
+import os
+
 import numpy as np
-
-from scipy.stats import mstats, scoreatpercentile
+from scipy.stats import scoreatpercentile
 import matplotlib
-import pylab
 
-from ..poisson import poisson_conv
-from ..nrml import ns
-from ..nrml.common import *
 from ..site import GenericSite
-from ..utils import interpolate, logrange, wquantiles
-from ..pmf import NumericPMF
+from ..utils import interpolate
 
-from .plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram
 from .base_array import *
 from .hc_base import *
 
-from .response_spectrum import ResponseSpectrum
+
+# TODO: instead of vs30s property, we could use SoilSite objects
 
 
-# TODO: unit names should be the same as robspy !!!
-# TODO: change order IMT, intensities, intensity_unit --> intensities, intensity_unit, IMT
+__all__ = ['GroundMotionField', 'HazardMap', 'HazardMapSet']
 
 
-common_plot_docstring = """
-			fig_filespec: full path to ouptut image. If None, graph will be plotted on screen
-				(default: None)
-			title: title to appear above the graph (default: None, will generate title)
-			want_recurrence: boolean indicating whether or not to plot recurrence interval
-				instead of exceedance rate in the Y axis (default: False)
-			want_poe: boolean indicating whether or not to plot probability of exceedance
-				instead of exceedance rate in the Y axis (default: False)
-			interpol_rp: return period for which to interpolate intensity
-				(one value or a list of values for each dataset). Will be plotted
-				with a dashed line for each dataset (default: None, i.e. no interpolation)
-			interpol_prob: exceedance probability for which to interpolate intensity
-				(one value or list of values for each dataset). Will be plotted
-				with a dashed line for each dataset  (default: None, i.e. no interpolation)
-			interpol_rp_range: return period range for which to interpolate intensity
-				([min return period, max return period] list). Will be plotted
-				with a grey area for first dataset only (default: None, i.e. no interpolation)
-			amax: maximum intensity to plot in X axis (default: None)
-			rp_max: maximum return period to plot in Y axis (default: 1E+07)
-			legend_location: location of legend (matplotlib location code) (default=0):
-				"best" 	0
-				"upper right" 	1
-				"upper left" 	2
-				"lower left" 	3
-				"lower right" 	4
-				"right" 	5
-				"center left" 	6
-				"center right" 	7
-				"lower center" 	8
-				"upper center" 	9
-				"center" 	10
-			lang: language to use for labels: en=English, nl=Dutch (default: en)
-            dpi: Int, image resolution in dots per inch (default: 300)
-"""
-
-
-
-class HazardMap(HazardResult, HazardField):
+class GroundMotionField(IntensityResult, HazardField):
 	"""
-	Class representing a hazard map or a ground-motion field
-	One hazard map, corresponds to 1 OQ file
-	sites: 1-D list [i] with (lon, lat) tuples of all sites
-	intensities: 1-D array [i]
+	Class representing a simple ground-motion field without probabilistic
+	attributes
+
+	:param sites:
+		1-D list [i] with instances of :class:`GenericSite`
+		or (lon, lat, [z]) tuples of all sites
+	:param period:
+		float, spectral period (in s)
+	:param intensities:
+		1-D array [i], ground-motion levels
+	:param intensity_unit:
+		str, intensity unit
+		If not specified, default intensity unit for given imt will be used
+	:param imt:
+		str, intensity measure type ('PGA', 'PGV', 'PGD', 'SA', 'SV', 'SD')
+	:param model_name:
+		str, name of this model
+		(default: "")
+	:param filespec:
+		str, full path to file containing this ground-motion map
+		(default: None)
+	:param damping:
+		float, damping corresponding to response spectrum
+		(expressed as fraction of critical damping)
+		(default: 0.05)
+	:param vs30s:
+		1-D array [i] of VS30 values for each site
+		(default: None)
 	"""
-	def __init__(self, model_name, filespec, sites, period, IMT, intensities, intensity_unit="", timespan=50, poe=None, return_period=None, vs30s=None):
-		if return_period:
-			hazard_values = ExceedanceRateArray([1./return_period])
-		elif poe:
-			hazard_values = ProbabilityArray([poe])
-		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+	def __init__(self, sites, period,
+				intensities, intensity_unit, imt,
+				model_name='', filespec=None,
+				damping=0.05, vs30s=None):
+		IntensityResult.__init__(self, intensities=intensities,
+								intensity_unit=intensity_unit, imt=imt,
+								damping=damping)
 		HazardField.__init__(self, sites)
 		self.model_name = model_name
 		self.filespec = filespec
@@ -99,25 +80,36 @@ class HazardMap(HazardResult, HazardField):
 		self.vs30s = as_array(vs30s)
 
 	def __repr__(self):
-		return "<HazardMap: %d sites, %d intensities, period=%s s>" % (self.num_sites, self.num_intensities, self.period)
+		txt = '<GroundMotionField "%s" | %s T=%s s | %d sites | region=%s>'
+		txt %= (self.model_name, self.imt, self.period, self.num_sites,
+				self.get_region())
+		return txt
 
 	def __iter__(self):
-		self._current_index = 0
-		return self
-
-	def next(self):
-		try:
-			site = self.sites[self._current_index]
-		except:
-			raise StopIteration
-		else:
-			self._current_index += 1
-			return self.getHazardValue(self._current_index-1)
+		for i in range(self.num_sites):
+			yield self.get_site_intensity(i)
 
 	def __getitem__(self, site_spec):
-		return self.getHazardValue(site_spec)
+		return self.get_site_intensity(site_spec)
 
-	def getHazardValue(self, site_spec=0, intensity_unit="g"):
+	def get_site_intensity(self, site_spec, intensity_unit="g"):
+		"""
+		Extract intensity value for a particular site
+
+		:param site_spec:
+			site specification:
+			- int: site index
+			- str: site name
+			- instance of :class:`rshalib.site.GenericSite`: site
+			- (lon, lat) tuple
+		:param intensity_unit:
+			string, intensity unit to scale result,
+			either "g", "mg", "m/s2", "gal" or "cm/s2"
+			(default: "")
+
+		:return:
+			float
+		"""
 		site_index = self.site_index(site_spec)
 		try:
 			site = self.sites[site_index]
@@ -131,8 +123,10 @@ class HazardMap(HazardResult, HazardField):
 		Return minimum intensity
 
 		:param intensity_unit:
-			string, intensity unit to scale result,
-			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
+			see :meth:`get_intensities`
+
+		:return:
+			float
 		"""
 		return self.get_intensities(intensity_unit).min()
 
@@ -141,8 +135,10 @@ class HazardMap(HazardResult, HazardField):
 		Return maximum intensity
 
 		:param intensity_unit:
-			string, intensity unit to scale result,
-			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
+			see :meth:`get_intensities`
+
+		:return:
+			float
 		"""
 		return self.get_intensities(intensity_unit).max()
 
@@ -151,8 +147,10 @@ class HazardMap(HazardResult, HazardField):
 		Return mean intensity in the map
 
 		:param intensity_unit:
-			string, intensity unit to scale result,
-			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
+			see :meth:`get_intensities`
+
+		:return:
+			float
 		"""
 		return self.get_intensities(intensity_unit).mean()
 
@@ -161,8 +159,10 @@ class HazardMap(HazardResult, HazardField):
 		Return median intensity in the map
 
 		:param intensity_unit:
-			string, intensity unit to scale result,
-			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
+			see :meth:`get_intensities`
+
+		:return:
+			float
 		"""
 		return np.median(self.get_intensities(intensity_unit))
 
@@ -174,20 +174,28 @@ class HazardMap(HazardResult, HazardField):
 			float, percentile in range [0, 100]
 
 		:param intensity_unit:
-			string, intensity unit to scale result,
-			either "g", "mg", "ms2", "gal" or "cms2" (default: "g")
+			see :meth:`get_intensities`
+
+		:return:
+			float
 		"""
 		return scoreatpercentile(self.get_intensities(intensity_unit), perc)
 
 	def argmin(self):
 		"""
 		Return site index corresponding to minimum intensity value
+
+		:return:
+			int
 		"""
 		return self.intensities.argmin()
 
 	def argmax(self):
 		"""
 		Return site index corresponding to maximum intensity value
+
+		:return:
+			int
 		"""
 		return self.intensities.argmax()
 
@@ -204,6 +212,25 @@ class HazardMap(HazardResult, HazardField):
 		return self.exceedance_rates[0]
 
 	def trim(self, lonmin=None, lonmax=None, latmin=None, latmax=None):
+		"""
+		Trim map to given lon/lat bounds
+
+		:param lonmin:
+			float, minimum longitude
+			(default: None)
+		:param lonmax:
+			float, maximum longitude
+			(default: None)
+		:param latmin:
+			float, minimum latitude
+			(default: None)
+		:param latmax:
+			float, maximum latitude
+			(default: None)
+
+		:result:
+			instance of :class:`GroundMotionField` or :class:`HazardMap`
+		"""
 		if lonmin is None:
 			lonmin = self.lonmin()
 		if lonmax is None:
@@ -224,30 +251,39 @@ class HazardMap(HazardResult, HazardField):
 		model_name = self.model_name
 		filespec = self.filespec
 		period = self.period
-		IMT = self.IMT
+		imt = self.imt
 		intensities = self.intensities[site_indexes]
 		intensity_unit = self.intensity_unit
-		timespan = self.timespan
-		poe = self.poe
-		return_period = self.return_period
 
-		hm = HazardMap(model_name, filespec, sites, period, IMT, intensities, intensity_unit, timespan, poe, return_period, vs30s)
-		return hm
+		opt_kwargs = {}
+		if hasattr(self, 'return_period'):
+			## HazardMap
+			opt_kwargs = dict(timespan=self.timespan, poe=self.poe,
+							return_period=self.return_period)
 
-	def interpolate_map(self, grid_extent=(None, None, None, None), num_grid_cells=50, method="cubic"):
+		gmf = self.__class__(sites, period, intensities, intensity_unit, imt,
+							model_name=model_name, filespec=filespec,
+							damping=damping, vs30s=vs30s, **opt_kwargs)
+		return gmf
+
+	def interpolate_map(self, grid_extent=(None, None, None, None),
+						num_grid_cells=50, method="cubic"):
 		"""
-		Interpolate hazard map on a regular (lon, lat) grid
+		Interpolate ground-motion map on a regular (lon, lat) grid
 
 		:param grid_extent:
-			(lonmin, lonmax, latmin, latmax) tuple of floats
+			(lonmin, lonmax, latmin, latmax) tuple of floats, grid bounds
+			(default: (None, None, None, None))
 		:param num_grid_cells:
-			Integer or tuple, number of grid cells in X and Y direction
+			int or tuple, number of grid cells in X and Y direction
+			(default: 50)
 		:param method:
-			Str, interpolation method supported by griddata (either
-			"linear", "nearest" or "cubic") (default: "cubic")
+			str, interpolation method supported by griddata (either
+			"linear", "nearest" or "cubic")
+			(default: "cubic")
 
 		:return:
-			instance of :class:`HazardMap`
+			instance of :class:`GroundMotionField` or :class:`HazardMap`
 		"""
 		grid_lons, grid_lats = self.meshgrid(grid_extent, num_grid_cells)
 		grid_intensities = self.get_site_intensities(grid_lons, grid_lats, method)
@@ -257,36 +293,44 @@ class HazardMap(HazardResult, HazardField):
 		filespec = self.filespec
 		sites = list(zip(grid_lons.flatten(), grid_lats.flatten()))
 		period = self.period
-		IMT = self.IMT
+		imt = self.imt
 		intensity_unit = self.intensity_unit
-		timespan = self.timespan
-		poe = self.poe
-		return_period = self.return_period
 		vs30s = None
 
-		return HazardMap(model_name, filespec, sites, period, IMT, intensities, intensity_unit, timespan, poe, return_period, vs30s)
+		opt_kwargs = {}
+		if hasattr(self, 'return_period'):
+			## HazardMap
+			opt_kwargs = dict(timespan=self.timespan, poe=self.poe,
+							return_period=self.return_period)
 
-	def get_residual_map(self, other_map, grid_extent=(None, None, None, None), num_grid_cells=50, interpol_method="linear", abs=True):
+		gmf = self.__class__(sites, period, intensities, intensity_unit, imt,
+							model_name=model_name, filespec=filespec,
+							damping=damping, vs30s=vs30s, **opt_kwargs)
+		return gmf
+
+	def get_residual_map(self, other_map, grid_extent=(None, None, None, None),
+						num_grid_cells=50, interpol_method="linear", abs=True):
 		"""
-		Compute difference with another hazard map. If sites are different,
-		the maps will be interpolated on a regular (lon, lat) grid
+		Compute difference with another ground-motion map. If sites are
+		different, the maps will be interpolated on a regular (lon, lat)
+		grid
 
 		:param other_map:
-			instance of :class:`HazardMap`
+			instance of :class:`GroundMotionField` or :class:`HazardMap`
 		:param grid_extent:
-			(lonmin, lonmax, latmin, latmax) tuple of floats
+			(lonmin, lonmax, latmin, latmax) tuple of floats,
+			grid extent for interpolation if map sites are different
+			(default: (None, None, None, None))
 		:param num_grid_cells:
-			Integer or tuple, number of grid cells in X and Y direction
 		:param interpol_method:
-			Str, interpolation method supported by griddata (either
-			"linear", "nearest" or "cubic") (default: "linear")
+			see :meth:`interpolate_map`
 		:param abs:
-			Bool, whether or not residual map values should be absolute (True)
-			or in percentage relative to current map (False)
+			bool, whether or not residual map values should be absolute
+			(True) or in percentage relative to current map (False)
 			(default: True)
 
 		:return:
-			instance of :class:`HazardMap`
+			instance of :class:`GroundMotionField` or :class:`HazardMap`
 		"""
 		if self.sites == other_map.sites:
 			residuals = self.intensities - other_map.intensities
@@ -316,7 +360,7 @@ class HazardMap(HazardResult, HazardField):
 		model_name = "Residuals (%s - %s)" % (self.model_name, other_map.model_name)
 		filespec = None
 		period = self.period
-		IMT = self.IMT
+		imt = self.imt
 		intensity_unit = self.intensity_unit
 
 		if self.timespan == other_map.timespan:
@@ -332,7 +376,18 @@ class HazardMap(HazardResult, HazardField):
 		else:
 			return_period = np.nan
 
-		return HazardMap(model_name, filespec, sites, period, IMT, residuals, intensity_unit, timespan, poe, return_period, vs30s)
+		opt_kwargs = {}
+		if (hasattr(self, 'return_period')
+			and np.isclose(self.return_period, other_map.return_period)):
+			## return HazardMap if return periods are the same,
+			## otherwise a GroundMotionField
+			opt_kwargs = dict(timespan=self.timespan, poe=self.poe,
+							return_period=self.return_period)
+
+		gmf = self.__class__(sites, period, intensities, intensity_unit, imt,
+							model_name=model_name, filespec=filespec,
+							damping=damping, vs30s=vs30s, **opt_kwargs)
+		return gmf
 
 	def extract_partial_map(self, sites, interpolate=False):
 		"""
@@ -350,7 +405,7 @@ class HazardMap(HazardResult, HazardField):
 			(default: False)
 
 		:return:
-			instance of :class:`HazardMap`
+			instance of :class:`GroundMotionField` or :class:`HazardMap`
 		"""
 		if interpolate:
 			if isinstance(sites[0], GenericSite):
@@ -377,32 +432,39 @@ class HazardMap(HazardResult, HazardField):
 		model_name = self.model_name + " (partial)"
 		filespec = self.filespec
 		period = self.period
-		IMT = self.IMT
+		imt = self.imt
 		intensity_unit = self.intensity_unit
-		timespan = self.timespan
-		poe = self.poe
-		return_period = self.return_period
 
-		return HazardMap(model_name, filespec, sites, period, IMT, intensities,
-						intensity_unit, timespan, poe, return_period, vs30s)
+		opt_kwargs = {}
+		if hasattr(self, 'return_period'):
+			## HazardMap
+			opt_kwargs = dict(timespan=self.timespan, poe=self.poe,
+							return_period=self.return_period)
+
+		gmf = self.__class__(sites, period, intensities, intensity_unit, imt,
+							model_name=model_name, filespec=filespec,
+							damping=damping, vs30s=vs30s, **opt_kwargs)
+		return gmf
 
 	def export_VM(self, base_filespec, num_cells=100):
 		"""
 		Export hazard map to a Vertical Mapper grid
 		"""
 		import mapping.VMPython as vm
-		if self.IMT in ("PGA", "PGV", "PGV"):
-			imt_label = self.IMT
+		if self.imt in ("PGA", "PGV", "PGV"):
+			imt_label = self.imt
 		else:
 			imt_label = "T=%.3fs" % self.period
 		rp_label = "%.3Gyr" % self.return_period
-		grd_filespec = os.path.splitext(base_filespec)[0] + "_%s_%s" % (imt_label, rp_label)
+		grd_filespec = (os.path.splitext(base_filespec)[0]
+						+ "_%s_%s" % (imt_label, rp_label))
 
 		(lonmin, lonmax, dlon), (latmin, latmax, dlat) = self.get_grid_properties()
 		assert abs(dlon - dlat) < 1E-12
 		cell_size = dlon
 		zmin, zmax = self.min(), self.max()
-		vmgrd = vm.CreateNumericGrid(grd_filespec, lonmin, lonmax, latmin, latmax, cell_size, zmin, zmax, Zdescription=self.intensity_unit)
+		vmgrd = vm.CreateNumericGrid(grd_filespec, lonmin, lonmax, latmin, latmax,
+							cell_size, zmin, zmax, Zdescription=self.intensity_unit)
 		print("Created VM grid %s" % grd_filespec)
 
 		intensity_grid = self.get_grid_intensities(num_cells)
@@ -411,7 +473,9 @@ class HazardMap(HazardResult, HazardField):
 			vmgrd.WriteRow(row, (nrows-1)-rownr)
 		vmgrd.Close()
 
-	def export_GeoTiff(self, base_filespec, num_cells=None, cell_size=None, interpol_method='cubic', intensity_unit='g', nodata_value=np.nan):
+	def export_geotiff(self, base_filespec, num_cells=None, cell_size=None,
+						interpol_method='cubic', intensity_unit='g',
+						nodata_value=np.nan):
 		"""
 		Export hazard map to GeoTiff raster
 
@@ -442,8 +506,8 @@ class HazardMap(HazardResult, HazardField):
 
 		assert num_cells or cell_size
 
-		if self.IMT in ("PGA", "PGV", "PGV"):
-			imt_label = self.IMT
+		if self.imt in ("PGA", "PGV", "PGV"):
+			imt_label = self.imt
 		else:
 			imt_label = "T=%.3fs" % self.period
 		rp_label = "%.3Gyr" % self.return_period
@@ -501,31 +565,13 @@ class HazardMap(HazardResult, HazardField):
 		# TODO!
 		pass
 
-	def get_plot(self, region=None, projection="merc", resolution="i", graticule_interval=(1., 1.),
-				cmap="usgs", norm=None, contour_interval=None, amin=None, amax=None,
-				num_grid_cells=100, plot_style="cont", contour_line_style="default",
-				site_style="default", source_model="", source_model_style="default",
-				countries_style="default", coastline_style="default", intensity_unit="",
-				hide_sea=False, colorbar_style="default", show_legend=True,
-				title=None, ax=None, **kwargs):
+	def to_lbm_layer(self, cmap="usgs", norm=None, contour_interval=None,
+				amin=None, amax=None, intensity_unit="",
+				num_grid_cells=100, color_gradient="cont",
+				contour_line_style="default", colorbar_style="default"):
 		"""
-		Plot hazard map
+		Construct map layer to be plotted with layeredbasemap
 
-		:param region:
-			(west, east, south, north) tuple specifying rectangular region
-			to plot in geographic coordinates
-			(default: None)
-		:param projection:
-			string, map projection. See Basemap documentation
-			(default: "merc")
-		:param resolution:
-			char, resolution of builtin shorelines / country borders:
-			'c' (crude), 'l' (low), 'i' (intermediate), 'h' (high), 'f' (full)
-			(default: 'i')
-		:param graticule_interval:
-			(dlon, dlat) tuple of floats, spacing of grid lines (meridians,
-			parallels) to draw over the map
-			(default: (1., 1.)
 		:param cmap:
 			str of matplotlib colormap specification: color map to be used
 			for ground-motion values
@@ -546,17 +592,173 @@ class HazardMap(HazardResult, HazardField):
 		:param amax:
 			float, maximum ground-motion level to color/contour
 			(default: None)
+		:param intensity_unit:
+			str, unit in which ground-motion values need to be expressed
+			(default: "")
 		:param num_grid_cells:
 			int or tuple, number of grid cells for interpolating
 			intensity grid in X and Y direction
 			(default: 100)
-		:param plot_style:
+		:param color_gradient:
 			String, either "disc" for discrete or "cont" for continuous
 			(default: "cont")
 		:param contour_line_style:
 			instance of :class:`LayeredBasemap.LineStyle`, defining style
 			for plotting contour lines
 			(default: "default")
+		:param colorbar_style:
+			instance of :class:`LayeredBasemap.ColorbarStyle`, defining
+			style for plotting color bar
+			(default: "default")
+
+		:return:
+			instance of :class:`layeredbasemap.MapLayer`
+		"""
+		import mapping.layeredbasemap as lbm
+		from .plot import get_intensity_unit_label
+
+		## Construct default styles
+		if contour_line_style == "default":
+			contour_label_style = lbm.TextStyle(font_size=10,
+												background_color=(1,1,1,0.5))
+			contour_line_style = lbm.LineStyle(label_style=contour_label_style)
+
+		## Prepare intensity grid and contour levels
+		if num_grid_cells is None:
+			## Assume site lons and lats already define a meshed grid
+			lons = np.sort(np.unique(self.longitudes))
+			lats = np.sort(np.unique(self.latitudes))
+			grid_lons, grid_lats = np.meshgrid(lons, lats, copy=False)
+			interpol_method = "nearest"
+		else:
+			grid_lons, grid_lats = self.meshgrid(num_cells=num_grid_cells)
+			interpol_method = "cubic"
+
+		if not intensity_unit:
+			intensity_unit = self.intensity_unit
+		intensity_grid = self.get_site_intensities(grid_lons, grid_lats,
+						method=interpol_method, intensity_unit=intensity_unit)
+
+		# TODO: option to use contour levels as defined in norm
+		if not contour_interval:
+			arange = self.max() - self.min()
+			## If intensity_unit is 'g'
+			candidates = np.array([0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.08,
+								0.1, 0.2, 0.25, 0.4, 0.5, 0.6, 0.75, 0.8, 1.0])
+			try:
+				index = np.where(arange / candidates <= 10)[0][0]
+			except IndexError:
+				index = 0
+			contour_interval = candidates[index]
+		else:
+			contour_interval = float(contour_interval)
+
+		if amin is None:
+			amin = (np.floor(self.min(intensity_unit) / contour_interval)
+					* contour_interval)
+		if amax is None:
+			amax = (np.ceil(self.max(intensity_unit) / contour_interval)
+					* contour_interval)
+
+		if contour_interval is not None:
+			contour_levels = np.arange(amin, amax+contour_interval, contour_interval)
+			## Sometimes, there is an empty contour interval at the end
+			if len(contour_levels) > 1 and contour_levels[-2] > self.max():
+				contour_levels = contour_levels[:-1]
+		elif contour_interval == 0:
+			contour_levels = []
+		else:
+			contour_levels = None
+
+		## Color map and norm
+		if isinstance(cmap, basestring):
+			if cmap.lower() in ("usgs", "share", "gshap"):
+				cmap_name = cmap
+				cmap = lbm.cm.get_cmap("hazard", cmap_name)
+				if norm is None:
+					norm = lbm.cm.get_norm("hazard", cmap_name)
+			else:
+				cmap = matplotlib.cm.get_cmap(cmap)
+
+		if isinstance(norm, basestring):
+			if norm.lower() in ("usgs", "share", "gshap"):
+				norm = lbm.cm.get_norm("hazard", norm)
+
+		## Intensity grid
+		if self.imt in ("SA", "PGA"):
+			label_format="%.2f"
+			if self.period == 0:
+				imt_label = "PGA"
+			else:
+				imt_label = "%s (%s s)" % (self.imt, self.period)
+		else:
+			imt_label = self.imt
+			label_format="%s"
+		intensity_unit_label = get_intensity_unit_label(intensity_unit)
+		cbar_label = imt_label
+		if intensity_unit:
+			cbar_label += ' (%s)' % intensity_unit_label
+
+		ticks = contour_levels
+		if not (ticks is None or ticks == []):
+			ticks = ticks[ticks <= norm.vmax]
+		if colorbar_style == "default":
+			colorbar_style = lbm.ColorbarStyle(location="bottom",
+												format=label_format, ticks=ticks,
+												title=cbar_label)
+		color_map_theme = lbm.ThematicStyleColormap(color_map=cmap, norm=norm,
+													vmin=amin, vmax=amax,
+													colorbar_style=colorbar_style)
+		color_gradient = {"cont": "continuous",
+						"disc": "discontinuous"}[color_gradient]
+		grid_style = lbm.GridStyle(color_map_theme=color_map_theme,
+									color_gradient=color_gradient,
+									line_style=contour_line_style,
+									contour_levels=contour_levels)
+		grid_data = lbm.MeshGridData(grid_lons, grid_lats, intensity_grid)
+		layer = lbm.MapLayer(grid_data, grid_style, name="intensity_grid")
+
+		return layer
+
+	def get_plot(self, region=None, projection="merc", resolution="i",
+				graticule_interval=(1., 1.),
+				cmap="usgs", norm=None, contour_interval=None,
+				amin=None, amax=None, intensity_unit="",
+				num_grid_cells=100, color_gradient="cont", contour_line_style="default",
+				colorbar_style="default", site_style="default",
+				source_model="", source_model_style="default",
+				countries_style="default", coastline_style="default",
+				hide_sea=False,
+				title=None, show_legend=True, ax=None, **kwargs):
+		"""
+		Plot hazard map
+
+		:param region:
+			(west, east, south, north) tuple specifying rectangular region
+			to plot in geographic coordinates
+			(default: None)
+		:param projection:
+			string, map projection. See Basemap documentation
+			(default: "merc")
+		:param resolution:
+			char, resolution of builtin shorelines / country borders:
+			'c' (crude), 'l' (low), 'i' (intermediate), 'h' (high), 'f' (full)
+			(default: 'i')
+		:param graticule_interval:
+			(dlon, dlat) tuple of floats, spacing of grid lines (meridians,
+			parallels) to draw over the map
+			(default: (1., 1.)
+		:param cmap:
+		:param norm:
+		:param contour_interval:
+		:param amin:
+		:param amax:
+		:param intensity_unit:
+		:param num_grid_cells:
+		:param color_gradient:
+		:param contour_line_style:
+		:param colorbar_style:
+			see :meth:`to_lbm_layer`
 		:param site_style:
 			instance of :class:`LayeredBasemap.PointStyle`, defining style
 			for plotting sites where hazard was computed
@@ -577,28 +779,21 @@ class HazardMap(HazardResult, HazardField):
 			instance of :class:`LayeredBasemap.LineStyle`, defining
 			style for plotting coastlines
 			(default: "default")
-		:param intensity_unit:
-			str, unit in which ground-motion values need to be expressed
-			(default: "")
 		:param hide_sea:
 			bool, whether or not hazard map should be masked over seas
 			and oceans
 			(default: False)
-		:param colorbar_style:
-			instance of :class:`LayeredBasemap.ColorbarStyle`, defining
-			style for plotting color bar
-			(default: "default")
-		:param show_legend:
-			bool, whether or not to show the legend for sources
-			(default: True)
 		:param title:
 			str, map title. If empty string, no title will be plotted.
 			If None, default title will be used
 			(default: None)
+		:param show_legend:
+			bool, whether or not to show the legend for sources
+			(default: True)
 		:param ax:
 			matplotlib Axes instance
 			(default: None)
-		:param kwargs:
+		:kwargs:
 			additional keyword arguments to be passed to LayeredBasemap
 			constructor
 
@@ -609,7 +804,7 @@ class HazardMap(HazardResult, HazardField):
 		import mapping.layeredbasemap as lbm
 		from .plot import get_intensity_unit_label
 
-		## Construct default styles:
+		## Construct default styles
 		if site_style == "default":
 			site_style = lbm.PointStyle(shape="x", line_color="w", size=2.5)
 		if source_model_style == "default":
@@ -624,116 +819,42 @@ class HazardMap(HazardResult, HazardField):
 			countries_style = lbm.LineStyle(line_width=2, line_color="w")
 		if coastline_style == "default":
 			coastline_style = lbm.LineStyle(line_width=2, line_color="w")
-		if contour_line_style == "default":
-			contour_label_style = lbm.TextStyle(font_size=10, background_color=(1,1,1,0.5))
-			contour_line_style = lbm.LineStyle(label_style=contour_label_style)
-
-		## Prepare intensity grid and contour levels
-		longitudes, latitudes = self.longitudes, self.latitudes
-		if num_grid_cells is None:
-			## Assume site lons and lats already define a meshed grid
-			lons = np.sort(np.unique(self.longitudes))
-			lats = np.sort(np.unique(self.latitudes))
-			grid_lons, grid_lats = np.meshgrid(lons, lats, copy=False)
-			interpol_method = "nearest"
-		else:
-			grid_lons, grid_lats = self.meshgrid(num_cells=num_grid_cells)
-			interpol_method = "cubic"
-		if not intensity_unit:
-			intensity_unit = self.intensity_unit
-		intensity_grid = self.get_site_intensities(grid_lons, grid_lats,
-						method=interpol_method, intensity_unit=intensity_unit)
-
-		# TODO: option to use contour levels as defined in norm
-		if not contour_interval:
-			arange = self.max() - self.min()
-			candidates = np.array([0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.08, 0.1, 0.2, 0.25, 0.4, 0.5, 0.6, 0.75, 0.8, 1.0])
-			try:
-				index = np.where(arange / candidates <= 10)[0][0]
-			except IndexError:
-				index = 0
-			contour_interval = candidates[index]
-		else:
-			contour_interval = float(contour_interval)
-
-		if amin is None:
-			amin = np.floor(self.min(intensity_unit) / contour_interval) * contour_interval
-		if amax is None:
-			amax = np.ceil(self.max(intensity_unit) / contour_interval) * contour_interval
-
-		if contour_interval is not None:
-			contour_levels = np.arange(amin, amax+contour_interval, contour_interval)
-			## Sometimes, there is an empty contour interval at the end
-			if len(contour_levels) > 1 and contour_levels[-2] > self.max():
-				contour_levels = contour_levels[:-1]
-		elif contour_interval == 0:
-			contour_levels = []
-		else:
-			contour_levels = None
 
 		## Compute map limits
 		if not region:
-			llcrnrlon, llcrnrlat = min(longitudes), min(latitudes)
-			urcrnrlon, urcrnrlat = max(longitudes), max(latitudes)
-			region = (llcrnrlon, urcrnrlon, llcrnrlat, urcrnrlat)
-
-		## Color map and norm
-		if isinstance(cmap, basestring):
-			if cmap.lower() in ("usgs", "share", "gshap"):
-				cmap_name = cmap
-				cmap = lbm.cm.get_cmap("hazard", cmap_name)
-				if norm is None:
-					norm = lbm.cm.get_norm("hazard", cmap_name)
-			else:
-				cmap = matplotlib.cm.get_cmap(cmap)
-
-		if isinstance(norm, basestring):
-			if norm.lower() in ("usgs", "share", "gshap"):
-				norm = lbm.cm.get_norm("hazard", norm)
-
-		## Intensity grid
-		if self.IMT in ("SA", "PGA"):
-			label_format="%.2f"
-			if self.period == 0:
-				imt_label = "PGA"
-			else:
-				imt_label = "%s (%s s)" % (self.IMT, self.period)
-		else:
-			imt_label = self.IMT
-			label_format="%s"
-		intensity_unit_label = get_intensity_unit_label(intensity_unit)
-		cbar_label = imt_label
-		if intensity_unit:
-			cbar_label += ' (%s)' % intensity_unit_label
+			region = self.get_region()
 
 		map_layers = []
-		ticks = contour_levels
-		if not (ticks is None or ticks == []):
-			ticks = ticks[ticks <= norm.vmax]
-		if colorbar_style == "default":
-			colorbar_style = lbm.ColorbarStyle(location="bottom", format=label_format, ticks=ticks, title=cbar_label)
-		color_map_theme = lbm.ThematicStyleColormap(color_map=cmap, norm=norm, vmin=amin, vmax=amax, colorbar_style=colorbar_style)
-		color_gradient = {"cont": "continuous", "disc": "discontinuous"}[plot_style]
-		grid_style = lbm.GridStyle(color_map_theme=color_map_theme, color_gradient=color_gradient, line_style=contour_line_style, contour_levels=contour_levels)
-		grid_data = lbm.MeshGridData(grid_lons, grid_lats, intensity_grid)
-		layer = lbm.MapLayer(grid_data, grid_style, name="intensity_grid")
-		map_layers.append(layer)
+
+		## Intensity grid
+		grid_layer = self.to_lbm_layer(cmap=cmap, norm=norm,
+						contour_interval=contour_interval,
+						amin=amin, amax=amax, intensity_unit=intensity_unit,
+						num_grid_cells=num_grid_cells, color_gradient=color_gradient,
+						contour_line_style=contour_line_style,
+						colorbar_style=colorbar_style)
+		map_layers.append(grid_layer)
 
 		## Intensity data points
 		if site_style:
 			site_data = lbm.MultiPointData(longitudes, latitudes)
-			map_layers.append(lbm.MapLayer(site_data, site_style, name="intensity_points"))
+			map_layers.append(lbm.MapLayer(site_data, site_style,
+											name="intensity_points"))
 
 		if hide_sea:
-			continent_style = lbm.FocmecStyle(fill_color=(1, 1, 1, 0), bg_color=(1, 1, 1, 1), line_width=0, line_color="none")
+			continent_style = lbm.FocmecStyle(fill_color=(1, 1, 1, 0),
+												bg_color=(1, 1, 1, 1),
+												line_width=0, line_color="none")
 			data = lbm.BuiltinData("continents")
 			map_layers.append(lbm.MapLayer(data, continent_style, name="ocean"))
 
 		## Coastlines and national boundaries
 		if coastline_style:
-			map_layers.append(lbm.MapLayer(lbm.BuiltinData("coastlines"), coastline_style, name="coastlines"))
+			map_layers.append(lbm.MapLayer(lbm.BuiltinData("coastlines"),
+											coastline_style, name="coastlines"))
 		if countries_style:
-			map_layers.append(lbm.MapLayer(lbm.BuiltinData("countries"), countries_style, name="countries"))
+			map_layers.append(lbm.MapLayer(lbm.BuiltinData("countries"),
+											countries_style, name="countries"))
 
 		## Source model
 		if source_model and source_model_style:
@@ -756,30 +877,38 @@ class HazardMap(HazardResult, HazardField):
 				point_data = lbm.MultiPointData([], [])
 				for source in source_model:
 					if isinstance(source, AreaSource):
-						polygon_data.append(lbm.PolygonData(source.longitudes, source.latitudes))
+						polygon_data.append(lbm.PolygonData(source.longitudes,
+															source.latitudes))
 						if not "polygons" in legend_label and show_legend:
 							legend_label["polygons"] = "Area sources"
 					elif isinstance(source, (SimpleFaultSource, CharacteristicFaultSource)):
 						pg = source.get_polygon()
 						polygon_data.append(lbm.PolygonData(pg.lons, pg.lats))
 						fault_trace = source.fault_trace
-						line_data.append(lbm.LineData(fault_trace.lons, fault_trace.lats))
+						line_data.append(lbm.LineData(fault_trace.lons,
+													fault_trace.lats))
 						if not "lines" in legend_label and show_legend:
 							legend_label["lines"] = "Fault sources"
 					elif isinstance(source, PointSource):
-						point_data.append(lbm.PointData(source.location.longitude, source.location.latitude))
+						point_data.append(lbm.PointData(source.location.longitude,
+														source.location.latitude))
 						if not "points" in legend_label and show_legend:
 							legend_label["points"] = "Point sources"
 					else:
-						print("Warning: Skipped plotting source %s, source type not supported" % source.source_id)
+						print("Warning: Skipped plotting source %s, "
+							"source type not supported" % source.source_id)
 				sm_data = lbm.CompositeData(lines=line_data, polygons=polygon_data,
 											points=point_data)
 			sm_style = source_model_style
-			map_layers.append(lbm.MapLayer(sm_data, sm_style, legend_label=legend_label, name="source_model"))
+			sm_layer = lbm.MapLayer(sm_data, sm_style, legend_label=legend_label,
+									name="source_model")
+			map_layers.append(sm_layer)
 
 		## Title
 		if title is None:
-			title = "%s\n%.4G yr return period" % (self.model_name, self.return_period)
+			title = self.model_name
+			if hasattr(self, "return_period"):
+				title += "\nTr=%.4G yr" % self.return_period
 
 		if source_model:
 			legend_style = lbm.LegendStyle(location=0)
@@ -787,53 +916,137 @@ class HazardMap(HazardResult, HazardField):
 			legend_style = None
 
 		graticule_style = lbm.GraticuleStyle(annot_axes="SE")
-		map = lbm.LayeredBasemap(map_layers, title, projection, region=region, graticule_interval=graticule_interval, resolution=resolution, graticule_style=graticule_style, legend_style=legend_style, ax=ax, **kwargs)
+		map = lbm.LayeredBasemap(map_layers, title, projection, region=region,
+					resolution=resolution, graticule_interval=graticule_interval,
+					graticule_style=graticule_style, legend_style=legend_style,
+					ax=ax, **kwargs)
 		return map
+
+
+class HazardMap(HazardResult, GroundMotionField):
+	"""
+	Class representing a hazard map, i.e. a ground-motion field for
+	a particular return period.
+	One hazard map, corresponds to 1 OQ file
+
+	:param sites:
+	:param period:
+	:param intensities:
+	:param intensity_unit:
+	:param imt:
+	:param model_name:
+	:param filespec:
+		see :class:`GroundMotionField`
+	:param timespan:
+		float, time span corresponding to probability of exceedance
+		(default: 50)
+	:param poe:
+		float, probability of exceedance
+		(default: None)
+	:param return_period:
+		float, return period
+		(default: None)
+		Note: either return period or poe must be specified!
+	:param damping:
+	:param vs30s:
+		see :class:`GroundMotionField`
+	"""
+	def __init__(self, sites, period,
+				intensities, intensity_unit, imt,
+				model_name='', filespec=None,
+				timespan=50, poe=None, return_period=None,
+				damping=0.05, vs30s=None):
+		if return_period:
+			hazard_values = ExceedanceRateArray([1./return_period])
+		elif poe:
+			hazard_values = ProbabilityArray([poe])
+		HazardResult.__init__(self, hazard_values, timespan=timespan, imt=imt,
+							intensities=intensities, intensity_unit=intensity_unit,
+							damping=damping)
+		GroundMotionField.__init__(self, sites, period,
+									intensities, intensity_unit, imt,
+									model_name=model_name, filespec=filespec,
+									damping=damping, vs30s=vs30s)
+
+	def __repr__(self):
+		txt = '<HazardMap "%s" | %s T=%s s | Tr=%G yr | %d sites | region=%s>'
+		txt %= (self.model_name, self.imt, self.period, self.return_period,
+				self.num_sites, self.get_region())
+		return txt
 
 
 class HazardMapSet(HazardResult, HazardField):
 	"""
-	Class representing a set of hazard maps or ground-motion fields for different
-	return periods.
+	Class representing a set of hazard maps or ground-motion fields
+	for different return periods.
 	Corresponds to 1 CRISIS MAP file containing 1 spectral period.
-	sites: 1-D list [i] with (lon, lat) tuples of all sites
-	intensities: 2-D array [p, i]
+
+	:param sites:
+	:param period:
+		see :class:`HazardMap`
+	:param intensities:
+		2-D array [p, i], ground-motion values for different return
+		periods p and sites i
+	:param intensity_unit:
+	:param imt:
+	:param model_name:
+		see :class:`HazardMap`
+	:param filespecs:
+		list of strings [p], paths to files corresponding to hazard maps
+		(default: [])
+	:param timespan:
+		float, time span corresponding to exceedance probabilities
+		(default: 50)
+	:param poes:
+		1-D array or probabilities of exceedance [p]
+		(default: None)
+	:param return_periods:
+		1-D [p] array of return periods
+		(default: None)
+	:param damping:
+	:param vs30s:
+		see :class:`HazardMap`
 	"""
-	def __init__(self, model_name, filespecs, sites, period, IMT, intensities, intensity_unit="g", timespan=50, poes=None, return_periods=None, vs30s=None):
+	def __init__(self, sites, period,
+				intensities, intensity_unit, imt,
+				model_name="", filespecs=[],
+				timespan=50, poes=None, return_periods=None,
+				damping=0.05, vs30s=None):
 		if not return_periods in (None, []):
 			hazard_values = ExceedanceRateArray(1./as_array(return_periods))
 		elif poes:
 			hazard_values = ProbabilityArray(as_array(poes))
-		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
+
+		HazardResult.__init__(self, hazard_values, timespan=timespan, imt=imt,
+							intensities=intensities, intensity_unit=intensity_unit,
+							damping=damping)
 		HazardField.__init__(self, sites)
+
+		self.period = period
 		self.model_name = model_name
 		if len(filespecs) == 1:
 			filespecs *= len(return_periods)
 		self.filespecs = filespecs
-		self.period = period
 		self.vs30s = as_array(vs30s)
 
-	def __iter__(self):
-		self._current_index = 0
-		return self
+	def __repr__(self):
+		txt = '<HazardMapSet "%s" | %s T=%s s  | %d sites | nTr=%d>'
+		txt %= (self.model_name, self.imt, self.period, self.num_sites,
+				len(self))
+		return txt
 
-	def next(self):
-		try:
-			return_period = self.return_periods[self._current_index]
-		except:
-			raise StopIteration
-		else:
-			self._current_index += 1
-			return self.getHazardMap(index=self._current_index-1)
+	def __iter__(self):
+		for i in range(len(self)):
+			yield self.get_hazard_map(index=i)
 
 	def __getitem__(self, index):
-		return self.getHazardMap(index=index)
+		return self.get_hazard_map(index=index)
 
 	def __len__(self):
 		return len(self.return_periods)
 
 	@classmethod
-	def from_hazard_maps(self, hazard_maps, model_name=""):
+	def from_hazard_maps(cls, hazard_maps, model_name=""):
 		"""
 		Construct from a list of hazard maps
 
@@ -847,12 +1060,13 @@ class HazardMapSet(HazardResult, HazardField):
 		hm0 = hazard_maps[0]
 		sites = hm0.sites
 		period = hm0.period
-		IMT = hm0.IMT
+		imt = hm0.imt
 		intensities = np.zeros((len(hazard_maps), len(sites)))
 		intensity_unit = hm0.intensity_unit
 		timespan = hm0.timespan
 		poes = []
 		return_periods = []
+		damping = hm0.damping
 		vs30s = hm0.vs30s
 		for i, hm in enumerate(hazard_maps):
 			assert hm.sites == hm0.sites
@@ -862,9 +1076,12 @@ class HazardMapSet(HazardResult, HazardField):
 			poes.append(hm.poe)
 			return_periods.append(hm.return_period)
 
-		return HazardMapSet(model_name, filespecs, sites, period, IMT, intensities, intensity_unit=intensity_unit, timespan=timespan, poes=poes, return_periods=return_periods, vs30s=vs30s)
+		return cls(sites, period, intensities, intensity_unit, imt,
+				model_name=model_name, filespecs=filespecs,
+				timespan=timespan, return_periods=return_periods,
+				damping=damping, vs30s=vs30s)
 
-	def getHazardMap(self, index=None, poe=None, return_period=None):
+	def get_hazard_map(self, index=None, poe=None, return_period=None):
 		"""
 		Return a particular hazard map
 		Parameters:
@@ -877,7 +1094,8 @@ class HazardMapSet(HazardResult, HazardField):
 			One of index, poe or return_period must be specified.
 		"""
 		if (index, poe, return_period) == (None, None, None):
-			raise Exception("One of index, poe or return_period must be specified!")
+			raise Exception("One of index, poe or return_period "
+							"must be specified!")
 		if index is None:
 			if poe is not None:
 				index = np.where(np.abs(self.poes - poe) < 1E-6)[0]
@@ -888,7 +1106,8 @@ class HazardMapSet(HazardResult, HazardField):
 			elif return_period is not None:
 				index = np.where(np.abs(self.return_periods - return_period) < 1)[0]
 				if len(index) == 0:
-					raise ValueError("No hazard map for return period=%s" % return_period)
+					raise ValueError("No hazard map for return period=%s"
+									% return_period)
 				else:
 					index = index[0]
 
@@ -899,12 +1118,17 @@ class HazardMapSet(HazardResult, HazardField):
 		else:
 			filespec = self.filespecs[index]
 			intensities = self.intensities[index]
-			return HazardMap(self.model_name, filespec, self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+			return HazardMap(self.sites, self.period,
+							intensities, self.intensity_unit, self.imt,
+							model_name=self.model_name, filespec=filespec,
+							timespan=self.timespan, return_period=return_period,
+							damping=self.damping, vs30s=self.vs30s)
 
 	# TODO: the following methods are perhaps better suited in a HazardMapTree class
 	def get_max_hazard_map(self):
 		"""
-		Get hazard map with for each site the maximum value of all hazard maps in the set.
+		Get hazard map with for each site the maximum value of
+		all hazard maps in the set.
 
 		:returns:
 			instance of :class:`HazardMap`
@@ -915,7 +1139,12 @@ class HazardMapSet(HazardResult, HazardField):
 		else:
 			return_period = 1
 		model_name = "Max(%s)" % self.model_name
-		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
+		return HazardMap(self.sites, self.period,
+						intensities, self.intensity_unit, self.imt,
+						model_name=model_name, filespec=None,
+						timespan=self.timespan, return_period=return_period,
+						damping=self.damping, vs30s=self.vs30s)
 
 	def get_min_hazard_map(self):
 		"""
@@ -930,7 +1159,12 @@ class HazardMapSet(HazardResult, HazardField):
 		else:
 			return_period = 1
 		model_name = "Min(%s)" % self.model_name
-		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
+		return HazardMap(self.sites, self.period,
+						intensities, self.intensity_unit, self.imt,
+						model_name=model_name, filespec=None,
+						timespan=self.timespan, return_period=return_period,
+						damping=self.damping, vs30s=self.vs30s)
 
 	def get_mean_hazard_map(self):
 		"""
@@ -945,7 +1179,12 @@ class HazardMapSet(HazardResult, HazardField):
 		else:
 			return_period = 1
 		model_name = "Mean(%s)" % self.model_name
-		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
+		return HazardMap(self.sites, self.period,
+						intensities, self.intensity_unit, self.imt,
+						model_name=model_name, filespec=None,
+						timespan=self.timespan, return_period=return_period,
+						damping=self.damping, vs30s=self.vs30s)
 
 	def get_median_hazard_map(self):
 		"""
@@ -960,7 +1199,12 @@ class HazardMapSet(HazardResult, HazardField):
 		else:
 			return_period = 1
 		model_name = "Median(%s)" % self.model_name
-		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
+		return HazardMap(self.sites, self.period,
+						intensities, self.intensity_unit, self.imt,
+						model_name=model_name, filespec=None,
+						timespan=self.timespan, return_period=return_period,
+						damping=self.damping, vs30s=self.vs30s)
 
 	def get_percentile_hazard_map(self, perc):
 		"""
@@ -978,7 +1222,12 @@ class HazardMapSet(HazardResult, HazardField):
 		else:
 			return_period = 1
 		model_name = "Perc%d%s)" % (perc, self.model_name)
-		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
+		return HazardMap(self.sites, self.period,
+						intensities, self.intensity_unit, self.imt,
+						model_name=model_name, filespec=None,
+						timespan=self.timespan, return_period=return_period,
+						damping=self.damping, vs30s=self.vs30s)
 
 	def get_variance_hazard_map(self):
 		"""
@@ -993,7 +1242,12 @@ class HazardMapSet(HazardResult, HazardField):
 		else:
 			return_period = 1
 		model_name = "Var(%s)" % self.model_name
-		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
+
+		return HazardMap(self.sites, self.period,
+						intensities, self.intensity_unit, self.imt,
+						model_name=model_name, filespec=None,
+						timespan=self.timespan, return_period=return_period,
+						damping=self.damping, vs30s=self.vs30s)
 
 	def get_std_hazard_map(self):
 		"""
@@ -1008,18 +1262,13 @@ class HazardMapSet(HazardResult, HazardField):
 		else:
 			return_period = 1
 		model_name = "Std(%s)" % self.model_name
-		return HazardMap(model_name, "", self.sites, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, return_period=return_period, vs30s=self.vs30s)
 
-	def export_VM(self, base_filespec):
-		for hazardmap in self:
-			hazardmap.export_VM(self, base_filespec)
+		return HazardMap(self.sites, self.period,
+						intensities, self.intensity_unit, self.imt,
+						model_name=model_name, filespec=None,
+						timespan=self.timespan, return_period=return_period,
+						damping=self.damping, vs30s=self.vs30s)
 
-
-## Aliases
-GroundMotionField = HazardMap
-
-# TODO: implement GroundMotionField without probabilistic properties
-# and subclass HazardMap from that
 
 
 if __name__ == "__main__":
