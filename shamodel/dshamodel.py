@@ -10,7 +10,7 @@ import numpy as np
 from .. import oqhazlib
 from openquake.hazardlib.imt import *
 
-from ..result import HazardMap, HazardMapSet, UHSField, UHSFieldTree
+from ..result import HazardMapSet, UHSField, UHSFieldTree
 from ..site.ref_soil_params import REF_SOIL_PARAMS
 from .base import SHAModelBase
 
@@ -206,13 +206,18 @@ class DSHAModel(SHAModelBase):
 
 		periods = self._get_periods()
 		sites = soil_site_model.get_generic_sites()
+		vs30s = soil_site_model.vs30
 		branch_names = ["Realization #%d" % (i+1) for i in range(num_realizations)]
 		filespecs = ["" for i in range(num_realizations)]
 		weights = []
 		imt = self.get_imt_families()[0]
-		return UHSFieldTree(self.name, branch_names, filespecs, weights, sites,
-							periods, imt, GMF, intensity_unit="", timespan=1,
-							return_period=1)
+		damping = 0 if imt in ('PGA', 'PGV', 'PGD') else 0.05
+
+		return UHSFieldTree(branch_names, weights, sites, periods,
+							GMF, intensity_unit="g", imt=imt,
+							model_name=self.name, filespecs=filespecs,
+							timespan=1, return_period=1,
+							damping=damping, vs30s=vs30s)
 
 	def calc_random_gmf_mp(self, num_realizations=1, correlation_model=None,
 				np_aggregation="avg", gmpe_aggregation="avg", src_aggregation="max",
@@ -376,13 +381,19 @@ class DSHAModel(SHAModelBase):
 
 		periods = self._get_periods()
 		sites = soil_site_model.get_generic_sites()
+		vs30s = soil_site_model.vs30
 		branch_names = ["Realization #%d" % (i+1) for i in range(num_realizations)]
 		filespecs = ["" for i in range(num_realizations)]
 		weights = []
 		imt = self.get_imt_families()[0]
-		return UHSFieldTree(self.name, branch_names, filespecs, weights, sites,
-							periods, imt, GMF, intensity_unit="", timespan=1,
-							return_period=1)
+		damping = 0 if imt in ('PGA', 'PGV', 'PGD') else 0.05
+
+		return UHSFieldTree(branch_names, weights, sites, periods,
+							GMF, intensity_unit="g", imt=imt,
+							model_name=self.name, filespecs=filespecs,
+							timespan=1, return_period=1,
+							damping=damping, vs30s=vs30s)
+
 
 	def calc_gmf_fixed_epsilon(self, stddev_type="total", np_aggregation="avg",
 								gmpe_aggregation="avg", src_aggregation="max"):
@@ -508,9 +519,14 @@ class DSHAModel(SHAModelBase):
 
 		periods = self._get_periods()
 		sites = soil_site_model.get_generic_sites()
+		vs30s = soil_site_model.vs30
 		imt = self.get_imt_families()[0]
-		return UHSField(self.name, "", sites, periods, imt, gmf_envelope,
-						intensity_unit="", timespan=1, return_period=1)
+		damping = 0 if imt in ('PGA', 'PGV', 'PGD') else 0.05
+
+		return UHSField(sites, periods, gmf_envelope, intensity_unit="g", imt=imt,
+						model_name=self.name, filespec="",
+						timespan=1, return_period=1,
+						damping=damping, vs30s=vs30s)
 
 	def calc_gmf_fixed_epsilon_mp(self, stddev_type="total", np_aggregation="avg",
 								gmpe_aggregation="avg", src_aggregation="max",
@@ -643,10 +659,14 @@ class DSHAModel(SHAModelBase):
 
 		periods = self._get_periods()
 		sites = soil_site_model.get_generic_sites()
+		vs30s = soil_site_model.vs30s
 		imt = self.get_imt_families()[0]
-		return UHSField(self.name, "", sites, periods, imt, gmf_envelope,
-						intensity_unit="", timespan=1, return_period=1)
+		damping = 0 if imt in ('PGA', 'PGV', 'PGD') else 0.05
 
+		return UHSField(sites, periods, gmf_envelope, intensity_unit="g", imt=imt,
+						model_name=self.name, filespec="",
+						timespan=1, return_period=1,
+						damping=damping, vs30s=vs30s)
 
 
 class RuptureDSHAModel(SHAModelBase):
@@ -738,7 +758,7 @@ class RuptureDSHAModel(SHAModelBase):
 	def run_hazardlib(self):
 		"""
 		:returns:
-			instance of :class:`..results.HazardMapSet`
+			instance of :class:`rshalib.result.HazardMapSet`
 		"""
 		from openquake.hazardlib.calc import ground_motion_fields
 
@@ -761,20 +781,26 @@ class RuptureDSHAModel(SHAModelBase):
 		hazard_map_sets = {}
 		sites = self.get_generic_sites()
 		return_periods = np.ones(self.realizations)
+		model_name = ""
+		filespecs = [""]*self.realizations
+		intensity_unit = "g"
 		for imt in imts:
 			if isinstance(imt, SA):
 				period = imt.period
 				IMT = "SA"
 				key = period
+				damping = imt.damping / 100.
 			else:
 				period = 0
 				# TODO: need a more elegant solution
 				IMT = {PGV(): "PGV", PGD(): "PGD", PGA(): "PGA", MMI(): "MMI"}[imt]
 				key = IMT
-			hms = HazardMapSet("", [""]*self.realizations, sites, period, IMT,
-								np.amax(intensities[imt], axis=1).T,
-								intensity_unit="g", timespan=1, poes=None,
-								return_periods=return_periods, vs30s=None)
+				damping = 0.
+			hm_intensities = np.amax(intensities[imt], axis=1).T
+			hms = HazardMapSet(sites, period, hms_intensities, intensity_unit, IMT,
+								model_name=model_name, filespecs=filespecs,
+								timespan=1, return_periods=return_periods,
+								damping=damping, vs30s=None)
 			hazard_map_sets[key] = hms
 		return hazard_map_sets
 
@@ -816,6 +842,6 @@ if __name__ == "__main__":
 	dhsa_model = DSHAModel(name, ruptures, gsim, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, truncation_level, realizations, correlation_model, integration_distance)
 
 	hazard_map_sets = dhsa_model.run_hazardlib()
-	print(hazard_map_sets["PGA"].getHazardMap(0))
-	print(hazard_map_sets["PGA"].getHazardMap(1))
+	print(hazard_map_sets["PGA"].get_hazard_map(0))
+	print(hazard_map_sets["PGA"].get_hazard_map(1))
 
