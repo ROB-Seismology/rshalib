@@ -199,18 +199,6 @@ class GroundMotionField(IntensityResult, HazardField):
 		"""
 		return self.intensities.argmax()
 
-	@property
-	def poe(self):
-		return self.poes[0]
-
-	@property
-	def return_period(self):
-		return self.return_periods[0]
-
-	@property
-	def exceedance_rate(self):
-		return self.exceedance_rates[0]
-
 	def trim(self, lonmin=None, lonmax=None, latmin=None, latmax=None):
 		"""
 		Trim map to given lon/lat bounds
@@ -973,6 +961,18 @@ class HazardMap(HazardResult, GroundMotionField):
 		txt %= (self.model_name, self.imt, self.period, self.return_period,
 				self.num_sites, self.get_region())
 		return txt
+
+	@property
+	def poe(self):
+		return self.poes[0]
+
+	@property
+	def return_period(self):
+		return self.return_periods[0]
+
+	@property
+	def exceedance_rate(self):
+		return self.exceedance_rates[0]
 
 
 class HazardMapSet(HazardResult, HazardField):
