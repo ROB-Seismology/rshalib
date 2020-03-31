@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=W0142, W0312, C0103, R0913
 """
-Blueprint for classes representing hazard results of both OpenQuake and CRISIS
+GroundMotionField and derived classes
 """
 
 from __future__ import absolute_import, division, print_function, unicode_literals
