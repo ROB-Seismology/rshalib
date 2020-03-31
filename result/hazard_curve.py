@@ -17,29 +17,30 @@ except:
 
 ### imports
 import os, sys
-from decimal import Decimal
+
 import numpy as np
 
-from scipy.stats import mstats, scoreatpercentile
-import matplotlib
-import pylab
+from scipy.stats import scoreatpercentile
 
-from ..poisson import poisson_conv
 from ..nrml import ns
-from ..nrml.common import *
-from ..site import GenericSite
-from ..utils import interpolate, logrange, wquantiles
+from ..nrml.common import create_nrml_root
+from ..utils import interpolate, logrange
 from ..pmf import NumericPMF
 
-from .plot import plot_hazard_curve, plot_hazard_spectrum, plot_histogram
+from .plot import plot_hazard_curve, plot_histogram
 from .base_array import *
 from .hc_base import *
-
-from .response_spectrum import ResponseSpectrum
+from .uhs import UHS, UHSFieldSet, UHSFieldTree
 
 
 # TODO: unit names should be the same as robspy !!!
 # TODO: change order IMT, intensities, intensity_unit --> intensities, intensity_unit, IMT
+
+
+__all__ = ['HazardCurve', 'SpectralHazardCurve',
+			'HazardCurveField', 'SpectralHazardCurveField',
+			'SpectralHazardCurveFieldTree',
+			'HazardCurveCollection']
 
 
 common_plot_docstring = """
@@ -79,6 +80,1298 @@ common_plot_docstring = """
 
 
 
+class HazardCurve(HazardResult):
+	"""
+	Class representing a hazard curve for a single site and a
+	single spectral period
+
+	:param hazard_values:
+		instance of subclass of :class:`HazardCurveArray`, either
+		exceedance rates or exceedance probabilities
+		1-D array [l]
+	:param site:
+		instance of :class:`rshalib.result.GenericSite`
+		or (lon, lat) tuple of site for which hazard curve was computed
+	:param period:
+		float, spectral period (in s)
+	:param intensities:
+		1-D array [l] of intensity measure levels (ground-motion values)
+		for which exceedance rate or exceedance probability was computed
+	:param intensity_unit:
+		unit in which intensity measure levels are expressed:
+		PGA and SA: "g", "mg", "m/s2", "gal", "cm/s2"
+		PGV: "cm/s"
+		PGD: "cm"
+		If not specified, default intensity unit for given imt will
+		be used
+	:param imt:
+		str, intensity measure type (PGA, SA, PGV or PGD)
+	:param model_name:
+		str, name of this hazard-curve model
+		(default: "")
+	:param filespec:
+		str, full path to file containing hazard curve
+		(default: None)
+	:param timespan:
+		float, period related to the probability of exceedance
+		(aka life time)
+		(default: 50)
+	:param damping:
+		float, damping corresponding to intensities
+		(expressed as fraction of critical damping)
+		(default: 0.05)
+	:param variances:
+		1-D array [l] with variance of exceedance rate or exceedanc
+		probability
+		(default: None)
+	"""
+	def __init__(self, hazard_values, site, period,
+				intensities, intensity_unit, imt,
+				model_name='', filespec=None,
+				timespan=50, damping=0.05, variances=None):
+		HazardResult.__init__(self, hazard_values, timespan=timespan, imt=imt,
+							intensities=intensities, intensity_unit=intensity_unit,
+							damping=damping)
+
+		self.model_name = model_name
+		self.filespec = filespec
+		self.site = site
+		self.period = period
+		self.variances = as_array(variances)
+
+	def __repr__(self):
+		txt = '<HazardCurve "%s" | %s T=%s s | n=%d | %s>'
+		txt %= (self.model_name, self.period, self.num_intensities, self.site_name)
+		return txt
+
+	def __len__(self):
+		"""
+		Return length of hazard curve (= number of intensity measure levels)
+		"""
+		return self.num_intensities
+
+	def __add__(self, other_hc):
+		"""
+		:param other_hc:
+			instance of :class:`HazardCurve`
+
+		:return:
+			instance of :class:`HazardCurve`
+		"""
+		assert isinstance(other_hc, HazardCurve)
+		assert self.site == other_hc.site
+		assert self.imt == other_hc.imt
+		assert self.period == other_hc.period
+		assert (self.intensities == other_hc.intensities).all()
+		assert self.intensity_unit == other_hc.intensity_unit
+		assert self.timespan == other_hc.timespan
+		hazard_values = self._hazard_values + other_hc._hazard_values
+		## Note: variances are dropped
+		model_name = self.model_name + ' + ' + other_hc.model_name
+		return self.__class__(hazard_values, self.site, self.period,
+							self.intensities, self.intensity_unit, self.imt,
+							model_name=model_name, filespec=None,
+							self.timespan, damping=self.damping)
+
+	def __mul__(self, number):
+		"""
+		:param number:
+			int, float or Decimal
+
+		:return:
+			instance of :class:`HazardCurve`
+		"""
+		assert np.isscalar(number)
+		hazard_values = self._hazard_values * number
+		model_name = '%s x %s' % (self.model_name, number)
+		return self.__class__(hazard_values, self.site, self.period,
+							self.intensities, self.intensity_unit, self.imt,
+							model_name=model_name, filespec=self.filespec,
+							self.timespan, damping=self.damping)
+
+	def __rmul__(self, number):
+		return self.__mul__(number)
+
+	@property
+	def site_name(self):
+		return self.site.name
+
+	def interpolate_return_periods(self, return_periods):
+		"""
+		Interpolate intensity measure levels for given return periods.
+
+		:param return_periods:
+			list or array of return periods
+
+		:return:
+			1-D array of intensity measure levels
+		"""
+		return_periods = np.asarray(return_periods, 'd')
+		interpol_exceedance_rates = 1. / return_periods
+		rp_intensities = interpolate(self.exceedance_rates, self.intensities,
+									interpol_exceedance_rates)
+		return rp_intensities
+
+	def get_return_periods(self, intensities):
+		"""
+		Interpolate return periods for given intensities
+
+		:param intensities:
+			1-D float array, intensity in same unit as hazard curve
+
+		:return:
+			1-D float array, return period in yr
+		"""
+		return interpolate(self.intensities, self.return_periods, intensities)
+
+	def to_spectral(self):
+		"""
+		Promote to a SpectralHazardCurve (1 site, multiple spectral periods)
+
+		:return:
+			instance of :class:`SpectralHazardCurve`
+		"""
+		intensities = self.intensities.reshape((1, self.num_intensities))
+		hazard_values = self._hazard_values.reshape((1, self.num_intensities))
+		if self.variances is not None:
+			variances = self.variances.reshape((1, self.num_intensities))
+		else:
+			variances = None
+		return SpectralHazardCurve(self.model_name, hazard_values, self.filespec, self.site, [self.period], self.imt, intensities, self.intensity_unit, self.timespan, variances=variances)
+
+	def to_field(self):
+		"""
+		Promote to a HazardCurveField (1 spectral period, multiple sites)
+
+		:return:
+			instance of :class:`HazardCurveField`
+		"""
+		intensities = self.intensities
+		hazard_values = self._hazard_values.reshape((1, self.num_intensities))
+		if self.variances is not None:
+			variances = self.variances.reshape((1, self.num_intensities))
+		else:
+			variances = None
+		return HazardCurveField(hazard_values, [self.site], self.period,
+								intensities, self.intensity_unit, self.imt,
+								model_name=self.model_name, filespec=self.filespec,
+								timespan=self.timespan, damping=self.damping,
+								variances=variances)
+
+	# TODO
+	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None,
+			title=None, want_recurrence=False, want_poe=False, interpol_rp=None,
+			interpol_prob=None, interpol_rp_range=None, amax=None, intensity_unit="g",
+			rp_max=1E+07, legend_location=0, axis_label_size='x-large',
+			tick_label_size='large', legend_label_size='large', lang="en", dpi=300):
+		"""
+		Plot hazard curve
+		Parameters:
+			color: curve color (default: 'k')
+			linestyle: line style (default: "-")
+			linewidth: line width (default: 2)
+		"""
+		if title is None:
+			title = "Hazard Curve"
+			title += "\nSite: %s, T: %s s" % (self.site_name, self.period)
+		datasets = [(self.get_intensities(intensity_unit), self.exceedance_rates)]
+		labels = [self.model_name]
+		fixed_life_time = {True: self.timespan, False: None}[want_poe]
+		plot_hazard_curve(datasets, labels=labels, colors=[color], linestyles=[linestyle],
+				linewidths=[linewidth], fig_filespec=fig_filespec, title=title,
+				want_recurrence=want_recurrence, fixed_life_time=fixed_life_time,
+				interpol_rp=interpol_rp, interpol_prob=interpol_prob,
+				interpol_rp_range=interpol_rp_range, amax=amax,
+				intensity_unit=intensity_unit, tr_max=rp_max,
+				legend_location=legend_location, axis_label_size=axis_label_size,
+				tick_label_size=tick_label_size, legend_label_size=legend_label_size,
+				lang=lang, dpi=dpi)
+
+	plot.__doc__ += common_plot_docstring
+
+	def export_csv(self, csv_filespec=None, format="%.5E"):
+		"""
+		Export hazard curve to a csv file
+
+		:param csv_filespec:
+			str, full path to output file. If None, output is written
+			to standard output
+			(default: None)
+		:param format:
+			str, format for float values
+			(default: "%.5E")
+		"""
+		if csv_filespec:
+			f = open(csv_filespec, "w")
+		else:
+			f = sys.stdout
+
+		header = "%s (%s), Exceedance rate (1/yr)\n"
+		header %= (self.imt, self.intensity_unit)
+		f.write(header)
+		for intensity, exceedance in zip(self.intensities, self.exceedance_rates):
+			row = ("%s, %s\n" % (format, format)) % (intensity, exceedance)
+			f.write(row)
+		f.close()
+
+
+class SpectralHazardCurve(HazardResult, HazardSpectrum):
+	"""
+	Class representing hazard curves at 1 site for different spectral periods
+
+	:param site:
+		see :class:`HazardCurve`
+	:param periods:
+		1-D array [k] of spectral periods
+	:param intensities:
+		2-D array [k,l] of intensity measure levels (ground-motion values)
+		for each spectral period for which exceedance rate or probability of
+		exceedance was computed
+	:param intensity_unit:
+	:param imt:
+	:param model_name:
+	:param filespec:
+	:param timespan:
+	:param damping:
+	:param variances:
+		see :class:`HazardCurve`
+	"""
+	# TODO: update docstring
+	def __init__(self, hazard_values, site, periods,
+				imt, intensities, intensity_unit,
+				model_name='', filespec=None,
+				timespan=50, damping=0.05, variances=None):
+
+		HazardResult.__init__(self, hazard_values, timespan=timespan, imt=imt,
+							intensities=intensities, intensity_unit=intensity_unit,
+							damping=damping)
+		HazardSpectrum.__init__(self, periods, period_axis=0)
+
+		self.model_name = model_name
+		self.filespec = filespec
+		self.site = site
+		self.variances = as_array(variances)
+
+	def __repr__(self):
+		txt = '<HazardCurve "%s" | %s T=%s - %s s | n=%d | %s>'
+		txt %= (self.model_name, self.Tmin, self.Tmax, self.num_intensities,
+				self.site.name)
+		return txt
+
+	def __iter__(self):
+		"""
+		Loop over spectral periods
+
+		:return:
+			generator, yielding instances of :class:`HazardCurve`
+		"""
+		for i in range(self.num_periods):
+			yield self.get_hazard_curve(i)
+
+	def __getitem__(self, period_spec):
+		return self.get_hazard_curve(period_spec)
+
+	def __add__(self, other_shc):
+		"""
+		:param other_shc:
+			instance of :class:`SpectralHazardCurve`
+
+		:return:
+			instance of :class:`SpectralHazardCurve`
+		"""
+		assert isinstance(other_shc, SpectralHazardCurve)
+		assert self.site == other_shc.site
+		assert self.imt == other_shc.imt
+		assert (self.periods == other_shc.periods).all()
+		assert (self.intensities == other_shc.intensities).all()
+		assert self.intensity_unit == other_shc.intensity_unit
+		assert self.timespan == other_shc.timespan
+		hazard_values = self._hazard_values + other_shc._hazard_values
+		model_name = self.model_name + ' + ' + other_shc.model_name
+		return self.__class__(hazard_values, self.site, self.periods,
+							self.intensities, self.intensity_unit, self.imt,
+							model_name=model_name, filespec=None,
+							self.timespan)
+
+	def __mul__(self, number):
+		"""
+		:param number:
+			int, float or Decimal
+
+		:return:
+			instance of :class:`SpectralHazardCurve`
+		"""
+		assert np.isscalar(number)
+		hazard_values = self._hazard_values * number
+		model_name = '%s x %s' % (self.model_name, number)
+		return self.__class__(hazard_values, self.site, self.periods,
+							self.intensities, self.intensity_unit, self.imt,
+							model_name=model_name, filespec=self.filespec,
+							self.timespan)
+
+	def __rmul__(self, number):
+		return self.__mul__(number)
+
+	def min(self):
+		pass
+
+	def max(self):
+		pass
+
+	def get_hazard_curve(self, period_spec=0):
+		"""
+		Return hazard curve for a particular spectral period
+
+		:param period_spec:
+			period specification:
+			- int: period index
+			- float: spectral period
+			(default: 0)
+
+		:return:
+			instance of :class:`HazardCurve`
+		"""
+		period_index = self.period_index(period_spec)
+		try:
+			period = self.periods[period_index]
+		except:
+			raise IndexError("Period index %s out of range" % period_index)
+		intensities = self.intensities[period_index]
+		hazard_values = self._hazard_values[period_index]
+		if self.variances is not None:
+			variances = self.variances[period_index]
+		else:
+			variances = None
+		return HazardCurve(hazard_values, self.site, period,
+							intensities, self.intensity_unit, self.imt,
+							model_name=self.model_name, filespec=self.filespec,
+							timespan=self.timespan, damping=self.damping,
+							variances=variances)
+
+	def interpolate_return_period(self, return_period):
+		"""
+		Interpolate intensity measure levels for given return period
+
+		:param return_period:
+			float, return period
+
+		:return:
+			instance of :class:`UHS`
+		"""
+		num_periods = self.num_periods
+		rp_intensities = np.zeros(num_periods)
+		interpol_exceedance_rate = 1. / return_period
+		for k in range(num_periods):
+			rp_intensities[k] = interpolate(self.exceedance_rates[k],
+											self.intensities[k],
+											[interpol_exceedance_rate])[0]
+		return UHS(self.periods, rp_intensities, self.intensity_unit, self.imt,
+					self.site, model_name=self.model_name, filespec=self.filespec,
+					self.timespan, return_period=return_period, damping=self.damping)
+
+	def interpolate_periods(self, out_periods):
+		"""
+		Interpolate intensity measure levels at different spectral periods
+
+		:param out_periods:
+			list or array of output spectral periods
+
+		:return:
+			instance of :class:`SpectralHazardCurve`
+		"""
+		if out_periods in ([], None):
+			return self
+		else:
+			in_periods = self.periods
+			num_intensities = self.num_intensities
+			out_shape = (len(out_periods), num_intensities)
+			out_hazard_values = self._hazard_values.__class__(np.zeros(out_shape,
+																	dtype='d'))
+			if self.variances is not None:
+				out_variances = np.zeros(out_shape, dtype='d')
+			else:
+				out_variances = None
+			out_period_intensities = np.zeros(out_shape, dtype='d')
+
+			for k in range(len(out_periods)):
+				## if k is close to an in_period, take over the corresponding intensities,
+				## else, define new range of intensities for that period,
+				## interpolate corresponding exceedances,
+				## and then interpolate at the wanted period
+				threshold = 1E-6
+				try:
+					id = np.where(abs(in_periods - out_periods[k]) < threshold)[0][0]
+				except IndexError:
+					id1 = np.where(in_periods < out_periods[k])[0][-1]
+					id2 = np.where(in_periods > out_periods[k])[0][0]
+					Imin = min(self.intensities[id1][0], self.intensities[id2][0])
+					Imax = min(self.intensities[id1][-1], self.intensities[id2][-1])
+					#Imin, Imax = self.intensities[id1][0], self.intensities[id1][-1]
+					out_period_intensities[k] = logrange(Imin, Imax, num_intensities)
+					## Interpolate exceedances of adjacent periods to out_period_intensities
+					hazard_values1 = interpolate(self.intensities[id1],
+												self._hazard_values[id1],
+												out_period_intensities[k])
+					hazard_values2 = interpolate(self.intensities[id2],
+												self._hazard_values[id2],
+												out_period_intensities[k])
+					if self.variances is not None:
+						variances1 = interpolate(self.intensities[id1],
+												self.variances[id1],
+												out_period_intensities[k])
+						variances2 = interpolate(self.intensities[id2],
+												self.variances[id2],
+												out_period_intensities[k])
+					for l in range(num_intensities):
+						out_hazard_values[k,l] = interpolate([in_periods[id1],
+															in_periods[id2]],
+															[hazard_values1[l],
+															hazard_values2[l]],
+															[out_periods[k]])[0]
+						if self.variances is not None:
+							out_variances[k,l] = interpolate([in_periods[id1],
+															in_periods[id2]],
+															[variances1[l],
+															variances2[l]],
+															[out_periods[k]])[0]
+				else:
+					out_period_intensities[k] = self.intensities[id]
+					out_hazard_values[k] = self._hazard_values[id]
+					if self.variances is not None:
+						out_variances[k] = self.variances[id]
+
+			return SpectralHazardCurve(hazard_values, self.site, out_periods,
+									out_period_intensities, self.intensity_unit,
+									self.imt, model_name=self.model_name,
+									filespec=self.filespec, timespan=self.timespan,
+									damping=self.damping, variances=out_variances)
+
+	def to_field(self):
+		"""
+		Promote to a SpectralazardCurveField (multiple spectral periods,
+		multiple sites)
+
+		:return:
+			instance of :class:`SpectralazardCurveField`
+		"""
+		intensities = self.intensities
+		out_shape = (1, self.num_periods, self.num_intensities)
+		hazard_values = self._hazard_values.reshape(out_shape)
+		if self.variances is not None:
+			variances = self.variances.reshape(out_shape)
+		else:
+			variances = None
+
+		return SpectralHazardCurveField(hazard_values, [self.site], self.period,
+										intensities, self.intensity_unit, self.imt,
+										model_name=self.model_name,
+										filespecs=[self.filespec],
+										timespan=self.timespan, damping=damping,
+										variances=variances)
+
+	# TODO
+	def plot(self, colors=[], linestyle="-", linewidth=2, fig_filespec=None,
+			title=None, want_recurrence=False, want_poe=False, interpol_rp=None,
+			interpol_prob=None, interpol_rp_range=None, amax=None, intensity_unit="g",
+			rp_max=1E+07, legend_location=0, axis_label_size='x-large',
+			tick_label_size='large', legend_label_size='large', lang="en", dpi=300):
+		"""
+		Plot hazard curves for all spectral periods
+		Parameters:
+			colors: list with curve colors for each site (default: None)
+			linestyle: line style (default: "-")
+			linewidth: line width (default: 2)
+		"""
+		if title is None:
+			title = "Spectral Hazard Curve"
+			title += "\nSite: %s" % self.site.name
+		datasets = [(self.get_intensities(intensity_unit)[k], self.exceedance_rates[k]) for k in range(self.num_periods)]
+		labels = ["T = %s s" % period for period in self.periods]
+		fixed_life_time = {True: self.timespan, False: None}[want_poe]
+		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=[linestyle],
+					linewidths=[linewidth], fig_filespec=fig_filespec, title=title,
+					want_recurrence=want_recurrence, fixed_life_time=fixed_life_time,
+					interpol_rp=interpol_rp, interpol_prob=interpol_prob,
+					interpol_rp_range=interpol_rp_range, amax=amax,
+					intensity_unit=intensity_unit, tr_max=rp_max,
+					axis_label_size=axis_label_size, tick_label_size=tick_label_size,
+					legend_label_size=legend_label_size, legend_location=legend_location,
+					lang=lang, dpi=dpi)
+
+	plot.__doc__ += common_plot_docstring
+
+	def export_csv(self, csv_filespec=None, format="%.5E"):
+		"""
+		Export spectral hazard curve to a csv file,
+		1st column: intensities,
+		other columns: exceedance rates for each spectral period
+
+		:param csv_filespec:
+			str, full path to output file. If None, output is written
+			to standard output
+			(default: None)
+		:param format:
+			str, format for float values
+			(default: "%.5E")
+		"""
+		if csv_filespec:
+			f = open(csv_filespec, "w")
+		else:
+			f = sys.stdout
+
+		period_colnames = ', '.join(['T=%s s' % T for T in self.periods])
+		header = "%s (%s), %s\n" % (self.imt, self.intensity_unit, period_colnames)
+		f.write(header)
+		for l in range(self.num_intensities):
+			intensity = self.intensities[l]
+			exceedances = self.exceedance_rates[:,l]
+			row_values = [intensity] + list(exceedances)
+			row = ', '.join([(' %s' % format) % val for val in row_values])
+			f.write("%s\n" % row)
+		f.close()
+
+
+class HazardCurveField(HazardResult, HazardField):
+	"""
+	Class representing a hazard curve field for a single spectral period.
+	Corresponds to 1 OpenQuake hazardcurve file.
+	Parameters:
+		model_name: name of this hazard-curve model
+		filespec: full path to file containing hazard curve
+		sites: 1-D list [i] of (lon, lat) tuples of sites for which hazard curves
+			were computed
+		period: spectral period
+		imt: intensity measure type (PGA, SA, PGV or PGD)
+		intensities: 1-D array [l] of intensity measure levels (ground-motion values)
+			for which exceedance rate or probability of exceedance was computed
+		intensity_unit: unit in which intensity measure levels are expressed:
+			PGA and SA: "g", "mg", "ms2", "gal"
+			PGV: "cms"
+			PGD: "cm"
+			default: "g"
+		timespan: period related to the probability of exceedance (aka life time)
+			(default: 50)
+		poes: 2-D array [i,l] with probabilities of exceedance computed for each
+			intensity measure level [l] at each site [i].
+			If None, exceedance_rates must be specified (default: None)
+		exceedance_rates: 2-D array [i,l] with exceedance rates computed for each
+			intensity measure level [l] at each site [i].
+			If None, poes must be specified	(default: None)
+		variances: 2-D array [i,l] with variance of exceedance rate or probability of exceedance
+			(default: None)
+		site_names: list of site names (default: None)
+	"""
+	def __init__(self, model_name, hazard_values, filespec, sites, period, imt, intensities, intensity_unit="g", timespan=50, variances=None):
+		HazardResult.__init__(self, hazard_values, timespan=timespan, imt=imt, intensities=intensities, intensity_unit=intensity_unit)
+		HazardField.__init__(self, sites)
+		self.model_name = model_name
+		self.filespec = filespec
+		self.period = period
+		self.variances = as_array(variances)
+
+	def __iter__(self):
+		self._current_index = 0
+		return self
+
+	def next(self):
+		"""
+		Loop over sites
+		"""
+		try:
+			site = self.sites[self._current_index]
+		except:
+			raise StopIteration
+		else:
+			self._current_index += 1
+			return self.get_hazard_curve(self._current_index-1)
+
+	def __getitem__(self, site_spec):
+		return self.get_hazard_curve(site_spec)
+
+	def intensity_index(self, intensity):
+		"""
+		Return index corresponding to a particular intensity measure level
+		Parameters:
+			return_period: return period
+		Return value:
+			intensity index (integer)
+		"""
+		intensity_index = interpolate(self.intensities, range(self.num_intensities), [intensity])[0]
+		return int(round(intensity_index))
+
+	def argmin(self, intensity=None, return_period=None):
+		"""
+		Return index of site with minimum hazard for a particular intensity or
+		return period.
+		Parameters:
+			intensity: intensity measure level. If None, return_period must be specified
+				(default: None)
+			return_period: return period. If None, intensity must be specified
+				(default: None)
+		Return value:
+			site index (int)
+		"""
+		if intensity is not None:
+			intensity_index = self.intensity_index(intensity)
+			site_index = self._hazard_values[:,intensity_index].argmin()
+		elif return_period is not None:
+			hazardmapset = self.interpolate_return_periods([return_period])
+			hazardmap = hazardmapset[0]
+			site_index = hazardmap.argmin()
+		else:
+			raise Exception("Need to specify either intensity or return_period")
+		return site_index
+
+	def argmax(self, intensity=None, return_period=None):
+		"""
+		Return index of site with maximum hazard for a particular intensity or
+		return period.
+		Parameters:
+			intensity: intensity measure level. If None, return_period must be specified
+				(default: None)
+			return_period: return period. If None, intensity must be specified
+				(default: None)
+		Return value:
+			site index (int)
+		"""
+		if intensity is not None:
+			intensity_index = self.intensity_index(intensity)
+			site_index = self._hazard_values[:,intensity_index].argmax()
+		elif return_period is not None:
+			hazardmapset = self.interpolate_return_periods([return_period])
+			hazardmap = hazardmapset[0]
+			site_index = hazardmap.argmax()
+		else:
+			raise Exception("Need to specify either intensity or return_period")
+		return site_index
+
+	def min(self, intensity=None, return_period=None):
+		"""
+		Return minimum hazard for a particular intensity or return period
+		Parameters:
+			intensity: intensity measure level. If None, return_period must be specified
+				(default: None)
+			return_period: return period. If None, intensity must be specified
+				(default: None)
+		Return value:
+			minimum exceedance rate (if intensity was specified) or minimum intensity
+			(if return period was specified)
+		"""
+		if intensity is not None:
+			intensity_index = self.intensity_index(intensity)
+			return self._hazard_values[:,intensity_index].min()
+		elif return_period is not None:
+			hazardmapset = self.interpolate_return_periods([return_period])
+			hazardmap = hazardmapset[0]
+			return hazardmap.min()
+		else:
+			raise Exception("Need to specify either intensity or return_period")
+
+	def max(self, intensity=None, return_period=None):
+		"""
+		Return maximum hazard curve for a particular intensity or return period
+		Parameters:
+			intensity: intensity measure level. If None, return_period must be specified
+				(default: None)
+			return_period: return period. If None, intensity must be specified
+				(default: None)
+		Return value:
+		Return value:
+			maximum exceedance rate (if intensity was specified) or maximum intensity
+			(if return period was specified)
+		"""
+		if intensity is not None:
+			intensity_index = self.intensity_index(intensity)
+			return self._hazard_values[:,intensity_index].max()
+		elif return_period is not None:
+			hazardmapset = self.interpolate_return_periods([return_period])
+			hazardmap = hazardmapset[0]
+			return hazardmap.max()
+		else:
+			raise Exception("Need to specify either intensity or return_period")
+
+	def get_hazard_curve(self, site_spec=0):
+		"""
+		Return hazard curve for a particular site
+		Parameters:
+			site_spec: site specification (site index, (lon, lat) tuple or site name)
+				(default: 0)
+		Return value:
+			HazardCurve object
+		"""
+		site_index = self.site_index(site_spec)
+		try:
+			site = self.sites[site_index]
+		except:
+			raise IndexError("Site index %s out of range" % site_index)
+
+		site_name = self.site_names[site_index]
+		intensities = self.intensities
+		hazard_values = self._hazard_values[site_index]
+		if self.variances is not None:
+			variances = self.variances[site_index]
+		else:
+			variances = None
+		return HazardCurve(self.model_name, hazard_values, self.filespec, site, self.period, self.imt, intensities, self.intensity_unit, self.timespan, variances=variances)
+
+	def interpolate_return_periods(self, return_periods):
+		"""
+		Interpolate intensity measure levels for given return periods.
+		Parameters:
+			return_periods: list or array of return periods
+		Return value:
+			HazardMapSet object
+		"""
+		filespecs = [self.filespec] * len(return_periods)
+		return_periods = np.array(return_periods)
+		rp_intensities = np.zeros((len(return_periods), self.num_sites))
+		interpol_exceedances = 1. / return_periods
+		for i in range(self.num_sites):
+				rp_intensities[:,i] = interpolate(self.exceedance_rates[i], self.intensities, interpol_exceedances)
+		return HazardMapSet(self.model_name, filespecs, self.sites, self.period, self.imt, rp_intensities, self.intensity_unit, self.timespan, return_periods=return_periods)
+
+	def to_spectral(self):
+		"""
+		Promote to a SpectralHazardCurveField object (multiple sites, multiple spectral periods)
+		"""
+		intensities = self.intensities.reshape((1, self.num_intensities))
+		hazard_values = self._hazard_values.reshape((self.num_sites, 1, self.num_intensities))
+		if self.variances is not None:
+			variances = self.variances.reshape((self.num_sites, 1, self.num_intensities))
+		else:
+			variances = None
+		return SpectralHazardCurveField(self.model_name, hazard_values, [self.filespec], self.sites, [self.period], self.imt, intensities, self.intensity_unit, self.timespan, variances=variances)
+
+	def plot(self, site_specs=[], labels=None, colors=None, linestyles=None,
+			linewidth=2, fig_filespec=None, title=None, want_recurrence=False,
+			want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None,
+			amax=None, intensity_unit="g", rp_max=1E+07, legend_location=0,
+			axis_label_size='x-large', tick_label_size='large',
+			legend_label_size='large', lang="en", dpi=300):
+		"""
+		Plot hazard curves for one or more sites.
+		Parameters:
+			site_specs: list with site specs (indexes, (lon,lat) tuples or site names)
+				of sites to be plotted (default: [] will plot all sites)
+			colors: list with curve colors for each site (default: None)
+			linestyles: list with line styles for each site (default: None)
+			linewidth: line width (default: 2)
+		"""
+		## Determine sites
+		if site_specs in (None, []):
+			site_indexes = range(self.num_sites)
+		else:
+			site_indexes = [self.site_index(site_spec) for site_spec in site_specs]
+		sites = [self.sites[site_index] for site_index in site_indexes]
+
+		## Labels
+		if labels in (None, []):
+			labels = [self.site_names[site_index] for site_index in site_indexes]
+
+		## Colors and linestyles
+		if colors in (None, []):
+			colors = [["r", "g", "b", "c", "m", "k"][i%6] for i in range(len(sites))]
+
+		## Linestyles
+		if linestyles in (None, []):
+			linestyles = [['-', '--', ':', '-.'][i//len(colors)%4] for i in range(len(sites))]
+
+		linewidths = [linewidth] * len(sites)
+
+		## Data
+		datasets = []
+		exceedance_rates = self.exceedance_rates
+		for site in sites:
+			site_index = self.site_index(site)
+			x = self.get_intensities(intensity_unit)
+			y = exceedance_rates[site_index]
+			datasets.append((x, y))
+
+		fixed_life_time = {True: self.timespan, False: None}[want_poe]
+		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles,
+				linewidths=linewidths, fig_filespec=fig_filespec, title=title,
+				want_recurrence=want_recurrence, fixed_life_time=fixed_life_time,
+				interpol_rp=interpol_rp, interpol_prob=interpol_prob,
+				interpol_rp_range=interpol_rp_range, amax=amax,
+				intensity_unit=intensity_unit, tr_max=rp_max,
+				legend_location=legend_location, axis_label_size=axis_label_size,
+				tick_label_size=tick_label_size, legend_label_size=legend_label_size,
+				lang=lang, dpi=dpi)
+
+	plot.__doc__ += common_plot_docstring
+
+	def create_xml_element(self, encoding='latin1'):
+		"""
+		Create xml element (NRML HazardCurveField element)
+		Arguments:
+			encoding: unicode encoding (default: 'latin1')
+		"""
+		# TODO: use names from nrml namespace
+		hcf_elem = etree.Element('hazardCurveField')
+		hcf_elem.set('imt', self.imt)
+		hcf_elem.set('period', str(self.period))
+		hcf_elem.set('imls', ''.join(map(str, self.intensities)))
+
+		for i, site in enumerate(self.sites):
+			site_elem = etree.SubElement(hcf_elem, 'site')
+			site_elem.set('lon_lat', ''.join(map(str, site)))
+			site_elem.set('exceedance_rates', ''.join(map(str, self.exceedance_rates[i])))
+
+		return hcf_elem
+
+	def write_nrml(self, filespec, encoding='latin1', pretty_print=True):
+		"""
+		Write hazard curve field to XML file
+		Arguments:
+			filespec: full path to XML output file
+			encoding: unicode encoding (default: 'utf-8')
+			pretty_print: boolean indicating whether or not to indent each
+				element (default: True)
+		"""
+		tree = create_nrml_root(self, encoding=encoding)
+		fd = open(filespec, 'w')
+		tree.write(fd, xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+		fd.close()
+
+
+class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
+	"""
+	Class representing a hazard curve field for different spectral periods.
+	Corresponds to 1 CRISIS .GRA file.
+	Parameters:
+		model_name: name of this hazard-curve model
+		filespecs: list with full paths to files containing hazard curves
+			(1 file for each spectral period)
+		sites: 1-D list [i] with (lon, lat) tuples of site for which hazard curves
+			were computed
+		periods: 1-D array [k] of spectral periods
+		imt: intensity measure type (PGA, SA, PGV or PGD)
+		intensities: 2-D array [k,l] of intensity measure levels (ground-motion values)
+			for each spectral period for which exceedance rate or probability of
+			exceedance was computed
+		intensity_unit: unit in which intensity measure levels are expressed:
+			PGA and SA: "g", "mg", "ms2", "gal"
+			PGV: "cms"
+			PGD: "cm"
+			default: "g"
+		timespan: period related to the probability of exceedance (aka life time)
+			(default: 50)
+		poes: 3-D array [i,k,l] with probabilities of exceedance computed for each
+			intensity measure level [k,l] at each site [i].
+			If None, exceedance_rates must be specified
+			(default: None)
+		exceedance_rates: 3-D array [i,k,l] with exceedance rates computed for each
+			intensity measure level [k,l] at each site.
+			If None, poes must be specified
+			(default: None)
+		variances: 3-D array [i,k,l] with variance of exceedance rate or probability of exceedance
+			(default: None)
+		site_names: list of site names (default: None)
+	"""
+	def __init__(self, model_name, hazard_values, filespecs, sites, periods, imt, intensities, intensity_unit="g", timespan=50, variances=None):
+		HazardResult.__init__(self, hazard_values, timespan=timespan, imt=imt, intensities=intensities, intensity_unit=intensity_unit)
+		HazardField.__init__(self, sites)
+		HazardSpectrum.__init__(self, periods, period_axis=1)
+		self.model_name = model_name
+		self.filespecs = filespecs
+		self.variances = as_array(variances)
+		self.validate()
+
+	def __add__(self, other_shcf):
+		"""
+		:param other_shc:
+			instance of :class:`SpectralHazardCurve`
+
+		:return:
+			instance of :class:`SpectralHazardCurve`
+		"""
+		assert isinstance(other_shcf, SpectralHazardCurveField)
+		assert self.sites == other_shcf.sites
+		assert self.imt == other_shcf.imt
+		assert (self.periods == other_shcf.periods).all()
+		assert (self.intensities == other_shcf.intensities).all()
+		assert self.intensity_unit == other_shcf.intensity_unit
+		assert self.timespan == other_shcf.timespan
+		hazard_values = self._hazard_values + other_shcf._hazard_values
+		return self.__class__(self.model_name, hazard_values, self.filespecs, self.sites, self.periods, self.imt, self.intensities, self.intensity_unit, self.timespan)
+
+	def __mul__(self, number):
+		"""
+		:param number:
+			int, float or Decimal
+
+		:return:
+			instance of :class:`SpectralHazardCurve`
+		"""
+		assert np.isscalar(number)
+		hazard_values = self._hazard_values * number
+		return self.__class__(self.model_name, hazard_values, self.filespecs, self.sites, self.periods, self.imt, self.intensities, self.intensity_unit, self.timespan)
+
+	def __rmul__(self, number):
+		return self.__mul__(number)
+
+	@classmethod
+	def from_hazard_curve_fields(self, hcf_list, model_name):
+		"""
+		Construct spectral hazard curve field from hazard curve fields
+		for different spectral periods.
+
+		:param hcf_list:
+			list with instances of :class:`HazardCurveField`
+		:param model_name:
+			str, model name
+
+		:return:
+			instance of :class:`SpectralHazardCurveField`
+		"""
+		hcf0 = hcf_list[0]
+		filespecs = [hcf.filespec for hcf in hcf_list]
+		sites = hcf0.sites
+		num_sites = hcf0.num_sites
+		periods = [hcf.period for hcf in hcf_list]
+		num_periods = len(periods)
+		imt = hcf_list[-1].imt
+		num_intensities = hcf0.num_intensities
+		intensity_unit = hcf0.intensity_unit
+		timespan = hcf0.timespan
+		hazard_values = hcf0._hazard_values.__class__(np.zeros((num_sites, num_periods, num_intensities)))
+		intensities = np.zeros((num_periods, num_intensities))
+		# TODO: variances
+		for i, hcf in enumerate(hcf_list):
+			hazard_values[:,i,:] = hcf._hazard_values
+			intensities[i] = hcf.intensities
+		return SpectralHazardCurveField(model_name, hazard_values, filespecs, sites, periods, imt, intensities, intensity_unit, timespan, variances=None)
+
+	def __iter__(self):
+		self._current_index = 0
+		return self
+
+	def next(self):
+		"""
+		Loop over sites
+		"""
+		try:
+			site = self.sites[self._current_index]
+		except:
+			raise StopIteration
+		else:
+			self._current_index += 1
+			return self.getSpectralHazardCurve(self._current_index-1)
+
+	def __getitem__(self, site_spec):
+		return self.getSpectralHazardCurve(site_spec)
+
+	def validate(self):
+		"""
+		Check if arrays have correct dimensions
+		"""
+		num_sites, num_periods, num_intensities = self.num_sites, self.num_periods, self.num_intensities
+		if len(self.intensities.shape) != 2:
+			raise Exception("intensities array has wrong dimension")
+		if self.intensities.shape[0] != num_periods:
+			raise Exception("intensities array has wrong shape")
+		if len(self._hazard_values.shape) != 3:
+			raise Exception("exceedance_rates or poes array has wrong dimension")
+		if self._hazard_values.shape != (num_sites, num_periods, num_intensities):
+			raise Exception("exceedance_rates or poes array has wrong shape")
+		if self.variances is not None:
+			if len(self.variances.shape) != 3:
+				raise Exception("variances array has wrong dimension")
+			if self.variances.shape != (num_sites, num_periods, num_intensities):
+				raise Exception("variances array has wrong shape")
+
+	def get_hazard_curveField(self, period_spec=0):
+		period_index = self.period_index(period_spec)
+		try:
+			period = self.periods[period_index]
+		except:
+			raise IndexError("Period index %s out of range" % period_index)
+		intensities = self.intensities[period_index]
+		hazard_values = self._hazard_values[:,period_index]
+		if self.variances is not None:
+			variances = self.variances[:,period_index]
+		else:
+			variances = None
+		return HazardCurveField(self.model_name, hazard_values, self.filespecs[period_index], self.sites, period, self.imt, intensities, self.intensity_unit, self.timespan, variances=variances)
+
+	def appendHazardCurveFields(self, hcf_list):
+		pass
+
+	def getSpectralHazardCurve(self, site_spec=0):
+		"""
+		Return spectral hazard curve for a particular site
+		Parameters:
+			site_spec: site specification (site index, (lon, lat) tuple or site name)
+				(default: 0)
+		Return value:
+			SpectralHazardCurve object
+		"""
+		site_index = self.site_index(site_spec)
+		try:
+			site = self.sites[site_index]
+		except:
+			raise IndexError("Site index %s out of range" % site_index)
+
+		site_name = self.site_names[site_index]
+		filespec = self.filespecs[0]
+		intensities = self.intensities
+		hazard_values = self._hazard_values[site_index]
+		if self.variances is not None:
+			variances = self.variances[site_index]
+		else:
+			variances = None
+		return SpectralHazardCurve(self.model_name, hazard_values, filespec, site, self.periods, self.imt, intensities, self.intensity_unit, self.timespan, variances=variances)
+
+	def get_hazard_curve(self, site_spec=0, period_spec=0):
+		"""
+		Return hazard curve for a particular site and a particular period
+		Parameters:
+			site_spec: site specification (site index, (lon, lat) tuple or site name)
+				(default: 0)
+			period_spec: period specification (period index if integer, period if float)
+				(default: 0)
+		Return value:
+			HazardCurve object
+		"""
+		site_index = self.site_index(site_spec)
+		try:
+			site = self.sites[site_index]
+		except:
+			raise IndexError("Site index %s out of range" % site_index)
+		else:
+			site_name = self.site_names[site_index]
+
+		period_index = self.period_index(period_spec)
+		try:
+			period = self.periods[period_index]
+		except:
+			raise IndexError("Period index %s out of range" % period_index)
+
+		filespec = self.filespecs[period_index]
+		intensities = self.intensities[period_index]
+		hazard_values = self._hazard_values[site_index, period_index]
+		if self.variances is not None:
+			variances = self.variances[site_index, period_index]
+		else:
+			variances = None
+		return HazardCurve(self.model_name, hazard_values, filespec, site, period, self.imt, intensities, self.intensity_unit, self.timespan, variances=variances)
+
+	def toTree(self):
+		"""
+		Promote to a SpectralazardCurveFieldTree object (multiple spectral periods,
+			multiple sites, multiple logic-tree branches)
+		"""
+		intensities = self.intensities
+		hazard_values = self._hazard_values.reshape((self.num_sites, 1, self.num_periods, self.num_intensities))
+		if self.variances is not None:
+			variances = self.variances.reshape((self.num_sites, 1, self.num_periods, self.num_intensities))
+		else:
+			variances = None
+		branch_names = [self.model_name]
+		filespecs = [self.filespecs[0]]
+		weights = np.array([1.], 'd')
+		return SpectralHazardCurveFieldTree(self.model_name, hazard_values, branch_names, filespecs, weights, self.sites, self.periods, self.imt, intensities, self.intensity_unit, self.timespan, variances=variances)
+
+	def interpolate_return_periods(self, return_periods):
+		"""
+		Interpolate intensity measure levels for given return periods
+		Parameters:
+			return_periods: list or array with return periods
+		Return value:
+			UHSFieldSet object
+		"""
+		filespecs = [self.filespecs[0]] * len(return_periods)
+		return_periods = np.array(return_periods)
+		num_sites, num_periods = self.num_sites, self.num_periods
+		rp_intensities = np.zeros((len(return_periods), num_sites, num_periods))
+		interpol_exceedances = 1. / return_periods
+		for i in range(num_sites):
+			for k in range(num_periods):
+				rp_intensities[:,i,k] = interpolate(self.exceedance_rates[i,k], self.intensities[k], interpol_exceedances)
+		return UHSFieldSet(self.model_name, filespecs, self.sites, self.periods, self.imt, rp_intensities, self.intensity_unit, self.timespan, return_periods=return_periods)
+
+	def interpolate_periods(self, out_periods):
+		"""
+		Interpolate intensity measure levels at different spectral periods
+		Parameters:
+			out_periods: list or array of output spectral periods
+		Return value:
+			SpectralHazardCurveField object
+		"""
+		num_sites, num_intensities = self.num_sites, self.num_intensities
+		out_hazard_values = self._hazard_values.__class__(np.zeros((num_sites, len(out_periods), num_intensities), dtype='d'))
+		if self.variances is not None:
+			out_variances = np.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
+		else:
+			out_variances = None
+
+		for i in range(num_sites):
+			shc = self.getSpectralHazardCurve(site_spec=i)
+			shc_out = shc.interpolate_periods(out_periods)
+			out_hazard_values[i] = shc_out._hazard_values
+			if self.variances is not None:
+				out_variances[i] = shc_out.variances
+		intensities = shc_out.intensities
+		return SpectralHazardCurveField(self.model_name, out_hazard_values, self.filespecs, self.sites, out_periods, self.imt, intensities, self.intensity_unit, self.timespan, variances=out_variances)
+
+	def plot(self, site_specs=[], period_specs=[], labels=None, colors=None,
+			linestyles=None, linewidth=2, fig_filespec=None, title=None,
+			want_recurrence=False, want_poe=False, interpol_rp=None,
+			interpol_prob=None, interpol_rp_range=None, amax=None,
+			intensity_unit="g", rp_max=1E+07, legend_location=0,
+			axis_label_size='x-large', tick_label_size='large',
+			legend_label_size='large', lang="en", dpi=300):
+		"""
+		Plot hazard curves for some sites and/or some spectral periods.
+		Parameters:
+			site_specs: list with site specs (indexes, (lon,lat) tuples or site names)
+				of sites to be plotted (default: [] will plot all sites)
+			period_specs: list with period specs (integer period indexes or float
+				spectral periods) (default: [] will plot all periods)
+			colors: list with curve colors for each site or period (default: None)
+			linestyles: list with line styles for each site or period (default: None)
+			linewidth: line width (default: 2)
+		"""
+		## Title
+		if title is None:
+			title = self.model_name
+		## Determine sites and periods
+		if site_specs in (None, []):
+			site_indexes = range(self.num_sites)
+		else:
+			site_indexes = [self.site_index(site_spec) for site_spec in site_specs]
+		sites = [self.sites[site_index] for site_index in site_indexes]
+		if period_specs in (None, []):
+			period_indexes = range(self.num_periods)
+		else:
+			period_indexes = [self.period_index(period_spec) for period_spec in period_specs]
+		periods = [self.periods[period_index] for period_index in period_indexes]
+
+		## Labels
+		if labels in (None, []):
+			if len(sites) == 1:
+				labels = ["T = %s s" % period for period in periods]
+			elif len(periods) == 1:
+				labels = [self.site_names[site_index] for site_index in site_indexes]
+			else:
+				labels = []
+				for i, site in enumerate(sites):
+					site_name = self.site_names[site_indexes[i]]
+					for period in periods:
+						labels.append("Site: %s, T=%s s" % (site_name, period))
+
+		## Colors and linestyles
+		if colors in (None, []):
+			if len(sites) >= len(periods):
+				colors = [["r", "g", "b", "c", "m", "k"][i%6:i%6+1] * len(periods) for i in range(len(sites))]
+			else:
+				colors = [["r", "g", "b", "c", "m", "k"][i%6:i%6+1] * len(sites) for i in range(len(periods))]
+			## Hack to flatten nested list
+			colors = sum(colors, [])
+
+		## Linestyles
+		if linestyles in (None, []):
+			if len(sites) >= len(periods):
+				linestyles = [['-', '--', ':', '-.'][i%4:i%4+1] * len(sites) for i in range(len(periods))]
+			else:
+				linestyles = [['-', '--', ':', '-.'][i%4:i%4+1] * len(periods) for i in range(len(sites))]
+			linestyles = sum(linestyles, [])
+
+		linewidths = [linewidth] * len(sites) * len(periods)
+
+		## Data
+		datasets = []
+		exceedance_rates = self.exceedance_rates
+		for site in sites:
+			site_index = self.site_index(site)
+			for period in periods:
+				period_index = self.period_index(period)
+				x = self.get_intensities(intensity_unit)[period_index]
+				y = exceedance_rates[site_index, period_index]
+				datasets.append((x, y))
+
+		fixed_life_time = {True: self.timespan, False: None}[want_poe]
+		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles,
+					linewidths=linewidths, fig_filespec=fig_filespec, title=title,
+					want_recurrence=want_recurrence, fixed_life_time=fixed_life_time,
+					interpol_rp=interpol_rp, interpol_prob=interpol_prob,
+					interpol_rp_range=interpol_rp_range, amax=amax,
+					intensity_unit=intensity_unit, tr_max=rp_max,
+					legend_location=legend_location, axis_label_size=axis_label_size,
+					tick_label_size=tick_label_size, legend_label_size=legend_label_size,
+					lang=lang, dpi=dpi)
+
+	plot.__doc__ += common_plot_docstring
+
+	def export_GRA(self, out_filespec):
+		"""
+		Write spectral hazard curve field to CRISIS .GRA format
+		Parameters:
+			out_filespec: full path to output file
+		"""
+		f = open(out_filespec, "w")
+		f.write("************************************************************\n")
+		f.write("Generic exceedance-rate results\n")
+		f.write("Calculated outside CRISIS\n")
+		f.write("NumSites, NumPeriods, NumIntensities: %d, %d, %d\n" % (self.num_sites, self.num_periods, self.num_intensities))
+		f.write("************************************************************\n")
+		f.write("\n\n")
+		for i in range(self.num_sites):
+			f.write("    %s      %s\n" % self.sites[i])
+			for k in range(self.num_periods):
+				f.write("INTENSITY %d T=%s\n" % (k+1, self.periods[k]))
+				for l in range(self.num_intensities):
+					f.write("%.5E  %.5E" % (self.intensities[k,l], self.exceedance_rates[i,k,l]))
+					if self.variances is not None:
+						f.write("  %.5E" % self.variances[i,k,l])
+					f.write("\n")
+		f.close()
+
+	def create_xml_element(self, smlt_path=None, gmpelt_path=None, encoding='latin1'):
+		"""
+		Create xml element (NRML SpectralHazardCurveField element)
+		Arguments:
+			encoding: unicode encoding (default: 'latin1')
+		"""
+		shcf_elem = etree.Element(ns.SPECTRAL_HAZARD_CURVE_FIELD)
+		shcf_elem.set(ns.imt, self.imt)
+		shcf_elem.set(ns.INVESTIGATION_TIME, str(self.timespan))
+		if smlt_path:
+			shcf_elem.set(ns.SMLT_PATH, smlt_path)
+		if gmpelt_path:
+			shcf_elem.set(ns.GMPELT_PATH, gmpelt_path)
+		shcf_elem.set(ns.NAME, self.model_name)
+		for k, period in enumerate(self.periods):
+			# TODO: put following in HazardCurveField and HazardCurve !
+			hcf_elem = etree.SubElement(shcf_elem, ns.HAZARD_CURVE_FIELD)
+			hcf_elem.set(ns.PERIOD, str(period))
+			# TODO: add damping for SA ?
+			imls_elem = etree.SubElement(hcf_elem, ns.IMLS)
+			imls_elem.text = " ".join(map(str, self.intensities[k,:]))
+			for i, site in enumerate(self.sites):
+				hazard_curve_elem = etree.SubElement(hcf_elem, ns.HAZARD_CURVE)
+				point_elem = etree.SubElement(hazard_curve_elem, ns.POINT)
+				position_elem = etree.SubElement(point_elem, ns.POSITION)
+				position_elem.text = "%s %s" % (site[0], site[1])
+				poes_elem = etree.SubElement(hazard_curve_elem, ns.POES)
+				poes_elem.text = " ".join(map(str, self.poes[i,k,:]))
+		return shcf_elem
+
+	def write_nrml(self, filespec, smlt_path=None, gmpelt_path=None, encoding='latin1', pretty_print=True):
+		"""
+		Write spectral hazard curve field to XML file
+		Arguments:
+			filespec: full path to XML output file
+			encoding: unicode encoding (default: 'utf-8')
+			pretty_print: boolean indicating whether or not to indent each
+				element (default: True)
+		"""
+		tree = create_nrml_root(self, encoding=encoding, smlt_path=smlt_path, gmpelt_path=gmpelt_path)
+		fd = open(filespec, 'w')
+		tree.write(fd, xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
+		fd.close()
+
+
 class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 	"""
 	Class representing a spectral hazard curve field tree, i.e. a number of
@@ -94,7 +1387,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		sites: 1-D list [i] with (lon, lat) tuples of site for which hazard curves
 			were computed
 		periods: 1-D array [k] of spectral periods
-		IMT: intensity measure type (PGA, SA, PGV or PGD)
+		imt: intensity measure type (PGA, SA, PGV or PGD)
 		intensities: 2-D array [k,l] of intensity measure levels (ground-motion values)
 			for each spectral period for which exceedance rate or probability of
 			exceedance was computed
@@ -124,8 +1417,8 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 
 	Provides iteration and indexing over logic-tree branches
 	"""
-	def __init__(self, model_name, hazard_values, branch_names, filespecs, weights, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, variances=None, mean=None, percentile_levels=None, percentiles=None):
-		HazardTree.__init__(self, hazard_values, branch_names, weights=weights, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit, mean=mean, percentile_levels=percentile_levels, percentiles=percentiles)
+	def __init__(self, model_name, hazard_values, branch_names, filespecs, weights, sites, periods, imt, intensities, intensity_unit="g", timespan=50, variances=None, mean=None, percentile_levels=None, percentiles=None):
+		HazardTree.__init__(self, hazard_values, branch_names, weights=weights, timespan=timespan, imt=imt, intensities=intensities, intensity_unit=intensity_unit, mean=mean, percentile_levels=percentile_levels, percentiles=percentiles)
 		HazardField.__init__(self, sites)
 		HazardSpectrum.__init__(self, periods, period_axis=2)
 		self.model_name = model_name
@@ -226,7 +1519,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		if weights in (None, []):
 			weights = np.ones(num_branches, 'f') / num_branches
 
-		shcft = SpectralHazardCurveFieldTree(model_name, all_hazard_values, branch_names, filespecs, weights, shcf0.sites, shcf0.periods, shcf0.IMT, shcf0.intensities, shcf0.intensity_unit, shcf0.timespan, variances=all_variances)
+		shcft = SpectralHazardCurveFieldTree(model_name, all_hazard_values, branch_names, filespecs, weights, shcf0.sites, shcf0.periods, shcf0.imt, shcf0.intensities, shcf0.intensity_unit, shcf0.timespan, variances=all_variances)
 
 		for j, shcf in enumerate(shcf_list[1:]):
 			shcft.check_shcf_compatibility(shcf)
@@ -261,7 +1554,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			raise Exception("Sites do not correspond!")
 		if (self.periods != shcf.periods).any():
 			raise Exception("Spectral periods do not correspond!")
-		if self.IMT != shcf.IMT:
+		if self.imt != shcf.imt:
 			raise Exception("IMT does not correspond!")
 		if (self.intensities != shcf.intensities).any():
 			raise Exception("Intensities do not correspond!")
@@ -347,7 +1640,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 				variances = self.variances[:,branch_index,:,:]
 			else:
 				variances = None
-			return SpectralHazardCurveField(branch_name, hazard_values, [filespec]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, variances=variances)
+			return SpectralHazardCurveField(branch_name, hazard_values, [filespec]*self.num_periods, self.sites, self.periods, self.imt, self.intensities, self.intensity_unit, self.timespan, variances=variances)
 
 	def getSpectralHazardCurve(self, branch_spec=0, site_spec=0):
 		"""
@@ -379,7 +1672,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			variances = self.variances[site_index, branch_index]
 		else:
 			variances = None
-		return SpectralHazardCurve(branch_name, hazard_values, self.filespecs[branch_index], site, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances, site_name=site_name)
+		return SpectralHazardCurve(branch_name, hazard_values, self.filespecs[branch_index], site, self.periods, self.imt, intensities, self.intensity_unit, self.timespan, variances=variances, site_name=site_name)
 
 	def min(self):
 		# TODO: does this make sense? Makes more sense with 1 period and 1 site
@@ -553,7 +1846,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			mean = self.mean
 		variances = self.calc_variance_of_mean()
 		model_name = "Mean(%s)" % self.model_name
-		return SpectralHazardCurveField(model_name, mean, [""]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, variances=variances)
+		return SpectralHazardCurveField(model_name, mean, [""]*self.num_periods, self.sites, self.periods, self.imt, self.intensities, self.intensity_unit, self.timespan, variances=variances)
 
 	def getPercentileSpectralHazardCurveField(self, perc, recalc=True, weighted=True):
 		if recalc or self.percentiles is None or not perc in self.percentiles:
@@ -564,7 +1857,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			hazard_values = self.percentiles[:,:,:,perc_index]
 
 		model_name = "Perc%02d(%s)" % (perc, self.model_name)
-		return SpectralHazardCurveField(model_name, hazard_values, [""]*self.num_periods, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan, variances=None)
+		return SpectralHazardCurveField(model_name, hazard_values, [""]*self.num_periods, self.sites, self.periods, self.imt, self.intensities, self.intensity_unit, self.timespan, variances=None)
 
 	def import_stats_from_AGR(self, agr_filespec, percentile_levels=None):
 		"""
@@ -658,7 +1951,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			weights /= weight_sum
 		sites = self.sites
 		periods = self.periods
-		IMT = self.IMT
+		imt = self.imt
 		intensities = self.intensities
 		intensity_unit = self.intensity_unit
 		timespan = self.timespan
@@ -667,7 +1960,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			variances = self.variances[:,branch_indexes,:,:]
 		else:
 			variances = None
-		return SpectralHazardCurveFieldTree(model_name, hazard_values, branch_names, filespecs, weights, sites, periods, IMT, intensities, intensity_unit, timespan, variances=variances)
+		return SpectralHazardCurveFieldTree(model_name, hazard_values, branch_names, filespecs, weights, sites, periods, imt, intensities, intensity_unit, timespan, variances=variances)
 
 	def interpolate_return_period(self, return_period):
 		"""
@@ -698,7 +1991,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 				if not is_empty_array(self.percentiles):
 					for p in range(self.num_percentiles):
 						rp_percentiles[i,k,p] = interpolate(self.percentiles[i,k,:,p].to_exceedance_rates(self.timespan), self.intensities[k], [interpol_exceedance])[0]
-		return UHSFieldTree(self.model_name, self.branch_names, self.filespecs, self.weights, self.sites, self.periods, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_period=return_period, mean=rp_mean, percentile_levels=self.percentile_levels, percentiles=rp_percentiles)
+		return UHSFieldTree(self.model_name, self.branch_names, self.filespecs, self.weights, self.sites, self.periods, self.imt, rp_intensities, self.intensity_unit, self.timespan, return_period=return_period, mean=rp_mean, percentile_levels=self.percentile_levels, percentiles=rp_percentiles)
 
 	def interpolate_periods(self, out_periods):
 		"""
@@ -730,16 +2023,16 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 				if self.variances is not None:
 					out_variances[i,j] = shc_out.variances
 			if self.mean is not None:
-				shc = SpectralHazardCurve("mean", self.mean[i], "", self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+				shc = SpectralHazardCurve("mean", self.mean[i], "", self.periods, self.imt, self.intensities, self.intensity_unit, self.timespan)
 				shc_out = shc.interpolate_periods(out_periods)
 				out_mean[i] = shc_out._hazard_values
 			if self.percentiles is not None:
 				for p in range(num_percentiles):
-					shc = SpectralHazardCurve("mean", self.percentiles[i,:,:,p], "", self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
+					shc = SpectralHazardCurve("mean", self.percentiles[i,:,:,p], "", self.periods, self.imt, self.intensities, self.intensity_unit, self.timespan)
 					shc_out = shc.interpolate_periods(out_periods)
 					out_percentiles[i,:,:,p] = shc_out._hazard_values
 		intensities = shc_out.intensities
-		return SpectralHazardCurveFieldTree(self.model_name, out_hazard_values, self.branch_names, self.filespecs, self.weights, self.sites, out_periods, self.IMT, intensities, self.intensity_unit, self.timespan, variances=out_variances)
+		return SpectralHazardCurveFieldTree(self.model_name, out_hazard_values, self.branch_names, self.filespecs, self.weights, self.sites, out_periods, self.imt, intensities, self.intensity_unit, self.timespan, variances=out_variances)
 
 	def plot(self, site_spec=0, period_spec=0, branch_specs=[], fig_filespec=None,
 			title=None, want_recurrence=False, want_poe=False, interpol_rp=None,
@@ -957,7 +2250,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		# TODO: add names to nrml namespace
 		shcft_elem = etree.Element(ns.SPECTRAL_HAZARD_CURVE_FIELD_TREE)
 		shcft_elem.set(ns.NAME, self.model_name)
-		shcft_elem.set(ns.IMT, self.IMT)
+		shcft_elem.set(ns.imt, self.imt)
 		for j, branch_name in enumerate(self.branch_names):
 			shcf_elem = etree.SubElement(shcft_elem, ns.SPECTRAL_HAZARD_CURVE_FIELD)
 			shcf_elem.set(ns.NAME, branch_name)
@@ -990,1152 +2283,7 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		fd.close()
 
 
-class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
-	"""
-	Class representing a hazard curve field for different spectral periods.
-	Corresponds to 1 CRISIS .GRA file.
-	Parameters:
-		model_name: name of this hazard-curve model
-		filespecs: list with full paths to files containing hazard curves
-			(1 file for each spectral period)
-		sites: 1-D list [i] with (lon, lat) tuples of site for which hazard curves
-			were computed
-		periods: 1-D array [k] of spectral periods
-		IMT: intensity measure type (PGA, SA, PGV or PGD)
-		intensities: 2-D array [k,l] of intensity measure levels (ground-motion values)
-			for each spectral period for which exceedance rate or probability of
-			exceedance was computed
-		intensity_unit: unit in which intensity measure levels are expressed:
-			PGA and SA: "g", "mg", "ms2", "gal"
-			PGV: "cms"
-			PGD: "cm"
-			default: "g"
-		timespan: period related to the probability of exceedance (aka life time)
-			(default: 50)
-		poes: 3-D array [i,k,l] with probabilities of exceedance computed for each
-			intensity measure level [k,l] at each site [i].
-			If None, exceedance_rates must be specified
-			(default: None)
-		exceedance_rates: 3-D array [i,k,l] with exceedance rates computed for each
-			intensity measure level [k,l] at each site.
-			If None, poes must be specified
-			(default: None)
-		variances: 3-D array [i,k,l] with variance of exceedance rate or probability of exceedance
-			(default: None)
-		site_names: list of site names (default: None)
-	"""
-	def __init__(self, model_name, hazard_values, filespecs, sites, periods, IMT, intensities, intensity_unit="g", timespan=50, variances=None):
-		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
-		HazardField.__init__(self, sites)
-		HazardSpectrum.__init__(self, periods, period_axis=1)
-		self.model_name = model_name
-		self.filespecs = filespecs
-		self.variances = as_array(variances)
-		self.validate()
-
-	def __add__(self, other_shcf):
-		"""
-		:param other_shc:
-			instance of :class:`SpectralHazardCurve`
-
-		:return:
-			instance of :class:`SpectralHazardCurve`
-		"""
-		assert isinstance(other_shcf, SpectralHazardCurveField)
-		assert self.sites == other_shcf.sites
-		assert self.IMT == other_shcf.IMT
-		assert (self.periods == other_shcf.periods).all()
-		assert (self.intensities == other_shcf.intensities).all()
-		assert self.intensity_unit == other_shcf.intensity_unit
-		assert self.timespan == other_shcf.timespan
-		hazard_values = self._hazard_values + other_shcf._hazard_values
-		return self.__class__(self.model_name, hazard_values, self.filespecs, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
-
-	def __mul__(self, number):
-		"""
-		:param number:
-			int, float or Decimal
-
-		:return:
-			instance of :class:`SpectralHazardCurve`
-		"""
-		assert isinstance(number, (int, float, Decimal))
-		hazard_values = self._hazard_values * number
-		return self.__class__(self.model_name, hazard_values, self.filespecs, self.sites, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
-
-	def __rmul__(self, number):
-		return self.__mul__(number)
-
-	@classmethod
-	def from_hazard_curve_fields(self, hcf_list, model_name):
-		"""
-		Construct spectral hazard curve field from hazard curve fields
-		for different spectral periods.
-
-		:param hcf_list:
-			list with instances of :class:`HazardCurveField`
-		:param model_name:
-			str, model name
-
-		:return:
-			instance of :class:`SpectralHazardCurveField`
-		"""
-		hcf0 = hcf_list[0]
-		filespecs = [hcf.filespec for hcf in hcf_list]
-		sites = hcf0.sites
-		num_sites = hcf0.num_sites
-		periods = [hcf.period for hcf in hcf_list]
-		num_periods = len(periods)
-		IMT = hcf_list[-1].IMT
-		num_intensities = hcf0.num_intensities
-		intensity_unit = hcf0.intensity_unit
-		timespan = hcf0.timespan
-		hazard_values = hcf0._hazard_values.__class__(np.zeros((num_sites, num_periods, num_intensities)))
-		intensities = np.zeros((num_periods, num_intensities))
-		# TODO: variances
-		for i, hcf in enumerate(hcf_list):
-			hazard_values[:,i,:] = hcf._hazard_values
-			intensities[i] = hcf.intensities
-		return SpectralHazardCurveField(model_name, hazard_values, filespecs, sites, periods, IMT, intensities, intensity_unit, timespan, variances=None)
-
-	def __iter__(self):
-		self._current_index = 0
-		return self
-
-	def next(self):
-		"""
-		Loop over sites
-		"""
-		try:
-			site = self.sites[self._current_index]
-		except:
-			raise StopIteration
-		else:
-			self._current_index += 1
-			return self.getSpectralHazardCurve(self._current_index-1)
-
-	def __getitem__(self, site_spec):
-		return self.getSpectralHazardCurve(site_spec)
-
-	def validate(self):
-		"""
-		Check if arrays have correct dimensions
-		"""
-		num_sites, num_periods, num_intensities = self.num_sites, self.num_periods, self.num_intensities
-		if len(self.intensities.shape) != 2:
-			raise Exception("intensities array has wrong dimension")
-		if self.intensities.shape[0] != num_periods:
-			raise Exception("intensities array has wrong shape")
-		if len(self._hazard_values.shape) != 3:
-			raise Exception("exceedance_rates or poes array has wrong dimension")
-		if self._hazard_values.shape != (num_sites, num_periods, num_intensities):
-			raise Exception("exceedance_rates or poes array has wrong shape")
-		if self.variances is not None:
-			if len(self.variances.shape) != 3:
-				raise Exception("variances array has wrong dimension")
-			if self.variances.shape != (num_sites, num_periods, num_intensities):
-				raise Exception("variances array has wrong shape")
-
-	def getHazardCurveField(self, period_spec=0):
-		period_index = self.period_index(period_spec)
-		try:
-			period = self.periods[period_index]
-		except:
-			raise IndexError("Period index %s out of range" % period_index)
-		intensities = self.intensities[period_index]
-		hazard_values = self._hazard_values[:,period_index]
-		if self.variances is not None:
-			variances = self.variances[:,period_index]
-		else:
-			variances = None
-		return HazardCurveField(self.model_name, hazard_values, self.filespecs[period_index], self.sites, period, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
-
-	def appendHazardCurveFields(self, hcf_list):
-		pass
-
-	def getSpectralHazardCurve(self, site_spec=0):
-		"""
-		Return spectral hazard curve for a particular site
-		Parameters:
-			site_spec: site specification (site index, (lon, lat) tuple or site name)
-				(default: 0)
-		Return value:
-			SpectralHazardCurve object
-		"""
-		site_index = self.site_index(site_spec)
-		try:
-			site = self.sites[site_index]
-		except:
-			raise IndexError("Site index %s out of range" % site_index)
-
-		site_name = self.site_names[site_index]
-		filespec = self.filespecs[0]
-		intensities = self.intensities
-		hazard_values = self._hazard_values[site_index]
-		if self.variances is not None:
-			variances = self.variances[site_index]
-		else:
-			variances = None
-		return SpectralHazardCurve(self.model_name, hazard_values, filespec, site, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
-
-	def getHazardCurve(self, site_spec=0, period_spec=0):
-		"""
-		Return hazard curve for a particular site and a particular period
-		Parameters:
-			site_spec: site specification (site index, (lon, lat) tuple or site name)
-				(default: 0)
-			period_spec: period specification (period index if integer, period if float)
-				(default: 0)
-		Return value:
-			HazardCurve object
-		"""
-		site_index = self.site_index(site_spec)
-		try:
-			site = self.sites[site_index]
-		except:
-			raise IndexError("Site index %s out of range" % site_index)
-		else:
-			site_name = self.site_names[site_index]
-
-		period_index = self.period_index(period_spec)
-		try:
-			period = self.periods[period_index]
-		except:
-			raise IndexError("Period index %s out of range" % period_index)
-
-		filespec = self.filespecs[period_index]
-		intensities = self.intensities[period_index]
-		hazard_values = self._hazard_values[site_index, period_index]
-		if self.variances is not None:
-			variances = self.variances[site_index, period_index]
-		else:
-			variances = None
-		return HazardCurve(self.model_name, hazard_values, filespec, site, period, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
-
-	def toTree(self):
-		"""
-		Promote to a SpectralazardCurveFieldTree object (multiple spectral periods,
-			multiple sites, multiple logic-tree branches)
-		"""
-		intensities = self.intensities
-		hazard_values = self._hazard_values.reshape((self.num_sites, 1, self.num_periods, self.num_intensities))
-		if self.variances is not None:
-			variances = self.variances.reshape((self.num_sites, 1, self.num_periods, self.num_intensities))
-		else:
-			variances = None
-		branch_names = [self.model_name]
-		filespecs = [self.filespecs[0]]
-		weights = np.array([1.], 'd')
-		return SpectralHazardCurveFieldTree(self.model_name, hazard_values, branch_names, filespecs, weights, self.sites, self.periods, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
-
-	def interpolate_return_periods(self, return_periods):
-		"""
-		Interpolate intensity measure levels for given return periods
-		Parameters:
-			return_periods: list or array with return periods
-		Return value:
-			UHSFieldSet object
-		"""
-		filespecs = [self.filespecs[0]] * len(return_periods)
-		return_periods = np.array(return_periods)
-		num_sites, num_periods = self.num_sites, self.num_periods
-		rp_intensities = np.zeros((len(return_periods), num_sites, num_periods))
-		interpol_exceedances = 1. / return_periods
-		for i in range(num_sites):
-			for k in range(num_periods):
-				rp_intensities[:,i,k] = interpolate(self.exceedance_rates[i,k], self.intensities[k], interpol_exceedances)
-		return UHSFieldSet(self.model_name, filespecs, self.sites, self.periods, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_periods=return_periods)
-
-	def interpolate_periods(self, out_periods):
-		"""
-		Interpolate intensity measure levels at different spectral periods
-		Parameters:
-			out_periods: list or array of output spectral periods
-		Return value:
-			SpectralHazardCurveField object
-		"""
-		num_sites, num_intensities = self.num_sites, self.num_intensities
-		out_hazard_values = self._hazard_values.__class__(np.zeros((num_sites, len(out_periods), num_intensities), dtype='d'))
-		if self.variances is not None:
-			out_variances = np.zeros((num_sites, len(out_periods), num_intensities), dtype='d')
-		else:
-			out_variances = None
-
-		for i in range(num_sites):
-			shc = self.getSpectralHazardCurve(site_spec=i)
-			shc_out = shc.interpolate_periods(out_periods)
-			out_hazard_values[i] = shc_out._hazard_values
-			if self.variances is not None:
-				out_variances[i] = shc_out.variances
-		intensities = shc_out.intensities
-		return SpectralHazardCurveField(self.model_name, out_hazard_values, self.filespecs, self.sites, out_periods, self.IMT, intensities, self.intensity_unit, self.timespan, variances=out_variances)
-
-	def plot(self, site_specs=[], period_specs=[], labels=None, colors=None,
-			linestyles=None, linewidth=2, fig_filespec=None, title=None,
-			want_recurrence=False, want_poe=False, interpol_rp=None,
-			interpol_prob=None, interpol_rp_range=None, amax=None,
-			intensity_unit="g", rp_max=1E+07, legend_location=0,
-			axis_label_size='x-large', tick_label_size='large',
-			legend_label_size='large', lang="en", dpi=300):
-		"""
-		Plot hazard curves for some sites and/or some spectral periods.
-		Parameters:
-			site_specs: list with site specs (indexes, (lon,lat) tuples or site names)
-				of sites to be plotted (default: [] will plot all sites)
-			period_specs: list with period specs (integer period indexes or float
-				spectral periods) (default: [] will plot all periods)
-			colors: list with curve colors for each site or period (default: None)
-			linestyles: list with line styles for each site or period (default: None)
-			linewidth: line width (default: 2)
-		"""
-		## Title
-		if title is None:
-			title = self.model_name
-		## Determine sites and periods
-		if site_specs in (None, []):
-			site_indexes = range(self.num_sites)
-		else:
-			site_indexes = [self.site_index(site_spec) for site_spec in site_specs]
-		sites = [self.sites[site_index] for site_index in site_indexes]
-		if period_specs in (None, []):
-			period_indexes = range(self.num_periods)
-		else:
-			period_indexes = [self.period_index(period_spec) for period_spec in period_specs]
-		periods = [self.periods[period_index] for period_index in period_indexes]
-
-		## Labels
-		if labels in (None, []):
-			if len(sites) == 1:
-				labels = ["T = %s s" % period for period in periods]
-			elif len(periods) == 1:
-				labels = [self.site_names[site_index] for site_index in site_indexes]
-			else:
-				labels = []
-				for i, site in enumerate(sites):
-					site_name = self.site_names[site_indexes[i]]
-					for period in periods:
-						labels.append("Site: %s, T=%s s" % (site_name, period))
-
-		## Colors and linestyles
-		if colors in (None, []):
-			if len(sites) >= len(periods):
-				colors = [["r", "g", "b", "c", "m", "k"][i%6:i%6+1] * len(periods) for i in range(len(sites))]
-			else:
-				colors = [["r", "g", "b", "c", "m", "k"][i%6:i%6+1] * len(sites) for i in range(len(periods))]
-			## Hack to flatten nested list
-			colors = sum(colors, [])
-
-		## Linestyles
-		if linestyles in (None, []):
-			if len(sites) >= len(periods):
-				linestyles = [['-', '--', ':', '-.'][i%4:i%4+1] * len(sites) for i in range(len(periods))]
-			else:
-				linestyles = [['-', '--', ':', '-.'][i%4:i%4+1] * len(periods) for i in range(len(sites))]
-			linestyles = sum(linestyles, [])
-
-		linewidths = [linewidth] * len(sites) * len(periods)
-
-		## Data
-		datasets = []
-		exceedance_rates = self.exceedance_rates
-		for site in sites:
-			site_index = self.site_index(site)
-			for period in periods:
-				period_index = self.period_index(period)
-				x = self.get_intensities(intensity_unit)[period_index]
-				y = exceedance_rates[site_index, period_index]
-				datasets.append((x, y))
-
-		fixed_life_time = {True: self.timespan, False: None}[want_poe]
-		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles,
-					linewidths=linewidths, fig_filespec=fig_filespec, title=title,
-					want_recurrence=want_recurrence, fixed_life_time=fixed_life_time,
-					interpol_rp=interpol_rp, interpol_prob=interpol_prob,
-					interpol_rp_range=interpol_rp_range, amax=amax,
-					intensity_unit=intensity_unit, tr_max=rp_max,
-					legend_location=legend_location, axis_label_size=axis_label_size,
-					tick_label_size=tick_label_size, legend_label_size=legend_label_size,
-					lang=lang, dpi=dpi)
-
-	plot.__doc__ += common_plot_docstring
-
-	def export_GRA(self, out_filespec):
-		"""
-		Write spectral hazard curve field to CRISIS .GRA format
-		Parameters:
-			out_filespec: full path to output file
-		"""
-		f = open(out_filespec, "w")
-		f.write("************************************************************\n")
-		f.write("Generic exceedance-rate results\n")
-		f.write("Calculated outside CRISIS\n")
-		f.write("NumSites, NumPeriods, NumIntensities: %d, %d, %d\n" % (self.num_sites, self.num_periods, self.num_intensities))
-		f.write("************************************************************\n")
-		f.write("\n\n")
-		for i in range(self.num_sites):
-			f.write("    %s      %s\n" % self.sites[i])
-			for k in range(self.num_periods):
-				f.write("INTENSITY %d T=%s\n" % (k+1, self.periods[k]))
-				for l in range(self.num_intensities):
-					f.write("%.5E  %.5E" % (self.intensities[k,l], self.exceedance_rates[i,k,l]))
-					if self.variances is not None:
-						f.write("  %.5E" % self.variances[i,k,l])
-					f.write("\n")
-		f.close()
-
-	def create_xml_element(self, smlt_path=None, gmpelt_path=None, encoding='latin1'):
-		"""
-		Create xml element (NRML SpectralHazardCurveField element)
-		Arguments:
-			encoding: unicode encoding (default: 'latin1')
-		"""
-		shcf_elem = etree.Element(ns.SPECTRAL_HAZARD_CURVE_FIELD)
-		shcf_elem.set(ns.IMT, self.IMT)
-		shcf_elem.set(ns.INVESTIGATION_TIME, str(self.timespan))
-		if smlt_path:
-			shcf_elem.set(ns.SMLT_PATH, smlt_path)
-		if gmpelt_path:
-			shcf_elem.set(ns.GMPELT_PATH, gmpelt_path)
-		shcf_elem.set(ns.NAME, self.model_name)
-		for k, period in enumerate(self.periods):
-			# TODO: put following in HazardCurveField and HazardCurve !
-			hcf_elem = etree.SubElement(shcf_elem, ns.HAZARD_CURVE_FIELD)
-			hcf_elem.set(ns.PERIOD, str(period))
-			# TODO: add damping for SA ?
-			imls_elem = etree.SubElement(hcf_elem, ns.IMLS)
-			imls_elem.text = " ".join(map(str, self.intensities[k,:]))
-			for i, site in enumerate(self.sites):
-				hazard_curve_elem = etree.SubElement(hcf_elem, ns.HAZARD_CURVE)
-				point_elem = etree.SubElement(hazard_curve_elem, ns.POINT)
-				position_elem = etree.SubElement(point_elem, ns.POSITION)
-				position_elem.text = "%s %s" % (site[0], site[1])
-				poes_elem = etree.SubElement(hazard_curve_elem, ns.POES)
-				poes_elem.text = " ".join(map(str, self.poes[i,k,:]))
-		return shcf_elem
-
-	def write_nrml(self, filespec, smlt_path=None, gmpelt_path=None, encoding='latin1', pretty_print=True):
-		"""
-		Write spectral hazard curve field to XML file
-		Arguments:
-			filespec: full path to XML output file
-			encoding: unicode encoding (default: 'utf-8')
-			pretty_print: boolean indicating whether or not to indent each
-				element (default: True)
-		"""
-		tree = create_nrml_root(self, encoding=encoding, smlt_path=smlt_path, gmpelt_path=gmpelt_path)
-		fd = open(filespec, 'w')
-		tree.write(fd, xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
-		fd.close()
-
-
-class SpectralHazardCurve(HazardResult, HazardSpectrum):
-	"""
-	Class representing hazard curves at 1 site for different spectral periods
-	Parameters:
-		model_name: name of this hazard-curve model
-		filespec: full path to file containing hazard curves
-		site: (lon, lat) tuple of site for which hazard curve was computed
-		periods: 1-D array [k] of spectral periods
-		IMT: intensity measure type (PGA, SA, PGV or PGD)
-		intensities: 2-D array [k,l] of intensity measure levels (ground-motion values)
-			for each spectral period for which exceedance rate or probability of
-			exceedance was computed
-		intensity_unit: unit in which intensity measure levels are expressed:
-			PGA and SA: "g", "mg", "ms2", "gal"
-			PGV: "cms"
-			PGD: "cm"
-			default: "g"
-		timespan: period related to the probability of exceedance (aka life time)
-			(default: 50)
-		poes: 2-D array [k,l] with probabilities of exceedance computed for each
-			intensity measure level [k,l]. If None, exceedance_rates must be specified
-			(default: None)
-		exceedance_rates: 2-D array [k,l] with exceedance rates computed for each
-			intensity measure level [k,l. If None, poes must be specified
-			(default: None)
-		variances: 2-D array [k,l] with variance of exceedance rate or probability of exceedance
-			(default: None)
-		site_name: site name (default: "")
-	"""
-	# TODO: update docstring
-	def __init__(self, model_name, hazard_values, filespec, site, periods, IMT, intensities, intensity_unit="g", timespan=50, variances=None):
-		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
-		HazardSpectrum.__init__(self, periods, period_axis=0)
-		self.model_name = model_name
-		self.filespec = filespec
-		self.site = site
-		self.variances = as_array(variances)
-
-	def __iter__(self):
-		self._current_index = 0
-		return self
-
-	def next(self):
-		"""
-		Loop over spectral periods
-		"""
-		try:
-			period = self.periods[self._current_index]
-		except:
-			raise StopIteration
-		else:
-			self._current_index += 1
-			return self.getHazardCurve(self._current_index-1)
-
-	def __getitem__(self, period_spec):
-		return self.getHazardCurve(period_spec)
-
-	def __add__(self, other_shc):
-		"""
-		:param other_shc:
-			instance of :class:`SpectralHazardCurve`
-
-		:return:
-			instance of :class:`SpectralHazardCurve`
-		"""
-		assert isinstance(other_shc, SpectralHazardCurve)
-		assert self.site == other_shc.site
-		assert self.IMT == other_shc.IMT
-		assert (self.periods == other_shc.periods).all()
-		assert (self.intensities == other_shc.intensities).all()
-		assert self.intensity_unit == other_shc.intensity_unit
-		assert self.timespan == other_shc.timespan
-		hazard_values = self._hazard_values + other_shc._hazard_values
-		return self.__class__(self.model_name, hazard_values, self.filespec, self.site, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
-
-	def __mul__(self, number):
-		"""
-		:param number:
-			int, float or Decimal
-
-		:return:
-			instance of :class:`SpectralHazardCurve`
-		"""
-		assert isinstance(number, (int, float, Decimal))
-		hazard_values = self._hazard_values * number
-		return self.__class__(self.model_name, hazard_values, self.filespec, self.site, self.periods, self.IMT, self.intensities, self.intensity_unit, self.timespan)
-
-	def __rmul__(self, number):
-		return self.__mul__(number)
-
-	def min(self):
-		pass
-
-	def max(self):
-		pass
-
-	def getHazardCurve(self, period_spec=0):
-		"""
-		Return hazard curve for a particular spectral period
-		Parameters:
-			period_spec: period specification (period index if integer, period if float)
-				(default: 0)
-		"""
-		period_index = self.period_index(period_spec)
-		try:
-			period = self.periods[period_index]
-		except:
-			raise IndexError("Period index %s out of range" % period_index)
-		intensities = self.intensities[period_index]
-		hazard_values = self._hazard_values[period_index]
-		if self.variances is not None:
-			variances = self.variances[period_index]
-		else:
-			variances = None
-		return HazardCurve(self.model_name, hazard_values, self.filespec, self.site, period, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
-
-	def interpolate_return_period(self, return_period):
-		"""
-		Interpolate intensity measure levels for given return period
-		Parameters:
-			return_period: return period
-		Return value:
-			UHS object
-		"""
-		num_periods = self.num_periods
-		rp_intensities = np.zeros(num_periods)
-		interpol_exceedance_rate = 1. / return_period
-		for k in range(num_periods):
-			rp_intensities[k] = interpolate(self.exceedance_rates[k], self.intensities[k], [interpol_exceedance_rate])[0]
-		return UHS(self.model_name, self.filespec, self.site, self.periods, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_period=return_period)
-
-	def interpolate_periods(self, out_periods):
-		"""
-		Interpolate intensity measure levels at different spectral periods
-		Parameters:
-			out_periods: list or array of output spectral periods
-		Return value:
-			a SpectralHazardCurve object
-		"""
-		if out_periods in ([], None):
-			return self
-		else:
-			in_periods = self.periods
-			num_intensities = self.num_intensities
-			out_hazard_values = self._hazard_values.__class__(np.zeros((len(out_periods), num_intensities), dtype='d'))
-			if self.variances is not None:
-				out_variances = np.zeros((len(out_periods), num_intensities), dtype='d')
-			else:
-				out_variances = None
-			out_period_intensities = np.zeros((len(out_periods), num_intensities), dtype='d')
-
-			for k in range(len(out_periods)):
-				## if k is close to an in_period, take over the corresponding intensities,
-				## else, define new range of intensities for that period,
-				## interpolate corresponding exceedances,
-				## and then interpolate at the wanted period
-				threshold = 1E-6
-				try:
-					id = np.where(abs(in_periods - out_periods[k]) < threshold)[0][0]
-				except IndexError:
-					id1 = np.where(in_periods < out_periods[k])[0][-1]
-					id2 = np.where(in_periods > out_periods[k])[0][0]
-					Imin = min(self.intensities[id1][0], self.intensities[id2][0])
-					Imax = min(self.intensities[id1][-1], self.intensities[id2][-1])
-					#Imin, Imax = self.intensities[id1][0], self.intensities[id1][-1]
-					out_period_intensities[k] = logrange(Imin, Imax, num_intensities)
-					## Interpolate exceedances of adjacent periods to out_period_intensities
-					hazard_values1 = interpolate(self.intensities[id1], self._hazard_values[id1], out_period_intensities[k])
-					hazard_values2 = interpolate(self.intensities[id2], self._hazard_values[id2], out_period_intensities[k])
-					if self.variances is not None:
-						variances1 = interpolate(self.intensities[id1], self.variances[id1], out_period_intensities[k])
-						variances2 = interpolate(self.intensities[id2], self.variances[id2], out_period_intensities[k])
-					for l in range(num_intensities):
-						out_hazard_values[k,l] = interpolate([in_periods[id1], in_periods[id2]], [hazard_values1[l], hazard_values2[l]], [out_periods[k]])[0]
-						if self.variances is not None:
-							out_variances[k,l] = interpolate([in_periods[id1], in_periods[id2]], [variances1[l], variances2[l]], [out_periods[k]])[0]
-				else:
-					out_period_intensities[k] = self.intensities[id]
-					out_hazard_values[k] = self._hazard_values[id]
-					if self.variances is not None:
-						out_variances[k] = self.variances[id]
-			return SpectralHazardCurve(self.model_name, hazard_values, self.filespec, self.site, out_periods, self.IMT, out_period_intensities, self.intensity_unit, self.timespan, variances=out_variances)
-
-	def toField(self):
-		"""
-		Promote to a SpectralazardCurveField object (multiple spectral periods, multiple sites)
-		"""
-		intensities = self.intensities
-		hazard_values = self._hazard_values.reshape((1, self.num_periods, self.num_intensities))
-		if self.variances is not None:
-			variances = self.variances.reshape((1, self.num_periods, self.num_intensities))
-		else:
-			variances = None
-		return SpectralHazardCurveField(self.model_name, hazard_values, [self.filespec], [self.site], self.period, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
-
-	def plot(self, colors=[], linestyle="-", linewidth=2, fig_filespec=None,
-			title=None, want_recurrence=False, want_poe=False, interpol_rp=None,
-			interpol_prob=None, interpol_rp_range=None, amax=None, intensity_unit="g",
-			rp_max=1E+07, legend_location=0, axis_label_size='x-large',
-			tick_label_size='large', legend_label_size='large', lang="en", dpi=300):
-		"""
-		Plot hazard curves for all spectral periods
-		Parameters:
-			colors: list with curve colors for each site (default: None)
-			linestyle: line style (default: "-")
-			linewidth: line width (default: 2)
-		"""
-		if title is None:
-			title = "Spectral Hazard Curve"
-			title += "\nSite: %s" % self.site.name
-		datasets = [(self.get_intensities(intensity_unit)[k], self.exceedance_rates[k]) for k in range(self.num_periods)]
-		labels = ["T = %s s" % period for period in self.periods]
-		fixed_life_time = {True: self.timespan, False: None}[want_poe]
-		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=[linestyle],
-					linewidths=[linewidth], fig_filespec=fig_filespec, title=title,
-					want_recurrence=want_recurrence, fixed_life_time=fixed_life_time,
-					interpol_rp=interpol_rp, interpol_prob=interpol_prob,
-					interpol_rp_range=interpol_rp_range, amax=amax,
-					intensity_unit=intensity_unit, tr_max=rp_max,
-					axis_label_size=axis_label_size, tick_label_size=tick_label_size,
-					legend_label_size=legend_label_size, legend_location=legend_location,
-					lang=lang, dpi=dpi)
-
-	plot.__doc__ += common_plot_docstring
-
-	def export_csv(self, csv_filespec=None):
-		pass
-
-
 # TODO: make HazardCurveFieldTree?
-
-
-class HazardCurveField(HazardResult, HazardField):
-	"""
-	Class representing a hazard curve field for a single spectral period.
-	Corresponds to 1 OpenQuake hazardcurve file.
-	Parameters:
-		model_name: name of this hazard-curve model
-		filespec: full path to file containing hazard curve
-		sites: 1-D list [i] of (lon, lat) tuples of sites for which hazard curves
-			were computed
-		period: spectral period
-		IMT: intensity measure type (PGA, SA, PGV or PGD)
-		intensities: 1-D array [l] of intensity measure levels (ground-motion values)
-			for which exceedance rate or probability of exceedance was computed
-		intensity_unit: unit in which intensity measure levels are expressed:
-			PGA and SA: "g", "mg", "ms2", "gal"
-			PGV: "cms"
-			PGD: "cm"
-			default: "g"
-		timespan: period related to the probability of exceedance (aka life time)
-			(default: 50)
-		poes: 2-D array [i,l] with probabilities of exceedance computed for each
-			intensity measure level [l] at each site [i].
-			If None, exceedance_rates must be specified (default: None)
-		exceedance_rates: 2-D array [i,l] with exceedance rates computed for each
-			intensity measure level [l] at each site [i].
-			If None, poes must be specified	(default: None)
-		variances: 2-D array [i,l] with variance of exceedance rate or probability of exceedance
-			(default: None)
-		site_names: list of site names (default: None)
-	"""
-	def __init__(self, model_name, hazard_values, filespec, sites, period, IMT, intensities, intensity_unit="g", timespan=50, variances=None):
-		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
-		HazardField.__init__(self, sites)
-		self.model_name = model_name
-		self.filespec = filespec
-		self.period = period
-		self.variances = as_array(variances)
-
-	def __iter__(self):
-		self._current_index = 0
-		return self
-
-	def next(self):
-		"""
-		Loop over sites
-		"""
-		try:
-			site = self.sites[self._current_index]
-		except:
-			raise StopIteration
-		else:
-			self._current_index += 1
-			return self.getHazardCurve(self._current_index-1)
-
-	def __getitem__(self, site_spec):
-		return self.getHazardCurve(site_spec)
-
-	def intensity_index(self, intensity):
-		"""
-		Return index corresponding to a particular intensity measure level
-		Parameters:
-			return_period: return period
-		Return value:
-			intensity index (integer)
-		"""
-		intensity_index = interpolate(self.intensities, range(self.num_intensities), [intensity])[0]
-		return int(round(intensity_index))
-
-	def argmin(self, intensity=None, return_period=None):
-		"""
-		Return index of site with minimum hazard for a particular intensity or
-		return period.
-		Parameters:
-			intensity: intensity measure level. If None, return_period must be specified
-				(default: None)
-			return_period: return period. If None, intensity must be specified
-				(default: None)
-		Return value:
-			site index (int)
-		"""
-		if intensity is not None:
-			intensity_index = self.intensity_index(intensity)
-			site_index = self._hazard_values[:,intensity_index].argmin()
-		elif return_period is not None:
-			hazardmapset = self.interpolate_return_periods([return_period])
-			hazardmap = hazardmapset[0]
-			site_index = hazardmap.argmin()
-		else:
-			raise Exception("Need to specify either intensity or return_period")
-		return site_index
-
-	def argmax(self, intensity=None, return_period=None):
-		"""
-		Return index of site with maximum hazard for a particular intensity or
-		return period.
-		Parameters:
-			intensity: intensity measure level. If None, return_period must be specified
-				(default: None)
-			return_period: return period. If None, intensity must be specified
-				(default: None)
-		Return value:
-			site index (int)
-		"""
-		if intensity is not None:
-			intensity_index = self.intensity_index(intensity)
-			site_index = self._hazard_values[:,intensity_index].argmax()
-		elif return_period is not None:
-			hazardmapset = self.interpolate_return_periods([return_period])
-			hazardmap = hazardmapset[0]
-			site_index = hazardmap.argmax()
-		else:
-			raise Exception("Need to specify either intensity or return_period")
-		return site_index
-
-	def min(self, intensity=None, return_period=None):
-		"""
-		Return minimum hazard for a particular intensity or return period
-		Parameters:
-			intensity: intensity measure level. If None, return_period must be specified
-				(default: None)
-			return_period: return period. If None, intensity must be specified
-				(default: None)
-		Return value:
-			minimum exceedance rate (if intensity was specified) or minimum intensity
-			(if return period was specified)
-		"""
-		if intensity is not None:
-			intensity_index = self.intensity_index(intensity)
-			return self._hazard_values[:,intensity_index].min()
-		elif return_period is not None:
-			hazardmapset = self.interpolate_return_periods([return_period])
-			hazardmap = hazardmapset[0]
-			return hazardmap.min()
-		else:
-			raise Exception("Need to specify either intensity or return_period")
-
-	def max(self, intensity=None, return_period=None):
-		"""
-		Return maximum hazard curve for a particular intensity or return period
-		Parameters:
-			intensity: intensity measure level. If None, return_period must be specified
-				(default: None)
-			return_period: return period. If None, intensity must be specified
-				(default: None)
-		Return value:
-		Return value:
-			maximum exceedance rate (if intensity was specified) or maximum intensity
-			(if return period was specified)
-		"""
-		if intensity is not None:
-			intensity_index = self.intensity_index(intensity)
-			return self._hazard_values[:,intensity_index].max()
-		elif return_period is not None:
-			hazardmapset = self.interpolate_return_periods([return_period])
-			hazardmap = hazardmapset[0]
-			return hazardmap.max()
-		else:
-			raise Exception("Need to specify either intensity or return_period")
-
-	def getHazardCurve(self, site_spec=0):
-		"""
-		Return hazard curve for a particular site
-		Parameters:
-			site_spec: site specification (site index, (lon, lat) tuple or site name)
-				(default: 0)
-		Return value:
-			HazardCurve object
-		"""
-		site_index = self.site_index(site_spec)
-		try:
-			site = self.sites[site_index]
-		except:
-			raise IndexError("Site index %s out of range" % site_index)
-
-		site_name = self.site_names[site_index]
-		intensities = self.intensities
-		hazard_values = self._hazard_values[site_index]
-		if self.variances is not None:
-			variances = self.variances[site_index]
-		else:
-			variances = None
-		return HazardCurve(self.model_name, hazard_values, self.filespec, site, self.period, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
-
-	def interpolate_return_periods(self, return_periods):
-		"""
-		Interpolate intensity measure levels for given return periods.
-		Parameters:
-			return_periods: list or array of return periods
-		Return value:
-			HazardMapSet object
-		"""
-		filespecs = [self.filespec] * len(return_periods)
-		return_periods = np.array(return_periods)
-		rp_intensities = np.zeros((len(return_periods), self.num_sites))
-		interpol_exceedances = 1. / return_periods
-		for i in range(self.num_sites):
-				rp_intensities[:,i] = interpolate(self.exceedance_rates[i], self.intensities, interpol_exceedances)
-		return HazardMapSet(self.model_name, filespecs, self.sites, self.period, self.IMT, rp_intensities, self.intensity_unit, self.timespan, return_periods=return_periods)
-
-	def toSpectral(self):
-		"""
-		Promote to a SpectralHazardCurveField object (multiple sites, multiple spectral periods)
-		"""
-		intensities = self.intensities.reshape((1, self.num_intensities))
-		hazard_values = self._hazard_values.reshape((self.num_sites, 1, self.num_intensities))
-		if self.variances is not None:
-			variances = self.variances.reshape((self.num_sites, 1, self.num_intensities))
-		else:
-			variances = None
-		return SpectralHazardCurveField(self.model_name, hazard_values, [self.filespec], self.sites, [self.period], self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
-
-	def plot(self, site_specs=[], labels=None, colors=None, linestyles=None,
-			linewidth=2, fig_filespec=None, title=None, want_recurrence=False,
-			want_poe=False, interpol_rp=None, interpol_prob=None, interpol_rp_range=None,
-			amax=None, intensity_unit="g", rp_max=1E+07, legend_location=0,
-			axis_label_size='x-large', tick_label_size='large',
-			legend_label_size='large', lang="en", dpi=300):
-		"""
-		Plot hazard curves for one or more sites.
-		Parameters:
-			site_specs: list with site specs (indexes, (lon,lat) tuples or site names)
-				of sites to be plotted (default: [] will plot all sites)
-			colors: list with curve colors for each site (default: None)
-			linestyles: list with line styles for each site (default: None)
-			linewidth: line width (default: 2)
-		"""
-		## Determine sites
-		if site_specs in (None, []):
-			site_indexes = range(self.num_sites)
-		else:
-			site_indexes = [self.site_index(site_spec) for site_spec in site_specs]
-		sites = [self.sites[site_index] for site_index in site_indexes]
-
-		## Labels
-		if labels in (None, []):
-			labels = [self.site_names[site_index] for site_index in site_indexes]
-
-		## Colors and linestyles
-		if colors in (None, []):
-			colors = [["r", "g", "b", "c", "m", "k"][i%6] for i in range(len(sites))]
-
-		## Linestyles
-		if linestyles in (None, []):
-			linestyles = [['-', '--', ':', '-.'][i//len(colors)%4] for i in range(len(sites))]
-
-		linewidths = [linewidth] * len(sites)
-
-		## Data
-		datasets = []
-		exceedance_rates = self.exceedance_rates
-		for site in sites:
-			site_index = self.site_index(site)
-			x = self.get_intensities(intensity_unit)
-			y = exceedance_rates[site_index]
-			datasets.append((x, y))
-
-		fixed_life_time = {True: self.timespan, False: None}[want_poe]
-		plot_hazard_curve(datasets, labels=labels, colors=colors, linestyles=linestyles,
-				linewidths=linewidths, fig_filespec=fig_filespec, title=title,
-				want_recurrence=want_recurrence, fixed_life_time=fixed_life_time,
-				interpol_rp=interpol_rp, interpol_prob=interpol_prob,
-				interpol_rp_range=interpol_rp_range, amax=amax,
-				intensity_unit=intensity_unit, tr_max=rp_max,
-				legend_location=legend_location, axis_label_size=axis_label_size,
-				tick_label_size=tick_label_size, legend_label_size=legend_label_size,
-				lang=lang, dpi=dpi)
-
-	plot.__doc__ += common_plot_docstring
-
-	def create_xml_element(self, encoding='latin1'):
-		"""
-		Create xml element (NRML HazardCurveField element)
-		Arguments:
-			encoding: unicode encoding (default: 'latin1')
-		"""
-		# TODO: use names from nrml namespace
-		hcf_elem = etree.Element('hazardCurveField')
-		hcf_elem.set('imt', self.IMT)
-		hcf_elem.set('period', str(self.period))
-		hcf_elem.set('imls', ''.join(map(str, self.intensities)))
-
-		for i, site in enumerate(self.sites):
-			site_elem = etree.SubElement(hcf_elem, 'site')
-			site_elem.set('lon_lat', ''.join(map(str, site)))
-			site_elem.set('exceedance_rates', ''.join(map(str, self.exceedance_rates[i])))
-
-		return hcf_elem
-
-	def write_nrml(self, filespec, encoding='latin1', pretty_print=True):
-		"""
-		Write hazard curve field to XML file
-		Arguments:
-			filespec: full path to XML output file
-			encoding: unicode encoding (default: 'utf-8')
-			pretty_print: boolean indicating whether or not to indent each
-				element (default: True)
-		"""
-		tree = create_nrml_root(self, encoding=encoding)
-		fd = open(filespec, 'w')
-		tree.write(fd, xml_declaration=True, encoding=encoding, pretty_print=pretty_print)
-		fd.close()
-
-
-class HazardCurve(HazardResult):
-	"""
-	Class representing a hazard curve for a single site and a single spectral period
-	Parameters:
-		model_name: name of this hazard-curve model
-		filespec: full path to file containing hazard curve
-		site: (lon, lat) tuple of site for which hazard curve was computed
-		period: spectral period
-		IMT: intensity measure type (PGA, SA, PGV or PGD)
-		intensities: 1-D array [l] of intensity measure levels (ground-motion values)
-			for which exceedance rate or probability of exceedance was computed
-		intensity_unit: unit in which intensity measure levels are expressed:
-			PGA and SA: "g", "mg", "ms2", "gal"
-			PGV: "cms"
-			PGD: "cm"
-			default: "g"
-		timespan: period related to the probability of exceedance (aka life time)
-			(default: 50)
-		poes: 1-D array [l] with probabilities of exceedance computed for each
-			intensity measure level [l]. If None, exceedance_rates must be specified
-			(default: None)
-		exceedance_rates: 1-D array [l] with exceedance rates computed for each
-			intensity measure level [l]. If None, poes must be specified
-			(default: None)
-		variances: 1-D array [l] with variance of exceedance rate or probability of exceedance
-			(default: None)
-		site_name: name of site (default: "")
-	"""
-	def __init__(self, model_name, hazard_values, filespec, site, period, IMT, intensities, intensity_unit="g", timespan=50, variances=None):
-		HazardResult.__init__(self, hazard_values, timespan=timespan, IMT=IMT, intensities=intensities, intensity_unit=intensity_unit)
-		self.model_name = model_name
-		self.filespec = filespec
-		self.site = site
-		self.period = period
-		self.variances = as_array(variances)
-
-	def __len__(self):
-		"""
-		Return length of hazard curve (= number of intensity measure levels)
-		"""
-		return self.num_intensities
-
-	def __add__(self, other_hc):
-		"""
-		:param other_hc:
-			instance of :class:`HazardCurve`
-
-		:return:
-			instance of :class:`HazardCurve`
-		"""
-		assert isinstance(other_hc, HazardCurve)
-		assert self.site == other_hc.site
-		assert self.IMT == other_hc.IMT
-		assert self.period == other_hc.period
-		assert (self.intensities == other_hc.intensities).all()
-		assert self.intensity_unit == other_hc.intensity_unit
-		assert self.timespan == other_hc.timespan
-		hazard_values = self._hazard_values + other_hc._hazard_values
-		return self.__class__(self.model_name, hazard_values, self.filespec, self.site, self.period, self.IMT, self.intensities, self.intensity_unit, self.timespan)
-
-	def __mul__(self, number):
-		"""
-		:param number:
-			int, float or Decimal
-
-		:return:
-			instance of :class:`HazardCurve`
-		"""
-		assert isinstance(number, (int, float, Decimal))
-		hazard_values = self._hazard_values * number
-		return self.__class__(self.model_name, hazard_values, self.filespec, self.site, self.period, self.IMT, self.intensities, self.intensity_unit, self.timespan)
-
-	def __rmul__(self, number):
-		return self.__mul__(number)
-
-	@property
-	def site_name(self):
-		return self.site.name
-
-	def interpolate_return_periods(self, return_periods):
-		"""
-		Interpolate intensity measure levels for given return periods.
-		Parameters:
-			return_periods: list or array of return periods
-		Return value:
-			1-D array of intensity measure levels
-		"""
-		return_periods = np.array(return_periods, 'd')
-		interpol_exceedance_rates = 1. / return_periods
-		rp_intensities = interpolate(self.exceedance_rates, self.intensities, interpol_exceedance_rates)
-		return rp_intensities
-
-	def get_return_periods(self, intensities):
-		"""
-		Interpolate return periods for given intensities
-
-		:param intensities:
-			1-D float array, intensity in g
-
-		:return:
-			1-D float array, return period in yr
-		"""
-		return interpolate(self.intensities, self.return_periods, intensities)
-
-	def toSpectral(self):
-		"""
-		Promote to a SpectralHazardCurve object (1 site, multiple spectral periods)
-		"""
-		intensities = self.intensities.reshape((1, self.num_intensities))
-		hazard_values = self._hazard_values.reshape((1, self.num_intensities))
-		if self.variances is not None:
-			variances = self.variances.reshape((1, self.num_intensities))
-		else:
-			variances = None
-		return SpectralHazardCurve(self.model_name, hazard_values, self.filespec, self.site, [self.period], self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
-
-	def toField(self):
-		"""
-		Promote to a HazardCurveField object (1 spectral period, multiple sites)
-		"""
-		intensities = self.intensities
-		hazard_values = self._hazard_values.reshape((1, self.num_intensities))
-		if self.variances is not None:
-			variances = self.variances.reshape((1, self.num_intensities))
-		else:
-			variances = None
-		return HazardCurveField(self.model_name, hazard_values, self.filespec, [self.site], self.period, self.IMT, intensities, self.intensity_unit, self.timespan, variances=variances)
-
-	def plot(self, color="k", linestyle="-", linewidth=2, fig_filespec=None,
-			title=None, want_recurrence=False, want_poe=False, interpol_rp=None,
-			interpol_prob=None, interpol_rp_range=None, amax=None, intensity_unit="g",
-			rp_max=1E+07, legend_location=0, axis_label_size='x-large',
-			tick_label_size='large', legend_label_size='large', lang="en", dpi=300):
-		"""
-		Plot hazard curve
-		Parameters:
-			color: curve color (default: 'k')
-			linestyle: line style (default: "-")
-			linewidth: line width (default: 2)
-		"""
-		if title is None:
-			title = "Hazard Curve"
-			title += "\nSite: %s, T: %s s" % (self.site_name, self.period)
-		datasets = [(self.get_intensities(intensity_unit), self.exceedance_rates)]
-		labels = [self.model_name]
-		fixed_life_time = {True: self.timespan, False: None}[want_poe]
-		plot_hazard_curve(datasets, labels=labels, colors=[color], linestyles=[linestyle],
-				linewidths=[linewidth], fig_filespec=fig_filespec, title=title,
-				want_recurrence=want_recurrence, fixed_life_time=fixed_life_time,
-				interpol_rp=interpol_rp, interpol_prob=interpol_prob,
-				interpol_rp_range=interpol_rp_range, amax=amax,
-				intensity_unit=intensity_unit, tr_max=rp_max,
-				legend_location=legend_location, axis_label_size=axis_label_size,
-				tick_label_size=tick_label_size, legend_label_size=legend_label_size,
-				lang=lang, dpi=dpi)
-
-	plot.__doc__ += common_plot_docstring
-
-	def export_csv(self, csv_filespec=None):
-		"""
-		Export hazard curve to a csv file
-		Parameters:
-			csv_filespec: full path to output file. If None, output is written
-				to standard output (default: None)
-		"""
-		if csv_filespec:
-			f = open(csv_filespec, "w")
-		else:
-			f = sys.stdout
-		f.write("%s (%s), Exceedance rate (1/yr)\n" % (self.IMT, self.intensity_unit))
-		for intensity, exceedance in zip(self.intensities, self.exceedance_rates):
-			f.write("%.3E, %.3E\n" % (intensity, exceedance))
-		f.close()
 
 
 class HazardCurveCollection:
@@ -2207,7 +2355,7 @@ if __name__ == "__main__":
 	## Convert CRISIS .MAP file to HazardMapSet
 	#filespec = "Test files\\CRISIS\\VG_Ambr95DD_Leynaud_EC8.MAP"
 	filespec = "D:\\PSHA\\LNE\\CRISIS\\VG_Ambr95DD_Leynaud_EC8.MAP"
-	hazardmapset = IO.read_MAP(filespec, model_name="VG_Ambr95DD_Leynaud_EC8", convert_to_g=True, IMT="PGA", verbose=True)
+	hazardmapset = IO.read_MAP(filespec, model_name="VG_Ambr95DD_Leynaud_EC8", convert_to_g=True, imt="PGA", verbose=True)
 	print(hazardmapset.longitudes)
 	for hazardmap in hazardmapset:
 		print(hazardmap.intensities.shape)
