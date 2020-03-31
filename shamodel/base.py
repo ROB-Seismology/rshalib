@@ -140,10 +140,12 @@ class SHAModelBase(object):
 			## Not sure if this was ever used
 			#if self.sha_site_model:
 			#	return self.soil_site_model.filter(self.soil_site_model.mesh._geodetic_min_distance(self.sha_site_model, True))
-			return self.site_model
+			soil_site_model = self.site_model
 		else:
 			soil_site_model = self.site_model.to_soil_site_model(name=None,
 											ref_soil_params=self.ref_soil_params)
+
+		return soil_site_model
 
 	def get_sites(self):
 		"""
