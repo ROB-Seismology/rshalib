@@ -4,7 +4,7 @@ Functions related to multiprocessing
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import os
+import os, sys
 import multiprocessing
 import numpy as np
 import openquake.hazardlib as oqhazlib
@@ -57,10 +57,14 @@ def run_parallel(func, job_arg_list, num_processes, shared_arr=None, verbose=Tru
 	else:
 		pool = multiprocessing.Pool(processes=num_processes, initializer=init_shared_arr,
 									initargs=(shared_arr,))
-	#job_arg_list = [(func, job_args) for job_args in job_arg_list]
-	#result = pool.map(mp_func_wrapper, job_arg_list, chunksize=1)
-	## Use functools.partial instead of mp_func_wrapper
-	result = pool.map(partial(func), job_arg_list, chunksize=1)
+	## In PY3.3, we can use pool.starmap
+	if sys.version_info[:2] >= (3, 3):
+		result = pool.starmap(func, job_arg_list, chunksize=1)
+	else:
+		job_arg_list = [(func, job_args) for job_args in job_arg_list]
+		result = pool.map(mp_func_wrapper, job_arg_list, chunksize=1)
+		## functools.partial instead of mp_func_wrapper doesn't work for multiple args
+		#result = pool.map(partial(func), job_arg_list, chunksize=1)
 	pool.close()
 	return result
 
@@ -68,7 +72,8 @@ def run_parallel(func, job_arg_list, num_processes, shared_arr=None, verbose=Tru
 def mp_func_wrapper(func_args_tuple):
 	"""
 	Wrapper function to be used with multiprocessing pool.map
-	This function is no longer needed, as we use functools.partial
+	This function is needed when multiple arguments need to be passed
+	to the function used in a multiprocessing pool.
 
 	:param func_args_tuple:
 		(func, args) tuple:
