@@ -825,7 +825,7 @@ class GroundMotionField(IntensityResult, HazardField):
 
 		## Intensity data points
 		if site_style:
-			site_data = lbm.MultiPointData(longitudes, latitudes)
+			site_data = lbm.MultiPointData(self.longitudes, self.latitudes)
 			map_layers.append(lbm.MapLayer(site_data, site_style,
 											name="intensity_points"))
 
