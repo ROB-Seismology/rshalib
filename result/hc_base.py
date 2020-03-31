@@ -50,6 +50,10 @@ class IntensityResult:
 		self.damping = damping
 
 	@property
+	def ndims(self):
+		return len(self.intensities.shape)
+
+	@property
 	def num_intensities(self):
 		return self.intensities.shape[-1]
 
@@ -376,6 +380,16 @@ class HazardField:
 		"""
 		return self.latitudes.max()
 
+	def get_region(self):
+		"""
+		:return:
+			(lonmin, lonmax, latmin, latmax) tuple of floats
+		"""
+		lons = self.longitudes()
+		lats = self.latitudes()
+
+		return (lons.min(), lons.max(), lats.min(), lats.max())
+
 	def get_grid_longitudes(self, lonmin=None, lonmax=None, num_cells=100):
 		"""
 		Return array of equally spaced longitudes
@@ -632,6 +646,27 @@ class HazardTree(HazardResult):
 	"""
 	Generic class providing common methods related to logic-tree results.
 	Inherits from HazardResult
+
+	:param hazard_values:
+		instance of subclass of :class:`HazardCurveArray`, either
+		exceedance rates or exceedance probabilities
+	:param branch_names:
+		list of strings, branch names
+	:param weights:
+		1-D array, weights for each branch
+		(default: None)
+	:param timespan:
+	:param intensities:
+	:param intensity_unit:
+	:param imt:
+	:param damping:
+		see :class:`HazardResult`
+	:param mean:
+		1-D array, mean hazard values for logic tree
+	:param percentile_levels:
+		list of ints, percentile levels corresponding to :param:`percentiles`
+	:param percentiles:
+		2-D array, percentile hazard values
 	"""
 	def __init__(self, hazard_values, branch_names, weights=None, timespan=50,
 				intensities=None, intensity_unit="", imt="PGA", damping=0.05,
