@@ -85,10 +85,10 @@ class SHAModelBase(object):
 		:return:
 			instance of :class:`IMT`
 		"""
-		if im == "SA":
-			imt = getattr(oqhazlib.imt, im)(period, damping=5.)
-		else:
+		if im in ("PGA", "PGV", "PGD"):
 			imt = getattr(oqhazlib.imt, im)()
+		else:
+			imt = getattr(oqhazlib.imt, im)(period, damping=5.)
 		return imt
 
 	def _get_imts(self):
