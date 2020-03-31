@@ -23,7 +23,7 @@ from .base_array import *
 from .hc_base import *
 
 from .response_spectrum import ResponseSpectrum
-#from .hazard_map import (HazardMap, HazardMapSet)
+from .hazard_map import (HazardMap, HazardMapSet)
 
 
 
@@ -57,6 +57,7 @@ class UHS(HazardResult, ResponseSpectrum):
 		(default: None)
 	:param return_period:
 		float, return period
+		(default: None)
 		Note: either return period or poe must be specified!
 	:param damping:
 		see :class:`ResponseSpectrum`
@@ -83,6 +84,12 @@ class UHS(HazardResult, ResponseSpectrum):
 
 		self.site = site
 		self.filespec = filespec
+
+	def __repr__(self):
+		txt = '<UHS %s "%s" | T: %s - %s s (n=%d) | %d%% damping>'
+		txt %= (self.imt, self.model_name, self.Tmin, self.Tmax, len(self),
+				self.damping*100)
+		return txt
 
 	def __getitem__(self, period_spec):
 		"""
@@ -256,6 +263,7 @@ class UHSField(HazardSpectrum, HazardResult, HazardField):
 		see :class:`UHS`
 	:param vs30s:
 		1-D array [i] of VS30 values for each site
+		(default: None)
 	"""
 	def __init__(self, sites, periods, intensities, intensity_unit, imt,
 				model_name="", filespec=None,
@@ -276,6 +284,12 @@ class UHSField(HazardSpectrum, HazardResult, HazardField):
 		self.model_name = model_name
 		self.filespec = filespec
 		self.vs30s = vs30s
+
+	def __repr__(self):
+		txt = '<UHSField %s "%s" | T: %s - %s s (n=%d) | %d sites>'
+		txt %= (self.imt, self.model_name, self.Tmin, self.Tmax, len(self),
+				self.num_sites)
+		return txt
 
 	def __iter__(self):
 		for i in range(self.num_sites):
@@ -510,6 +524,12 @@ class UHSFieldSet(HazardSpectrum, HazardResult, HazardField):
 			filespecs *= len(self.return_periods)
 		self.filespecs = filespecs
 
+	def __repr__(self):
+		txt = '<UHSFieldSet %s "%s" | T: %s - %s s (n=%d) | %d sites | nTr=%d>'
+		txt %= (self.imt, self.model_name, self.Tmin, self.Tmax, len(self),
+				self.num_sites, len(self))
+		return txt
+
 	def __iter__(self):
 		for i in range(len(self)):
 			yield self.get_uhs_field(index=i)
@@ -724,6 +744,12 @@ class UHSFieldTree(HazardSpectrum, HazardField, HazardTree):
 		self.filespecs = filespecs
 		self.vs30s = vs30s
 
+	def __repr__(self):
+		txt = '<UHSFieldTree %s "%s" | T: %s - %s s (n=%d) | %d sites | %d branches>'
+		txt %= (self.imt, self.model_name, self.Tmin, self.Tmax, len(self),
+				self.num_sites, self.num_branches)
+		return txt
+
 	def __iter__(self):
 		for i in range(self.num_branches):
 			yield self.get_uhs_field(i)
@@ -765,17 +791,17 @@ class UHSFieldTree(HazardSpectrum, HazardField, HazardTree):
 	#def num_branches(self):
 	#	return self.intensities.shape[1]
 
-	#@property
-	#def poe(self):
-	#	return self.poes[0]
+	@property
+	def poe(self):
+		return self.poes[0]
 
-	#@property
-	#def return_period(self):
-	#	return self.return_periods[0]
+	@property
+	def return_period(self):
+		return self.return_periods[0]
 
-	#@property
-	#def exceedance_rate(self):
-	#	return self.exceedance_rates[0]
+	@property
+	def exceedance_rate(self):
+		return self.exceedance_rates[0]
 
 	#def min(self):
 		# TODO: not really useful
@@ -1407,6 +1433,9 @@ class UHSCollection:
 		self.labels = labels
 		if validate:
 			self.validate()
+
+	def __repr__(self):
+		return '<USSCollection (n=%d)>' % len(self)
 
 	def validate(self):
 		"""
