@@ -12,6 +12,7 @@ from openquake.hazardlib.imt import *
 
 from ..result import HazardMapSet, UHSField, UHSFieldTree
 from ..site.ref_soil_params import REF_SOIL_PARAMS
+from ..calc import mp
 from .base import SHAModelBase
 
 
@@ -394,7 +395,6 @@ class DSHAModel(SHAModelBase):
 							timespan=1, return_period=1,
 							damping=damping, vs30s=vs30s)
 
-
 	def calc_gmf_fixed_epsilon(self, stddev_type="total", np_aggregation="avg",
 								gmpe_aggregation="avg", src_aggregation="max"):
 		"""
@@ -659,7 +659,7 @@ class DSHAModel(SHAModelBase):
 
 		periods = self._get_periods()
 		sites = soil_site_model.get_generic_sites()
-		vs30s = soil_site_model.vs30s
+		vs30s = soil_site_model.vs30
 		imt = self.get_imt_families()[0]
 		damping = 0 if imt in ('PGA', 'PGV', 'PGD') else 0.05
 
