@@ -13,8 +13,16 @@ import pylab
 from matplotlib.font_manager import FontProperties
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
-from ..utils import interpolate
+from plotting.generic_mpl import (plot_xy, show_or_save_plot)
 
+from ..utils import interpolate
+from ..poisson import poisson_conv
+
+
+
+__all__ = ['get_intensity_unit_label', 'plot_hazard_curves',
+			'plot_hazard_spectra', 'plot_histogram',
+			'plot_deaggregation']
 
 
 def get_intensity_unit_label(intensity_unit="g"):
@@ -39,6 +47,223 @@ def get_intensity_unit_label(intensity_unit="g"):
 		intensity_unit_label = "%s" % intensity_unit
 
 	return intensity_unit_label
+
+
+def plot_hazard_curves(hc_list, labels=[], colors=[], linestyles=[], linewidths=[2],
+						intensity_unit=None, yaxis="exceedance_rate",
+						timespan=None, interpol_val=None, interpol_range=None,
+						interpol_prop='return_period', legend_location=0,
+						xscaling='lin', yscaling='log', xgrid=1, ygrid=1,
+						title="", fig_filespec=None, lang="en", **kwargs):
+	"""
+	:param hc_list:
+		list with instances of :class:`rshalib.result.HazardCurve`
+	:param labels:
+		list of strings, legend labels for each hazard curve
+		(default: [])
+	:param colors:
+		list of matplotlib color specifications
+		(default: [])
+	:param linestyles:
+		list of matplotlib line style specifications
+		(default: [])
+	:param linewidths:
+		list of floats, line widths
+		(default: [2])
+	:param intensity_unit:
+		str, ground-motion unit to plot spectral amplitudes
+		(default: None, will take unit of first item in :param:`hc_list`)
+	:param yaxis:
+		str, what to plot in the Y axis: "exceedance_rate", "return_period"
+		or "poe" (= probability of exceedance)
+		(default: "exceedance_rate")
+	:param timespan:
+		float, uniform timespan for all curves
+		(default: None, will use timespan of first hazard curve)
+	:param interpol_val:
+		float or array, hazard values for which ground motion should be
+		interpolated and indicated with a dotted line
+		(default: None)
+	:param interpol_range:
+		[min_val, max_val] list or array, hazard range for which ground
+		motion should be interpolated and shaded
+		(default: None)
+	:param interpol_prop:
+		str, type of hazard values in :param:`interpol_val` and
+		:param:`interpol_range`: "exceedance_rate", "return_period"
+		or "poe" (= probability of exceedance)
+		(default: "return_period")
+	:param legend_location:
+	:param xscaling:
+	:param yscaling:
+	:param xgrid:
+	:param ygrid:
+	:param title:
+	:param fig_filespec:
+		see :func:`generic_mpl.plot_xy`
+	:param lang:
+		str, language of axis labels: "en", "nl" or "fr"
+		(default: "en")
+	:kwargs:
+		additional keyword arguments understood by :func:`generic_mpl.plot_xy`
+
+	:return:
+		matplotlib Axes instance
+	"""
+	intensity_unit = intensity_unit or hc_list[0].intensity_unit
+	timespan = timespan or hc_list[0].timespan
+
+	if kwargs.get('xlabel') is None:
+		imt = hc_list[0].imt
+		if imt in ('PGA', 'SA'):
+			kwargs['xlabel'] = {"en": "Acceleration",
+								"nl": "Versnelling",
+								"fr": "Accélération"}[lang]
+		elif imt in ('PGV', 'SV'):
+			kwargs['xlabel'] = {"en": "Velocity",
+								"nl": "Snelheid",
+								"fr": "Vitesse"}[lang]
+		elif imt in ('PGD', 'SD'):
+			kwargs['xlabel'] = {"en": "Displacement",
+								"nl": "Verplaatsing",
+								"fr": "Déplacement"}[lang]
+
+		kwargs['xlabel'] += " (%s)" % get_intensity_unit_label(intensity_unit)
+
+	if kwargs.get('ylabel') is None:
+		if yaxis == 'exceedance_rate':
+			kwargs['ylabel'] = {"en": "Exceedance rate (1/yr)",
+								"nl": "Overschrijdingsfrequentie (1/jaar)",
+								"fr": "Taux de dépassement (1/a)"}[lang]
+		elif yaxis == 'return_period':
+			kwargs['ylabel'] = {"en": "Return period (yr)",
+								"nl": "Terugkeerperiode (jaar)",
+								"fr": "Période de retour (a)"}[lang]
+		elif yaxis == 'poe':
+			kwargs['ylabel'] = {"en": "Probability of exceedance",
+								"nl": "Overschrijdingskans",
+								"fr": "Probabilité de dépassement"}[lang]
+
+	kwargs['xmin'] = kwargs.get('xmin', 0.)
+	if kwargs.get('ymax') is None:
+		if yaxis in ('exceedance_rate', 'poe'):
+			kwargs['ymax'] = 1
+
+	## Plot hazard curves
+	datasets = []
+	for hc in hc_list:
+		xvalues = hc.get_intensities(intensity_unit)
+		## Ignore zero curves
+		if not np.allclose(hc._hazard_values, 0):
+			if yaxis == 'exceedance_rate':
+				yvalues = hc._hazard_values.to_exceedance_rates(timespan)
+			elif yaxis == 'return_period':
+				yvalues = hc._hazard_values.to_return_periods(timespan)
+			elif yaxis == 'poe':
+				yvalues = hc._hazard_values.to_probabilities(timespan)
+
+			datasets.append((xvalues, yvalues))
+
+	if yaxis == 'poe':
+		timespan_label = {"en": "Fixed life time",
+						"nl": "Vaste levensduur",
+						"fr": "Temps fixe"}[lang]
+		year_label = {"en": "yr", "nl": "jaar", "fr": "a"}[lang]
+		title += "\n%s: %s %s" % (time_label, timespan, year_label)
+
+	ax = plot_xy(datasets, labels=labels, colors=colors, linestyles=linestyles,
+				linewidths=linewidths, xscaling=xscaling, yscaling=yscaling,
+				xgrid=xgrid, ygrid=ygrid, title=title,
+				legend_location=legend_location, fig_filespec='wait', **kwargs)
+
+	## Plot dotted lines corresponding to interpol_val
+	if interpol_val is not None:
+		if np.isscalar(interpol_rp):
+			interpol_val = np.array([interpol_val])
+		else:
+			interpol_val = np.asarray(interpol_val)
+
+		## Convert to return period
+		if interpol_prop == 'exceedance_rate':
+			interpol_rp = 1. / interpol_val
+		elif interpol_prop == 'poe':
+			interpol_rp = poisson_conv(t=timespan, poe=interpol_val)
+		else:
+			interpol_rp = interpol_val
+
+		## Convert to Y axis
+		if yaxis == 'exceedance_rate':
+			interpol_y = 1. / interpol_rp
+		elif yaxis == 'poe':
+			interpol_y = poisson_conv(t=timespan, tau=interpol_rp)
+		else:
+			interpol_y = interpol_rp
+
+		datasets = []
+		labels = ['_nolegend_']
+		linestyles = [':']
+		#colors = colors or pylab.rcParams['axes.prop_cycle'].by_key()['color']
+		xmin = ax.get_xlim()[0]
+		ymin = ax.get_ylim()[0]
+		for hc in hc_list:
+			if not np.allclose(hc._hazard_values, 0):
+				## Interpolate ground-motion corresponding to return period(s)
+				interpol_gm = hc.interpolate_return_periods(interpol_rp)
+				info = ', '.join(['Tr=%G: %s=%s' % (rp, imt, gm)
+							for rp, gm in zip(interpol_rp, interpol_gm)])
+				print(info)
+				for igm, iy in zip(interpol_gm, interpol_y):
+					xvalues = [xmin, igm, igm]
+					yvalues = [iy, iy, ymin]
+					datasets.append(xvalues, yvalues)
+
+		plot_xy(datasets, labels=labels, colors=colors, linestyles=linestyles,
+				linewidths=linewidths, fig_filespec='wait', ax=ax,
+				skip_frame=True, **kwargs)
+
+	## Plot shaded area corresponding to interpol_range
+	if interpol_range is not None:
+		interpol_range = np.asarray(interpol_range)
+
+		## Convert to return period
+		if interpol_prop == 'exceedance_rate':
+			interpol_rp_range = 1. / interpol_range
+		elif interpol_prop == 'poe':
+			interpol_rp_range = poisson_conv(t=timespan, poe=interpol_range)
+		else:
+			interpol_rp_range = interpol_range
+
+		## Convert to Y axis
+		if yaxis == 'exceedance_rate':
+			interpol_y_range = 1. / interpol_rp_range
+		elif yaxis == 'poe':
+			interpol_y_range = poisson_conv(t=timespan, tau=interpol_rp_range)
+		else:
+			interpol_y_range = interpol_rp_range
+
+		shade = '0.75'
+		xmin, xmax = ax.get_xlim()
+		ymin = ax.get_ylim()[0]
+		if len(datasets) == 1:
+			## Plot both hazard range and ground-motion range
+			hc = hc_list[0]
+			## Interpolate ground-motion range corresponding to return period range
+			gm_range = hc.interpolate_return_periods(interpol_rp_range)
+			x1, x2 = xmin, gm_range.max()
+			y1, y2 = interpol_y_range.min(), interpol_y_range.max()
+			ax.fill([x1, x1, x2, x2], [y1, y2, y2, y1], shade, edgecolor=shade)
+			x1, x2 = gm_range.min(), gm_range.max()
+			y1, y2 = ymin, interpol_y_range.min()
+			ax.fill([x1, x2, x2, x1], [y1, y1, y2, y2], shade, edgecolor=shade)
+		else:
+			## Plot hazard range only
+			x1, x2 = xmin, xmax
+			y1, y2 = interpol_y_range.min(), interpol_y_range.max()
+			ax.fill([x1, x1, x2, x2], [y1, y2, y2, y1],	shade, edgecolor=shade)
+
+	## Finalize plot
+	return show_or_save_plot(ax, fig_filespec=fig_filespec, dpi=kwargs.get('dpi'),
+							border_width=kwargs.get('border_width'))
 
 
 def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=[],
@@ -187,22 +412,32 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 		pylab.fill([0, 0, amax, amax], [min(exc_range), max(exc_range), max(exc_range), min(exc_range)], shade, edgecolor=shade)
 
 	## Plot decoration
-	xlabel = {"en": "Acceleration", "nl": "Versnelling", "fr": u"Accélération"}[lang]
+	xlabel = {"en": "Acceleration",
+			"nl": "Versnelling",
+			"fr": u"Accélération"}[lang]
 	xlabel += " (%s)" % get_intensity_unit_label(intensity_unit)
 	pylab.xlabel(xlabel, fontsize=axis_label_size)
 	if want_recurrence:
-		pylab.ylabel({"en": "Return period (yr)", "nl": "Terugkeerperiode (jaar)"}[lang], fontsize=axis_label_size)
+		pylab.ylabel({"en": "Return period (yr)",
+					"nl": "Terugkeerperiode (jaar)",
+					"fr": "Période de retour (années)"}[lang], fontsize=axis_label_size)
 		pylab.axis((0.0, amax, 1, tr_max))
 	elif fixed_life_time:
-		pylab.ylabel({"en": "Probability of exceedance", "nl": "Overschrijdingskans"}[lang], fontsize=axis_label_size)
+		pylab.ylabel({"en": "Probability of exceedance",
+					"nl": "Overschrijdingskans",
+					"fr": "Probabilityé de dépassement"}[lang], fontsize=axis_label_size)
 		pylab.axis((0.0, amax, 1E-05, 1))
 	else:
-		pylab.ylabel({"en": "Exceedance rate (1/yr)", "nl": "Overschrijdingssnelheid (1/jaar)", "fr": u"Taux de dépassement (1/a)"}[lang], fontsize=axis_label_size)
+		pylab.ylabel({"en": "Exceedance rate (1/yr)",
+					"nl": "Overschrijdingsfrequentie (1/jaar)",
+					"fr": u"Taux de dépassement (1/a)"}[lang], fontsize=axis_label_size)
 		pylab.axis((0, amax, 1.0/tr_max, 1))
 	font = FontProperties(size=legend_label_size)
 	pylab.legend(loc=legend_location, prop=font)
 	if fixed_life_time:
-		title += "\n%s: %d %s" % ({"en": "Fixed life time", "nl": "Vaste levensduur"}[lang], fixed_life_time, {"en": "yr", "nl": "jaar"}[lang])
+		title += "\n%s: %d %s" % ({"en": "Fixed life time",
+									"nl": "Vaste levensduur",
+									"fr": "Temps fixe"}[lang], fixed_life_time, {"en": "yr", "nl": "jaar"}[lang])
 	if intensity_unit == "g":
 		majorFormatter = FormatStrFormatter('%.1f')
 		if amax <= 1.:
@@ -241,6 +476,9 @@ def plot_hazard_spectra(spec_list, labels=[], intensity_unit=None,
 	:param spec_list:
 		list with instances of :class:`rshalib.result.ResponseSpectrum`
 		or :class:`rshalib.result.UHS`
+	:param labels:
+		list of strings, legend labels for each hazard spectrum
+		(default: [])
 	:param intensity_unit:
 		str, ground-motion unit to plot spectral amplitudes
 		(default: None, will take unit of first item in :param:`spec_list`)
@@ -267,7 +505,6 @@ def plot_hazard_spectra(spec_list, labels=[], intensity_unit=None,
 
 	intensity_unit = intensity_unit or spec_list[0].intensity_unit
 	kwargs['unit'] = intensity_unit
-	print(kwargs['unit'])
 
 	if kwargs.get('xlabel') is None:
 		if plot_freq:
