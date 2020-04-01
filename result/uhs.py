@@ -603,8 +603,8 @@ class UHSFieldSet(HazardSpectrum, HazardResult, HazardField):
 							period_intensities, self.intensity_unit, self.imt,
 							period,
 							model_name=self.model_name, filespecs=self.filespecs,
-							timespan=self.timespan, return_period=self.return_period,
-							damping=damping)
+							timespan=self.timespan, return_period=self.return_periods,
+							damping=self.damping)
 
 	def interpolate_return_period(self, return_period):
 		"""
@@ -936,9 +936,11 @@ class UHSFieldTree(HazardSpectrum, HazardField, HazardTree):
 			spectral period
 		"""
 		if weighted:
-			return np.average(self.intensities, weights=self.weights, axis=1)
+			#return np.average(self.intensities, weights=self.weights, axis=1)
+			return np.average(self.intensities, weights=self.weights, axis=0)
 		else:
-			return np.mean(self.intensities, axis=1)
+			#return np.mean(self.intensities, axis=1)
+			return np.mean(self.intensities, axis=0)
 
 	#TODO: rename to calc_variance?
 	def calc_variance_of_mean(self, weighted=True):
@@ -1530,7 +1532,7 @@ class UHSCollection:
 			uhs = UHS(periods, uhs_intensities, intensity_unit, imt,
 					site, model_name=model_name, filespec=csv_filespec,
 					timespan=timespan, return_period=return_period,
-					damping=damping)
+					damping=self.damping)
 			uhs_list.append(uhs)
 
 		return UHSCollection(uhs_list)
