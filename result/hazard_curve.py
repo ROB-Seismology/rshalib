@@ -196,19 +196,22 @@ class HazardCurve(HazardResult):
 	def site_name(self):
 		return self.site.name
 
-	def interpolate_return_periods(self, return_periods):
+	def interpolate_return_periods(self, return_periods, intensity_unit=None):
 		"""
 		Interpolate intensity measure levels for given return periods.
 
 		:param return_periods:
 			list or array of return periods
+		:param intensity_unit:
+			see :meth:`get_intensities`
 
 		:return:
 			1-D array of intensity measure levels
 		"""
 		return_periods = np.asarray(return_periods, 'd')
 		interpol_exceedance_rates = 1. / return_periods
-		rp_intensities = interpolate(self.exceedance_rates, self.intensities,
+		intensities = self.get_intensities(intensity_unit)
+		rp_intensities = interpolate(self.exceedance_rates, intensities,
 									interpol_exceedance_rates)
 		return rp_intensities
 
