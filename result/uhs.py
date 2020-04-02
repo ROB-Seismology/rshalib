@@ -9,6 +9,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 ### imports
 import os, sys
+import re
 
 import numpy as np
 
@@ -82,7 +83,7 @@ class UHS(HazardResult, ResponseSpectrum):
 		ResponseSpectrum.__init__(self, periods, intensities, intensity_unit, imt,
 								damping=damping, model_name=model_name)
 
-		self.site = site
+		self.site = parse_sites([site])[0]
 		self.filespec = filespec
 
 	def __repr__(self):
@@ -408,6 +409,13 @@ class UHSField(HazardSpectrum, HazardResult, HazardField):
 		if labels in ([], None):
 			labels = self.site_names
 
+		## Linestyles: use different linestyle for each color cycle
+		if linestyles in (None, []):
+			num_colors = len(colors or
+						pylab.rcParams['axes.prop_cycle'].by_key()['color'])
+			linestyles = [['-', '--', ':', '-.'][i//num_colors%4]
+							for i in range(len(sites))]
+
 		return UHSCollection(uhs_list, labels=labels, colors=colors,
 							linestyles=linestyles, linewidths=linewidths)
 
@@ -417,12 +425,6 @@ class UHSField(HazardSpectrum, HazardResult, HazardField):
 		"""
 		Convert to UHS collection and plot
 
-		:kwargs:
-			keyword arguments understood by
-			:func:`rshalib.result.plot.plot_hazard_spectra`
-
-		:return:
-			matplotlib Axes instance
 		"""
 		labels = kwargs.pop('labels', [])
 		colors = kwargs.pop('colors', [])
@@ -436,6 +438,8 @@ class UHSField(HazardSpectrum, HazardResult, HazardField):
 		uhs_collection = self.to_uhs_collection(labels=labels, colors=colors,
 									linestyles=linestyles, linewdiths=linewidths)
 		return uhs_collection.plot(title=title, **kwargs)
+
+	plot.__doc__ += UHSCollection.plot.__doc__
 
 #	def plot(self, site_specs=None, colors=[], linestyles=[], linewidths=[],
 #			fig_filespec=None, title=None, plot_freq=False, plot_style="loglin",
@@ -969,12 +973,13 @@ class UHSFieldTree(HazardSpectrum, HazardField, HazardTree):
 			 variance_of_mean = np.var(self.intensities, axis=0)
 		return variance_of_mean
 
-	def calc_percentiles(self, percentile_levels, weighted=True):
+	def calc_percentiles(self, percentile_levels=[5, 16, 50, 84, 95], weighted=True):
 		"""
 		Compute percentiles
 
 		:param percentile_levels:
 			list of ints [p], percentile levels
+			(default: [5, 16, 50, 84, 95])
 		:param weighted:
 			see :meth:`calc_mean`
 
@@ -1227,12 +1232,9 @@ class UHSFieldTree(HazardSpectrum, HazardField, HazardTree):
 				for perc in percentile_levels:
 					if not perc in perc_colors:
 						if not (100 - perc) in perc_colors:
-							#perc_labels[perc] = "P%02d" % perc
 							perc_colors[perc] = ["b", "g", "r", "c", "m", "k"][p%6]
 							p += 1
 						else:
-							#perc_labels[100 - perc] += ", P%02d" % perc
-							#perc_labels[perc] = "_nolegend_"
 							perc_colors[perc] = perc_colors[100 - perc]
 				colors.extend(perc_colors.values())
 
@@ -1269,12 +1271,7 @@ class UHSFieldTree(HazardSpectrum, HazardField, HazardTree):
 		:param emphasize_mean:
 		:param lang:
 			see :meth:`to_uhs_collection`
-		:kwargs:
-			keyword arguments understood by
-			:func:`rshalib.result.plot.plot_hazard_spectra`
 
-		:return:
-			matplotlib Axes instance
 		"""
 		site_index = self.site_index(site_spec)
 
@@ -1297,97 +1294,7 @@ class UHSFieldTree(HazardSpectrum, HazardField, HazardTree):
 
 		return uhs_collection.plot(title=title, **kwargs)
 
-	# TODO
-#	def plot(self, site_spec=0, branch_specs=[], colors=[], linestyles=[],
-#			linewidths=[], fig_filespec=None, title=None, plot_freq=False,
-#			plot_style="loglin", Tmin=None, Tmax=None, amin=None, amax=None,
-#			pgm_period=0.02, axis_label_size='x-large', tick_label_size='large',
-#			legend_label_size='large', legend_location=0, lang="en"):
-#		site_index = self.site_index(site_spec)
-#		if branch_specs in ([], None):
-#			branch_indexes = range(self.num_branches)
-#		else:
-#			branch_indexes = [self.branch_index(branch_spec) for branch_spec in branch_specs]
-#		x = self.periods
-#		datasets, pgm, labels, colors, linewidths, linestyles = [], [], [], [], [], []
-
-#		if title is None:
-#			title = "UHS Tree"
-#			title += "\nSite: %s" % self.site_names[site_index]
-
-#		## Plot individual models
-#		for branch_index in branch_indexes:
-#			y = self.intensities[site_index, branch_index]
-#			datasets.append((x[self.periods>0], y[self.periods>0]))
-#			if 0 in self.periods:
-#				pgm.append(y[self.periods==0])
-#			labels.append("_nolegend_")
-#			colors.append((0.5, 0.5, 0.5))
-#			linewidths.append(1)
-#			linestyles.append('-')
-
-#		## Plot overall mean
-#		if self.mean is None:
-#			y = self.calc_mean()[site_index]
-#		else:
-#			y = self.mean[site_index]
-#		datasets.append((x[self.periods>0], y[self.periods>0]))
-#		if 0 in self.periods:
-#			pgm.append(y[self.periods==0])
-#		labels.append("_nolegend_")
-#		colors.append('w')
-#		linewidths.append(5)
-#		linestyles.append('-')
-#		datasets.append((x[self.periods>0], y[self.periods>0]))
-#		if 0 in self.periods:
-#			pgm.append(y[self.periods==0])
-#		labels.append({"en": "Overall Mean", "nl": "Algemeen gemiddelde"}[lang])
-#		colors.append('r')
-#		linewidths.append(3)
-#		linestyles.append('-')
-
-#		## Plot percentiles
-#		if self.percentiles is None:
-#			if self.percentile_levels is None:
-#				percentile_levels = [5, 16, 50, 84, 95]
-#			else:
-#				percentile_levels = self.percentile_levels
-#			percentiles = self.calc_percentiles(percentile_levels)
-#		else:
-#			percentiles = self.percentiles
-#			percentile_levels = self.percentile_levels
-#		percentiles = percentiles[site_index]
-#		## Manage percentile labels and colors
-#		perc_labels, perc_colors = {}, {}
-#		p = 0
-#		for perc in percentile_levels:
-#			if not perc in perc_labels:
-#				if not (100 - perc) in perc_labels:
-#					perc_labels[perc] = "P%02d" % perc
-#					perc_colors[perc] = ["b", "g", "r", "c", "m", "k"][p%6]
-#					p += 1
-#				else:
-#					perc_labels[100 - perc] += ", P%02d" % perc
-#					perc_labels[perc] = "_nolegend_"
-#					perc_colors[perc] = perc_colors[100 - perc]
-#		for p, perc in enumerate(percentile_levels):
-#			label = perc_labels[perc]
-#			labels.append(perc_labels[perc])
-#			colors.append(perc_colors[perc])
-#			linewidths.append(2)
-#			linestyles.append('--')
-#			y = percentiles[:,p]
-#			datasets.append((x[self.periods>0], y[self.periods>0]))
-#			if 0 in self.periods:
-#				pgm.append(y[self.periods==0])
-#		intensity_unit = self.intensity_unit
-#		plot_hazard_spectrum(datasets, pgm=pgm, pgm_period=pgm_period, labels=labels,
-#					colors=colors, linestyles=linestyles, linewidths=linewidths,
-#					fig_filespec=fig_filespec, title=title, plot_freq=plot_freq,
-#					plot_style=plot_style, Tmin=Tmin, Tmax=Tmax, amin=amin, amax=amax,
-#					intensity_unit=intensity_unit, axis_label_size=axis_label_size,
-#					tick_label_size=tick_label_size, legend_label_size=legend_label_size,
-#					legend_location=legend_location, lang=lang)
+	plot.__doc__ += UHSCollection.plot.__doc__
 
 	# TODO:
 	def plot_histogram(self, site_index=0, period_index=0, fig_filespec=None, title=None, bar_color='g', amax=0, da=0.005, lang="en"):
@@ -1544,10 +1451,6 @@ class UHSCollection:
 		"""
 		Plot UHS collection
 
-		See :func:`rshalib.result.plot.plot_hazard_spectra`
-
-		:return:
-			matplotlib Axes instance
 		"""
 		if title is None:
 			title = "UHS Collection"
@@ -1571,15 +1474,8 @@ class UHSCollection:
 							title=title, fig_filespec=fig_filespec, lang=lang,
 							**kwargs)
 
-		#plot_hazard_spectrum(datasets, pgm=pgm, pgm_period=pgm_period,
-		#		labels=self.labels, colors=self.colors, linestyles=self.linestyles,
-		#		linewidths=self.linewidths, fig_filespec=fig_filespec, title=title,
-		#		plot_freq=plot_freq, plot_style=plot_style, Tmin=Tmin, Tmax=Tmax,
-		#		amin=amin, amax=amax, intensity_unit=intensity_unit,
-		#		axis_label_size=axis_label_size, tick_label_size=tick_label_size,
-		#		legend_label_size=legend_label_size, legend_location=legend_location,
-		#		lang=lang, dpi=dpi, ax=ax)
-
+	plot.__doc__ += plot_hazard_spectra.__doc__[[s.start() for s in re.finditer(
+										'\n', plot_hazard_spectra.__doc__)][5]:]
 
 
 if __name__ == "__main__":
