@@ -18,13 +18,42 @@ except:
 ### imports
 import numpy as np
 
-from ..site import GenericSite
+from ..site import (GenericSite, SoilSite, GenericSiteModel, SoilSiteModel)
 from .base_array import (as_array, HazardCurveArray)
 
 
 
 __all__ = ['IntensityResult', 'HazardResult', 'HazardSpectrum',
-			'HazardField', 'HazardTree']
+			'HazardField', 'HazardTree', 'parse_sites']
+
+
+def parse_sites(sites):
+	"""
+	Convert sites to Site objects
+
+	:param sites:
+		list with:
+		- (lon, lat, [z]) tuples
+		- instances of :class:`rshalib.site.GenericSite`
+		  or :class:`rshalib.site.SoilSite`
+		- instances of :class:`rshalib.site.GenericSiteModel`
+		  or :class:`rshalib.site.SoilSiteModel`
+
+	:return:
+		list with instances of :class:`rshalib.site.GenericSite`
+		or :class:`rshalib.site.SoilSite`
+	"""
+	site0 = sites[0]
+	if isinstance(site0, (GenericSite, SoilSite)):
+		sites = sites
+	elif isinstance(sites, (GenericSiteModel, SoilSiteModel)):
+		sites = sites.get_sites()
+	elif isinstance(site0, (list, tuple)) and len(site0) >= 2:
+		sites = [GenericSite(*site[:3]) for site in sites]
+	else:
+		raise Exception('Site(s) not recognized!')
+
+	return sites
 
 
 class IntensityResult:
@@ -55,7 +84,7 @@ class IntensityResult:
 
 	@property
 	def num_intensities(self):
-		return self.intensities.shape[-1]
+		return int(self.intensities.shape[-1])
 
 	def _convert_intensities(self, intensities, src_intensity_unit,
 							target_intensity_unit):
@@ -320,11 +349,7 @@ class HazardField:
 		list with instances of :class:`rshalib.site.GenericSite`
 	"""
 	def __init__(self, sites):
-		## Convert (lon, lat, [z]) tuples to GenericSite instances if necessary
-		site0 = sites[0]
-		if isinstance(site0, (list, tuple)) and len(site0) >= 2:
-			sites = [GenericSite(*site[:3]) for site in sites]
-		self.sites = sites
+		self.sites = parse_sites(sites)
 
 	def __len__(self):
 		return self.num_sites
@@ -694,12 +719,12 @@ class HazardTree(HazardResult):
 
 	@property
 	def num_branches(self):
-		return self.intensities.shape[0]
+		return int(self.intensities.shape[0])
 
 	@property
 	def num_percentiles(self):
 		try:
-			return self.percentiles.shape[-1]
+			return int(self.percentiles.shape[-1])
 		except AttributeError:
 			return 0
 
