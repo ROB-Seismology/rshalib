@@ -169,7 +169,7 @@ def plot_hazard_curves(hc_list, labels=[], colors=[], linestyles=[], linewidths=
 						"nl": "Vaste levensduur",
 						"fr": "Temps fixe"}[lang]
 		year_label = {"en": "yr", "nl": "jaar", "fr": "a"}[lang]
-		title += "\n%s: %s %s" % (time_label, timespan, year_label)
+		title += "\n%s: %s %s" % (timespan_label, timespan, year_label)
 
 	ax = plot_xy(datasets, labels=labels, colors=colors, linestyles=linestyles,
 				linewidths=linewidths, xscaling=xscaling, yscaling=yscaling,
@@ -178,7 +178,7 @@ def plot_hazard_curves(hc_list, labels=[], colors=[], linestyles=[], linewidths=
 
 	## Plot dotted lines corresponding to interpol_val
 	if interpol_val is not None:
-		if np.isscalar(interpol_rp):
+		if np.isscalar(interpol_val):
 			interpol_val = np.array([interpol_val])
 		else:
 			interpol_val = np.asarray(interpol_val)
@@ -202,20 +202,23 @@ def plot_hazard_curves(hc_list, labels=[], colors=[], linestyles=[], linewidths=
 		datasets = []
 		labels = ['_nolegend_']
 		linestyles = [':']
-		#colors = colors or pylab.rcParams['axes.prop_cycle'].by_key()['color']
+		COLORS = colors or pylab.rcParams['axes.prop_cycle'].by_key()['color']
+		colors = []
 		xmin = ax.get_xlim()[0]
 		ymin = ax.get_ylim()[0]
-		for hc in hc_list:
+		for i, hc in enumerate(hc_list):
 			if not np.allclose(hc._hazard_values, 0):
 				## Interpolate ground-motion corresponding to return period(s)
-				interpol_gm = hc.interpolate_return_periods(interpol_rp)
+				interpol_gm = hc.interpolate_return_periods(interpol_rp,
+															intensity_unit)
 				info = ', '.join(['Tr=%G: %s=%s' % (rp, imt, gm)
 							for rp, gm in zip(interpol_rp, interpol_gm)])
 				print(info)
 				for igm, iy in zip(interpol_gm, interpol_y):
 					xvalues = [xmin, igm, igm]
 					yvalues = [iy, iy, ymin]
-					datasets.append(xvalues, yvalues)
+					datasets.append((xvalues, yvalues))
+					colors.append(COLORS[i%len(COLORS)])
 
 		plot_xy(datasets, labels=labels, colors=colors, linestyles=linestyles,
 				linewidths=linewidths, fig_filespec='wait', ax=ax,
@@ -248,7 +251,8 @@ def plot_hazard_curves(hc_list, labels=[], colors=[], linestyles=[], linewidths=
 			## Plot both hazard range and ground-motion range
 			hc = hc_list[0]
 			## Interpolate ground-motion range corresponding to return period range
-			gm_range = hc.interpolate_return_periods(interpol_rp_range)
+			gm_range = hc.interpolate_return_periods(interpol_rp_range,
+													intensity_unit)
 			x1, x2 = xmin, gm_range.max()
 			y1, y2 = interpol_y_range.min(), interpol_y_range.max()
 			ax.fill([x1, x1, x2, x2], [y1, y2, y2, y1], shade, edgecolor=shade)
