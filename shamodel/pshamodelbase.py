@@ -79,6 +79,8 @@ class PSHAModelBase(SHAModelBase):
 		float, defining time span in years
 	:param truncation_level:
 	:param integration_distance:
+	:param damping:
+	:param intensity_unit:
 		see :class:`SHAModelBase`
 	"""
 
@@ -87,11 +89,13 @@ class PSHAModelBase(SHAModelBase):
 				imt_periods, intensities,
 				min_intensities, max_intensities, num_intensities,
 				return_periods, time_span,
-				truncation_level, integration_distance):
+				truncation_level, integration_distance,
+				damping, intensity_unit=None):
 		"""
 		"""
 		SHAModelBase.__init__(self, name, site_model, ref_soil_params, imt_periods,
-							truncation_level, integration_distance)
+							truncation_level, integration_distance, damping,
+							intensity_unit)
 
 		self.root_folder = root_folder
 		self.intensities = intensities
