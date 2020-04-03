@@ -69,7 +69,8 @@ class PSHAModel(PSHAModelBase):
 				imt_periods={'PGA': [0]}, intensities=None,
 				min_intensities=0.001, max_intensities=1., num_intensities=100,
 				return_periods=[], time_span=50.,
-				truncation_level=3., integration_distance=200.):
+				truncation_level=3., integration_distance=200.,
+				damping=0.05, intensity_unit=None):
 
 		"""
 		"""
@@ -77,7 +78,8 @@ class PSHAModel(PSHAModelBase):
 		PSHAModelBase.__init__(self, name, root_folder, site_model, ref_soil_params,
 								imt_periods, intensities, min_intensities,
 								max_intensities, num_intensities, return_periods,
-								time_span, truncation_level, integration_distance)
+								time_span, truncation_level, integration_distance,
+								damping, intensity_unit)
 		self.source_model = source_model
 		self.ground_motion_model = ground_motion_model
 
@@ -124,8 +126,10 @@ class PSHAModel(PSHAModelBase):
 				periods = [0] + list(periods)
 			# TODO: add method to PSHAModelBase to associate oqhazlib/OQ imt's with units
 			poes = ProbabilityArray(hazard_result[imt])
-			shcf = SpectralHazardCurveField(self.name, poes, [''], sites,
-								periods, imt, im_imls[imt], 'g', self.time_span)
+			shcf = SpectralHazardCurveField(poes, sites, periods,
+									im_imls[imt], self.intensity_unit, imt,
+									model_name=self.name, filespecs=[''],
+									timespan=self.time_span, damping=self.damping)
 			im_shcf_dict[imt] = shcf
 		return im_shcf_dict
 
@@ -269,21 +273,30 @@ class PSHAModel(PSHAModelBase):
 
 			if individual_sources:
 				src_shcf_dict = OrderedDict()
+				filespecs = [""]*len(periods)
 				for i, src in enumerate(self.source_model):
-					src_shcf_dict[src.source_id] = SpectralHazardCurveField(self.name,
+					src_shcf_dict[src.source_id] = SpectralHazardCurveField(
 													poes[i][:,period_idxs,:],
-													[""]*len(periods), sites,
-													periods, im, intensities, 'g',
-													self.time_span)
+													sites, periods,
+													intensities, self.intensity_unit,
+													im, model_name=self.name,
+													filespecs=filespecs,
+													timespan=self.time_span,
+													damping=self.damping)
 				src_shcf_dict['Total'] = SpectralHazardCurveField(self.name,
 											total_poes[:,period_idxs,:],
-											[""]*len(periods), sites, periods, im,
-											intensities, 'g', self.time_span)
+											sites, periods,
+											intensities, self.intensity_unit, im,
+											model_name=self.name,
+											filespecs=filespecs,
+											timespan=self.time_span,
+											damping=self.damping)
 				shcf_dict[im] = src_shcf_dict
 			else:
-				shcf = SpectralHazardCurveField(self.name, poes[:,period_idxs,:],
-								[""]*len(periods), sites, periods, im, intensities,
-								'g', self.time_span)
+				shcf = SpectralHazardCurveField(poes[:,period_idxs,:], sites,
+								periods, intensities, self.intensity_unit, im,
+								model_name=self.name, filespecs=filespecs,
+								timespan=self.time_span, damping=self.damping)
 				shcf_dict[im] = shcf
 
 		return shcf_dict
@@ -334,13 +347,16 @@ class PSHAModel(PSHAModelBase):
 								self.truncation_level, n_epsilons, mag_bin_width,
 								dist_bin_width, coord_bin_width, ssdf, rsdf)
 		deagg_matrix = ProbabilityMatrix(deagg_matrix)
-		imt_name = str(imt).split('(')[0]
+		#imt_name = str(imt).split('(')[0]
+		imtf = self.get_imt_families()[0]
 		if imt_name == "SA":
 			period = imt.period
 		else:
 			period = 0
-		return DeaggregationSlice(bin_edges, deagg_matrix, site, imt_name, iml,
-								period, return_period, self.time_span)
+		return DeaggregationSlice(bin_edges, deagg_matrix, site,
+								iml, self.intensity_unit, imtf,
+								period, return_period, self.time_span,
+								self.damping)
 
 	def deagg_oqhazlib_multi(self, site_imtls,
 							mag_bin_width=None, dist_bin_width=10.,
@@ -399,12 +415,15 @@ class PSHAModel(PSHAModelBase):
 						break
 				imtls = site_imtls[(site.lon, site.lat)]
 				imts = imtls.keys()
+				imtf = self.get_imt_families()[0]
 				periods = [getattr(imt, "period", 0) for imt in imts]
 				intensities = np.array([imtls[imt] for imt in imts])
+				intensity_unit = self.intensity_unit
 				deagg_matrix = ProbabilityMatrix(deagg_matrix)
 				yield SpectralDeaggregationCurve(bin_edges, deagg_matrix, site,
-											"SA", intensities, periods,
-											self.return_periods, self.time_span)
+											intensities, intensity_unit, imtf,
+											periods, self.return_periods,
+											self.time_span, self.damping)
 
 	def get_deagg_bin_edges(self, mag_bin_width, dist_bin_width, coord_bin_width,
 							n_epsilons):
@@ -622,6 +641,7 @@ class PSHAModel(PSHAModelBase):
 			site_key = (site.lon, site.lat)
 			imtls = site_imtls[site_key]
 			imts = imtls.keys()
+			imtf = self.get_imt_families()[0]
 			periods = [getattr(imt, "period", 0) for imt in imts]
 			intensities = np.array([imtls[imt] for imt in imts])
 			deagg_matrix = deagg_matrix_dict[site_key]
@@ -631,8 +651,10 @@ class PSHAModel(PSHAModelBase):
 			deagg_matrix -= 1
 			deagg_matrix *= -1
 			deagg_result[site_key] = SpectralDeaggregationCurve(bin_edges,
-										deagg_matrix, site, "SA", intensities,
-										periods, self.return_periods, self.time_span)
+										deagg_matrix, site, intensities,
+										self.intensity_unit, imtf,
+										periods, self.return_periods,
+										self.time_span, self.damping)
 
 		return deagg_result
 
@@ -767,12 +789,15 @@ class PSHAModel(PSHAModelBase):
 					break
 			imtls = site_imtls[site_key]
 			imts = imtls.keys()
+			imtf = self.get_imt_families()[0]
 			periods = [getattr(imt, "period", 0) for imt in imts]
 			intensities = np.array([imtls[imt] for imt in imts])
 			site_deagg_matrix = ProbabilityMatrix(deagg_matrix[site_idx])
 			deagg_result[site_key] = SpectralDeaggregationCurve(bin_edges,
-										site_deagg_matrix, site, "SA", intensities,
-										periods, self.return_periods, self.time_span)
+										site_deagg_matrix, site, intensities,
+										self.intensity_unit, imtf,
+										periods, self.return_periods,
+										self.time_span, self.damping)
 
 		return deagg_result
 
@@ -825,7 +850,7 @@ class PSHAModel(PSHAModelBase):
 				imt = self._construct_imt(im, T)
 
 				if shcf:
-					hcf = shcf.getHazardCurveField(period_spec=T)
+					hcf = shcf.get_hazard_curve_field(period_spec=T)
 				else:
 					## Read individual hazard curves if there is no shcf
 					hcf = self.read_oq_hcf(curve_name, im, T,
@@ -838,7 +863,7 @@ class PSHAModel(PSHAModelBase):
 						lon, lat = site.location.longitude, site.location.latitude
 					else:
 						lon, lat = site.lon, site.lat
-					hc = hcf.getHazardCurve(site_name)
+					hc = hcf.get_hazard_curve(site_name)
 					imls = hc.interpolate_return_periods(self.return_periods)
 					site_imtls[(lon, lat)][imt] = imls
 
@@ -1047,7 +1072,7 @@ class PSHAModel(PSHAModelBase):
 						gsim_atn_map, self.return_periods, self.grid_outline,
 						grid_spacing, self.get_sites(), site_filespec,
 						self.imt_periods, self.intensities, self.min_intensities,
-						self.max_intensities, self.num_intensities, 'g',
+						self.max_intensities, self.num_intensities, self.intensity_unit,
 						self.name, self.truncation_level, self.integration_distance,
 						source_discretization=(1.0, 5.0), vs30=self.ref_soil_params["vs30"],
 						kappa=self.ref_soil_params["kappa"],
