@@ -35,26 +35,26 @@ def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 	Plot one or more magnitude-frequency distributions
 
 	:param mfd_list:
-		List with instance of :class:`EvenlyDiscretizedMFD`
+		list with instance of :class:`EvenlyDiscretizedMFD`
 		or :class:`TruncatedGRMFD`
 	:param labels:
-		List with legend labels, one for each mfd
+		list with legend labels, one for each mfd
 		(default: [])
 	:param colors:
-		List with matplotlib color specifications, one for each mfd
+		list with matplotlib color specifications, one for each mfd
 		(default: [])
 	:param styles:
-		List with matplotlib marker styles (for discrete plots)
+		list with matplotlib marker styles (for discrete plots)
 		or line styles (for non-discrete plots), one for each mfd
 		(default: [])
 	:param lw_or_ms:
 		list with marker sizes (for discrete plots) or line widths
 		(for non-discrete plots), one for each mfd
 	:param discrete:
-		List of bools, whether or not to plot discrete MFD's
+		list of bools, whether or not to plot discrete MFD's
 		(default: [])
 	:param cumul_or_inc:
-		List of strings, either "cumul", "inc" or "both", indicating
+		list of strings, either "cumul", "inc" or "both", indicating
 		whether to plot cumulative MFD, incremental MFD or both
 		(default: [])
 	:param completeness:
