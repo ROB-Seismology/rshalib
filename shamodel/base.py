@@ -18,7 +18,8 @@ class SHAModelBase(object):
 	def __init__(self, name,
 				site_model, ref_soil_params=REF_SOIL_PARAMS,
 				imt_periods={'PGA': [0]},
-				truncation_level=3, integration_distance=200.):
+				truncation_level=3, integration_distance=200.,
+				damping=0.05, intensity_unit=None):
 		"""
 		:param name:
 			str, name for SHA model
@@ -41,6 +42,15 @@ class SHAModelBase(object):
 		:param integration_distance:
 			float, defining integration distance in km
 			(default: 200.).
+		:param damping:
+			damping for spectral ground motions
+			(expressed as fraction of critical damping)
+			(default: 0.05)
+		:param intensity_unit:
+			str, unit in which intensities are expressed.
+			Set this only if you are not using OpenQuake!
+			If None, the default intensity unit in OQ will be used
+			(default: None)
 		"""
 		self.name = name
 
@@ -56,6 +66,13 @@ class SHAModelBase(object):
 
 		self.truncation_level = truncation_level
 		self.integration_distance = integration_distance
+
+		self.damping = damping
+		if self.damping > 1:
+			print('Converting damping from percent to fraction!')
+			self.damping /= 100.
+
+		self.intensity_unit = intensity_unit or self.get_default_oq_intensity_unit()
 
 	@property
 	def source_site_filter(self):
@@ -88,7 +105,7 @@ class SHAModelBase(object):
 		if im in ("PGA", "PGV", "PGD"):
 			imt = getattr(oqhazlib.imt, im)()
 		else:
-			imt = getattr(oqhazlib.imt, im)(period, damping=5.)
+			imt = getattr(oqhazlib.imt, im)(period, damping=self.damping*100)
 		return imt
 
 	def _get_imts(self):
@@ -125,6 +142,38 @@ class SHAModelBase(object):
 		if "PGD" in imts and "SD" in imts:
 			imts.remove("PGD")
 		return imts
+
+	def get_response_type(self):
+		"""
+		Determine response type from IMTs
+
+		:return:
+			str, one of 'acceleration', 'velocity' or 'displacement'
+		"""
+		imts = self.imt_periods.keys()
+		if 'PGA' in imts or 'SA' in imts:
+			response_type = 'acceleration'
+		elif 'PGV' in imts or 'SV' in imts:
+			response_type = 'velocity'
+		elif 'PGD' in imts or 'SD' in imts:
+			response_type = 'displacement'
+		return response_type
+
+	def get_default_oq_intensity_unit(self):
+		"""
+		Report default intensity used in OpenQuake
+
+		:return:
+			str
+		"""
+		response_type = self.get_response_type()
+		if response_type[:3] == 'acc':
+			intensity_unit = 'g'
+		elif response_type[:3] == 'vel':
+			intensity_unit = 'm/s'
+		elif response_type[:3] == 'dis':
+			intensity_unit = 'm'
+		return intensity_unit
 
 	def get_soil_site_model(self):
 		"""
