@@ -77,6 +77,11 @@ class IntensityResult:
 		self.intensity_unit = intensity_unit or self.get_default_intensity_unit(imt)
 		self.imt = imt
 		self.damping = damping
+		if self.damping > 1:
+			print('Converting damping from percent to fraction!')
+			self.damping /= 100.
+		if self.imt in ('PGA', 'PGV', 'PGD'):
+			self.damping = 0
 
 	@property
 	def ndims(self):
