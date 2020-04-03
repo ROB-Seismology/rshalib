@@ -64,12 +64,21 @@ else:
 	reload(uhs)
 from .uhs import *
 
+## hazard_curve (depends on uhs, hazard_map)
 if not reloading:
 	from . import hazard_curve
 else:
 	reload(hazard_curve)
 from .hazard_curve import *
 
+## deagg_base (no internal dependencies)
+if not reloading:
+	from . import deagg_base
+else:
+	reload(deagg_base)
+from .deagg_base import *
+
+## deaggregation (depends on deagg_base, hazard_curve)
 if not reloading:
 	from . import deaggregation
 else:
