@@ -32,6 +32,7 @@ from .plot import plot_hazard_curves, plot_histogram
 from .base_array import *
 from .hc_base import *
 from .uhs import UHS, UHSFieldSet, UHSFieldTree
+from .hazard_map import HazardMapSet
 
 
 # TODO: unit names should be the same as robspy !!!
@@ -343,6 +344,95 @@ class HazardCurve(HazardResult):
 							intensities, intensity_unit, imt,
 							model_name=model_name, filespec=csv_filespec,
 							timespan=timespan, damping=damping)
+
+
+class HazardCurveCollection:
+	"""
+	Container for an arbitrary set of hazard curves,
+	mainly useful for plotting.
+
+	:param hazard_curves:
+		list with instances of :class:`HazardCurve`
+	:param labels:
+		list of strings, labels for each hazard curve
+		(default: [])
+	:param colors:
+		list with matplotlib color specifications for each hazard curve
+		(default: [])
+	:param linestyles:
+		list of matplotlib line styles for each hazard curve
+		(default: [])
+	:param linewidths:
+		list of line widhts for each hazard curve
+		(default: [])
+	"""
+	def __init__(self, hazard_curves, labels=[],
+				colors=[], linestyles=[], linewidths=[]):
+		self.hazard_curves = hazard_curves
+		self.colors = colors
+		self.linestyles = linestyles
+		self.linewidths = linewidths
+		if not labels:
+			labels = [hc.model_name for hc in self.hazard_curves]
+		self.labels = labels
+
+	def __repr__(self):
+		return '<HazardCurveCollection (n=%d)>' % len(self)
+
+	def __len__(self):
+		return len(self.hazard_curves)
+
+	def append(self, hc, label=None, color=None, linestyle=None, linewidth=None):
+		"""
+		Append another hazard curve
+
+		:param hc:
+			instance of :class:`HazardCurve`
+		:param label:
+		:param color:
+		:param linestyle:
+		:param linewidth:
+		"""
+		self.hazard_curves.append(hc)
+		if not label:
+			label = hc.model_name
+		self.labels.append(label)
+		self.colors.append(color)
+		self.linestyles.append(linestyle)
+		self.linewidths.append(linewidth)
+
+	@property
+	def intensity_unit(self):
+		return self.hazard_curves[0].intensity_unit
+
+	def plot(self, labels=[], colors=[], linestyles=[], linewidths=[2],
+			intensity_unit=None, yaxis="exceedance_rate",
+			timespan=None, interpol_val=None, interpol_range=None,
+			interpol_prop='return_period', legend_location=0,
+			xscaling='lin', yscaling='log', xgrid=1, ygrid=1,
+			title="", fig_filespec=None, lang="en", **kwargs):
+		"""
+		Plot hazard curve collection
+
+		"""
+		if title is None:
+			title = "Hazard Curve Collection"
+
+		return plot_hazard_curves(self.hazard_curves, labels=self.labels,
+								colors=self.colors, linestyles=self.linestyles,
+								linewidths=self.linewidths,
+								intensity_unit=intensity_unit, yaxis=yaxis,
+								timespan=timespan, interpol_val=interpol_val,
+								interpol_range=interpol_range,
+								interpol_prop=interpol_prop,
+								legend_location=legend_location, xscaling=xscaling,
+								yscaling=yscaling, xgrid=xgrid, ygrid=ygrid,
+								title=title, fig_filespec=fig_filespec,
+								lang=lang, **kwargs)
+
+	plot.__doc__ += plot_hazard_curves.__doc__[[s.start() for s in re.finditer(
+										'\n', plot_hazard_curves.__doc__)][4]:]
+
 
 
 class SpectralHazardCurve(HazardResult, HazardSpectrum):
@@ -2929,95 +3019,6 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		tree.write(fd, xml_declaration=True, encoding=encoding,
 					pretty_print=pretty_print)
 		fd.close()
-
-
-class HazardCurveCollection:
-	"""
-	Container for an arbitrary set of hazard curves,
-	mainly useful for plotting.
-
-	:param hazard_curves:
-		list with instances of :class:`HazardCurve`
-	:param labels:
-		list of strings, labels for each hazard curve
-		(default: [])
-	:param colors:
-		list with matplotlib color specifications for each hazard curve
-		(default: [])
-	:param linestyles:
-		list of matplotlib line styles for each hazard curve
-		(default: [])
-	:param linewidths:
-		list of line widhts for each hazard curve
-		(default: [])
-	"""
-	def __init__(self, hazard_curves, labels=[],
-				colors=[], linestyles=[], linewidths=[]):
-		self.hazard_curves = hazard_curves
-		self.colors = colors
-		self.linestyles = linestyles
-		self.linewidths = linewidths
-		if not labels:
-			labels = [hc.model_name for hc in self.hazard_curves]
-		self.labels = labels
-
-	def __repr__(self):
-		return '<HazardCurveCollection (n=%d)>' % len(self)
-
-	def __len__(self):
-		return len(self.hazard_curves)
-
-	def append(self, hc, label=None, color=None, linestyle=None, linewidth=None):
-		"""
-		Append another hazard curve
-
-		:param hc:
-			instance of :class:`HazardCurve`
-		:param label:
-		:param color:
-		:param linestyle:
-		:param linewidth:
-		"""
-		self.hazard_curves.append(hc)
-		if not label:
-			label = hc.model_name
-		self.labels.append(label)
-		self.colors.append(color)
-		self.linestyles.append(linestyle)
-		self.linewidths.append(linewidth)
-
-	@property
-	def intensity_unit(self):
-		return self.hazard_curves[0].intensity_unit
-
-	def plot(self, labels=[], colors=[], linestyles=[], linewidths=[2],
-			intensity_unit=None, yaxis="exceedance_rate",
-			timespan=None, interpol_val=None, interpol_range=None,
-			interpol_prop='return_period', legend_location=0,
-			xscaling='lin', yscaling='log', xgrid=1, ygrid=1,
-			title="", fig_filespec=None, lang="en", **kwargs):
-		"""
-		Plot hazard curve collection
-
-		"""
-		if title is None:
-			title = "Hazard Curve Collection"
-
-		return plot_hazard_curves(self.hazard_curves, labels=self.labels,
-								colors=self.colors, linestyles=self.linestyles,
-								linewidths=self.linewidths,
-								intensity_unit=intensity_unit, yaxis=yaxis,
-								timespan=timespan, interpol_val=interpol_val,
-								interpol_range=interpol_range,
-								interpol_prop=interpol_prop,
-								legend_location=legend_location, xscaling=xscaling,
-								yscaling=yscaling, xgrid=xgrid, ygrid=ygrid,
-								title=title, fig_filespec=fig_filespec,
-								lang=lang, **kwargs)
-
-	plot.__doc__ += plot_hazard_curves.__doc__[[s.start() for s in re.finditer(
-										'\n', plot_hazard_curves.__doc__)][4]:]
-
 
 
 if __name__ == "__main__":
