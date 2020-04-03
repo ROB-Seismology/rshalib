@@ -24,6 +24,9 @@ __all__ = ['get_intensity_unit_label', 'plot_hazard_curves',
 			'plot_hazard_spectra', 'plot_histogram',
 			'plot_deaggregation']
 
+# TODO: reimplement plot_histogram and plot_deaggregation based on generic_mpl
+# TODO: remove plot_hazard_curve and plot_hazard_spectrum functions
+
 
 def get_intensity_unit_label(intensity_unit="g"):
 	"""
@@ -56,6 +59,8 @@ def plot_hazard_curves(hc_list, labels=[], colors=[], linestyles=[], linewidths=
 						xscaling='lin', yscaling='log', xgrid=1, ygrid=1,
 						title="", fig_filespec=None, lang="en", **kwargs):
 	"""
+	Plot a list of hazard curves
+
 	:param hc_list:
 		list with instances of :class:`rshalib.result.HazardCurve`
 	:param labels:
@@ -475,7 +480,7 @@ def plot_hazard_spectra(spec_list, labels=[], intensity_unit=None,
 						xscaling='log', yscaling='lin', xgrid=1, ygrid=1,
 						title="", fig_filespec=None, lang="en", **kwargs):
 	"""
-	Plot a set of hazard spectra
+	Plot a list of hazard spectra
 
 	:param spec_list:
 		list with instances of :class:`rshalib.result.ResponseSpectrum`
@@ -709,10 +714,14 @@ def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_c
 	ax1 = pylab.subplot(111)
 	plt = pylab.bar(bins_acc[:-1], bins_N, width=da, color=bar_color)
 
-	xlabel = {"en": "Acceleration", "nl": "Versnelling"}[lang]
-	xlabel += " (%s)" % intensity_unit
+	xlabel = {"en": "Acceleration",
+			"nl": "Versnelling",
+			"fr": "Accélération"}[lang]
+	xlabel += " (%s)" % get_intensity_unit_label(intensity_unit)
 	pylab.xlabel(xlabel, fontsize='x-large')
-	pylab.ylabel({"en": "Number of models", "nl": "Aantal modellen"}[lang], fontsize='x-large')
+	pylab.ylabel({"en": "Number of models",
+				"nl": "Aantal modellen",
+				"fr": "Nombre de modèles"}[lang], fontsize='x-large')
 
 	## Cumulative density function
 	cdf = np.add.accumulate(bins_N) * 1.0
@@ -720,7 +729,9 @@ def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_c
 	cdf = np.concatenate([cdf, [1.0]])
 	ax2 = pylab.twinx()
 	pylab.plot(bins_acc, cdf, 'm', linewidth=3.0)
-	pylab.ylabel({"en": "Normalized cumulative number", "nl": "Genormaliseerd cumulatief aantal"}[lang], fontsize='x-large')
+	pylab.ylabel({"en": "Normalized cumulative number",
+				"nl": "Genormaliseerd cumulatief aantal",
+				"fr": "Nombre cumulatif normalisé"}[lang], fontsize='x-large')
 	ax2.yaxis.tick_right()
 
 	mean_acc = np.average(intensities, weights=weights)
