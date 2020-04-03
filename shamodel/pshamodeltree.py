@@ -60,6 +60,7 @@ class PSHAModelTree(PSHAModelBase):
 				min_intensities=0.001, max_intensities=1., num_intensities=100,
 				return_periods=[], time_span=50.,
 				truncation_level=3., integration_distance=200.,
+				damping=0.05, intensity_unit=None,
 				num_lt_samples=1, random_seed=42):
 		"""
 		"""
@@ -67,7 +68,8 @@ class PSHAModelTree(PSHAModelBase):
 		PSHAModelBase.__init__(self, name, root_folder, site_model, ref_soil_params,
 								imt_periods, intensities, min_intensities,
 								max_intensities, num_intensities, return_periods,
-								time_span, truncation_level, integration_distance)
+								time_span, truncation_level, integration_distance,
+								damping, intensity_unit)
 		self.source_model_lt = source_model_lt
 		self.gmpe_lt = gmpe_lt.get_optimized_system(self.source_models)
 		self.num_lt_samples = num_lt_samples
@@ -1077,11 +1079,12 @@ class PSHAModelTree(PSHAModelBase):
 				intensities = shcft.intensities
 				intensity_unit = shcft.intensity_unit
 				timespan = self.time_span
-				shcf = SpectralHazardCurveField(model_name, hazard_values,
-												filespecs, sites, periods, IMT,
-												intensities,
-												intensity_unit=intensity_unit,
-												timespan=timespan)
+				# TODO: get damping from shcft or from self?
+				damping = self.damping
+				shcf = SpectralHazardCurveField(hazard_values, sites, periods,
+										intensities, intensity_unit, IMT,
+										model_name=model_name, filespecs=filespecs,
+										timespan=timespan, damping=damping)
 				if isinstance(self, DecomposedPSHAModelTree):
 					self.write_oq_shcf(shcf, "", "", "", "", curve_name,
 										calc_id=calc_id)
@@ -1270,8 +1273,9 @@ class PSHAModelTree(PSHAModelBase):
 		intensities = np.zeros_like(sdc.intensities)
 
 		return SpectralDeaggregationCurve(bin_edges, mean_deagg_matrix, site,
-											sdc.imt, intensities, sdc.periods,
-											sdc.return_periods, sdc.timespan)
+											intensities, sdc.intensity_unit, sdc.imt,
+											sdc.periods, sdc.return_periods,
+											sdc.timespan, sdc.damping)
 
 	def to_decomposed_psha_model_tree(self):
 		"""
@@ -1376,10 +1380,11 @@ class PSHAModelTree(PSHAModelBase):
 		sites = self.get_generic_sites()
 		site_names = [site.name for site in sites]
 		for imt, periods in self.imt_periods.items():
-			shcft = SpectralHazardCurveFieldTree(self.name, psha_model_names,
-									filespecs, weights, sites, periods, imt,
-									im_imls[imt], 'g', self.time_span,
-									poes=hazard_results[imt], site_names=site_names)
+			shcft = SpectralHazardCurveFieldTree(hazard_results[imt],
+									psha_model_names, weights, sites, periods,
+									im_imls[imt], self.intensity_unit, imt,
+									model_name=self.name, filespecs=filespecs,
+									timespan=self.time_span, damping=self.damping)
 			nrml_filespec = nrml_base_filespec + '_%s.xml' % imt
 			shcft.write_nrml(nrml_filespec)
 		return shcft
