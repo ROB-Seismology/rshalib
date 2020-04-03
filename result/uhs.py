@@ -241,6 +241,179 @@ class UHS(HazardResult, ResponseSpectrum):
 								self.imt, self.model_name)
 
 
+class UHSCollection:
+	"""
+	Container for an arbitrary set of Uniform Hazard Spectra,
+	mainly used for plotting
+
+	:param uhs_list:
+		list with instances of :class:`UHS`
+	:param labels:
+		list of strings, labels for each UHS
+		(default: [])
+	:param colors:
+		list with matplotlib color specifications for each UHS
+		(default: [])
+	:param linestyles:
+		list with matplotlib line styles for each UHS
+		(default: [])
+	:param linewidths:
+		list with line widths for each UHS
+		(default: [])
+	:param validate:
+		bool, whether or not to check if all UHS have same unit and IMT
+		(default: True)
+	"""
+	def __init__(self, uhs_list, labels=[],
+				colors=[], linestyles=[], linewidths=[],
+				validate=True):
+		self.uhs_list = uhs_list
+		self.colors = colors
+		self.linestyles = linestyles
+		self.linewidths = linewidths
+		if not labels:
+			labels = [uhs.model_name for uhs in self.uhs_list]
+		self.labels = labels
+		if validate:
+			self.validate()
+
+	def __repr__(self):
+		return '<USSCollection (n=%d)>' % len(self)
+
+	def validate(self):
+		"""
+		Check if all UHS have same intensity unit and IMT
+		"""
+		imts = set([uhs.imt for uhs in self.uhs_list])
+		if len(imts) > 1:
+			raise Exception("UHS have different IMT!")
+		intensity_units = set([uhs.intensity_unit for uhs in self.uhs_list])
+		if len(intensity_units) > 1:
+			raise Exception("UHS have different intensity unit!")
+
+	def __len__(self):
+		return len(self.uhs_list)
+
+	@property
+	def intensity_unit(self):
+		return self.uhs_list[0].intensity_unit
+
+	@classmethod
+	def from_csv_file(self, csv_filespec, site, intensity_unit="g", model_name="",
+					timespan=50, poe=None, return_period=None, damping=0.05):
+		"""
+		Read UHSCollection from a csv file.
+		First line should contain column names
+		First column should contain periods or frequencies,
+		subsequent columns should contain intensities
+		Each intensity column will represent a UHS in the collection
+
+		:param csv_filespec:
+			str, full path to csv file
+		:param site:
+			GenericSite object, representing site for which UHS was computed
+		:param intensity_unit:
+			str, unit of intensities in csv file
+			(default: "g")
+		:param model_name:
+			str, name or description of model
+			(default: "")
+		:param timespan:
+			float, time span for UHS
+			(default: 50)
+		:param poe:
+			float, probability of exceedance for UHS
+			(default: None)
+		:param return_period:
+			float, return period for UHS
+			(default: None)
+		:param damping:
+			float, damping corresponding to UHS collection
+			(expressed as fraction of critical damping)
+			(default: 0.05)
+
+		:return:
+			instance of :class:`UHSCollection`
+
+		Note: either poe or return_period should be specified
+		"""
+		assert (poe and timespan) or return_period
+
+		uhs_list = []
+		periods, intensities = [], []
+		csv = open(csv_filespec)
+		for i, line in enumerate(csv):
+			if i == 0:
+				col_names = line.split(',')
+				if col_names[0].lower() == "frequency":
+					freqs = True
+				else:
+					freqs = False
+			else:
+				col_values = list(map(float, line.split(',')))
+				T = col_values[0]
+				a = col_values[1:]
+				periods.append(T)
+				intensities.append(a)
+		csv.close()
+		periods = np.array(periods)
+		if freqs:
+			periods = 1./periods
+
+		if intensity_unit in ("g", "mg", "m/s2", "cm/s2", "gal"):
+			imt = "SA"
+		elif intensity_unit in ("m/s", "cm/s"):
+			imt = "SV"
+		elif intensity_unit in ("m", "cm"):
+			imt = "SD"
+		else:
+			imt = ""
+
+		intensities = np.array(intensities).transpose()
+		for i, uhs_intensities in enumerate(intensities):
+			model_name = col_names[i+1]
+			uhs = UHS(periods, uhs_intensities, intensity_unit, imt,
+					site, model_name=model_name, filespec=csv_filespec,
+					timespan=timespan, return_period=return_period,
+					damping=self.damping)
+			uhs_list.append(uhs)
+
+		return UHSCollection(uhs_list)
+
+	def plot(self, intensity_unit="g",
+			pgm_period=0.01, pgm_marker='o', plot_freq=False,
+			xscaling='log', yscaling='lin', xgrid=1, ygrid=1,
+			title=None, fig_filespec=None, lang="en", **kwargs):
+		"""
+		Plot UHS collection
+
+		"""
+		if title is None:
+			title = "UHS Collection"
+
+		#pgm, datasets = [], []
+		#for uhs in self.uhs_list:
+		#	intensities = uhs.get_intensities(intensity_unit)
+		#	if 0 in uhs.periods:
+		#		pgm.append(intensities[uhs.periods == 0])
+		#	else:
+		#		pgm.append(np.nan)
+		#	datasets.append((uhs.periods[uhs.periods>0], intensities[uhs.periods>0]))
+
+		return plot_hazard_spectra(self.uhs_list,
+							labels=self.labels, colors=self.colors,
+							linestyles=self.linestyles, linewidths=self.linewidths,
+							intensity_unit=intensity_unit,
+							pgm_period=pgm_period, pgm_marker=pgm_marker,
+							plot_freq=plot_freq, xgrid=xgrid, ygrid=ygrid,
+							xscaling=xscaling, yscaling=yscaling,
+							title=title, fig_filespec=fig_filespec, lang=lang,
+							**kwargs)
+
+	plot.__doc__ += plot_hazard_spectra.__doc__[[s.start() for s in re.finditer(
+										'\n', plot_hazard_spectra.__doc__)][5]:]
+
+
 class UHSField(HazardSpectrum, HazardResult, HazardField):
 	"""
 	UHS Field, i.e. UHS at a number of sites for the same return period
@@ -293,6 +466,9 @@ class UHSField(HazardSpectrum, HazardResult, HazardField):
 		return txt
 
 	def __iter__(self):
+		"""
+		Loop over sites
+		"""
 		for i in range(self.num_sites):
 			yield self.get_uhs(i)
 
@@ -533,6 +709,9 @@ class UHSFieldSet(HazardSpectrum, HazardResult, HazardField):
 		return txt
 
 	def __iter__(self):
+		"""
+		Loop over return periods
+		"""
 		for i in range(len(self)):
 			yield self.get_uhs_field(index=i)
 
@@ -753,6 +932,9 @@ class UHSFieldTree(HazardSpectrum, HazardField, HazardTree):
 		return txt
 
 	def __iter__(self):
+		"""
+		Loop over branches
+		"""
 		for i in range(self.num_branches):
 			yield self.get_uhs_field(i)
 
@@ -1303,179 +1485,6 @@ class UHSFieldTree(HazardSpectrum, HazardField, HazardTree):
 			title += "Return period: %.3G yr" % self.return_period
 		intensity_unit = self.intensity_unit
 		plot_histogram(self.intensities[site_index,:,period_index], weights=self.weights, fig_filespec=fig_filespec, title=title, bar_color=bar_color, amax=amax, da=da, intensity_unit=intensity_unit, lang=lang)
-
-
-class UHSCollection:
-	"""
-	Container for an arbitrary set of Uniform Hazard Spectra,
-	mainly used for plotting
-
-	:param uhs_list:
-		list with instances of :class:`UHS`
-	:param labels:
-		list of strings, labels for each UHS
-		(default: [])
-	:param colors:
-		list with matplotlib color specifications for each UHS
-		(default: [])
-	:param linestyles:
-		list with matplotlib line styles for each UHS
-		(default: [])
-	:param linewidths:
-		list with line widths for each UHS
-		(default: [])
-	:param validate:
-		bool, whether or not to check if all UHS have same unit and IMT
-		(default: True)
-	"""
-	def __init__(self, uhs_list, labels=[],
-				colors=[], linestyles=[], linewidths=[],
-				validate=True):
-		self.uhs_list = uhs_list
-		self.colors = colors
-		self.linestyles = linestyles
-		self.linewidths = linewidths
-		if not labels:
-			labels = [uhs.model_name for uhs in self.uhs_list]
-		self.labels = labels
-		if validate:
-			self.validate()
-
-	def __repr__(self):
-		return '<USSCollection (n=%d)>' % len(self)
-
-	def validate(self):
-		"""
-		Check if all UHS have same intensity unit and IMT
-		"""
-		imts = set([uhs.imt for uhs in self.uhs_list])
-		if len(imts) > 1:
-			raise Exception("UHS have different IMT!")
-		intensity_units = set([uhs.intensity_unit for uhs in self.uhs_list])
-		if len(intensity_units) > 1:
-			raise Exception("UHS have different intensity unit!")
-
-	def __len__(self):
-		return len(self.uhs_list)
-
-	@property
-	def intensity_unit(self):
-		return self.uhs_list[0].intensity_unit
-
-	@classmethod
-	def from_csv_file(self, csv_filespec, site, intensity_unit="g", model_name="",
-					timespan=50, poe=None, return_period=None, damping=0.05):
-		"""
-		Read UHSCollection from a csv file.
-		First line should contain column names
-		First column should contain periods or frequencies,
-		subsequent columns should contain intensities
-		Each intensity column will represent a UHS in the collection
-
-		:param csv_filespec:
-			str, full path to csv file
-		:param site:
-			GenericSite object, representing site for which UHS was computed
-		:param intensity_unit:
-			str, unit of intensities in csv file
-			(default: "g")
-		:param model_name:
-			str, name or description of model
-			(default: "")
-		:param timespan:
-			float, time span for UHS
-			(default: 50)
-		:param poe:
-			float, probability of exceedance for UHS
-			(default: None)
-		:param return_period:
-			float, return period for UHS
-			(default: None)
-		:param damping:
-			float, damping corresponding to UHS collection
-			(expressed as fraction of critical damping)
-			(default: 0.05)
-
-		:return:
-			instance of :class:`UHSCollection`
-
-		Note: either poe or return_period should be specified
-		"""
-		assert (poe and timespan) or return_period
-
-		uhs_list = []
-		periods, intensities = [], []
-		csv = open(csv_filespec)
-		for i, line in enumerate(csv):
-			if i == 0:
-				col_names = line.split(',')
-				if col_names[0].lower() == "frequency":
-					freqs = True
-				else:
-					freqs = False
-			else:
-				col_values = list(map(float, line.split(',')))
-				T = col_values[0]
-				a = col_values[1:]
-				periods.append(T)
-				intensities.append(a)
-		csv.close()
-		periods = np.array(periods)
-		if freqs:
-			periods = 1./periods
-
-		if intensity_unit in ("g", "mg", "m/s2", "cm/s2", "gal"):
-			imt = "SA"
-		elif intensity_unit in ("m/s", "cm/s"):
-			imt = "SV"
-		elif intensity_unit in ("m", "cm"):
-			imt = "SD"
-		else:
-			imt = ""
-
-		intensities = np.array(intensities).transpose()
-		for i, uhs_intensities in enumerate(intensities):
-			model_name = col_names[i+1]
-			uhs = UHS(periods, uhs_intensities, intensity_unit, imt,
-					site, model_name=model_name, filespec=csv_filespec,
-					timespan=timespan, return_period=return_period,
-					damping=self.damping)
-			uhs_list.append(uhs)
-
-		return UHSCollection(uhs_list)
-
-	def plot(self, intensity_unit="g",
-			pgm_period=0.01, pgm_marker='o', plot_freq=False,
-			xscaling='log', yscaling='lin', xgrid=1, ygrid=1,
-			title=None, fig_filespec=None, lang="en", **kwargs):
-		"""
-		Plot UHS collection
-
-		"""
-		if title is None:
-			title = "UHS Collection"
-
-		#pgm, datasets = [], []
-		#for uhs in self.uhs_list:
-		#	intensities = uhs.get_intensities(intensity_unit)
-		#	if 0 in uhs.periods:
-		#		pgm.append(intensities[uhs.periods == 0])
-		#	else:
-		#		pgm.append(np.nan)
-		#	datasets.append((uhs.periods[uhs.periods>0], intensities[uhs.periods>0]))
-
-		return plot_hazard_spectra(self.uhs_list,
-							labels=self.labels, colors=self.colors,
-							linestyles=self.linestyles, linewidths=self.linewidths,
-							intensity_unit=intensity_unit,
-							pgm_period=pgm_period, pgm_marker=pgm_marker,
-							plot_freq=plot_freq, xgrid=xgrid, ygrid=ygrid,
-							xscaling=xscaling, yscaling=yscaling,
-							title=title, fig_filespec=fig_filespec, lang=lang,
-							**kwargs)
-
-	plot.__doc__ += plot_hazard_spectra.__doc__[[s.start() for s in re.finditer(
-										'\n', plot_hazard_spectra.__doc__)][5]:]
 
 
 if __name__ == "__main__":
