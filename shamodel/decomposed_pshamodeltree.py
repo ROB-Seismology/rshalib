@@ -42,6 +42,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				min_intensities=0.001, max_intensities=1., num_intensities=100,
 				return_periods=[], time_span=50.,
 				truncation_level=3., integration_distance=200.,
+				damping=0.05, intensity_unit=None,
 				num_lt_samples=1, random_seed=42):
 		"""
 		"""
@@ -49,7 +50,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 							site_model, ref_soil_params, imt_periods, intensities,
 							min_intensities, max_intensities, num_intensities,
 							return_periods, time_span, truncation_level,
-							integration_distance, num_lt_samples, random_seed)
+							integration_distance, damping, intensity_unit,
+							num_lt_samples, random_seed)
 
 	def __repr__(self):
 		txt = '<DecomposedPSHAModelTree "%s">' % self.name
@@ -435,7 +437,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		for im in sorted(imt_periods.keys()):
 			for T in sorted(imt_periods[im]):
 				imt = self._construct_imt(im, T)
-				hcf = shcf.getHazardCurveField(period_spec=T)
+				hcf = shcf.get_hazard_curve_field(period_spec=T)
 				for i, site in enumerate(sites):
 					try:
 						site_name = site.name
@@ -444,7 +446,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 						lon, lat = site.location.longitude, site.location.latitude
 					else:
 						lon, lat = site.lon, site.lat
-					hc = hcf.getHazardCurve(site_name)
+					hc = hcf.get_hazard_curve(site_name)
 					imls = hc.interpolate_return_periods(self.return_periods)
 					site_imtls[(lon, lat)][imt] = imls
 
@@ -734,9 +736,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			weights.append(weight)
 			self.smlt_path = ""
 			self.gmpelt_path = ""
-		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, self.name,
-														branch_names=branch_names,
-														weights=weights)
+		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list,
+														branch_names, weights,
+														model_name=self.name)
 		return shcft
 
 	def read_oq_source_realizations(self, source_model_name, src, gmpe_name="",
@@ -801,12 +803,13 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			(default: False)
 
 		:return:
-			instance of :class:`SpectralHazardCurveField`
+			instance of :class:`SpectralHazardCurveFieldTree`
 		"""
 		shcf_list, weights = self.read_oq_source_realizations(source_model_name,
 											src, calc_id=calc_id, verbose=verbose)
-		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list, src.name,
-															weights=weights)
+		shcft = SpectralHazardCurveFieldTree.from_branches(shcf_list,
+															weights=weights,
+															model_name=src.name)
 		return shcft
 
 	def enumerate_correlated_sources(self, source_model, trt=None):
@@ -1301,8 +1304,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			gc.collect()
 		#intensities = np.zeros(sdc.intensities.shape)
 		summed_sdc = SpectralDeaggregationCurve(bin_edges, summed_deagg_matrix,
-									sdc.site, sdc.imt, sdc.intensities,
-									sdc.periods, sdc.return_periods, sdc.timespan)
+									sdc.site, sdc.intensities, sdc.intensity_unit,
+									sdc.imt, sdc.periods, sdc.return_periods,
+									sdc.timespan, sdc.damping)
 		summed_sdc.model_name = "%s weighted mean" % source_model_name
 
 		return summed_sdc
@@ -1383,7 +1387,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 													gmpelt_path, calc_id=calc_id)
 						self.write_oq_shcf(shcf, "", "", "", "", curve_name,
 											calc_id=calc_id)
-					shc = shcf.getSpectralHazardCurve(site_spec=(site.lon, site.lat))
+					shc = shcf.get_spectral_hazard_curve(site_spec=(site.lon, site.lat))
 					summed_sdc = summed_sdc.slice_return_periods(self.return_periods,
 										shc, interpolate_matrix=interpolate_matrix)
 
@@ -2165,17 +2169,17 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		## Plot hazard curves
 		if plot_hc:
 			for site in sites:
-				mean_somo_shc_list = [shcf.getSpectralHazardCurve(site_spec=site.name)
+				mean_somo_shc_list = [shcf.get_spectral_hazard_curve(site_spec=site.name)
 										for shcf in mean_somo_shcf_list]
-				mean_shc = mean_shcf.getSpectralHazardCurve(site_spec=site.name)
+				mean_shc = mean_shcf.get_spectral_hazard_curve(site_spec=site.name)
 				for period in hc_periods:
 					hc_list, labels, colors = [], [], []
 					for s, source_model in enumerate(self.source_models):
-						hc = mean_somo_shc_list[s].getHazardCurve(period_spec=float(period))
+						hc = mean_somo_shc_list[s].get_hazard_curve(period_spec=float(period))
 						hc_list.append(hc)
 						labels.append(source_model.name)
 						colors.append(somo_colors[source_model.name])
-					mean_hc = mean_shc.getHazardCurve(period_spec=float(period))
+					mean_hc = mean_shc.get_hazard_curve(period_spec=float(period))
 					hc_list.append(mean_hc)
 					labels.append("Weighted mean")
 					colors.append("red")
@@ -2192,14 +2196,14 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		mean_uhsfs = mean_shcf.interpolate_return_periods(self.return_periods)
 
 		for return_period in self.return_periods:
-			mean_somo_uhsf_list = [uhsfs.getUHSField(return_period=return_period)
+			mean_somo_uhsf_list = [uhsfs.get_uhs_field(return_period=return_period)
 									for uhsfs in mean_somo_uhsfs_list]
-			mean_uhsf = mean_uhsfs.getUHSField(return_period=return_period)
+			mean_uhsf = mean_uhsfs.get_uhs_field(return_period=return_period)
 
 			for site in sites:
 				uhs_list, labels, colors = [], [], []
 				for s, source_model in enumerate(self.source_models):
-					mean_somo_uhs = mean_somo_uhsf_list[s].getUHS(site_spec=site.name)
+					mean_somo_uhs = mean_somo_uhsf_list[s].get_uhs(site_spec=site.name)
 					uhs_list.append(mean_somo_uhs)
 					labels.append(source_model.name)
 					colors.append(somo_colors[source_model.name])
@@ -2207,7 +2211,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					#csv_filename = "UHS_mean_%s_site_%s=%s_Tr=%.Eyr.csv" % (source_model.name, fig_site_id, getattr(site, fig_site_id), return_period)
 					#mean_somo_uhs.export_csv(os.path.join(fig_folder, csv_filename))
 
-				mean_uhs = mean_uhsf.getUHS(site_spec=site.name)
+				mean_uhs = mean_uhsf.get_uhs(site_spec=site.name)
 				uhs_list.append(mean_uhs)
 				labels.append("Weighted mean")
 				colors.append("red")
@@ -2325,16 +2329,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			## Plot hazard curves
 			if plot_hc:
 				for site in sites:
-					mean_somo_shc = mean_somo_shcf.getSpectralHazardCurve(
+					mean_somo_shc = mean_somo_shcf.get_spectral_hazard_curve(
 															site_spec=site.name)
 					for period in hc_periods:
-						mean_somo_hc = mean_somo_shc.getHazardCurve(
+						mean_somo_hc = mean_somo_shc.get_hazard_curve(
 														period_spec=float(period))
 						hc_list = [mean_somo_hc]
 						labels = ["All sources"]
 						colors = ["red"]
 						for s, combined_src_id in enumerate(sorted(mean_src_shcf_dict.keys())):
-							mean_src_shc = mean_src_shcf_dict[combined_src_id].getHazardCurve(
+							mean_src_shc = mean_src_shcf_dict[combined_src_id].get_hazard_curve(
 												site_spec=site.name, period_spec=float(period))
 							hc_list.append(mean_src_shc)
 							labels.append(combined_src_id)
@@ -2358,20 +2362,20 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 					mean_src_uhsfs_dict[combined_src_id] = mean_src_shcf_dict[combined_src_id].interpolate_return_periods(return_periods)
 
 				for return_period in self.return_periods:
-					mean_somo_uhsf = mean_somo_uhsfs.getUHSField(
+					mean_somo_uhsf = mean_somo_uhsfs.get_uhs_field(
 													return_period=return_period)
 					mean_src_uhsf_dict = {}
 					for combined_src_id in mean_src_uhsfs_dict.keys():
-						mean_src_uhsf_dict[combined_src_id] = mean_src_uhsfs_dict[combined_src_id].getUHSField(return_period=return_period)
+						mean_src_uhsf_dict[combined_src_id] = mean_src_uhsfs_dict[combined_src_id].get_uhs_field(return_period=return_period)
 
 					for site in sites:
-						mean_somo_uhs = mean_somo_uhsf.getUHS(site_spec=site.name)
+						mean_somo_uhs = mean_somo_uhsf.get_uhs(site_spec=site.name)
 						uhs_list = [mean_somo_uhs]
 						labels = ["All sources"]
 						colors = ["red"]
 						for s, combined_src_id in enumerate(sorted(mean_src_uhsf_dict.keys())):
 							mean_src_uhsf = mean_src_uhsf_dict[combined_src_id]
-							mean_src_uhs = mean_src_uhsf.getUHS(site_spec=site.name)
+							mean_src_uhs = mean_src_uhsf.get_uhs(site_spec=site.name)
 							uhs_list.append(mean_src_uhs)
 							labels.append(combined_src_id)
 							colors.append(src_colors[s])
@@ -2548,18 +2552,18 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			## Plot hazard curves
 			if plot_hc:
 				for site in sites:
-					mean_trt_shc = mean_trt_shcf.getSpectralHazardCurve(site_spec=site.name)
-					gmpe_shc_list = [shcf.getSpectralHazardCurve(site_spec=site.name)
+					mean_trt_shc = mean_trt_shcf.get_spectral_hazard_curve(site_spec=site.name)
+					gmpe_shc_list = [shcf.get_spectral_hazard_curve(site_spec=site.name)
 									for shcf in gmpe_shcf_list]
 					for period in hc_periods:
 						hc_list, labels, colors = [], [], []
 						for g, gmpe_name in enumerate(trt_gmpes):
-							hc = gmpe_shc_list[g].getHazardCurve(
+							hc = gmpe_shc_list[g].get_hazard_curve(
 														period_spec=float(period))
 							hc_list.append(hc)
 							labels.append(gmpe_name)
 							colors.append(gmpe_colors[gmpe_name])
-						mean_trt_hc = mean_trt_shc.getHazardCurve(
+						mean_trt_hc = mean_trt_shc.get_hazard_curve(
 														period_spec=float(period))
 						hc_list.append(mean_trt_hc)
 						labels.append("Weighted mean")
@@ -2578,19 +2582,19 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 			gmpe_uhsfs_list = [shcf.interpolate_return_periods(return_periods)
 								for shcf in gmpe_shcf_list]
 			for return_period in return_periods:
-				mean_trt_uhsf = mean_trt_uhsfs.getUHSField(return_period=return_period)
-				gmpe_uhsf_list = [uhsfs.getUHSField(return_period=return_period)
+				mean_trt_uhsf = mean_trt_uhsfs.get_uhs_field(return_period=return_period)
+				gmpe_uhsf_list = [uhsfs.get_uhs_field(return_period=return_period)
 								for uhsfs in gmpe_uhsfs_list]
 				for site in sites:
 					uhs_list, labels, colors = [], [], []
 					for g, (gmpe_name, gmpe_weight) in enumerate(gmpe_system_def[trt]):
 						gmpe_short_name = gmpe_shortnames[gmpe_name]
-						gmpe_uhs = gmpe_uhsf_list[g].getUHS(site_spec=site.name)
+						gmpe_uhs = gmpe_uhsf_list[g].get_uhs(site_spec=site.name)
 						uhs_list.append(gmpe_uhs)
 						labels.append(gmpe_name)
 						colors.append(gmpe_colors[gmpe_name])
 
-					mean_trt_uhs = mean_trt_uhsf.getUHS(site_spec=site.name)
+					mean_trt_uhs = mean_trt_uhsf.get_uhs(site_spec=site.name)
 					uhs_list.append(mean_trt_uhs)
 					labels.append("Weighted mean")
 					colors.append("red")
@@ -2618,10 +2622,10 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				mean_trt_gmpe_uhsfs = mean_trt_gmpe_shcf.interpolate_return_periods(
 																	return_periods)
 				for return_period in return_periods:
-					mean_trt_gmpe_uhsf = mean_trt_gmpe_uhsfs.getUHSField(
+					mean_trt_gmpe_uhsf = mean_trt_gmpe_uhsfs.get_uhs_field(
 													return_period=return_period)
 					for site in sites:
-						mean_trt_gmpe_uhs = mean_trt_gmpe_uhsf.getUHS(
+						mean_trt_gmpe_uhs = mean_trt_gmpe_uhsf.get_uhs(
 															site_spec=site.name)
 						for period in barchart_periods:
 							category_value_dict[site.name][return_period][period][trt][gmpe_short_name]["Avg"] = mean_trt_gmpe_uhs[period]
@@ -2648,19 +2652,19 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 				if plot_hc and plot_by_source_model:
 					for site in sites:
-						trt_shc = trt_shcf.getSpectralHazardCurve(
+						trt_shc = trt_shcf.get_spectral_hazard_curve(
 															site_spec=site.name)
-						gmpe_shc_list = [shcf.getSpectralHazardCurve(site_spec=site.name)
+						gmpe_shc_list = [shcf.get_spectral_hazard_curve(site_spec=site.name)
 										for shcf in gmpe_shcf_list]
 						for period in hc_periods:
 							hc_list, labels, colors = [], [], []
 							for g, gmpe_name in enumerate(trt_gmpes):
-								hc = gmpe_shc_list[g].getHazardCurve(
+								hc = gmpe_shc_list[g].get_hazard_curve(
 														period_spec=float(period))
 								hc_list.append(hc)
 								labels.append(gmpe_name)
 								colors.append(gmpe_colors[gmpe_name])
-							trt_hc = trt_shc.getHazardCurve(period_spec=float(period))
+							trt_hc = trt_shc.get_hazard_curve(period_spec=float(period))
 							hc_list.append(trt_hc)
 							labels.append("Weighted mean")
 							colors.append("red")
@@ -2679,16 +2683,16 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 				trt_uhsfs = trt_shcf.interpolate_return_periods(return_periods)
 
 				for return_period in return_periods:
-					gmpe_uhsf_list = [uhsfs.getUHSField(return_period=return_period)
+					gmpe_uhsf_list = [uhsfs.get_uhs_field(return_period=return_period)
 									for uhsfs in gmpe_uhsfs_list]
-					trt_uhsf = trt_uhsfs.getUHSField(return_period=return_period)
+					trt_uhsf = trt_uhsfs.get_uhs_field(return_period=return_period)
 
 					for site in sites:
 						uhs_list, labels, colors = [], [], []
 						labels = []
 						for g, (gmpe_name, gmpe_weight) in enumerate(gmpe_system_def[trt]):
 							gmpe_short_name = gmpe_shortnames[gmpe_name]
-							gmpe_uhs = gmpe_uhsf_list[g].getUHS(site_spec=site.name)
+							gmpe_uhs = gmpe_uhsf_list[g].get_uhs(site_spec=site.name)
 							uhs_list.append(gmpe_uhs)
 							labels.append(gmpe_name)
 							colors.append(gmpe_colors[gmpe_name])
@@ -2696,7 +2700,7 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 							for period in barchart_periods:
 								category_value_dict[site.name][return_period][period][trt][gmpe_short_name][somo_short_name] = gmpe_uhs[period]
 
-						trt_uhs = trt_uhsf.getUHS(site_spec=site.name)
+						trt_uhs = trt_uhsf.get_uhs(site_spec=site.name)
 						uhs_list.append(trt_uhs)
 						labels.append("Weighted mean")
 						colors.append("red")
