@@ -56,15 +56,26 @@ class DSHAModel(SHAModelBase):
 		float, maximum distance with respect to source to compute ground
 		motion
 		(default: 200)
+	:param damping:
+		damping for spectral ground motions
+		(expressed as fraction of critical damping)
+		(default: 0.05)
+	:param intensity_unit:
+		str, unit in which intensities are expressed.
+		Set this only if you are not using OpenQuake!
+		If None, the default intensity unit in OQ will be used
+		(default: None)
 	"""
 	def __init__(self, name, source_model, gmpe_system_def, site_model,
 				ref_soil_params=REF_SOIL_PARAMS, imt_periods={'PGA': [0]},
-				truncation_level=0., integration_distance=200.):
+				truncation_level=0., integration_distance=200.,
+				damping=0.05, intensity_unit=None):
 
 		#TODO: gmpe_system_def or ground_motion_model?
 
 		SHAModelBase.__init__(self, name, site_model, ref_soil_params,
-							imt_periods, truncation_level, integration_distance)
+							imt_periods, truncation_level, integration_distance,
+							damping, intensity_unit)
 		self.source_model = source_model
 		self.gmpe_system_def = gmpe_system_def
 		self._check_sources()
@@ -212,13 +223,12 @@ class DSHAModel(SHAModelBase):
 		filespecs = ["" for i in range(num_realizations)]
 		weights = []
 		imt = self.get_imt_families()[0]
-		damping = 0 if imt in ('PGA', 'PGV', 'PGD') else 0.05
 
 		return UHSFieldTree(branch_names, weights, sites, periods,
-							GMF, intensity_unit="g", imt=imt,
+							GMF, self.intensity_unit, imt,
 							model_name=self.name, filespecs=filespecs,
 							timespan=1, return_period=1,
-							damping=damping, vs30s=vs30s)
+							damping=self.damping, vs30s=vs30s)
 
 	def calc_random_gmf_mp(self, num_realizations=1, correlation_model=None,
 				np_aggregation="avg", gmpe_aggregation="avg", src_aggregation="max",
@@ -387,13 +397,12 @@ class DSHAModel(SHAModelBase):
 		filespecs = ["" for i in range(num_realizations)]
 		weights = []
 		imt = self.get_imt_families()[0]
-		damping = 0 if imt in ('PGA', 'PGV', 'PGD') else 0.05
 
 		return UHSFieldTree(branch_names, weights, sites, periods,
-							GMF, intensity_unit="g", imt=imt,
+							GMF, intensity_unit=self.intensity_unit, imt=imt,
 							model_name=self.name, filespecs=filespecs,
 							timespan=1, return_period=1,
-							damping=damping, vs30s=vs30s)
+							damping=self.damping, vs30s=vs30s)
 
 	def calc_gmf_fixed_epsilon(self, stddev_type="total", np_aggregation="avg",
 								gmpe_aggregation="avg", src_aggregation="max"):
@@ -521,12 +530,11 @@ class DSHAModel(SHAModelBase):
 		sites = soil_site_model.get_generic_sites()
 		vs30s = soil_site_model.vs30
 		imt = self.get_imt_families()[0]
-		damping = 0 if imt in ('PGA', 'PGV', 'PGD') else 0.05
 
-		return UHSField(sites, periods, gmf_envelope, intensity_unit="g", imt=imt,
+		return UHSField(sites, periods, gmf_envelope, self.intensity_unit, imt,
 						model_name=self.name, filespec="",
 						timespan=1, return_period=1,
-						damping=damping, vs30s=vs30s)
+						damping=self.damping, vs30s=vs30s)
 
 	def calc_gmf_fixed_epsilon_mp(self, stddev_type="total", np_aggregation="avg",
 								gmpe_aggregation="avg", src_aggregation="max",
@@ -661,12 +669,11 @@ class DSHAModel(SHAModelBase):
 		sites = soil_site_model.get_generic_sites()
 		vs30s = soil_site_model.vs30
 		imt = self.get_imt_families()[0]
-		damping = 0 if imt in ('PGA', 'PGV', 'PGD') else 0.05
 
-		return UHSField(sites, periods, gmf_envelope, intensity_unit="g", imt=imt,
+		return UHSField(sites, periods, gmf_envelope, self.intensity_unit, imt,
 						model_name=self.name, filespec="",
 						timespan=1, return_period=1,
-						damping=damping, vs30s=vs30s)
+						damping=self.damping, vs30s=vs30s)
 
 
 class RuptureDSHAModel(SHAModelBase):
@@ -700,6 +707,8 @@ class RuptureDSHAModel(SHAModelBase):
 		instance of subclass of :class:`openquake.hazardlib.correlation.BaseCorrelationModel`
 		(default: None)
 	:param integration_distance:
+	:param damping:
+	:param intensity_unit:
 		see :class:`..shamodel.SHAModelBase`
 		(default: 200.)
 	"""
@@ -707,11 +716,13 @@ class RuptureDSHAModel(SHAModelBase):
 				site_model, ref_soil_params=REF_SOIL_PARAMS,
 				imt_periods={'PGA': [0]},
 				truncation_level=0., realizations=1.,
-				correlation_model=None, integration_distance=200.):
+				correlation_model=None, integration_distance=200.,
+				damping=0.05, intensity_unit=None):
 		"""
 		"""
 		SHAModelBase.__init__(self, name, site_model, ref_soil_params,
-							imt_periods, truncation_level, integration_distance)
+							imt_periods, truncation_level, integration_distance,
+							damping, intensity_unit)
 
 		self.ruptures = ruptures
 		self.gsim_name = gsim_name
@@ -783,24 +794,21 @@ class RuptureDSHAModel(SHAModelBase):
 		return_periods = np.ones(self.realizations)
 		model_name = ""
 		filespecs = [""]*self.realizations
-		intensity_unit = "g"
 		for imt in imts:
 			if isinstance(imt, SA):
 				period = imt.period
 				IMT = "SA"
 				key = period
-				damping = imt.damping / 100.
 			else:
 				period = 0
 				# TODO: need a more elegant solution
 				IMT = {PGV(): "PGV", PGD(): "PGD", PGA(): "PGA", MMI(): "MMI"}[imt]
 				key = IMT
-				damping = 0.
 			hm_intensities = np.amax(intensities[imt], axis=1).T
-			hms = HazardMapSet(sites, period, hms_intensities, intensity_unit, IMT,
-								model_name=model_name, filespecs=filespecs,
+			hms = HazardMapSet(sites, period, hms_intensities, self.intensity_unit,
+								IMT, model_name=model_name, filespecs=filespecs,
 								timespan=1, return_periods=return_periods,
-								damping=damping, vs30s=None)
+								damping=self.damping, vs30s=None)
 			hazard_map_sets[key] = hms
 		return hazard_map_sets
 
