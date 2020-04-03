@@ -201,7 +201,7 @@ def calc_shcf_psha_model(psha_model, curve_name, curve_path, cav_min,
 				psha_model.write_oq_shcf(shcf, curve_name, curve_path=curve_path,
 										calc_id=calc_id)
 			else:
-				hcf = shcf.getHazardCurveField(period_spec=0)
+				hcf = shcf.get_hazard_curve_field(period_spec=0)
 				psha_model.write_oq_hcf(hcf, curve_name, curve_path=curve_path,
 										calc_id=calc_id)
 
