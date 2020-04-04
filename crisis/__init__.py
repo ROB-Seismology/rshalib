@@ -1,10 +1,29 @@
-#
-# Empty file necessary for python to recognise directory as package
-#
+"""
+Module containing support for CRISIS
+"""
 
-import IO
-reload(IO)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from IO import (write_DAT_2007, write_ASC, read_DAT, read_GRA,
-	read_GRA_multi, read_MAP, read_DES, read_DES_full, read_batch,
-	get_crisis_rupture_area_parameters)
+
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
+
+
+if not reloading:
+	from . import IO
+else:
+	reload(IO)
+from .IO import *
