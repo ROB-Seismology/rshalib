@@ -1,16 +1,27 @@
+"""
+Functions to read and write CRISIS input and output files
+"""
 ### imports
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import os
 
 import numpy as np
 
-from ..mfd import alphabetalambda, TruncatedGRMFD, CharacteristicMFD
-from ..site import SHASite
+from ..utils import interpolate
+from ..mfd import TruncatedGRMFD, CharacteristicMFD
+from ..site import GenericSite
 from ..source import PointSource, AreaSource, SimpleFaultSource, ComplexFaultSource
 from ..result import *
 
 
-def s2float(s, replace_nan=None, replace_inf=None):
+
+__all__ = ['write_DAT_2007', 'write_ASC', 'read_DAT', 'read_GRA',
+		'read_GRA_multi', 'read_MAP', 'read_DES', 'read_DES_full',
+		'read_batch', 'get_crisis_rupture_area_parameters']
+
+
+def str2float(s, replace_nan=None, replace_inf=None):
 	"""
 	Convert string to float, taking into account NaN and inf values.
 	This is handled in Python from version 2.6 onwards
@@ -35,7 +46,9 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					truncation_level=3., integration_distance=200.,
 					source_discretization=(1.0, 5.0), vs30=800., kappa=None,
 					mag_scale_rel="WC1994", atn_Mmax=None,
-					output={"gra": True, "map": True, "fue": False, "des": False, "smx": True, "eps": False, "res_full": False},
+					output={"gra": True, "map": True, "fue": False,
+							"des": False, "smx": True, "eps": False,
+							"res_full": False},
 					deagg_dist_metric="Hypocentral", map_filespec="", cities_filespec="",
 					overwrite=False):
 	"""
@@ -44,12 +57,12 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 	:param filespec:
 		String, full path specification for output file
 	:param source_model:
-		nhlib_nrml.SourceModel object
+		oqhazlib_nrml.SourceModel object
 		Note that geometry of area sources must be specified in counterclockwise
 		order.
 
 	:param ground_motion_model:
-		nhlib_rob.GroundMotionModel object, mapping tectonic region types to
+		oqhazlib_rob.GroundMotionModel object, mapping tectonic region types to
 		gsims (GMPE's) (1 gsim for each trt).
 	:param gsim_atn_map:
 		Dictionary mapping gsims (in ground_motion_model) to paths of attenuation
@@ -59,19 +72,22 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 	:param return_periods:
 		List, tuple or array of max. 5 return periods for computation of hazard maps
 	:param grid_outline:
-		List of (float, float) tuples or nhlib_rob.SHASite objects, containing
+		List of (float, float) tuples or oqhazlib_rob.GenericSite objects, containing
 		(longitude, latitude) of points defining outline of grid where hazard
 		will be computed. If only 2 points are given, they define the lower left
 		and upper richt corners. If there are more than 2 points, grid_outline
 		is considered as a grid reduction polygon, inside which a regular grid
 		will be computed. In that case, vertexes must be specified in counter-
-		clockwise order (default: []).
+		clockwise order
+		(default: []).
 	:param grid_spacing:
 		Float or tuple of floats, defining grid spacing in degrees (in longitude
-		and latitude if tuple) (default: 0.5).
+		and latitude if tuple)
+		(default: 0.5).
 	:param sites:
-		List of (float, float) tuples or nhlib_rob.SHASite objects, defining
-		(longitude, latitude) of sites (default: []).
+		List of (float, float) tuples or oqhazlib_rob.GenericSite objects, defining
+		(longitude, latitude) of sites
+		(default: []).
 	:param sites_filespec:
 		String, full path to .ASC file containing individual sites to compute
 		(default: '').
@@ -83,7 +99,8 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 	:param intensities:
 		List of floats or array, defining equal intensities for all intensity
 		measure types and periods. When given, params min_intensities,
-		max_intensities and num_intensities are not set. (default: None)
+		max_intensities and num_intensities are not set.
+		(default: None)
 	:param min_intensities:
 		Dictionary mapping intensity measure types (e.g. "PGA", "SA", "PGV",
 		"PGD") to lists or arrays with minimum intensity for each spectral
@@ -98,18 +115,23 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		(default: {"PGA": [1.0})
 	:param num_intensities:
 		Integer, number of (logarithmically-spaced) intensities to be computed
-		by CRISIS. The maximum is 100 (default: 100). If param intensities is
-		given num_intensities is set to 100 to give best possible interpolation.
+		by CRISIS. The maximum is 100. If param intensities is given,
+		num_intensities is set to 100 to give best possible interpolation.
+		(default: 100)
 	:param imt_unit:
-		String, intensity measure unit (default: "g")
+		String, intensity measure unit
 		Note: it may be necessary to specify this as a dictionary, if different
 		IMT's are used with different units.
+		(default: "g")
 	:param model_name:
-		String, name of model (default: "")
+		String, name of model
+		(default: "")
 	:param truncation_level":
 		Float, truncation level in number of standard deviations of GSIM
+		(default: 3.)
 	:param integration_distance:
-		Float, maximum distance in km for spatial integration (default: 200)
+		Float, maximum distance in km for spatial integration
+		(default: 200)
 	:param source_discretization:
 		Tuple of 2 Floats (min_triangle_size,  min_dist_triangle_ratio), which
 		control the discretization of (area) sources. CRISIS subdivides sources
@@ -125,13 +147,15 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		(default: 1.0, 5)
 	:param vs30:
 		Float, shear-wave velocity in the upper 30 m (in m/s). This is used to
-		determine the correct soil type for each gsim (default: 800, which
-		should correspond to "rock" in most cases).
+		determine the correct soil type for each gsim
+		(default: 800, which should correspond to "rock" in most cases).
 	:param kappa:
-		Float, kappa value in seconds (default: None)
+		Float, kappa value in seconds
+		(default: None)
 	:param mag_scale_rel:
 		String, name of magnitude-area scaling relationship to be used,
-		one of "WC1994", "Brune1970" or "Singh1980" (default: "").
+		one of "WC1994", "Brune1970" or "Singh1980"
+		(default: "").
 		If empty, the scaling relationships associated with the individual
 		source objects will be used.
 	:param atn_Mmax:
@@ -141,22 +165,29 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		Dict with boolean values, indicating which output files to generate
 		Keys correspond to output file types:
 		"gra": whether or not to output .GRA file (exceedance rates for each
-			site) (default: True)
+			site)
+			(default: True)
 		"map": whether or not to output .MAP file (intensities corresponding to
-			fixed return period) (default: True)
+			fixed return period)
+			(default: True)
 		"fue": whether or not to output .FUE file (exceedance rates deaggregated
-			by source) (default: True)
+			by source)
+			(default: True)
 		"des": whether or not to output .DES file (exceedance rates deaggregated
-			by magnitude and distance) (default: True)
+			by magnitude and distance)
+			(default: True)
 		"smx": whether or not to output .SMX file (maximum earthquakes)
 			(default: True)
 		"eps": whether or not to output .EPS file (exceedance rates deaggregated
-			by epsilon (default: True)
+			by epsilon
+			(default: True)
 		"res_full": whether or not .RES file should include input data +
-			exceedance rates (True) or only input data (False) (default: False)
+			exceedance rates (True) or only input data (False)
+			(default: False)
 	:param deagg_dist_metric:
 		String, distance metric for deaggregation: "Hypocentral", "Epicentral",
-		"Joyner-Boore" or "Rupture" (default: "Hypocentral")
+		"Joyner-Boore" or "Rupture"
+		(default: "Hypocentral")
 	:param map_filespec:
 		String, full path specification for map file to draw as background
 		(default: "")
@@ -164,9 +195,11 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		String, full path specification for cities file to draw as background
 		(default: "")
 	:param overwrite:
-		Boolean, whether or not to overwrite existing input files (default: False)
+		Boolean, whether or not to overwrite existing input files
+		(default: False)
 	"""
-	from ..gsim import gmpe as att
+	from ..mfd.truncated_gr import alphabetalambda
+	from ..gsim import CRISIS_DISTANCEMETRICS
 	from shapely.geometry.polygon import LinearRing
 
 	if intensities:
@@ -196,7 +229,7 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 				atn_filespec += "_%s" % mechanism
 			else:
 				## Set mechanism to arbitrary type to avoid problem with
-				## unspecified mechanism in nhlib GMPE's
+				## unspecified mechanism in oqhazlib GMPE's
 				mechanism = "normal"
 			atn_filespec += "_VS30=%s" % vs30
 			if kappa:
@@ -240,10 +273,11 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 										vs30=vs30, kappa=kappa, mechanism=mechanism,
 										damping=5, filespec=atn_filespec)
 			else:
-				print("Warning: CRISIS ATN file %s exists! Set overwrite=True to overwrite." % atn_filespec)
+				print("Warning: CRISIS ATN file %s exists! "
+					"Set overwrite=True to overwrite." % atn_filespec)
 	gsim_atn_map[gsim] = atn_filespecs
 	gsims_num_rakes = np.array(gsims_num_rakes)
-	num_atn_tables = np.add.reduce(gsims_num_rakes)
+	num_atn_tables = np.sum(gsims_num_rakes)
 
 	## Fill list of return periods with zeros to make a total of 5
 	return_periods = list(return_periods)
@@ -252,38 +286,45 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 	## Write input file
 	## Skip if file exists and overwrite is not True
 	if os.path.exists(filespec) and not overwrite:
-		print("Warning: CRISIS DAT file %s exists! Set overwrite=True to overwrite." % filespec)
+		print("Warning: CRISIS DAT file %s exists! "
+				"Set overwrite=True to overwrite." % filespec)
 		return
 
 	of = open(filespec, "w")
-	of.write("[CRISIS2007 format. Be careful when editing this file by hand]\n")
+	of.write("[CRISIS2007 format. "
+			"Be careful when editing this file by hand]\n")
 
 	## Which output files to generate
 	if grid_outline and len(grid_outline) > 1:
 		input_sites = 0
 	elif sites:
 		input_sites = 1
-	of.write("%d,%d,%d,%d,%d,%d,%d,%d\n" % (output['res_full'], output['gra'], output['map'], output['fue'], output['des'], input_sites, output['smx'], output['eps']))
+	of.write("%d,%d,%d,%d,%d,%d,%d,%d\n"
+			% (output['res_full'], output['gra'], output['map'], output['fue'],
+				output['des'], input_sites, output['smx'], output['eps']))
 
 	## Model name
 	if model_name:
 		of.write("%s\n" % model_name)
 	else:
-		of.write("%s source model - %s GMPE\n" % (source_model.name, ground_motion_model.name))
+		of.write("%s source model - %s GMPE\n"
+				% (source_model.name, ground_motion_model.name))
 
 	## Construct list of all periods
 	all_periods = []
 	for imt in imt_periods.keys():
 		for T in imt_periods[imt]:
-			## CRISIS does not support non-numeric structural periods,
+			## CRISIS does not support non-numeric spectral periods,
 			## so different IMT's may not have duplicate periods!
 			if not T in all_periods:
 				all_periods.append(T)
 			else:
-				raise Exception("Duplicate period found: %s (%s s)" % (imt, T))
+				raise Exception("Duplicate period found: %s (%s s)"
+								% (imt, T))
 
 	## Dimensions
-	## Compute total number of sources taking into account nodal plane and hypodepth distributions
+	## Compute total number of sources taking into account nodal plane
+	## and hypodepth distributions
 	num_sources = 0
 	for source in source_model:
 		## Index of attenuation table
@@ -294,7 +335,8 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		if isinstance(source, (SimpleFaultSource, ComplexFaultSource)):
 			num_rakes = 1
 		else:
-			num_rakes = min(gsims_num_rakes[gsims_index], source.nodal_plane_distribution.get_num_rakes())
+			num_rakes = min(gsims_num_rakes[gsims_index],
+							source.nodal_plane_distribution.get_num_rakes())
 
 		if isinstance(source, (SimpleFaultSource, ComplexFaultSource)):
 			num_depths = 1
@@ -310,7 +352,8 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 
 		num_sources += (num_depths * num_rakes)
 
-	of.write("%d,%d,%d,%d\n" % (num_sources, num_atn_tables, len(all_periods), num_intensities))
+	of.write("%d,%d,%d,%d\n"
+			% (num_sources, num_atn_tables, len(all_periods), num_intensities))
 
 	## IMTLS
 	## Periods should be in ascending order
@@ -335,8 +378,10 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 
 	## Integration parameters, return periods, and distance metric for deaggregation
 	min_triangle_size, min_dist_triangle_ratio = source_discretization
-	deagg_dist_metric = att.CRISIS_DistanceMetrics[deagg_dist_metric]
-	of.write("%s,%s,%s,%s,%s,%s,%s,%s,%d\n" % ((integration_distance, min_dist_triangle_ratio, min_triangle_size) + tuple(return_periods[:5]) + (deagg_dist_metric,)))
+	deagg_dist_metric = CRISIS_DISTANCEMETRICS[deagg_dist_metric]
+	of.write("%s,%s,%s,%s,%s,%s,%s,%s,%d\n"
+			% ((integration_distance, min_dist_triangle_ratio, min_triangle_size)
+			+ tuple(return_periods[:5]) + (deagg_dist_metric,)))
 
 	## Grid or sites where to compute hazard
 	if grid_outline and len(grid_outline) > 1:
@@ -360,7 +405,8 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		num_grid_lons = (dlon / grid_spacing[0])
 		num_grid_lats = (dlat / grid_spacing[1])
 		grid_numlines = (num_grid_lons, num_grid_lats)
-		of.write("%.3f,%.3f,%.3f,%.3f,%d,%d\n" % (grid_origin + grid_spacing + grid_numlines))
+		of.write("%.3f,%.3f,%.3f,%.3f,%d,%d\n"
+				% (grid_origin + grid_spacing + grid_numlines))
 	elif sites:
 		if not sites_filespec:
 			sites_filespec = os.path.join(os.path.dirname(filespec), 'sites.ASC')
@@ -415,7 +461,8 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 		if isinstance(source, (SimpleFaultSource, ComplexFaultSource)):
 			num_depths = 1
 		else:
-			## Collapse number of depths if GMPE distance metric is epicentral of Joyner-Boore
+			## Collapse number of depths if GMPE distance metric is epicentral
+			## or Joyner-Boore
 			if hasattr(att, gsim_name+"GMPE"):
 				gsimObj = getattr(att, gsim_name+"GMPE")()
 			else:
@@ -493,7 +540,7 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 				#	rake_index = 2
 				#else:
 				#	rake_index = 3
-				atn_index = np.add.reduce(gsims_num_rakes[:gsims_index])
+				atn_index = np.sum(gsims_num_rakes[:gsims_index])
 				atn_index += min(gsims_num_rakes[gsims_index], rake_index)
 				if isinstance(source, AreaSource):
 					source_type = 0
@@ -503,7 +550,8 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 				elif isinstance(source, PointSource):
 					source_type = 2
 				else:
-					raise Exception("Complex fault sources are not supported in CRISIS!")
+					raise Exception("Complex fault sources are "
+									"not supported in CRISIS!")
 				is_alive = True
 				if isinstance(source.mfd, TruncatedGRMFD):
 					mfd_type = 1
@@ -511,7 +559,8 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					mfd_type = 2
 				else:
 					raise Exception("CRISIS does not support EvenlyDiscretizedMFD !")
-				of.write("%d,%d,%d,%s,%s,%s\n" % (mfd_type, source_type, atn_index, is_alive, k1, k2))
+				of.write("%d,%d,%d,%s,%s,%s\n"
+						% (mfd_type, source_type, atn_index, is_alive, k1, k2))
 
 				## Geometry
 				if not isinstance(source, PointSource):
@@ -531,17 +580,20 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					if isinstance(source, AreaSource):
 						#z = source.hypocenter_distribution.mean()
 						for point in vertexes:
-							of.write("%s,%s,%.1f\n" % (point.longitude, point.latitude, hypo_depth))
+							of.write("%s,%s,%.1f\n"
+									% (point.longitude, point.latitude, hypo_depth))
 					elif isinstance(source, SimpleFaultSource):
 						for point in vertexes:
-							of.write("%s,%s,%.1f\n" % (point.longitude, point.latitude, point.depth))
+							of.write("%s,%s,%.1f\n"
+									% (point.longitude, point.latitude, point.depth))
 				else:
 					point = source.location
 					of.write(" %d\n" % 1.)
-					of.write("%s,%s,%.1f\n" % (point.longitude, point.latitude, hypo_depth))
+					of.write("%s,%s,%.1f\n"
+							% (point.longitude, point.latitude, hypo_depth))
 
 				## MFD
-				#print rake_weight, depth_weight
+				#print(rake_weight, depth_weight)
 				mfd = source.mfd * (rake_weight * depth_weight)
 				if isinstance(mfd, TruncatedGRMFD):
 					a, b = mfd.a_val, mfd.b_val
@@ -554,7 +606,9 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					Mmax_stdev = 0
 					Mmax_lower_limit = mfd.max_mag
 					Mmax_upper_limit = mfd.max_mag
-					of.write("%.6f,%.6f,%s,%.2f,%.2f,%.2f,%.2f,%.2f\n" % (lbd, beta, beta_cov, Mmax_expected, Mmax_stdev, Mmax_lower_limit, Mmin, Mmax_upper_limit))
+					of.write("%.6f,%.6f,%s,%.2f,%.2f,%.2f,%.2f,%.2f\n"
+							% (lbd, beta, beta_cov, Mmax_expected, Mmax_stdev,
+								Mmax_lower_limit, Mmin, Mmax_upper_limit))
 				elif isinstance(mfd, CharacteristicMFD):
 					#Mmin = mfd.get_min_mag_edge()
 					#Mmax = mfd.get_magnitude_bin_edges()[-1]
@@ -565,7 +619,8 @@ def write_DAT_2007(filespec, source_model, ground_motion_model, gsim_atn_map,
 					D = mfd.char_mag
 					## time-dependent parameters
 					F, T00 = 0, 1
-					of.write("%s, %s, %s, %s, %.2f, %.2f, %.2f\n" % (return_period, T00, D, F, M_sigma, Mmin, Mmax))
+					of.write("%s, %s, %s, %s, %.2f, %.2f, %.2f\n"
+							% (return_period, T00, D, F, M_sigma, Mmin, Mmax))
 				else:
 					raise Exception("CRISIS does not support EvenlyDiscretizedMFD !")
 				of.write(" 0\n")
@@ -591,7 +646,8 @@ def write_ASC(asc_filespec, sites):
 	:param asc_filespec:
 		String, defining filespec for asc file.
 	:param sites:
-		List of (float, float) tuples, defining (longitude, latitude) of sites.
+		List of (float, float) tuples, defining (longitude, latitude)
+		of sites.
 	"""
 	f = open(asc_filespec, 'w')
 	f.write('%d' % len(sites))
@@ -603,6 +659,9 @@ def write_ASC(asc_filespec, sites):
 def read_batch(batch_filespec):
 	"""
 	Read Crisis batch file.
+
+	:param batch_filespec:
+		str, full path to batch file
 
 	:return:
 		(filespecs, weights) tuple
@@ -621,10 +680,12 @@ def read_batch(batch_filespec):
 
 def read_DAT(filespec):
 	"""
-	Read structural periods and intensity_unit from CRISIS .DAT file
-	Parameters:
-		filespec: full path to file to be read
-	Return value:
+	Read spectral periods and intensity_unit from CRISIS .DAT file
+
+	:paam filespec:
+		str, full path to file to be read
+
+	return:
 		tuple (period array, intensity_unit, model_name)
 	"""
 	# IDEA: we could also determine number of sites and number of intensities,
@@ -654,48 +715,73 @@ def read_DAT(filespec):
 	return (periods, intensity_unit, model_name)
 
 
-def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit="", convert_to_g=True, IMT="", avoid_zeros=True, model_name="", site_names=[], verbose=False):
+def read_GRA(filespec, sites=None, out_periods=[], in_periods=[],
+			intensity_unit="", convert_to_g=True, IMT="", avoid_zeros=True,
+			model_name="", site_names=[], verbose=False):
 	"""
 	Read CRISIS .GRA or .AGR file (CRISIS2007 format)
-	Parameters:
-		filespec: full path to file to be read
-		sites: list of sites to extract, either site indexes or (lon, lat) tuples
-			(default: [] or None, will extract all sites)
-		out_periods: structural periods for which exceedance means and variances need to be
-			interpolated (default: [] or None, output only calculated structural periods)
-		in_periods: structural periods for which exceedance means and variances are reported
-			in the GRA file. If not specified, these are determined from the corresponding
-			DAT file (default: [])
-		intensity_unit: intensity unit. Determined from corresponding DAT file if not
-			specified (default: "")
-		convert_to_g: boolean indicating whether intensities must be converted to g,
-			based on their intensity unit (default: True)
-		IMT: intensity measure type. Defaults to "PGA" if there is only 1 structural period
-			with value 0 or ~1/34, else "SA" (default: "")
-		avoid_zeros: if True, replace zero values with very small values:
-			1E-13 for exceedance mean, and 1E-18 for exceedance variance
-		model_name: name for this model run (default: "")
-		site_names: list of site names. (default: [])
-		verbose: boolean indicating whether or not information should be printed during
-			parsing (default: False)
-	The return value is a SpectralHazardCurveField object with the following properties:
+
+	:param filespec:
+		str, full path to file to be read
+	:param sites:
+		list of sites to extract, either site indexes or (lon, lat) tuples
+		(default: [] or None, will extract all sites)
+	:param out_periods:
+		list or array, spectral periods for which exceedance means and
+		variances need to be interpolated
+		(default: [] or None, output only calculated spectral periods)
+	:param in_periods:
+		list or array, spectral periods for which exceedance means
+		and variances are reported in the GRA file. If not specified,
+		these are determined from the corresponding DAT file
+		(default: [])
+	:param intensity_unit:
+		str, intensity unit. Determined from corresponding DAT file
+		if not specified
+		(default: "")
+	:param convert_to_g:
+		bool indicating whether intensities must be converted to g,
+		based on their intensity unit
+		(default: True)
+	:param IMT:
+		str, intensity measure type. Defaults to "PGA" if there is
+		only 1 spectral period with value 0 or ~1/34, else "SA"
+		(default: "")
+	:param avoid_zeros:
+		bool, if True, replace zero values with very small values:
+		1E-13 for exceedance mean, and 1E-18 for exceedance variance
+		(default: True)
+	:param model_name:
+		str, name for this model run
+		(default: "")
+	:param site_names:
+		list of site names.
+		(default: [])
+	:param verbose:
+		bool indicating whether or not information should be printed
+		during parsing
+		(default: False)
+
+	The return value is a SpectralHazardCurveField object with the
+	following properties:
 		sites: list with (lon, lat) tuples of all sites
-		periods: array with structural periods
-		intensities: 2-D array [k, l] with fixed intensity values for which exceedance
-			rate was calculated. These can be different for each structural period [k]
+		periods: array with spectral periods
+		intensities: 2-D array [k, l] with fixed intensity values for
+			which exceedance rate was calculated. These can be different
+			for each spectral period [k]
 		exceedance_rates: 3-dimensional [i, k, l] array of mean exceedance rate
 		variances: 3-dimensional [i, k, l] array of variance of exceedance rate
 			i: sites
-			k: structural periods
+			k: spectral periods
 			l: intensities
-	If AGR file, the return value is a SpectralHazardCurveFieldTree object with the
-		following additional properties:
+	If AGR file, the return value is a SpectralHazardCurveFieldTree
+		object with the following additional properties:
 		mean: 3-D array [i, k, l]
 		percentile_levels: 1-D array with percentile levels
 		percentiles:
 			4-dimensional [i, k, l, p] array of percentiles of exceedance rate
 				i: sites
-				k: structural periods
+				k: spectral periods
 				l: intensities
 				p: percentile values (P5, P16, P50, P84, P96)
 	"""
@@ -728,7 +814,8 @@ def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit
 			in_periods, unit, description = read_DAT(filespec[:-4])
 		except IOError:
 			print("%s.DAT file not found" % filespec[:-4])
-			print("Assuming structural period is %.4f s (PGA), or reading from .AGR file if possible" % zero_period)
+			print("Assuming spectral period is %.4f s (PGA), "
+					"or reading from .AGR file if possible" % zero_period)
 			if not intensity_unit:
 				print("  and intensity unit is 'g'")
 				intensity_unit = "g"
@@ -762,14 +849,14 @@ def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit
 				pass
 			else:
 				s = s.replace('(', '').replace(')', '').strip()
-				percentile_levels = np.array(map(float, s.split(',')))
+				percentile_levels = np.array(list(map(float, s.split(','))))
 				if percentile_levels.max() < 1.01:
 					percentile_levels *= 100
 					percentile_levels.astype('i')
 		if linenr > 5:
 			columns = line.split()
 			if len(columns) in (2, 3) or len(columns) >= 8:
-				## Start of either a new site or a new structural period
+				## Start of either a new site or a new spectral period
 				#if (len(columns) == 2 and not columns[0] == "INTENSITY") or columns[0] == "SITE:":
 				if line[:2] == "  " and columns[0] != "INTENSITY":
 					## Lon, lat coordinates of a new site
@@ -799,14 +886,15 @@ def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit
 						print("Site nr: %d" % site_nr)
 
 					if period_nr != 0:
-						## Append last structural period to previous site
+						## Append last spectral period to previous site
 						append_period_exceedance()
 						append_site_exceedance()
 
 						if site_nr == 2:
 							## Append intensities for last period of previous site 1 if there is more than 1 site
 							if verbose:
-								print("Appending intensities for period #%d of previous site 1" % period_nr)
+								print("Appending intensities for period #%d "
+										"of previous site 1" % period_nr)
 							all_intensities.append(np.array(period_intensities, 'd'))
 
 					# Reset site_exceedance, period_exceedance, and period_intensities lists
@@ -816,10 +904,10 @@ def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit
 					period_nr = 0
 
 				elif columns[0] == "INTENSITY":
-					## New structural period
-					## GRA or AGR files normally do not include the value of the structural periods,
+					## New spectral period
+					## GRA or AGR files normally do not include the value of the spectral periods,
 					## but AGR files created with write_AGR do, so we don't need a RES or other
-					## file to figure out what the structural periods are
+					## file to figure out what the spectral periods are
 					try:
 						in_periods_agr.append(float(columns[-1].split('=')[1]))
 					except:
@@ -828,12 +916,13 @@ def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit
 					if verbose:
 						print("  Period nr: %d" % period_nr)
 					if period_exceedance_means:
-						## All structural periods, except first and last one
+						## All spectral periods, except first and last one
 						append_period_exceedance()
 						if site_nr == 1:
 							#period_intensities = np.array(period_intensities, 'd')
 							if verbose:
-								print("Appending period intensities for period #%d" % (period_nr-1))
+								print("Appending period intensities for period #%d"
+										% (period_nr-1))
 							all_intensities.append(np.array(period_intensities, 'd'))
 
 					# Reset period_exceedance, and period_intensities lists
@@ -842,7 +931,8 @@ def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit
 
 				elif len(columns) == 3:
 					## Intensity, Exceedance rate, and variance values
-					intensity, exceedance, variance = [s2float(s, replace_nan=1E-18) for s in columns]
+					intensity, exceedance, variance = [str2float(s, replace_nan=1E-18)
+														for s in columns]
 					if site_nr == 1:
 						period_intensities.append(float(columns[0]))
 					period_exceedance_means.append(exceedance)
@@ -853,7 +943,8 @@ def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit
 				elif len(columns) >= 8:
 					## AGR files: intensity, exceedance rate, variance, and percentile values
 					# TODO: allow variable number of percentiles
-					intensity, exceedance, variance, p5, p16, p50, p84, p95 = [s2float(s, replace_nan=1E-18) for s in columns[:8]]
+					intensity, exceedance, variance, p5, p16, p50, p84, p95 = \
+						[str2float(s, replace_nan=1E-18) for s in columns[:8]]
 					percentiles = np.array([p5, p16, p50, p84, p95], 'd')
 					if site_nr == 1:
 						period_intensities.append(float(columns[0]))
@@ -866,7 +957,7 @@ def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit
 	if verbose:
 		print("Finished reading file")
 
-	## Append last structural period
+	## Append last spectral period
 	append_period_exceedance()
 	if site_nr == 1:
 		#period_intensities = np.array(period_intensities, 'd')
@@ -929,22 +1020,33 @@ def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit
 	if len(site_names) == 0:
 		site_names = [None] * len(all_sites)
 
-	## Convert to SHASite objects
-	all_sites = [SHASite(lon, lat, name=name) for ((lon, lat), name) in zip(all_sites, site_names)]
+	## Convert to GenericSite objects
+	all_sites = [GenericSite(lon, lat, name=name)
+				for ((lon, lat), name) in zip(all_sites, site_names)]
 
 	## Create SpectralHazardCurveField(Tree) object
 	all_exceedance_means = ExceedanceRateArray(all_exceedance_means)
 	if not model_name:
 		model_name = os.path.splitext(os.path.basename(filespec))[0]
 	if all_exceedance_percentiles == []:
-		shcf = SpectralHazardCurveField(model_name, all_exceedance_means, [filespec]*len(in_periods), all_sites, in_periods, IMT, all_intensities, intensity_unit, variances=all_exceedance_variances)
+		filespecs = [filespec]*len(in_periods),
+		shcf = SpectralHazardCurveField(all_exceedance_means, all_sites, in_periods,
+										all_intensities, intensity_unit, IMT,
+										model_name=model_name, filespecs=filespecs,
+										variances=all_exceedance_variances)
 	else:
 		num_sites, num_periods, num_intensities = len(all_sites), len(in_periods), all_intensities.shape[-1]
 		shape = (num_sites, 1, num_periods, num_intensities)
 		mean = all_exceedance_means
 		all_exceedance_means = all_exceedance_means.reshape(shape)
 		all_exceedance_variances = all_exceedance_variances.reshape(shape)
-		shcf = SpectralHazardCurveFieldTree(model_name, all_exceedance_means, [model_name], [filespec], [1.], all_sites, in_periods, IMT, all_intensities, intensity_unit, variances=all_exceedance_variances, mean=mean, percentile_levels=percentile_levels, percentiles=all_exceedance_percentiles)
+		shcf = SpectralHazardCurveFieldTree(all_exceedance_means, [model_name], [1.],
+											all_sites, in_periods,
+											all_intensities, intensity_unit, IMT,
+											model_name=model_name, filespecs=[filespec],
+											variances=all_exceedance_variances,
+											mean=mean, percentile_levels=percentile_levels,
+											percentiles=all_exceedance_percentiles)
 
 	## If necessary, interpolate exceedances for other spectral periods
 	if out_periods:
@@ -954,47 +1056,78 @@ def read_GRA(filespec, sites=None, out_periods=[], in_periods=[], intensity_unit
 	return shcf
 
 
-def read_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="", convert_to_g=True, IMT="", avoid_zeros=True, model_name="", branch_names=[], weights=[], site_names=[]):
+def read_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="",
+					convert_to_g=True, IMT="", avoid_zeros=True, model_name="",
+					branch_names=[], weights=[], site_names=[]):
 	"""
 	Read multiple CRISIS .GRA files
-	Parameters:
-		filespecs: list with full path specification of files to be read
-		sites: list of sites to extract, either site indexes or (lon, lat) tuples
-			(default: [] or None, will extract all sites)
-		out_periods: structural periods for which exceedance means and variances need to be
-			interpolated (default: [] or None, output only calculated structural periods)
-		intensity_unit: intensity unit. Determined from corresponding DAT file if not
-			specified (default: "")
-		convert_to_g: boolean indicating whether intensities must be converted to g,
-			based on their intensity unit (default: True)
-		IMT: intensity measure type. Defaults to "PGA" if there is only 1 structural period
-			with value 0 or ~1/34, else "PGA" (default: "")
-		avoid_zeros: if True, replace zero values with very small values:
-			1E-13 for exceedance mean, and 1E-18 for exceedance variance
-		model_name: name for this logic-tree model (default: "")
-		branch_names: list with name of each branch (default: [])
-		weights: list with weight of each branch (default:[])
-		site_names: list of site names (default: [])
-	The return value is a SpectralHazardCurveFieldTree object with the following properties:
+
+	:param filespecs:
+		list with full path specification of files to be read
+	:param sites:
+		list of sites to extract, either site indexes or (lon, lat) tuples
+		(default: [] or None, will extract all sites)
+	:param out_periods:
+		list or array, spectral periods for which exceedance means
+		and variances need to be interpolated
+		(default: [] or None, output only calculated spectral periods)
+	:param intensity_unit:
+		str, intensity unit. Determined from corresponding DAT file if
+		not specified
+		(default: "")
+	:param convert_to_g:
+		bool indicating whether intensities must be converted to g,
+		based on their intensity unit
+		(default: True)
+	:param IMT:
+		str, intensity measure type. Defaults to "PGA" if there is only
+		1 spectral period with value 0 or ~1/34, else "SA"
+		(default: "")
+	:param avoid_zeros:
+		bool, if True, replace zero values with very small values:
+		1E-13 for exceedance mean, and 1E-18 for exceedance variance
+		(default: True)
+	:param model_name:
+		str, name for this logic-tree model
+		(default: "")
+	:param branch_names:
+		list with name of each branch
+			(default: [])
+	:param weights:
+		list with weight of each branch
+		(default:[])
+	:param site_names:
+		list of site names
+		(default: [])
+
+	The return value is a SpectralHazardCurveFieldTree object with the
+	following properties:
 		sites: list with (lon, lat) tuples of all sites
-		periods: array with structural periods
-		intensities: 2-D array [k, l] with fixed intensity values for which exceedance
-			rate was calculated. These can be different for each structural period [k]
-		exceedance_rates: 4-dimensional [i, j, k, l] array of mean exceedance rate
-		variances: 4-dimensional [i, j, k, l] array of variance of exceedance rate
+		periods: array with spectral periods
+		intensities: 2-D array [k, l] with fixed intensity values for
+			which exceedance rate was calculated. These can be different
+			for each spectral period [k]
+		exceedance_rates: 4-dimensional [i, j, k, l] array of mean
+			exceedance rate
+		variances: 4-dimensional [i, j, k, l] array of variance of
+			exceedance rate
 			i: sites
 			j: models or logic-tree branches (i.e. corresponding to different filespecs)
-			k: structural periods
+			k: spectral periods
 			l: intensities
+
 	Note that this function is not meant to read multiple .AGR files
-	If input files have different intensity ranges for one or more structural periods,
-	their exceedances will be interpolated to the intensity values of the first input file
+	If input files have different intensity ranges for one or more
+	spectral periods, their exceedances will be interpolated to the
+	intensity values of the first input file
 	"""
 	print("Reading %d files" % len(filespecs))
 	in_periods, unit, description = read_DAT(os.path.splitext(filespecs[0])[0])
 	if not intensity_unit:
 		intensity_unit = unit
-	shcf = read_GRA(filespecs[0], sites=sites, in_periods=in_periods, intensity_unit=intensity_unit, convert_to_g=convert_to_g, IMT=IMT, avoid_zeros=avoid_zeros, verbose=False)
+	shcf = read_GRA(filespecs[0], sites=sites, in_periods=in_periods,
+					intensity_unit=intensity_unit, convert_to_g=convert_to_g,
+					IMT=IMT, avoid_zeros=avoid_zeros, verbose=False)
 
 	if not (out_periods in ([], None) or len(out_periods) == 0):
 		shcf = shcf.interpolate_periods(out_periods)
@@ -1003,38 +1136,53 @@ def read_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="", con
 	num_sites = shcf.num_sites
 	num_periods = shcf.num_periods
 	num_intensities = shcf.num_intensities
-	all_exceedance_means = np.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
+	exc_shape = (num_sites, num_models, num_periods, num_intensities)
+	all_exceedance_means = np.zeros(exc_shape, 'd')
 	all_exceedance_means[:,0,:,:] = shcf.exceedance_rates
 	all_exceedance_means = ExceedanceRateArray(all_exceedance_means)
-	all_exceedance_variances = np.zeros((num_sites, num_models, num_periods, num_intensities), 'd')
+	all_exceedance_variances = np.zeros(exc_shape, 'd')
 	all_exceedance_variances[:,0,:,:] = shcf.variances
 
 	if branch_names in (None, []):
 		common_path = os.path.commonprefix(filespecs)
-		branch_names = [os.path.splitext(filespec[len(common_path):])[0] for filespec in filespecs]
+		branch_names = [os.path.splitext(filespec[len(common_path):])[0]
+						for filespec in filespecs]
 	if weights in (None, []):
 		weights = np.ones(num_models, 'f') / num_models
-	shcft = SpectralHazardCurveFieldTree(model_name, all_exceedance_means, branch_names, filespecs, weights, shcf.sites, shcf.periods, shcf.IMT, shcf.intensities, shcf.intensity_unit, shcf.timespan, variances=all_exceedance_variances)
+	shcft = SpectralHazardCurveFieldTree(all_exceedance_means, branch_names,
+										weights, shcf.sites, shcf.periods,
+										shcf.intensities, shcf.intensity_unit, shcf.IMT,
+										model_name=model_name, filespecs=filespecs,
+										timespan=shcf.timespan,
+										variances=all_exceedance_variances)
 
 	for j, filespec in enumerate(filespecs[1:]):
-		shcf = read_GRA(filespec, sites=sites, in_periods=in_periods, intensity_unit=intensity_unit, convert_to_g=convert_to_g, IMT=IMT, avoid_zeros=avoid_zeros, verbose=False)
+		shcf = read_GRA(filespec, sites=sites, in_periods=in_periods,
+						intensity_unit=intensity_unit, convert_to_g=convert_to_g,
+						IMT=IMT, avoid_zeros=avoid_zeros, verbose=False)
 
 		if not (out_periods in ([], None) or len(out_periods) == 0):
 			shcf = shcf.interpolate_periods(out_periods)
 		## Check if intensities array is same as in 1st file
 		if (shcf.intensities != shcft.intensities).any():
 			## Interpolate for intensities used in 1st file
-			print("Warning: intensities array in file %d different from file 0! Will interpolate" % (j + 1))
+			print("Warning: intensities array in file %d different from "
+				"file 0! Will interpolate" % (j + 1))
 			if j == 0:
-				print shcft.intensities
+				print(shcft.intensities)
 				print
-				print shcf.intensities
+				print(shcf.intensities)
 			for k in range(len(out_periods)):
-				## We check the 1st and last intensity values of each structural period
-				if (abs(shcf.intensities[k,0] - shcft.intensities[k,0]) > 1E-6) or (abs(shcf.intensities[k,-1] - shcft.intensities[k,-1]) > 1E-6):
+				## We check the 1st and last intensity values of each spectral period
+				if ((abs(shcf.intensities[k,0] - shcft.intensities[k,0]) > 1E-6)
+					or (abs(shcf.intensities[k,-1] - shcft.intensities[k,-1]) > 1E-6)):
 					for i in range(num_sites):
-						shcft._hazard_values[i,j+1,k] = interpolate(shcf.intensities[k], shcf._hazard_values[i,k], shcft.intensities[k])
-						shcft.variances[i,j+1,k] = interpolate(shcf.intensities[k], shcf.variances[i,k], shcft.intensities[k])
+						shcft._hazard_values[i,j+1,k] = interpolate(shcf.intensities[k],
+																shcf._hazard_values[i,k],
+																shcft.intensities[k])
+						shcft.variances[i,j+1,k] = interpolate(shcf.intensities[k],
+																shcf.variances[i,k],
+																shcft.intensities[k])
 		else:
 			shcft._hazard_values[:,j+1] = shcf._hazard_values
 			shcft.variances[:,j+1] = shcf.variances
@@ -1046,25 +1194,40 @@ def read_GRA_multi(filespecs, sites=None, out_periods=[], intensity_unit="", con
 	return shcft
 
 
-def read_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True, IMT="", model_name="", verbose=False):
+def read_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True,
+			IMT="", model_name="", verbose=False):
 	"""
-	Read CRISIS .MAP file (CRISIS2007 format) in site mode, i.e. only one spectral ordinate is read
-	for each site.
-	Parameters:
-		filespec: full path to file to be read
-		period_spec: period index (integer) or period (float) to extract
-			(default: 0). If None, all periods are passed through
-		intensity_unit: intensity unit. Determined from corresponding DAT file if not
-			specified (default: "")
-		convert_to_g: boolean indicating whether intensities must be converted to g,
-			based on their intensity unit (default: True)
-		IMT: intensity measure type. Defaults to "PGA" if there is only 1 structural period
-			with value 0 or ~1/34, else "PGA" (default: "")
-		spectral_ordinate: number of the spectral ordinate (sequential, starting from 1) that is requested
-			(default: 1)
-	Return value:
-		HazardMapSet object (if only one period is requested), or
-		UHSFieldSet object (if all periods are requested)
+	Read CRISIS .MAP file (CRISIS2007 format) in site mode, i.e.
+	only one spectral ordinate is read for each site.
+
+	:param filespec:
+		str, full path to file to be read
+	:param period_spec:
+		period index (integer) or period (float) to extract
+		If None, all periods are passed through
+		(default: 0)
+	:param intensity_unit:
+		str, intensity unit. Determined from corresponding DAT file
+		if not specified
+		(default: "")
+	:param convert_to_g:
+		bool indicating whether intensities must be converted to g,
+		based on their intensity unit
+		(default: True)
+	:param IMT:
+		str, intensity measure type. Defaults to "PGA" if there is only
+		1 spectral period with value 0 or ~1/34, else "SA"
+		(default: "")
+	:param model_name:
+		str, model name
+		(default: "")
+	:param verbose:
+		bool, whether or not to print some information
+		(default: False)
+
+	:return:
+		instance of :class:`HazardMapSet` (if only one period is requested)
+		or instance of :class:`UHSFieldSet` (if all periods are requested)
 	"""
 	if os.path.splitext(filespec)[-1].upper() != ".MAP":
 		filespec += ".map"
@@ -1075,7 +1238,8 @@ def read_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True, IMT=
 		periods, unit, description = read_DAT(filespec[:-4])
 	except IOError:
 		print("%s.DAT file not found" % filespec[:-4])
-		print("Assuming structural period is %.4f s (PGA), or reading from .AGR file if possible" % zero_period)
+		print("Assuming spectral period is %.4f s (PGA), or reading "
+			"from .AGR file if possible" % zero_period)
 		if not intensity_unit:
 			print("  and intensity unit is 'g'")
 			intensity_unit = "g"
@@ -1116,7 +1280,8 @@ def read_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True, IMT=
 					continue
 	f.seek(0)
 
-	num_sites, num_periods, num_return_periods = len(sites), len(periods), len(return_periods)
+	num_sites, num_periods, num_return_periods = (len(sites), len(periods),
+												len(return_periods))
 	if verbose:
 		print("Found %d sites and %d periods" % (num_sites, num_periods))
 
@@ -1148,18 +1313,26 @@ def read_MAP(filespec, period_spec=0, intensity_unit="", convert_to_g=True, IMT=
 	hs = HazardSpectrum(periods)
 	if period_spec != None:
 		period_index = hs.period_index(period_spec)
-		result = HazardMapSet(model_name, [filespec], sites, periods[period_index], IMT, intensities[:,:,period_index], intensity_unit=intensity_unit, return_periods=return_periods)
+		result = HazardMapSet(sites, periods[period_index],
+							intensities[:,:,period_index], intensity_unit, IMT,
+							model_name=model_name, filespecs=[filespec],
+							return_periods=return_periods)
 	else:
-		result = UHSFieldSet(model_name, [filespec], sites, periods, IMT, intensities, intensity_unit=intensity_unit, return_periods=return_periods)
+		result = UHSFieldSet(sites, periods, intensities, intensity_unit, IMT,
+							model_name=model_name, filespecs=[filespec],
+							return_periods=return_periods)
+
 	return result
 
 
-def read_DES(filespec, site, intensity=None, return_period=None, period_index=0, rebin_magnitudes=[], rebin_distances=[], verbose=True):
+def read_DES(filespec, site, intensity=None, return_period=None, period_index=0,
+			rebin_magnitudes=[], rebin_distances=[], intensity_unit="g",
+			verbose=True):
 	"""
 	Read CRISIS deaggregation by Magnitude and distance results (.DES) file
-	The results are only read for a particular intensity value or for the intensity
-	corresponding to a particular return period. Use read_DES_full to read the
-	complete deaggregation results.
+	The results are only read for a particular intensity value or for
+	the intensity corresponding to a particular return period.
+	Use :func:`read_DES_full` to read the complete deaggregation results.
 
 	:param filespec:
 		Str, full path to file to be read
@@ -1171,19 +1344,25 @@ def read_DES(filespec, site, intensity=None, return_period=None, period_index=0,
 	:param return_period:
 		Float, return period for which to read M,r deaggregation results
 		The corresponding intensity is interpolated from the .GRA file,
-		and results are given for the nearest intensity value (default: None)
+		and results are given for the nearest intensity value
+		(default: None)
 	:param period_index:
-		Int, index of structural period for which to read M, r deaggregation
-		results (default: 0)
+		Int, index of spectral period for which to read M, r deaggregation
+		results
+		(default: 0)
 	:param rebin_magnitudes:
 		array of magnitudes to rebin M, r deaggregation results
 		(default: [], i.e. no rebinning, use magnitude values from the .DES file)
 	:param rebin_distances:
 		array of distances to rebin M, r deaggregation results
 		(default: [], i.e. no rebinning, use distance values from the .DES file)
+	:param intensity_unit:
+		str, intensity unit
+		(default: "g")
 	:param verbose:
-		boolean whether or not to print some information about what data
+		bool, whether or not to print some information about what data
 		is actually read
+		(default: True)
 
 	:return:
 		instance of :class:`DeaggregationSlice`
@@ -1209,17 +1388,19 @@ def read_DES(filespec, site, intensity=None, return_period=None, period_index=0,
 	## Determine site index
 	site_nr = shcf.site_index(site)
 	if verbose:
-		print "Site nr: %d" % site_nr
+		print("Site nr: %d" % site_nr)
 
 	## Determine intensity index
 	if return_period:
-		intensity = interpolate(exceedance_means[site_nr,period_index,:], intensities, [1.0 / return_period])[0]
+		intensity = interpolate(exceedance_means[site_nr,period_index,:],
+								intensities, [1.0 / return_period])[0]
 		if verbose:
-			print "Interpolated intensity: %.3f g" % intensity
+			print("Interpolated intensity: %.3f g" % intensity)
 	if intensity:
 		intensity_nr = abs(intensities - intensity).argmin()
 	if verbose:
-		print "Intensity nr: %d (value: %.3f g)" % (intensity_nr, intensities[intensity_nr])
+		print("Intensity nr: %d (value: %.3f g)"
+				% (intensity_nr, intensities[intensity_nr]))
 
 	## Read number of magnitudes and number of distances from header
 	f = open(filespec)
@@ -1241,9 +1422,9 @@ def read_DES(filespec, site, intensity=None, return_period=None, period_index=0,
 	rec_start = period_start + intensity_nr * rec_len + 3
 	rec_end = rec_start + MagNum + 1
 	if verbose:
-		print "DES Reading lines %d : %d" % (rec_start, rec_end)
+		print("DES Reading lines %d : %d" % (rec_start, rec_end))
 
-	## Read M,r values for particular site, intensity, and structural period
+	## Read M,r values for particular site, intensity, and spectral period
 	magnitudes = np.zeros(MagNum, 'f')
 	values = np.zeros((MagNum-1, DistNum-1), 'd')
 	for linenr, line in enumerate(f):
@@ -1270,7 +1451,7 @@ def read_DES(filespec, site, intensity=None, return_period=None, period_index=0,
 		for d in range(DistNum):
 			rebin_values[d] = interpolate(magnitudes, values[:,d], rebin_magnitudes)
 			## Renormalize
-			total, rebin_total = np.add.reduce(values[:,d]), np.add.reduce(rebin_values[:,d])
+			total, rebin_total = np.sum(values[:,d]), np.sum(rebin_values[:,d])
 			if rebin_total != 0:
 				rebin_values[:,d] = rebin_values[:,d] * (total / rebin_total)
 		values = rebin_values
@@ -1282,7 +1463,7 @@ def read_DES(filespec, site, intensity=None, return_period=None, period_index=0,
 		for m in range(MagNum):
 			rebin_values[:,m] = interpolate(distances, values[m], rebin_distances)
 			## Renormalize
-			total, rebin_total = np.add.reduce(values[m]), np.add.reduce(rebin_values[m])
+			total, rebin_total = np.sum(values[m]), np.sum(rebin_values[m])
 			if rebin_total != 0:
 				rebin_values[m] = rebin_values[m] * (total / rebin_total)
 		values = rebin_values
@@ -1290,34 +1471,48 @@ def read_DES(filespec, site, intensity=None, return_period=None, period_index=0,
 
 	values = values[:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 	values = ExceedanceRateMatrix(values)
-	bin_edges = (magnitudes, distances, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
-	site = SHASite(*sites[site_nr])
+	bin_edges = (magnitudes, distances, np.array([0]), np.array([0]),
+				np.array([0]), np.array([0]))
+	site = GenericSite(*sites[site_nr])
 	period = struc_periods[period_index]
 	imt = shcf.IMT
 	iml = intensity
 	time_span = 50
-	return DeaggregationSlice(bin_edges, values, site, imt, iml, period, time_span)
+	return DeaggregationSlice(bin_edges, values, site, iml, intensity_unit, imt,
+							period, return_period, time_span)
 
 
-def read_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[], verbose=True):
+def read_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[],
+					intensity_unit='g', verbose=True):
 	"""
 	Read CRISIS deaggregation by Magnitude and distance results (.DES) file
 	In contrast to read_DES, the results are read completely for a particular site
-	Parameters:
-		filespec: full path to file to be read
-		site: site index or tuple with site coordinates
-		rebin_magnitudes: array of magnitudes to rebin M, r deaggregation results
-			(default: [], i.e. no rebinning, use magnitude values from the .DES file)
-		rebin_distances: array of distances to rebin M, r deaggregation results
-			(default: [], i.e. no rebinning, use distance values from the .DES file)
-		verbose: boolean whether or not to print some information about what data
-			is actually read
+
+	:param filespec:
+		full path to file to be read
+	:param site:
+		site index or tuple with site coordinates
+		(default: 0)
+	:param rebin_magnitudes:
+		array of magnitudes to rebin M, r deaggregation results
+		(default: [], i.e. no rebinning, use magnitude values from the .DES file)
+	:param rebin_distances:
+		array of distances to rebin M, r deaggregation results
+		(default: [], i.e. no rebinning, use distance values from the .DES file)
+	:param intensity_unit:
+		str, intensity unit
+		(default: "g")
+	:param verbose:
+		bool, whether or not to print some information about what data
+		is actually read
+		(default: True)
+
 	Return value:
 		tuple of (magnitudes, distances, deagg_exceedances, intensities)
 			magnitudes: array of magnitude values (lower bounds of magnitude bins)
 			distances: array of distance values (lower bounds of distance bins)
 			deagg_exceedances: 4-D [k,l,r,m] array of M,r- deaggregated exceedance rates
-				for a range of structural periods (k) and intensities (l)
+				for a range of spectral periods (k) and intensities (l)
 			intensities: 1-D or 2-D array of intensity values
 	"""
 	if filespec[-4:].lower() != ".des":
@@ -1335,7 +1530,7 @@ def read_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[], ver
 	## Determine site index
 	site_nr = shcf.site_index(site)
 	if verbose:
-		print "Site nr: %d" % site_nr
+		print("Site nr: %d" % site_nr)
 
 	## Read number of magnitudes and number of distances from header
 	f = open(filespec)
@@ -1355,11 +1550,12 @@ def read_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[], ver
 	site_start = start_nr + site_nr * site_len
 	site_end = site_start + site_len
 	if verbose:
-		print "DES Reading lines %d : %d" % (site_start, site_end)
+		print("DES Reading lines %d : %d" % (site_start, site_end))
 
 	## Read M,r values for particular site
 	magnitudes = np.zeros(MagNum, 'f')
-	deagg_exceedances = np.zeros((len(struc_periods), num_intensities, MagNum - 1, DistNum - 1) ,'d')
+	deagg_exceedances = np.zeros((len(struc_periods), num_intensities, MagNum - 1,
+								DistNum - 1) ,'d')
 
 	i = 0
 	for linenr, line in enumerate(f):
@@ -1389,13 +1585,17 @@ def read_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[], ver
 
 	## Rebin magnitudes and/or distances
 	if rebin_magnitudes not in (None, []):
-		rebin_values = np.zeros((len(struc_periods), num_intensities, DistNum, len(rebin_magnitudes)) ,'d')
+		rebin_values = np.zeros((len(struc_periods), num_intensities, DistNum,
+								len(rebin_magnitudes)) ,'d')
 		for k in range(len(struc_periods)):
 			for l in range(num_intensities):
 				for d in range(DistNum):
-					rebin_values[k,l,d] = intcubicspline(magnitudes, deagg_exceedances[k,l,d], rebin_magnitudes, ideriv=0)
+					rebin_values[k,l,d] = interpolate(magnitudes,
+													deagg_exceedances[k,l,d],
+													rebin_magnitudes,
+													lib='scipy', kind='cubic')
 					## Renormalize
-					total, rebin_total = np.add.reduce(deagg_exceedances[k,l,d]), np.add.reduce(rebin_values[k,l,d])
+					total, rebin_total = np.sum(deagg_exceedances[k,l,d]), np.sum(rebin_values[k,l,d])
 					if rebin_total != 0:
 						rebin_values[k,l,d] = rebin_values[k,l,d] * (total / rebin_total)
 		deagg_exceedances = rebin_values
@@ -1403,33 +1603,41 @@ def read_DES_full(filespec, site=0, rebin_magnitudes=[], rebin_distances=[], ver
 		MagNum = len(rebin_magnitudes)
 
 	if rebin_distances not in (None, []):
-		rebin_values = np.zeros((len(struc_periods), num_intensities, len(rebin_distances), MagNum),'d')
+		rebin_values = np.zeros((len(struc_periods), num_intensities,
+								len(rebin_distances), MagNum),'d')
 		for k in range(len(struc_periods)):
 			for l in range(num_intensities):
 				for m in range(MagNum):
-					rebin_values[k,l,:,m] = intcubicspline(distances, deagg_exceedances[k,l,:,m], rebin_distances, ideriv=0)
+					rebin_values[k,l,:,m] = interpolate(distances,
+														deagg_exceedances[k,l,:,m],
+														rebin_distances,
+														lib='scipy', kind='cubic')
 					## Renormalize
-					total, rebin_total = np.add.reduce(deagg_exceedances[k,l,:,m]), np.add.reduce(rebin_values[k,l,:,m])
+					total, rebin_total = np.sum(deagg_exceedances[k,l,:,m]), np.sum(rebin_values[k,l,:,m])
 					if rebin_total != 0:
-						rebin_values[k,l,:,m] = rebin_values[k,l,:,m] * (total / rebin_total)
+						rebin_values[k,l,:,m] = (rebin_values[k,l,:,m]
+												* (total / rebin_total))
 		deagg_exceedances = rebin_values
 		distances = rebin_distances
 
 	deagg_exceedances = deagg_exceedances[:,:,:,:,np.newaxis,np.newaxis,np.newaxis,np.newaxis]
 	deagg_exceedances = ExceedanceRateMatrix(deagg_exceedances)
-	bin_edges = (magnitudes, distances, np.array([0]), np.array([0]), np.array([0]), np.array([0]))
-	site = SHASite(*sites[site_nr])
+	bin_edges = (magnitudes, distances, np.array([0]), np.array([0]), np.array([0]),
+				np.array([0]))
+	site = GenericSite(*sites[site_nr])
 	imt = shcf.IMT
 	time_span = 50
 	return_periods = np.zeros_like(intensities[0])  ## Dummy return periods
-	return SpectralDeaggregationCurve(bin_edges, deagg_exceedances, site, imt, intensities, struc_periods, return_periods, time_span)
+	return SpectralDeaggregationCurve(bin_edges, deagg_exceedances, site,
+									intensities, intensity_unit, imt,
+									struc_periods, return_periods, timespan=time_span)
 
 
 # TODO: implement length parameters
 def get_crisis_rupture_area_parameters(scale_rel="WC1994", rake=None):
 	"""
-	Return k1, k2 constants used by CRISIS to relate rupture area with magnitude,
-	according to the formula: area = k1 * exp(k2 * M)
+	Return k1, k2 constants used by CRISIS to relate rupture area with
+	magnitude, according to the formula: area = k1 * exp(k2 * M)
 
 	:param scale_rel:
 		String, name of scaling relationship, one of "WC1994",
@@ -1440,7 +1648,7 @@ def get_crisis_rupture_area_parameters(scale_rel="WC1994", rake=None):
 	:return:
 		(k1, k2) tuple of floats
 	"""
-	# TODO: add PeerMSR (see nhlib.scalerel.PeerMSR)
+	# TODO: add PeerMSR (see oqhazlib.scalerel.PeerMSR)
 	if scale_rel == "WC1994":
 		if rake is None:
 			return (0.01015, 1.04768)
