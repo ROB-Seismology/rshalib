@@ -469,7 +469,7 @@ class DeaggregationSlice(IntensityResult, DeaggBase):
 		return self.rebin(lat_bin_edges, axis=3)
 
 	def write_nrml(self, nrml_filespec, smlt_path=None, gmpelt_path=None,
-					encoding='latin-1', pretty_print=True):
+					encoding='latin1', pretty_print=True):
 		"""
 		Write deaggregation slice to XML file
 
@@ -483,7 +483,7 @@ class DeaggregationSlice(IntensityResult, DeaggBase):
 			(default: None)
 		:param encoding:
 			str, unicode encoding
-			(default: 'latin-1')
+			(default: 'latin1')
 		pretty_print:
 			bool, indicating whether or not to indent each element
 			(default: True)
@@ -1097,7 +1097,7 @@ class SpectralDeaggregationCurve(IntensityResult, DeaggBase):
 		pass
 
 	def write_nrml(self, nrml_filespec, smlt_path=None, gmpelt_path=None,
-					min_poe=1E-8, encoding='latin-1', pretty_print=True):
+					min_poe=1E-8, encoding='latin1', pretty_print=True):
 		"""
 		:param nrml_filespec:
 			str, full path to output file
@@ -1112,7 +1112,7 @@ class SpectralDeaggregationCurve(IntensityResult, DeaggBase):
 			(default: 1E-8)
 		:param encoding:
 			str, unicode encoding
-			(default: 'latin-1')
+			(default: 'latin1')
 		pretty_print:
 			bool, indicating whether or not to indent each element
 			(default: True)
