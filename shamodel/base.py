@@ -166,13 +166,14 @@ class SHAModelBase(object):
 		:return:
 			str
 		"""
+		# TODO: not sure if it is cm or m for velocity / displacement
 		response_type = self.get_response_type()
 		if response_type[:3] == 'acc':
 			intensity_unit = 'g'
 		elif response_type[:3] == 'vel':
-			intensity_unit = 'm/s'
+			intensity_unit = 'cm/s'
 		elif response_type[:3] == 'dis':
-			intensity_unit = 'm'
+			intensity_unit = 'cm'
 		return intensity_unit
 
 	def get_soil_site_model(self):
