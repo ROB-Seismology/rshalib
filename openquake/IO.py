@@ -668,7 +668,7 @@ def read_uhsft(directory, return_period, sites=[], add_stats=False):
 	return uhsft
 
 
-def write_disaggregation_slice(site, imt, period, iml, poe, timespan, bin_edges, matrix, nrml_filespec, sourceModelTreePath=None, gsimTreePath=None):
+def write_disaggregation_slice(site, imt, period, iml, poe, timespan, bin_edges, matrix, nrml_filespec, sourceModelTreePath=None, gsimTreePath=None, encoding="latin-1", pretty_print=True):
 	"""
 	Write disaggregation slice to nrml file.
 
@@ -723,5 +723,5 @@ def write_disaggregation_slice(site, imt, period, iml, poe, timespan, bin_edges,
 				prob = etree.SubElement(diss, "prob")
 				prob.set(ns.INDEX, index)
 				prob.set(ns.VALUE, value)
-		nrml_file.write(etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8"))
+		nrml_file.write(etree.tostring(root, pretty_print=pretty_print, xml_declaration=True, encoding=encoding))
 
