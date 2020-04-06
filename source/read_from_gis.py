@@ -87,7 +87,7 @@ def import_param(
 	column_map,
 	param_name,
 	type=None,
-	encoding='latin-1'):
+	encoding='latin1'):
 	"""
 	Read a particular parameter from a GIS record, optionally coerced
 	into a particular type
@@ -104,7 +104,7 @@ def import_param(
 		(default: None, will return values as type stored in GIS record)
 	:param encoding:
 		str, encoding to use for decoding unicode strings
-		(default: 'latin-1')
+		(default: 'latin1')
 
 	:return:
 		value read from GIS record or scalar value provided in
@@ -373,7 +373,7 @@ def import_point_or_area_source_from_gis_record(
 	b_sigma=None,
 	catalog=None,
 	catalog_params={},
-	encoding="latin-1",
+	encoding="latin1",
 	verbose=True,
 	**kwargs):
 	"""
@@ -492,7 +492,7 @@ def import_point_or_area_source_from_gis_record(
 		(default: "")
 	:param encoding:
 		str, unicode encoding in GIS record
-		(default: "latin-1")
+		(default: "latin1")
 	:param verbose:
 		bool, whether or not to print information during reading
 		(default: True)
@@ -767,7 +767,7 @@ def import_simple_fault_source_from_gis_record(
 	catalog=None,
 	catalog_params={},
 	bg_zone="",
-	encoding="latin-1",
+	encoding="latin1",
 	verbose=True,
 	**kwargs
 	):
@@ -850,7 +850,7 @@ def import_simple_fault_source_from_gis_record(
 		(default: "")
 	:param encoding:
 		str, unicode encoding in GIS record
-		(default: "latin-1")
+		(default: "latin1")
 	:param verbose:
 		bool, whether or not to print information during reading
 		(default: True)
@@ -1025,7 +1025,7 @@ def import_source_from_gis_record(
 	catalog=None,
 	catalog_params={},
 	verbose=True,
-	encoding="latin-1",
+	encoding="latin1",
 	**kwargs):
 	"""
 	Wrapper function to create various types of sources from GIS records
@@ -1044,7 +1044,7 @@ def import_source_from_gis_record(
 		(default: {})
 	:param encoding:
 		str, unicode encoding in GIS record
-		(default: "latin-1")
+		(default: "latin1")
 	:param verbose:
 		bool, whether or not to print information during reading
 		(default: True)
@@ -1086,7 +1086,7 @@ def import_source_model_from_gis(
 	source_catalogs={},
 	overall_catalog=None,
 	catalog_params={},
-	encoding="latin-1",
+	encoding="latin1",
 	verbose=True,
 	**kwargs):
 	"""
@@ -1118,7 +1118,7 @@ def import_source_model_from_gis(
 	:param encoding:
 		str, unicode encoding in GIS file
 		#(default: "guess", will try to guess, but this may fail)
-		(default: "latin-1")
+		(default: "latin1")
 	:param verbose:
 		bool, whether or not to print information during reading
 		(default: True)
