@@ -409,7 +409,7 @@ def create_rob_area_source(
 				print("Warning: Weichert MFD computation: %s" % err.args[0])
 				try:
 					## Fall back to minimum MFD for SCR by Johnston et al. (1994)
-					mfd = area_source.get_MFD_Johnston1994(min_mag, max_mag, mfd_bin_width)
+					mfd = area_source.get_Johnston1994_mfd(min_mag, max_mag, mfd_bin_width)
 				except ValueError as err:
 					mfd = None
 			else:
@@ -430,7 +430,7 @@ def create_rob_area_source(
 			except ValueError:
 				try:
 					## Fall back to minimum MFD for SCR by Johnston et al. (1994)
-					mfd = area_source.get_MFD_Johnston1994(min_mag, max_mag, mfd_bin_width)
+					mfd = area_source.get_Johnston1994_mfd(min_mag, max_mag, mfd_bin_width)
 				except ValueError:
 					mfd = None
 
