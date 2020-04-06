@@ -174,14 +174,21 @@ class GenericSiteModel(oqhazlib.geo.Mesh):
 		:return:
 			(lons, lats, depths, site_names) tuple
 		"""
-		lons = np.array([site.lon for site in sites])
-		lats = np.array([site.lat for site in sites])
-		depths = np.array([site.depth for site in sites])
+		if (isinstance(sites, oqhazlib.site.SiteCollection)
+			or isinstance(sites[0], oqhazlib.site.Site)):
+			lons = np.array([site.location.longitude for site in sites])
+			lats = np.array([site.location.latitude for site in sites])
+			depths = np.array([site.location.depth for site in sites])
+		else:
+			lons = np.array([site.lon for site in sites])
+			lats = np.array([site.lat for site in sites])
+			depths = np.array([site.depth for site in sites])
+
+			if site_names is None and hasattr(sites[0], 'name'):
+				site_names = [site.name for site in sites]
+
 		if np.allclose(depths, 0.):
 			depths = None
-
-		if site_names is None and hasattr(sites[0], 'name'):
-			site_names = [site.name for site in sites]
 
 		return (lons, lats, depths, site_names)
 
