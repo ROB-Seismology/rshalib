@@ -74,7 +74,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		String, ID of background zone (default: None)
 	"""
 	# TODO: SlipratePMF
-	# TODO: add aseismic_coef and strain_drop parameters (see get_MFD_Anderson_Luco method)
+	# TODO: add aseismic_coef and strain_drop parameters (see get_Anderson_Luco_mfd method)
 	# TODO: add char_mag property, to make distinction with max_mag !!!
 	def __init__(self, source_id, name, tectonic_region_type, mfd,
 				rupture_mesh_spacing, magnitude_scaling_relationship,
@@ -776,7 +776,7 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			self.lower_seismogenic_depth, self.dip, self.rupture_mesh_spacing)
 
 		if convert_mfd and not isinstance(self.mfd, CharacteristicMFD):
-			mfd = self.get_MFD_characteristic()
+			mfd = self.get_characteristic_mfd()
 		else:
 			mfd = self.mfd
 
