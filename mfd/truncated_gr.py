@@ -426,7 +426,7 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		return mfd_samples
 
 	@classmethod
-	def construct_FentonEtAl2006MFD(self, min_mag, max_mag, bin_width, area,
+	def construct_FentonEtAl2006_mfd(self, min_mag, max_mag, bin_width, area,
 									b_val=0.7991):
 		"""
 		Construct "minimum" MFD for SCR according to Fenton et al. (2006),
@@ -463,8 +463,8 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 							stda, stdb, Mtype="MS")
 
 	@classmethod
-	def construct_Johnston1994MFD(self, min_mag, max_mag, bin_width, area,
-								region="total"):
+	def construct_Johnston1994_mfd(self, min_mag, max_mag, bin_width, area,
+									region="total"):
 		"""
 		Construct "minimum" MFD for SCR according to Johnston (1994),
 		based on surface area
