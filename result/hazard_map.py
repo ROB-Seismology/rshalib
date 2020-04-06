@@ -242,6 +242,7 @@ class GroundMotionField(IntensityResult, HazardField):
 		imt = self.imt
 		intensities = self.intensities[site_indexes]
 		intensity_unit = self.intensity_unit
+		damping = self.damping
 
 		opt_kwargs = {}
 		if hasattr(self, 'return_period'):
@@ -283,6 +284,7 @@ class GroundMotionField(IntensityResult, HazardField):
 		period = self.period
 		imt = self.imt
 		intensity_unit = self.intensity_unit
+		damping = self.damping
 		vs30s = None
 
 		opt_kwargs = {}
@@ -350,6 +352,7 @@ class GroundMotionField(IntensityResult, HazardField):
 		period = self.period
 		imt = self.imt
 		intensity_unit = self.intensity_unit
+		damping = self.damping
 
 		if self.timespan == other_map.timespan:
 			timespan = self.timespan
@@ -422,6 +425,7 @@ class GroundMotionField(IntensityResult, HazardField):
 		period = self.period
 		imt = self.imt
 		intensity_unit = self.intensity_unit
+		damping = self.damping
 
 		opt_kwargs = {}
 		if hasattr(self, 'return_period'):
