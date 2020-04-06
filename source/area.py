@@ -210,7 +210,7 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 		if max_mag is None:
 			max_mag = self.mfd.max_mag
 
-		return mfd.TruncatedGRMFD.construct_Johnston1994MFD(min_mag, max_mag,
+		return TruncatedGRMFD.construct_Johnston1994_mfd(min_mag, max_mag,
 											bin_width, self.get_area(), region)
 
 	def get_FentonEtAl2006_mfd(self, min_mag=None, max_mag=None, bin_width=None,
@@ -243,7 +243,7 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 		if max_mag is None:
 			max_mag = self.mfd.max_mag
 
-		return mfd.TruncatedGRMFD.construct_FentonEtAl2006MFD(min_mag, max_mag,
+		return TruncatedGRMFD.construct_FentonEtAl2006_mfd(min_mag, max_mag,
 											bin_width, self.get_area(), b_val)
 
 	def to_ogr_geometry(self):
