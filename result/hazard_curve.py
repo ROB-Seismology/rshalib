@@ -1739,6 +1739,8 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			hcf_elem = etree.SubElement(shcf_elem, ns.HAZARD_CURVE_FIELD)
 			hcf_elem.set(ns.PERIOD, str(period))
 			# TODO: add damping for SA ?
+			if period > 0:
+				hcf_elem.set(ns.DAMPING, str(self.damping))
 			imls_elem = etree.SubElement(hcf_elem, ns.IMLS)
 			imls_elem.text = " ".join(map(str, self.intensities[k,:]))
 			for i, site in enumerate(self.sites):
@@ -2987,6 +2989,8 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			for k, period in enumerate(self.periods):
 				hcf_elem = etree.SubElement(shcf_elem, ns.HAZARD_CURVE_FIELD)
 				hcf_elem.set(ns.PERIOD, str(period))
+				if period > 0:
+					hcf_elem.set(ns.DAMPING, str(self.damping))
 				imls_elem = etree.SubElement(hcf_elem, ns.IMLS)
 				imls_elem.text = " ".join(map(str, self.intensities[k,:]))
 				for i, site in enumerate(self.sites):
