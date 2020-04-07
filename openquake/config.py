@@ -310,7 +310,8 @@ class OQ_Params(ConfigObj):
 		:param grid_outline:
 			list of points ((lon, lat) tuples) defining the outline of a
 			regular grid. If grid_outline contains only 2 points, these
-			are considered as the lower left and upper right corners
+			are considered as the lower left and upper right corners.
+			Alternatively, may also be [lonmin, lonmax, latmin, latmax]
 			(default: [])
 		:param grid_spacing:
 			Float, grid spacing in km
@@ -340,6 +341,13 @@ class OQ_Params(ConfigObj):
 				ll, ur = grid_outline
 				lr = (ur[0], ll[1])
 				ul = (ll[0], ur[1])
+				grid_outline = [ll, lr, ur, ul]
+			elif len(grid_outline) == 4 and np.isscalar(grid_outline[0]):
+				lonmin, lonmax, latmin, latmax = grid_outline
+				ll = (lonmin, latmin)
+				ul = (lonmin, latmax)
+				ur = (lonmax, latmax)
+				lr = (lonmax, latmin)
 				grid_outline = [ll, lr, ur, ul]
 			for lon, lat in grid_outline:
 				self["geometry"]["region"].append(" ".join(map(str, (lon, lat))))
