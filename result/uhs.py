@@ -382,7 +382,7 @@ class UHSCollection:
 
 	def plot(self, intensity_unit="g",
 			pgm_period=0.01, pgm_marker='o', plot_freq=False,
-			xscaling='log', yscaling='lin', xgrid=1, ygrid=1,
+			xscaling='log', yscaling='lin', xgrid=2, ygrid=1,
 			title=None, fig_filespec=None, lang="en", **kwargs):
 		"""
 		Plot UHS collection
@@ -758,12 +758,12 @@ class UHSFieldSet(HazardSpectrum, HazardResult, HazardField):
 		except:
 			raise IndexError("Index %s out of range" % index)
 		else:
-			filespec = self.filespecs[index] if len(filespecs) > 0 else ""
+			filespec = self.filespecs[index] if len(self.filespecs) > 0 else ""
 			intensities = self.intensities[index]
 			return UHSField(self.sites, self.periods, intensities,
-							self.intensity_unit, self.imt, model_name=model_name,
-							filespec=self.filespec, timespan=self.timespan,
-							return_period=self.return_period, damping=self.damping)
+							self.intensity_unit, self.imt, model_name=self.model_name,
+							filespec=filespec, timespan=self.timespan,
+							return_period=return_period, damping=self.damping)
 
 	def interpolate_period(self, period):
 		"""
@@ -807,7 +807,7 @@ class UHSFieldSet(HazardSpectrum, HazardResult, HazardField):
 													self.intensities[:,i,k],
 													[return_period])
 		return UHSField(self.sites, self.periods, rp_intensities,
-						self.intensity_unit, self.imt, model_name=model_name,
+						self.intensity_unit, self.imt, model_name=self.model_name,
 						filespec=self.filespec, timespan=self.timespan,
 						return_period=return_period, damping=self.damping)
 
