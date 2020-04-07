@@ -17,7 +17,7 @@ import openquake.engine.input.logictree as oqlt
 
 from lxml import etree
 from ..nrml import ns
-from ..nrml.common import (xmlstr, create_nrml_root)
+from ..nrml.common import (xmlstr, create_nrml_root, ENUM_OQ_UNCERTAINTYTYPES)
 from ..pmf import *
 
 
