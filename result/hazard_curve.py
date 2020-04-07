@@ -687,7 +687,7 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 										intensities, self.intensity_unit, self.imt,
 										model_name=self.model_name,
 										filespecs=[self.filespec],
-										timespan=self.timespan, damping=damping,
+										timespan=self.timespan, damping=self.damping,
 										variances=variances)
 
 	def to_hc_collection(self, labels=[], colors=[], linestyles=[], linewidths=[]):
@@ -1047,9 +1047,8 @@ class HazardCurveField(HazardResult, HazardField):
 													self.intensities,
 													interpol_exceedances)
 
-		return HazardMapSet(self.sites,
+		return HazardMapSet(self.sites, self.period,
 							rp_intensities, self.intensity_unit, self.imt,
-							self.period,
 							model_name=self.model_name, filespecs=filespecs,
 							timespan=self.timespan, return_periods=return_periods,
 							damping=self.damping)
@@ -1537,7 +1536,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 							rp_intensities, self.intensity_unit, self.imt,
 							model_name=self.model_name, filespecs=filespecs,
 							timespan=self.timespan, return_periods=return_periods,
-							damping=damping)
+							damping=self.damping)
 
 	def interpolate_periods(self, out_periods):
 		"""
