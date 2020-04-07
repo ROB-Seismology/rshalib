@@ -477,7 +477,7 @@ def plot_hazard_curve(datasets, labels=[], colors=[], linestyles=[], linewidths=
 
 def plot_hazard_spectra(spec_list, labels=[], intensity_unit=None,
 						pgm_period=0.01, pgm_marker='o', plot_freq=False,
-						xscaling='log', yscaling='lin', xgrid=1, ygrid=1,
+						xscaling='log', yscaling='lin', xgrid=2, ygrid=1,
 						title="", fig_filespec=None, lang="en", **kwargs):
 	"""
 	Plot a list of hazard spectra
