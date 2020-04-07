@@ -23,6 +23,7 @@ from ..result import (SpectralHazardCurveField, SpectralHazardCurveFieldTree,
 from ..source import SourceModel
 from ..gsim import GroundMotionModel
 from .pshamodelbase import PSHAModelBase
+from .pshamodel import PSHAModel
 
 
 ## Minimum and maximum values for random number generator
@@ -327,7 +328,7 @@ class PSHAModelTree(PSHAModelBase):
 		root_folder = self.root_folder
 		optimized_gmpe_model = gmpe_model.get_optimized_model(source_model)
 		psha_model = PSHAModel(name, source_model, optimized_gmpe_model, root_folder,
-			site_model, ref_soil_params=self.ref_soil_params,
+			self.site_model, ref_soil_params=self.ref_soil_params,
 			imt_periods=self.imt_periods, intensities=self.intensities,
 			min_intensities=self.min_intensities, max_intensities=self.max_intensities,
 			num_intensities=self.num_intensities, return_periods=self.return_periods,
@@ -577,7 +578,7 @@ class PSHAModelTree(PSHAModelBase):
 			instance of :class:`GroundMotionModel', mapping tectonic
 			region type to GMPE name
 		"""
-		trts = self.gmpe_lt.tectonicRegionTypes
+		trts = self.gmpe_lt.tectonic_region_types
 		trt_gmpe_dict = {}
 		for l, branch_id in enumerate(path):
 			branch = self.gmpe_lt.get_branch_by_id(branch_id)
@@ -925,7 +926,7 @@ class PSHAModelTree(PSHAModelBase):
 				os.makedirs(folder)
 			## If there is only one TRT, it is possible to make subdirectories
 			## for each GMPE
-			trts = self.gmpe_lt.tectonicRegionTypes
+			trts = self.gmpe_lt.tectonic_region_types
 			if len(trts) == 1:
 				for gmpe_name in self.gmpe_lt.get_gmpe_names(trts[0]):
 					subfolder = os.path.join(folder, gmpe_name)
@@ -1284,6 +1285,8 @@ class PSHAModelTree(PSHAModelBase):
 		:return:
 			instance of :class:`DecomposedPSHAModelTree`
 		"""
+		from .decomposed_pshamodeltree import DecomposedPSHAModelTree
+
 		return DecomposedPSHAModelTree(self.name, self.source_model_lt,
 								self.gmpe_lt, self.root_folder, self.site_model,
 								self.ref_soil_params, self.imt_periods,
