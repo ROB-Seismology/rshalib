@@ -895,8 +895,9 @@ class GMPE(object):
 
 	def plot_pdf(self, M, d, h=0, imt="PGA", T=0, imt_unit="g",
 				sigma_truncations=[2,3], soil_type="rock", vs30=None, kappa=None,
-				mechanism="normal", damping=5, plot_style="lin", amax=None,
-				fig_filespec=None, title="", lang="en"):
+				mechanism="normal", damping=5,
+				xscaling="lin", xgrid=1, ygrid=1,
+				title=None, lang="en", fig_filespec=None, **kwargs):
 		"""
 		Plot probability density function versus ground motion.
 
@@ -935,33 +936,36 @@ class GMPE(object):
 			(default: "normal").
 		:param damping:
 			float, damping in percent.
-		:param plot_style:
-			str, plot style: either "lin" or "log"
+		:param xscaling:
+			str, How to scale X axis: either "lin" or "log"
 			(default: "lin")
-		:param amax:
-			float, maximum intensity value
-			(default: None).
+		:param xgrid:
+			int, 0/1/2/3 = draw no/major/minor/major+minor X grid lines
+			(default: 1)
+		:param ygrid:
+			cf. :param:`xgrid`, but for Y axis
+			(default: 1)
+		:param title:
+			str, plot title
+			(default: None)
+		:param lang:
+			str, shorthand for language of annotations ("en", "nl" or "fr")
+			(default: "en").
 		:param fig_filespec:
 			str, full path to output file for figure. If not specified,
 			figure will be shown on the screen
 			(default: None).
-		:param title:
-			str, plot title
-			(default: "")
-		:param lang:
-			str, shorthand for language of annotations.
-			Currently only "en" and "nl" are supported
-			(default: "en").
+		:kwargs:
+			additional keyword arguments understood by
+			:func:`generic_mpl.plot_xy`
 		"""
-		import pylab
-		from matplotlib.ticker import MultipleLocator
-
-		#TODO: remove ValuePdf dependency!
-		import stats.ValuePdf as ValuePdf
+		from matplotlib.mlab import normpdf
+		from plotting.generic_mpl import plot_xy
+		from ...utils import logrange
+		from .plot import get_imt_label
 
 		if not isinstance(sigma_truncations, (list, tuple)):
 			sigma_truncations = [sigma_truncations]
-		colors = ("r", "g", "b", "c", "m", "y", "k")
 
 		ah_mean = self.__call__(M, d, h=h, imt=imt, T=T, imt_unit=imt_unit,
 								soil_type=soil_type, vs30=vs30, kappa=kappa,
@@ -971,78 +975,66 @@ class GMPE(object):
 								damping=damping)
 		log_ah_mean = np.log10(ah_mean)
 
-		if plot_style == "lin":
+		num_sigma = 5.
+		log_amin = log_ah_mean - num_sigma * log_sigma
+		log_amax = log_ah_mean + num_sigma * log_sigma
+		log_pdf_unb_values = np.linspace(log_amin, log_amax, 250)
+		pdf_unb_values = 10**log_pdf_unb_values
+
+		datasets, labels = [], []
+		colors = kwargs.pop('colors', ["r", "g", "b", "c", "m", "y", "k"])
+		linewidths = kwargs.pop('linewidths', [2])
+
+		if xscaling == "lin":
 			## Linear horizontal axis
-			pdf_unb = ValuePdf.LogNormalValuePdf(log_ah_mean, log_sigma, base=10,
-									musigma_log=True, num_sigma=5, normalize=False)
-			pdf_unb_area = np.sum(pdf_unb.pdf)
-			pdf_list = []
-			for epsilon in sigma_truncations:
-				#max_val = pdf_unb.geometric_mean() * pdf_unb.geometric_sigma()**sigma
-				max_val = 10**(log_ah_mean + log_sigma * epsilon)
-				pdf = pdf_unb.copy()
-				pdf.truncate(max_val=max_val)
-				pdf.pad()
-				pdf.pdf *= pdf_unb_area
-				pdf_list.append(pdf)
-
-			label = {"en": "Unbounded", "nl": "Onbegrensd"}[lang.lower()]
-			pylab.plot(pdf_unb.values, pdf_unb.pdf, colors[0], linewidth=2, label=label)
-			i = 1
-			for epsilon, pdf_truncated in zip(sigma_truncations, pdf_list):
-				label = {"en": "Truncated at", "nl": "Afgeknot op"}[lang.lower()] + " +%d sigma" % epsilon
-				pylab.plot(pdf_truncated.values, pdf_truncated.pdf, colors[i], linewidth=2, label=label)
-				i += 1
-			label = get_imt_label(imt, lang.lower()) + " (%s)" % imt_unit
-			pylab.xlabel(label, fontsize="x-large")
-			xmin, xmax, ymin, ymax = pylab.axis()
-			if amax is None:
-				amax = xmax
-			pylab.axis((0, amax, ymin, ymax))
-
+			kwargs['xmin'] = kwargs.get('xmin', 0)
 		else:
 			## Logarithmic horizontal axis
-			pdf_unb = ValuePdf.NormalValuePdf(log_ah_mean, log_sigma, num_sigma=5, normalize=True)
-			pdf_list = []
-			for epsilon in sigma_truncations:
-				max_val = log_ah_mean + log_sigma * epsilon
-				pdf = pdf_unb.copy()
-				pdf.truncate(max_val=max_val)
-				pdf.pad()
-				pdf_list.append(pdf)
-			label= {"en": "Unbounded", "nl": "Onbegrensd"}[lang.lower()]
-			pylab.plot(pdf_unb.values, pdf_unb.pdf, colors[0], linewidth=2, label=label)
-			i = 1
-			for epsilon, pdf_truncated in zip(sigma_truncations, pdf_list):
-				label = {"en": "Truncated at", "nl": "Afgeknot op"}[lang.lower()] + " +%d sigma" % epsilon
-				pylab.plot(pdf_truncated.values, pdf_truncated.pdf, colors[i], linewidth=2, label=label)
-				i += 1
-			label = "Log " + get_imt_label(imt, lang.lower()) + " (%s)" % imt_unit
-			pylab.xlabel(label, fontsize="x-large")
-			xmin, xmax, ymin, ymax = pylab.axis()
-			pylab.axis((xmin, 3.0, ymin, ymax))
+			pass
+
+		pdf_unb_pdf = normpdf(log_pdf_unb_values, log_ah_mean, log_sigma)
+		pdf_unb_pdf /= np.sum(pdf_unb_pdf)
+		datasets.append((pdf_unb_values, pdf_unb_pdf))
+		label = {"en": "Unbounded",
+				"nl": "Onbegrensd",
+				"fr": "Sans bornes"}[lang.lower()]
+		labels.append(label)
+
+		for e, epsilon in enumerate(sigma_truncations):
+			min_log_val = log_ah_mean - log_sigma * epsilon
+			max_log_val = log_ah_mean + log_sigma * epsilon
+			imin = np.where(log_pdf_unb_values >= min_log_val)[0][0] - 1
+			imin = max(0, imin)
+			imax = np.where(log_pdf_unb_values <= max_log_val)[0][-1] + 2
+			pdf_trunc_values = pdf_unb_values[imin:imax]
+			pdf_trunc_pdf = pdf_unb_pdf[imin:imax].copy()
+			pdf_trunc_pdf[0] = pdf_trunc_pdf[-1] = 0.
+			pdf_trunc_pdf /= np.sum(pdf_trunc_pdf)
+			label = {"en": "Truncated at",
+					"nl": "Afgeknot op",
+					"fr": "Tronqué à"}[lang.lower()]
+			label += " +%d sigma" % epsilon
+			datasets.append((pdf_trunc_values, pdf_trunc_pdf))
+			labels.append(label)
 
 		## Plot decorations
-		pylab.ylabel({"en": "Probability density", "nl": "Kansdichtheid"}[lang.lower()], fontsize="x-large")
-		pylab.grid(True)
-		if not title:
-			title = "%s" % self.name + {"en": " GMPE", "nl": " dempingswet"}[lang.lower()]
-		title += "\nM=%.1f, r=%.1f km, h=%d km" % (M, d, int(round(h)))
-		title += ", %s" % imt.upper()
-		if len(self.imt_periods[imt]) > 1:
-			title += " (T=%.1f s)" % T
-		pylab.title(title)
-		pylab.legend(loc=0)
-		ax = pylab.gca()
-		minorLocator = MultipleLocator(0.1)
-		ax.xaxis.set_minor_locator(minorLocator)
-		for label in ax.get_xticklabels() + ax.get_yticklabels():
-			label.set_size('large')
-		if fig_filespec:
-			pylab.savefig(fig_filespec, dpi=300)
-			pylab.clf()
-		else:
-			pylab.show()
+		kwargs['xlabel'] = kwargs.get('xlabel',
+										(get_imt_label(imt, lang.lower())
+										+ " (%s)" % imt_unit))
+		kwargs['ylabel'] = kwargs.get('ylabel', {"en": "Probability density",
+													"nl": "Kansdichtheid"}[lang.lower()])
+
+		if title is None:
+			title = "%s" % self.name + {"en": " GMPE",
+										"nl": " dempingswet"}[lang.lower()]
+			title += "\nM=%.1f, r=%.1f km, h=%d km" % (M, d, int(round(h)))
+			title += ", %s" % imt.upper()
+			if len(self.imt_periods[imt]) > 1:
+				title += " (T=%.1f s)" % T
+
+		return plot_xy(datasets, labels=labels, colors=colors, linewidths=linewidths,
+					xscaling=xscaling, xgrid=xgrid, ygrid=ygrid,
+					title=title, fig_filespec=fig_filespec, **kwargs)
 
 	def plot_distance(self, mags, dmin=None, dmax=None, distance_metric=None,
 						h=0, imt="PGA", T=0, imt_unit="g", epsilon=0,
