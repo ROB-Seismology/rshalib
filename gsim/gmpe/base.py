@@ -1013,7 +1013,7 @@ class GMPE(object):
 			label = {"en": "Truncated at",
 					"nl": "Afgeknot op",
 					"fr": "Tronqué à"}[lang.lower()]
-			label += " +%d sigma" % epsilon
+			label += " %d sigma" % epsilon
 			datasets.append((pdf_trunc_values, pdf_trunc_pdf))
 			labels.append(label)
 
@@ -1022,11 +1022,13 @@ class GMPE(object):
 										(get_imt_label(imt, lang.lower())
 										+ " (%s)" % imt_unit))
 		kwargs['ylabel'] = kwargs.get('ylabel', {"en": "Probability density",
-													"nl": "Kansdichtheid"}[lang.lower()])
+													"nl": "Kansdichtheid",
+													"fr": "Densityé de probabilité"}[lang.lower()])
 
 		if title is None:
 			title = "%s" % self.name + {"en": " GMPE",
-										"nl": " dempingswet"}[lang.lower()]
+										"nl": " dempingswet",
+										"fr": " loi d'atténuation"}[lang.lower()]
 			title += "\nM=%.1f, r=%.1f km, h=%d km" % (M, d, int(round(h)))
 			title += ", %s" % imt.upper()
 			if len(self.imt_periods[imt]) > 1:
