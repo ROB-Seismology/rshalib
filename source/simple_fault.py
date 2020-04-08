@@ -24,7 +24,7 @@ from .point import PointSource
 __all__ = ['SimpleFaultSource']
 
 
-class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
+class SimpleFaultSource(RuptureSource, oqhazlib.source.SimpleFaultSource):
 	"""
 	Class representing a simple fault source.
 
@@ -748,7 +748,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 
 		## Construct WGS84 projection system corresponding to earthquake coordinates
 		wgs84 = osr.SpatialReference()
-		wgs84.SetWellKnownGeogCS(bytes("WGS84"))
+		## Note: str for PY2/3 compatibility
+		wgs84.SetWellKnownGeogCS(str("WGS84"))
 
 		## Create line
 		line = ogr.Geometry(type=ogr.wkbLineString)
