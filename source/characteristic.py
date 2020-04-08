@@ -6,13 +6,6 @@ CharacteristicFaultSource class
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-try:
-	## Python 2
-	basestring
-except:
-	## Python 3
-	basestring = str
-
 
 ## Note: Don't use np as abbreviation for nodalplane!!
 import numpy as np
@@ -39,13 +32,36 @@ class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, Ruptu
 	We do not support the case where characteristic fault sources are defined
 	by multiple planar surfaces, but only the cases with simple fault surfaces
 	or complex fault surfaces.
+
+	:param timespan:
+		float, timespan for Poisson temporal occurrence model.
+		Introduced in more recent versions of OpenQuake
+		(default: 1)
 	"""
-	def __init__(self, source_id, name, tectonic_region_type, mfd, surface, rake):
-		super(CharacteristicFaultSource, self).__init__(source_id, name,
-								tectonic_region_type, mfd, surface, rake)
+	def __init__(self, source_id, name, tectonic_region_type, mfd, surface, rake,
+				timespan=1):
+		self.timespan = timespan
+		## OQ version dependent keyword arguments
+		oqver_kwargs = {}
+		if OQ_VERSION > '2.9.0':
+			oqver_kwargs['temporal_occurrence_model'] = self.tom
+		super(CharacteristicFaultSource, self).__init__(source_id=source_id,
+								name=name,
+								tectonic_region_type=tectonic_region_type,
+								mfd=mfd,
+								surface=surface,
+								rake=rake,
+								**oqver_kwargs)
 
 	def __repr__(self):
 		return '<CharacteristicFaultSource #%s>' % self.source_id
+
+	@property
+	def tom(self):
+		"""
+		Temporal occurrence model
+		"""
+		return oqhazlib.tom.PoissonTOM(self.timespan)
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
