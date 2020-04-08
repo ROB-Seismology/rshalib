@@ -71,7 +71,7 @@ class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 
 		## OQ version dependent keyword arguments
 		oqver_kwargs = {}
-		if OQ_VERSION > '2.9.0':
+		if OQ_VERSION >= '2.9.0':
 			oqver_kwargs['temporal_occurrence_model'] = self.tom
 		super(ComplexFaultSource, self).__init__(source_id=source_id,
 				name=name,
