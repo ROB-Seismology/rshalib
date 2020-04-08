@@ -1,10 +1,20 @@
+"""
+Bakun & Wentworth (1997)
+"""
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 
 import numpy as np
 
-import openquake.hazardlib as oqhazlib
+from .. import oqhazlib
 
 from ..gsim import InverseGSIM
 from ..site import SoilSiteModel
+
+
+
+__all__ = ['estimate_epicenter_location_and_magnitude_from_intensities']
 
 
 def estimate_epicenter_location_and_magnitude_from_intensities(
