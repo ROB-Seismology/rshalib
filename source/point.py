@@ -6,20 +6,14 @@ PointSource class
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-try:
-	## Python 2
-	basestring
-except:
-	## Python 3
-	basestring = str
-
 
 ## Note: Don't use np as abbreviation for nodalplane!!
 import numpy as np
 import pylab
 
-from .. import oqhazlib
+from .. import (oqhazlib, OQ_VERSION)
 
+from ..msr import get_oq_msr
 from ..mfd import (TruncatedGRMFD, EvenlyDiscretizedMFD)
 from ..geo import Point, NodalPlane
 from ..pmf import HypocentralDepthDistribution, NodalPlaneDistribution
@@ -74,17 +68,26 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		:class:`HypocentralDepthDistribution` with values being float numbers
 		in km representing the depth of the hypocenter. Latitude and longitude
 		of the hypocenter is always set to ones of ``location``.
+	:param timespan:
+		float, timespan for Poisson temporal occurrence model.
+		Introduced in more recent versions of OpenQuake
+		(default: 1)
 	"""
 	def __init__(self, source_id, name, tectonic_region_type, mfd,
 				rupture_mesh_spacing, magnitude_scaling_relationship,
 				rupture_aspect_ratio,
 				upper_seismogenic_depth, lower_seismogenic_depth, location,
-				nodal_plane_distribution, hypocenter_distribution):
+				nodal_plane_distribution, hypocenter_distribution,
+				timespan=1):
 		"""
 		"""
-		if isinstance(magnitude_scaling_relationship, basestring):
-			magnitude_scaling_relationship = getattr(oqhazlib.scalerel,
-											magnitude_scaling_relationship)()
+		self.timespan = timespan
+		magnitude_scaling_relationship = get_oq_msr(magnitude_scaling_relationship)
+
+		## OQ version dependent keyword arguments
+		oqver_kwargs = {}
+		if OQ_VERSION > '2.9.0':
+			oqver_kwargs['temporal_occurrence_model'] = self.tom
 		super(PointSource, self).__init__(source_id=source_id,
 				name=name,
 				tectonic_region_type=tectonic_region_type,
@@ -96,10 +99,18 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 				lower_seismogenic_depth=lower_seismogenic_depth,
 				location=location,
 				nodal_plane_distribution=nodal_plane_distribution,
-				hypocenter_distribution=hypocenter_distribution)
+				hypocenter_distribution=hypocenter_distribution,
+				**oqver_kwargs)
 
 	def __repr__(self):
 		return '<PointSource #%s>' % self.source_id
+
+	@property
+	def tom(self):
+		"""
+		Temporal occurrence model
+		"""
+		return oqhazlib.tom.PoissonTOM(self.timespan)
 
 	@classmethod
 	def from_eq_record(cls, eq, Mtype="MW", Mrelation={},
@@ -108,7 +119,7 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 				rupture_mesh_spacing=1., rupture_aspect_ratio=1.,
 				upper_seismogenic_depth=5., lower_seismogenic_depth=25.,
 				nodal_plane_distribution=None, hypocenter_distribution=None,
-				synthetic=False):
+				synthetic=False, timespan=1):
 		"""
 		Construct point source from earthquake object
 
@@ -174,10 +185,11 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 			np4 = NodalPlane(270, 45, 0)
 			npd = NodalPlaneDistribution([np1, np2, np3, np4], [0.25] * 4)
 
-		return PointSource(source_id, name, tectonic_region_type, mfd,
+		return cls(source_id, name, tectonic_region_type, mfd,
 					rupture_mesh_spacing, magnitude_scaling_relationship,
 					rupture_aspect_ratio, upper_seismogenic_depth,
-					lower_seismogenic_depth, location, npd, hdd)
+					lower_seismogenic_depth, location, npd, hdd,
+					timespan=timespan)
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
@@ -191,6 +203,7 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 		from ..nrml import ns
 		from ..nrml.common import xmlstr
 
+		#TODO: temporal_occurrence_model in recent versions of OQ??
 		pointSource_elem = etree.Element(ns.POINT_SOURCE)
 		pointSource_elem.set(ns.ID, xmlstr(self.source_id, encoding=encoding))
 		pointSource_elem.set(ns.NAME, xmlstr(self.name, encoding=encoding))
