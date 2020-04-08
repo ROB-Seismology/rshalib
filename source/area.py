@@ -6,19 +6,13 @@ AreaSource class
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-try:
-	## Python 2
-	basestring
-except:
-	## Python 3
-	basestring = str
-
 
 ## Note: Don't use np as abbreviation for nodalplane!!
 import numpy as np
 
 from .. import oqhazlib
 
+from ..msr import get_oq_msr
 from ..mfd import (TruncatedGRMFD, EvenlyDiscretizedMFD)
 from .rupture_source import RuptureSource
 from .point import PointSource
@@ -76,18 +70,26 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 	:param area_discretization:
 		Float number, polygon area discretization spacing in kilometers.
 		See :meth:`iter_ruptures`.
-	"""
+	:param timespan:
+	float, timespan for Poisson temporal occurrence model.
+	Introduced in more recent versions of OpenQuake
+	(default: 1)
+"""
 	def __init__(self, source_id, name, tectonic_region_type, mfd,
 				rupture_mesh_spacing, magnitude_scaling_relationship,
 				rupture_aspect_ratio,
 				upper_seismogenic_depth, lower_seismogenic_depth,
 				nodal_plane_distribution, hypocenter_distribution,
-				polygon, area_discretization):
+				polygon, area_discretization, timespan=1):
 		"""
 		"""
-		if isinstance(magnitude_scaling_relationship, basestring):
-			magnitude_scaling_relationship = getattr(oqhazlib.scalerel,
-											magnitude_scaling_relationship)()
+		self.timespan = timespan
+		magnitude_scaling_relationship = get_oq_msr(magnitude_scaling_relationship)
+
+		## OQ version dependent keyword arguments
+		oqver_kwargs = {}
+		if OQ_VERSION > '2.9.0':
+			oqver_kwargs['temporal_occurrence_model'] = self.tom
 		super(AreaSource, self).__init__(source_id=source_id,
 				name=name,
 				tectonic_region_type=tectonic_region_type,
@@ -100,10 +102,18 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 				nodal_plane_distribution=nodal_plane_distribution,
 				hypocenter_distribution=hypocenter_distribution,
 				polygon=polygon,
-				area_discretization=area_discretization)
+				area_discretization=area_discretization,
+				**oqver_args)
 
 	def __repr__(self):
 		return '<AreaSource #%s>' % self.source_id
+
+	@property
+	def tom(self):
+		"""
+		Temporal occurrence model
+		"""
+		return oqhazlib.tom.PoissonTOM(self.timespan)
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
@@ -361,7 +371,8 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 								mfd, self.rupture_mesh_spacing,self.magnitude_scaling_relationship,
 								self.rupture_aspect_ratio, self.upper_seismogenic_depth,
 								self.lower_seismogenic_depth, epicenter,
-								self.nodal_plane_distribution, self.hypocenter_distribution)
+								self.nodal_plane_distribution, self.hypocenter_distribution,
+								timespan=self.timespan)
 			point_sources.append(ptsrc)
 		return point_sources
 
