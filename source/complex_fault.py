@@ -6,19 +6,13 @@ ComplexFaultSource class
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-try:
-	## Python 2
-	basestring
-except:
-	## Python 3
-	basestring = str
-
 
 ## Note: Don't use np as abbreviation for nodalplane!!
 import numpy as np
 
 from .. import oqhazlib
 
+from ..msr import get_oq_msr
 from ..mfd import *
 from ..geo import Line
 from .rupture_source import RuptureSource
@@ -61,16 +55,24 @@ class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 		:meth:`oqhazlib.geo.surface.complex_fault.ComplexFaultSurface.from_fault_data`
 	:param rake:
 		Angle describing fault rake in decimal degrees.
-
+	:param timespan:
+		float, timespan for Poisson temporal occurrence model.
+		Introduced in more recent versions of OpenQuake
+		(default: 1)
 	"""
 	# TODO: add bg_zone parameter as for SimpleFaultSource
 	def __init__(self, source_id, name, tectonic_region_type, mfd,
 				rupture_mesh_spacing, magnitude_scaling_relationship,
-				rupture_aspect_ratio, edges, rake):
+				rupture_aspect_ratio, edges, rake, timespan=1):
 		"""
 		"""
-		if isinstance(magnitude_scaling_relationship, (str, unicode)):
-			magnitude_scaling_relationship = getattr(oqhazlib.scalerel, magnitude_scaling_relationship)()
+		self.timespan = timespan
+		magnitude_scaling_relationship = get_oq_msr(magnitude_scaling_relationship)
+
+		## OQ version dependent keyword arguments
+		oqver_kwargs = {}
+		if OQ_VERSION > '2.9.0':
+			oqver_kwargs['temporal_occurrence_model'] = self.tom
 		super(ComplexFaultSource, self).__init__(source_id=source_id,
 				name=name,
 				tectonic_region_type=tectonic_region_type,
@@ -79,10 +81,18 @@ class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 				magnitude_scaling_relationship=magnitude_scaling_relationship,
 				rupture_aspect_ratio=rupture_aspect_ratio,
 				edges=edges,
-				rake=rake)
+				rake=rake,
+				**oqver_args)
 
 	def __repr__(self):
 		return '<ComplexFaultSource #%s>' % self.source_id
+
+	@property
+	def tom(self):
+		"""
+		Temporal occurrence model
+		"""
+		return oqhazlib.tom.PoissonTOM(self.timespan)
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
@@ -175,7 +185,8 @@ class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
 			self.edges, self.rupture_mesh_spacing)
 
 		return CharacteristicFaultSource(self.source_id, self.name,
-			self.tectonic_region_type, self.mfd, surface, self.rake)
+			self.tectonic_region_type, self.mfd, surface, self.rake,
+			timespan=self.timespan)
 
 
 
