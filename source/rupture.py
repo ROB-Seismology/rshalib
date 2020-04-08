@@ -93,7 +93,7 @@ class Rupture(_base_class):
 		surface = point_source._get_rupture_surface(mag, nodal_plane, hypocenter)
 
 		extra_kwargs = {}
-		if oqhazlib_version >= '2.9.0':
+		if OQ_VERSION >= '2.9.0':
 			extra_kwargs = {'rupture_slip_direction': slip_direction}
 		rupture = cls(mag, rake, trt, hypocenter, surface,
 						source_typology=oqhazlib.source.PointSource, **extra_kwargs)
