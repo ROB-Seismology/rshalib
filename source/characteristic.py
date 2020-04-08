@@ -22,7 +22,7 @@ from .rupture_source import RuptureSource
 __all__ = ['CharacteristicFaultSource']
 
 
-class CharacteristicFaultSource(oqhazlib.source.CharacteristicFaultSource, RuptureSource):
+class CharacteristicFaultSource(RuptureSource, oqhazlib.source.CharacteristicFaultSource):
 	"""
 	Class representing a characteristic source, this is a fault surface
 	with seismic events rupturing the entire fault surface
