@@ -4,16 +4,10 @@ Ruptures
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-try:
-	## Python 2
-	basestring
-except:
-	## Python 3
-	basestring = str
-
 
 from .. import oqhazlib, OQ_VERSION
 
+from ..msr import get_oq_msr
 from ..geo import NodalPlane, Point
 from ..pmf import HypocentralDepthDistribution, NodalPlaneDistribution
 
@@ -85,17 +79,22 @@ class Rupture(_base_class):
 		nodal_plane = NodalPlane(strike, dip, rake)
 		npd = NodalPlaneDistribution([nodal_plane], [1.])
 		hdd = HypocentralDepthDistribution([depth], [1.])
-		if (not isinstance(msr, oqhazlib.scalerel.BaseMSR)
-			and isinstance(msr, basestring)):
-			msr = getattr(oqhazlib.scalerel, msr)()
-		point_source = oqhazlib.source.PointSource("", "", trt, "", rms, msr,
+		msr = get_oq_msr(msr)
+
+		if OQ_VERSION >= '2.9.0':
+			tom = oqhazlib.tom.PoissonTom(1)
+			point_source = oqhazlib.source.PointSource("", "", trt, "", rms, msr,
+										rar, tom, usd, lsd, hypocenter, npd, hdd)
+		else:
+			point_source = oqhazlib.source.PointSource("", "", trt, "", rms, msr,
 											rar, usd, lsd, hypocenter, npd, hdd)
 		surface = point_source._get_rupture_surface(mag, nodal_plane, hypocenter)
 
-		extra_kwargs = {}
+		## OpenQuake version dependent keyword arguments
+		oqver_kwargs = {}
 		if OQ_VERSION >= '2.9.0':
-			extra_kwargs = {'rupture_slip_direction': slip_direction}
+			oqver_kwargs = {'rupture_slip_direction': slip_direction}
 		rupture = cls(mag, rake, trt, hypocenter, surface,
-						source_typology=oqhazlib.source.PointSource, **extra_kwargs)
+						source_typology=oqhazlib.source.PointSource, **oqver_kwargs)
 
 		return rupture
