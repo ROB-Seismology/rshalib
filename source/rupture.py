@@ -82,7 +82,7 @@ class Rupture(_base_class):
 		msr = get_oq_msr(msr)
 
 		if OQ_VERSION >= '2.9.0':
-			tom = oqhazlib.tom.PoissonTom(1)
+			tom = oqhazlib.tom.PoissonTOM(1)
 			point_source = oqhazlib.source.PointSource("", "", trt, "", rms, msr,
 										rar, tom, usd, lsd, hypocenter, npd, hdd)
 		else:
