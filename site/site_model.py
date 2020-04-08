@@ -17,8 +17,9 @@ from lxml import etree
 
 import numpy as np
 
-from .. import oqhazlib
-from openquake.hazardlib.geo.geodetic import geodetic_distance
+from .. import (oqhazlib, OQ_VERSION)
+from openquake.hazardlib.geo.geodetic import (geodetic_distance,
+											min_geodetic_distance)
 
 from ..nrml import ns
 from ..nrml.common import (create_nrml_root, xmlstr)
@@ -539,6 +540,10 @@ class GenericSiteModel(oqhazlib.geo.Mesh):
 		else:
 			return None
 
+	@property
+	def mesh(self):
+		return ohazlib.geo.Mesh(lons=self.lons, lats=self.lats)
+
 	def get_spherical_distances(self, lon, lat):
 		"""
 		Get the spherical distance between each site in the model and a
@@ -571,7 +576,14 @@ class GenericSiteModel(oqhazlib.geo.Mesh):
 			int, index of site
 		"""
 		mesh = self.__class__(lons=np.array([lon]), lats=np.array([lat]))
-		i = self._geodetic_min_distance(mesh, True)
+		## OQ version dependent
+		## Note: it is also possible to use geo.geodetic.min_geodetic_distance
+		## but the call signature is also version dependent
+		if OQ_VERSION >= '2.9.0':
+			i = self._min_idx_dst(mesh)
+		else:
+			i = self._geodetic_min_distance(mesh, True)
+		i = np.argmin(distances)
 		if not flat_index:
 			i = np.unravel_index(i, self.shape)
 		return i
