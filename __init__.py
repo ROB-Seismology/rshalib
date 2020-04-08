@@ -69,6 +69,12 @@ if not reloading:
 else:
 	reload(poisson)
 
+## msr (no internal dependencies)
+if not reloading:
+	from . import msr
+else:
+	reload(msr)
+
 ## cav (no internal dependencies)
 if not reloading:
 	from . import cav
@@ -81,6 +87,7 @@ if not reloading:
 	import openquake.hazardlib as oqhazlib
 else:
 	reload(oqhazlib)
+OQ_VERSION = oqhazlib.__version__
 
 ## calc (no internal dependencies)
 if not reloading:
@@ -118,7 +125,13 @@ if not reloading:
 else:
 	reload(source)
 
-## rob (depends on geo, mfd, pmf, source)
+## logictree (depends on nrml, pmf, source)
+if not reloading:
+	from .import logictree
+else:
+	reload(logictree)
+
+## rob (depends on geo, mfd, pmf, source, logictree)
 if not reloading:
 	from . import rob
 else:
@@ -130,19 +143,26 @@ if not reloading:
 else:
 	reload(result)
 
-## TODO: move below rob, oqhazlib_gmpe depends on source.rupture!!
-## Or better: below result, as we want get_spectrum to return ResponseSpectrum
-## gsim (depends on utils, cav)
+## gsim (depends on utils, cav, source, result)
 if not reloading:
 	from . import gsim
 else:
 	reload(gsim)
 
+
+## source_estimation (depnds on gsim, site, pmf)
+if not reloading:
+	from . import source_estimation
+else:
+	reload(source_estimation)
+
+"""
 ## siteresponse (depends on calc, utils, result)
 if not reloading:
 	from . import siteresponse
 else:
 	reload(siteresponse)
+"""
 
 ## crisis (depends on mfd, result, source)
 if not reloading:
@@ -155,12 +175,6 @@ if not reloading:
 	from . import openquake
 else:
 	reload(openquake)
-
-## logictree (depends on nrml, pmf, source)
-if not reloading:
-	from .import logictree
-else:
-	reload(logictree)
 
 ## shamodel (depends on calc, crisis, geo, gsim, logictree, openquake, pmf,
 ## result, site, source)
