@@ -1,13 +1,36 @@
-#
-# Empty file necessary for python to recognise directory as package
-#
+"""
+Estimation of source parameters from intensity/ground-motion distribution
+"""
 
-import bakun_wentworth_1997
-reload(bakun_wentworth_1997)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-import probabilistic
-reload(probabilistic)
 
-from bakun_wentworth_1997 import estimate_epicenter_location_and_magnitude_from_intensities
 
-from probabilistic import calc_rupture_probability_from_ground_motion_thresholds
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
+
+
+if not reloading:
+	from . import bakun_wentworth_1997
+else:
+	reload(bakun_wentworth_1997)
+from .bakun_wentworth_1997 import *
+
+if not reloading:
+	from . import probabilistic
+else:
+	reload(probabilistic)
+from .probabilistic import *
