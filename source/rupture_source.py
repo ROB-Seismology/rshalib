@@ -109,7 +109,7 @@ class RuptureSource():
 		"""
 		## OpenQuake version dependent call
 		if OQ_VERSION >= '2.9.0':
-			event_set = list(oqhazlib.calc.stochastic_event_set([self])
+			event_set = list(oqhazlib.calc.stochastic_event_set([self]))
 		else:
 			timespan = timespan or self.timespan
 			event_set = list(oqhazlib.calc.stochastic_event_set_poissonian([self],
