@@ -23,52 +23,51 @@ from ..mfd import sum_mfds
 from . import (PointSource, AreaSource, SimpleFaultSource, ComplexFaultSource,
 				CharacteristicFaultSource)
 
-import jsonpickle
-
 
 __all__ = ['SourceModel']
 
 
 # Note: not sure if these handlers are necessary (for to/from_json methods?)
-import base64, zlib
+#import base64, zlib
+#import jsonpickle
 
-class NumpyFloatHandler(jsonpickle.handlers.BaseHandler):
-    def flatten(self, obj, data):
-        """
-        Converts and round to float an encod
-        """
-        return round(obj,6)
+#class NumpyFloatHandler(jsonpickle.handlers.BaseHandler):
+#    def flatten(self, obj, data):
+#        """
+#        Converts and round to float an encod
+#        """
+#        return round(obj,6)
 
-jsonpickle.handlers.registry.register(np.float, NumpyFloatHandler)
-jsonpickle.handlers.registry.register(np.float32, NumpyFloatHandler)
-jsonpickle.handlers.registry.register(np.float64, NumpyFloatHandler)
+#jsonpickle.handlers.registry.register(np.float, NumpyFloatHandler)
+#jsonpickle.handlers.registry.register(np.float32, NumpyFloatHandler)
+#jsonpickle.handlers.registry.register(np.float64, NumpyFloatHandler)
 
 
-class NDArrayHandler(jsonpickle.handlers.BaseHandler):
-	"""
-	A JSON-pickler for NumPy arrays.
+#class NDArrayHandler(jsonpickle.handlers.BaseHandler):
+#	"""
+#	A JSON-pickler for NumPy arrays.
 
-	The raw bytes are compressed using zlib and then base 64 encoded.
-	"""
+#	The raw bytes are compressed using zlib and then base 64 encoded.
+#	"""
 
-	def flatten(self, arr, data):
-		dtype = arr.dtype.str
-		if dtype != '|O4':
-			data['dtype'] = dtype
-			data['bytes'] = base64.b64encode(zlib.compress(arr.tostring()))
-			data['shape'] = arr.shape
-		else:
-			## Object arrays
-			p = jsonpickle.pickler.Pickler()
-			data = p.flatten(arr.tolist())
-		return data
+#	def flatten(self, arr, data):
+#		dtype = arr.dtype.str
+#		if dtype != '|O4':
+#			data['dtype'] = dtype
+#			data['bytes'] = base64.b64encode(zlib.compress(arr.tostring()))
+#			data['shape'] = arr.shape
+#		else:
+#			## Object arrays
+#			p = jsonpickle.pickler.Pickler()
+#			data = p.flatten(arr.tolist())
+#		return data
 
-	def restore(self, data):
-		byte_str = zlib.decompress(base64.b64decode(data['bytes']))
-		array = np.fromstring(byte_str, dtype=data['dtype'])
-		return array.reshape(data['shape'])
+#	def restore(self, data):
+#		byte_str = zlib.decompress(base64.b64decode(data['bytes']))
+#		array = np.fromstring(byte_str, dtype=data['dtype'])
+#		return array.reshape(data['shape'])
 
-jsonpickle.handlers.registry.register(np.ndarray, NDArrayHandler)
+#jsonpickle.handlers.registry.register(np.ndarray, NDArrayHandler)
 
 
 class SourceModel():
@@ -140,13 +139,13 @@ class SourceModel():
 	def source_ids(self):
 		return [src.source_id for src in self.sources]
 
-	def to_json(self):
-		return jsonpickle.encode(self)
+	#def to_json(self):
+	#	return jsonpickle.encode(self)
 
 	# TODO: not sure if this worked before, but it doesn't work now
-	@classmethod
-	def from_json(cls, json_string):
-		return jsonpickle.decode(json_string)
+	#@classmethod
+	#def from_json(cls, json_string):
+	#	return jsonpickle.decode(json_string)
 
 	@classmethod
 	def from_eq_catalog(cls, eq_catalog, Mtype="MW", Mrelation={},
