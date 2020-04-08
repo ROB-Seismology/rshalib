@@ -24,7 +24,7 @@ from .rupture_source import RuptureSource
 __all__ = ['PointSource']
 
 
-class PointSource(oqhazlib.source.PointSource, RuptureSource):
+class PointSource(RuptureSource, oqhazlib.source.PointSource):
 	"""
 	Class representing a point source, corresponding to a single
 	geographic site
@@ -273,7 +273,8 @@ class PointSource(oqhazlib.source.PointSource, RuptureSource):
 
 		## Construct WGS84 projection system corresponding to earthquake coordinates
 		wgs84 = osr.SpatialReference()
-		wgs84.SetWellKnownGeogCS(bytes("WGS84"))
+		## Note: str for PY2/3 compatibility
+		wgs84.SetWellKnownGeogCS(str("WGS84"))
 
 		## Create point object
 		point = ogr.Geometry(ogr.wkbPoint)
