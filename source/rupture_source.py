@@ -8,7 +8,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import numpy as np
 
-import openquake.hazardlib as oqhazlib
+from .. import (oqhazlib, OQ_VERSION)
 from openquake.hazardlib.source import (PointSource, AreaSource, SimpleFaultSource,
 									ComplexFaultSource, CharacteristicFaultSource)
 
@@ -18,22 +18,44 @@ __all__ = ['RuptureSource']
 
 class RuptureSource():
 	"""
-	Class containing methods to explore rupture data
+	Mixin class containing methods to explore rupture data
 	independent of source type.
 
 	The number of ruptures generated in an area source is equal to
 	the number of area discretization points x number of magnitude bins
 	x number of hypocentral depths x number of nodal planes
 	"""
-	def get_ruptures_Poisson(self, mag=None, strike=None, dip=None, rake=None,
-							depth=None, timespan=1):
+	def iter_ruptures(self, tom=None):
+		"""
+		OQ version-independent wrapper for :meth:`iter_ruptures`
+
+		:param tom:
+			instance of :class:`oqhazlib.tom.PoissonTOM` or None
+			(default: None)
+		"""
+		if tom:
+			timespan = self.timespan
+			self.timespan = tom.time_span
+
+		## OpenQuake version dependent arguments
+		oqver_args = []
+		if OQ_VERSION < '2.9.0':
+			oqver_args = [self.tom]
+		for rup in super(RuptureSource, self).iter_ruptures(*oqver_args):
+			yield rup
+
+		if tom:
+			self.timespan = timespan
+
+	def get_ruptures_poisson(self, mag=None, strike=None, dip=None, rake=None,
+							depth=None, timespan=None):
 		"""
 		Generate ruptures according to Poissonian temporal occurrence model,
 		optionally filtering by magnitude, strike, dip and rake.
 
 		:param timespan:
 			float, time interval for Poisson distribution, in years
-			(default: 1)
+			(default: None, will use :prop:`timespan`)
 		:param mag:
 			float, magnitude value (center of bin) of ruptures to plot
 			(default: None)
@@ -49,7 +71,10 @@ class RuptureSource():
 		:return:
 			list of instances of :class:`ProbabilisticRupture`
 		"""
-		tom = oqhazlib.tom.PoissonTOM(timespan)
+		if timespan:
+			tom = oqhazlib.tom.PoissonTOM(timespan)
+		else:
+			tom = None
 		ruptures = list(self.iter_ruptures(tom))
 
 		## Filter by magnitude, strike, dip, and rake
@@ -68,7 +93,7 @@ class RuptureSource():
 						if np.allclose(rup.hypocenter.depth, depth)]
 		return ruptures
 
-	def get_stochastic_event_set_Poisson(self, timespan):
+	def get_stochastic_event_set_poisson(self, timespan=None):
 		"""
 		Generate a random set of ruptures following a Poissonian temporal
 		occurrence model. The stochastic event set represents a possible
@@ -77,12 +102,18 @@ class RuptureSource():
 
 		:param timespan:
 			float, time interval for Poisson distribution, in years
+			(default: None, will use :prop:`timespan`)
 
 		:return:
 			list of instances of :class:`ProbabilisticRupture`
 		"""
-		event_set = list(oqhazlib.calc.stochastic_event_set_poissonian([self],
-																	timespan))
+		## OpenQuake version dependent call
+		if OQ_VERSION >= '2.9.0':
+			event_set = list(oqhazlib.calc.stochastic_event_set([self])
+		else:
+			timespan = timespan or self.timespan
+			event_set = list(oqhazlib.calc.stochastic_event_set_poissonian([self],
+																		timespan))
 		return event_set
 
 	def get_rupture_bounds(self, rupture):
@@ -144,7 +175,9 @@ class RuptureSource():
 			depths = np.array([rup.hypocenter.depth for rup in ruptures])
 		return lons, lats, depths
 
-	def plot_rupture_mags_vs_occurrence_rates(self, color_param=None, timespan=1):
+	def plot_rupture_mags_vs_occurrence_rates(self, color_param=None,
+										timespan=None,
+										marker='o', cmap='jet', **kwargs):
 		"""
 		Plot rupture magnitudes with respect to occurrence rates
 
@@ -154,11 +187,24 @@ class RuptureSource():
 			(default: None)
 		:param timespan:
 			float, time interval for Poisson distribution, in years
-			(default: 1)
-		"""
-		import pylab
+			(default: None, will use :prop:`timespan`)
+		:param marker:
+			char, matplotlib marker style
+			(default: 'o')
+		:param cmap:
+			str, name of color map to use if :param:`color_param` is set
+			(default: 'jet')
+		:kwargs:
+			optional keyword arguments understood by
+			:func:`generic_mpl.plot_xy`
 
-		ruptures = self.get_ruptures_Poisson(timespan=timespan)
+		:return:
+			matplotlib Axes instance
+		"""
+		import matplotlib
+		from plotting.generic_mpl import plot_xy
+
+		ruptures = self.get_ruptures_poisson(timespan=timespan)
 		mags = np.array([rup.mag for rup in ruptures])
 		occurrences = np.array([rup.occurrence_rate for rup in ruptures])
 		if color_param == "depth":
@@ -174,16 +220,23 @@ class RuptureSource():
 			c = np.array([rup.rake for rup in ruptures])
 			vmin, vmax = -90, 90
 		else:
-			c = 'b'
-			vmin, vmax = None, None
-		ax = pylab.subplot(111)
-		pylab.scatter(mags, occurrences, marker='o', c=c, cmap="jet",
-					vmin=vmin, vmax=vmax)
-		ax.set_yscale('log')
-		ax.set_ylim(occurrences.min(), occurrences.max())
-		pylab.xlabel("Magnitude")
-		pylab.ylabel("Occurrence rate (1/yr)")
-		pylab.show()
+			c = None
+			colors = None
+
+		if c is not None:
+			norm  = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
+			sm = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
+			colors = sm.to_rgba(c)
+
+		datasets = [(mags, occurrences)]
+		kwargs['yscaling'] = kwargs.get('yscaling', 'log')
+		kwargs['xlabel'] = kwargs.get('xlabel', 'Magnitude')
+		kwargs['ylabel'] = kwargs.get('ylabel', 'Occurrence rate (1/yr)')
+		kwargs['ymin'] = occurrences.min()
+		kwargs['ymax'] = occurrences.max()
+
+		return plot_xy(datasets, markers=[marker], colors=cmap,
+						linestyles=None, linewidths=[0], **kwargs)
 
 	def plot_rupture_bounds_3d(self, ruptures, fill=False):
 		"""
@@ -197,6 +250,7 @@ class RuptureSource():
 			bool, whether or not to plot ruptures with a transparent fill
 			(default: False)
 		"""
+		import pylab
 		import mpl_toolkits.mplot3d.axes3d as p3
 		import mapping.geotools.coordtrans as coordtrans
 
@@ -268,7 +322,7 @@ class RuptureSource():
 		pylab.show()
 
 	def plot_rupture_map(self, mag, bounds=True, strike=None, dip=None, rake=None,
-						timespan=1):
+						timespan=None):
 		"""
 		Plot map showing rupture bounds or rupture centers.
 
@@ -285,12 +339,12 @@ class RuptureSource():
 			float, rake in degrees of ruptures to plot (default: None)
 		:param timespan:
 			float, time interval for Poisson distribution, in years
-			(default: 1)
+			(default: None, will use :prop:`timespan`)
 		"""
 		from mpl_toolkits.basemap import Basemap
 
 		## Generate ruptures, and filter according to magnitude bin, strike and rake
-		ruptures = self.get_ruptures_Poisson(timespan=timespan)
+		ruptures = self.get_ruptures_poisson(timespan=timespan)
 		ruptures = [rup for rup in ruptures if np.allclose(rup.mag, mag)]
 		if strike is not None:
 			ruptures = [rup for rup in ruptures
@@ -316,6 +370,10 @@ class RuptureSource():
 		## Determine map bounds and central longitude and latitude
 		llcrnrlon, llcrnrlat = min(src_longitudes), min(src_latitudes)
 		urcrnrlon, urcrnrlat = max(src_longitudes), max(src_latitudes)
+		if np.allclose(llcrnrlon, urcrnrlon):
+			llcrnrlon, urcrnrlon = llcrnrlon - 0.1, urcrnrlon + 0.1
+		if np.allclose(llcrnrlat, urcrnrlat):
+			llcrnrlat, urcrnrlat = llcrnrlat - 0.1, urcrnrlat + 0.1
 		lon_0 = (llcrnrlon + urcrnrlon) / 2.
 		lat_0 = (llcrnrlat + urcrnrlat) / 2.
 
