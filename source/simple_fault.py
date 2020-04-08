@@ -6,18 +6,13 @@ SimpleFaultSource class
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-try:
-	## Python 2
-	basestring
-except:
-	## Python 3
-	basestring = str
 
 ## Note: Don't use np as abbreviation for nodalplane!!
 import numpy as np
 
 from .. import oqhazlib
 
+from ..msr import get_oq_msr
 from ..mfd import *
 from ..geo import Point, Line, Polygon, NodalPlane
 from ..pmf import HypocentralDepthDistribution, NodalPlaneDistribution
@@ -72,6 +67,10 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 		Slip rate in mm/yr (default: NaN)
 	:param bg_zone:
 		String, ID of background zone (default: None)
+	:param timespan:
+		float, timespan for Poisson temporal occurrence model.
+		Introduced in more recent versions of OpenQuake
+		(default: 1)
 	"""
 	# TODO: SlipratePMF
 	# TODO: add aseismic_coef and strain_drop parameters (see get_Anderson_Luco_mfd method)
@@ -80,12 +79,17 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 				rupture_mesh_spacing, magnitude_scaling_relationship,
 				rupture_aspect_ratio,
 				upper_seismogenic_depth, lower_seismogenic_depth,
-				fault_trace, dip, rake, slip_rate=np.NaN, bg_zone=None):
+				fault_trace, dip, rake, slip_rate=np.NaN, bg_zone=None,
+				timespan=1):
 		"""
 		"""
-		if isinstance(magnitude_scaling_relationship, basestring):
-			magnitude_scaling_relationship = getattr(oqhazlib.scalerel,
-												magnitude_scaling_relationship)()
+		self.timespan = timespan
+		magnitude_scaling_relationship = get_oq_msr(magnitude_scaling_relationship)
+
+		## OQ version dependent keyword arguments
+		oqver_kwargs = {}
+		if OQ_VERSION > '2.9.0':
+			oqver_kwargs['temporal_occurrence_model'] = self.tom
 		super(SimpleFaultSource, self).__init__(source_id=source_id,
 				name=name,
 				tectonic_region_type=tectonic_region_type,
@@ -97,12 +101,20 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 				lower_seismogenic_depth=lower_seismogenic_depth,
 				fault_trace=fault_trace,
 				dip=dip,
-				rake=rake)
+				rake=rake,
+				**oqver_args)
 		self.slip_rate = slip_rate
 		self.bg_zone = bg_zone
 
 	def __repr__(self):
 		return '<SimpleFaultSource #%s>' % self.source_id
+
+	@property
+	def tom(self):
+		"""
+		Temporal occurrence model
+		"""
+		return oqhazlib.tom.PoissonTOM(self.timespan)
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
@@ -781,7 +793,8 @@ class SimpleFaultSource(oqhazlib.source.SimpleFaultSource, RuptureSource):
 			mfd = self.mfd
 
 		return CharacteristicFaultSource(self.source_id, self.name,
-			self.tectonic_region_type, mfd, surface, self.rake)
+			self.tectonic_region_type, mfd, surface, self.rake,
+			timespan=self.timespan)
 
 	def get_subfaults(self, as_num=1, ad_num=1, rigidity=3E+10):
 		"""
