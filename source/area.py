@@ -22,7 +22,7 @@ from .point import PointSource
 __all__ = ['AreaSource']
 
 
-class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
+class AreaSource(RuptureSource, oqhazlib.source.AreaSource):
 	"""
 	Class representing an area source, i.e. a polygonal geographical region
 	where seismicity is assumed to be uniform.
@@ -264,7 +264,8 @@ class AreaSource(oqhazlib.source.AreaSource, RuptureSource):
 
 		## Construct WGS84 projection system corresponding to earthquake coordinates
 		wgs84 = osr.SpatialReference()
-		wgs84.SetWellKnownGeogCS(bytes("WGS84"))
+		## Note: str for PY2/3 compatibility
+		wgs84.SetWellKnownGeogCS(str("WGS84"))
 
 		# Create ring
 		ring = ogr.Geometry(ogr.wkbLinearRing)
