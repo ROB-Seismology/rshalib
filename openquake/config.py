@@ -17,7 +17,7 @@ from validate import Validator
 __all__ = ['OQ_Params']
 
 
-class ConfigError(StandardError):
+class ConfigError(Exception):
 	pass
 
 
