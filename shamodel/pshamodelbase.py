@@ -148,7 +148,7 @@ class PSHAModelBase(SHAModelBase):
 			if not os.path.exists(partial_path):
 				try:
 					os.mkdir(partial_path)
-				except OSError, err:
+				except OSError as err:
 					if err.errno == errno.EEXIST and os.path.isdir(partial_path):
 						## Folder already created by another process
 						pass
