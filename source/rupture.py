@@ -12,7 +12,7 @@ except:
 	basestring = str
 
 
-from .. import oqhazlib
+from .. import oqhazlib, OQ_VERSION
 
 from ..geo import NodalPlane, Point
 from ..pmf import HypocentralDepthDistribution, NodalPlaneDistribution
@@ -22,7 +22,13 @@ from ..pmf import HypocentralDepthDistribution, NodalPlaneDistribution
 __all__ = ['Rupture']
 
 
-class Rupture(oqhazlib.source.Rupture):
+if OQ_VERSION >= '2.9.0':
+	_base_class = oqhazlib.source.BaseRupture
+else:
+	_base_class = oqhazlib.source.Rupture
+
+
+class Rupture(_base_class):
 	"""
 	"""
 	def __repr__(self):
@@ -36,7 +42,7 @@ class Rupture(oqhazlib.source.Rupture):
 
 	@classmethod
 	def from_hypocenter(cls, lon, lat, depth, mag, strike, dip, rake, trt,
-						rms, rar, usd, lsd, msr):
+						rms, rar, usd, lsd, msr, slip_direction=0.):
 		"""
 		Create rupture by extending hypocenter with magnitude scaling
 		relationship.
@@ -67,6 +73,10 @@ class Rupture(oqhazlib.source.Rupture):
 			float, lower seismogenic depth
 		:param msr:
 			str or instance of subclass of :class:`oqhazlib.scalerel.BaseMSR`
+		:param slip_direction:
+			float, angle describing rupture propagation (in degrees)
+			Not supported by early versions of OpenQuake
+			(default: 0.)
 
 		:return:
 			instance of :class:`Rupture`
@@ -81,6 +91,11 @@ class Rupture(oqhazlib.source.Rupture):
 		point_source = oqhazlib.source.PointSource("", "", trt, "", rms, msr,
 											rar, usd, lsd, hypocenter, npd, hdd)
 		surface = point_source._get_rupture_surface(mag, nodal_plane, hypocenter)
+
+		extra_kwargs = {}
+		if oqhazlib_version >= '2.9.0':
+			extra_kwargs = {'rupture_slip_direction': slip_direction}
 		rupture = cls(mag, rake, trt, hypocenter, surface,
-						source_typology=oqhazlib.source.PointSource)
+						source_typology=oqhazlib.source.PointSource, **extra_kwargs)
+
 		return rupture
