@@ -22,7 +22,7 @@ from .rupture_source import RuptureSource
 __all__ = ['ComplexFaultSource']
 
 
-class ComplexFaultSource(oqhazlib.source.ComplexFaultSource, RuptureSource):
+class ComplexFaultSource(RuptureSource, oqhazlib.source.ComplexFaultSource):
 	"""
 	Class representing a complex fault source.
 
