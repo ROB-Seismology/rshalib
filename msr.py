@@ -11,8 +11,6 @@ except:
 	## Python 3
 	basestring = str
 
-from . import oqhazlib
-
 
 
 __all__ = ['get_oq_msr']
@@ -28,9 +26,11 @@ def get_oq_msr(msr_or_name):
 	:return:
 		instance of :class:`oqhazlib.scalerel.BaseMSR`
 	"""
+	from . import oqhazlib
+
 	if isinstance(msr_or_name, oqhazlib.scalerel.BaseMSR):
 		msr = msr_or_name
-	elif isinstance(msr_or_name, basestring)):
+	elif isinstance(msr_or_name, basestring):
 		if msr_or_name[-3:] != 'MSR':
 			msr_or_name += 'MSR'
 		msr = getattr(oqhazlib.scalerel, msr_or_name)()
