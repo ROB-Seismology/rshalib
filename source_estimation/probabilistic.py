@@ -1,8 +1,25 @@
+"""
+Probabilistic (see paper on Aysen fjord)
+"""
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+try:
+	## Python 2
+	basestring
+except:
+	## Python 3
+	basestring = str
+
 
 import numpy as np
-import openquake.hazardlib as oqhazlib
-import hazard.rshalib as rshalib
 
+from .. import oqhazlib
+from ..pmf import GMPEPMF
+
+
+
+__all__ = ['calc_rupture_probability_from_ground_motion_thresholds']
 
 
 def calc_rupture_probability_from_ground_motion_thresholds(
@@ -93,22 +110,23 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 		prob_dict[src.source_id] = []
 		trt = src.tectonic_region_type
 		gsim_model = ground_motion_model[trt]
-		if isinstance(gsim_model, rshalib.pmf.GMPEPMF):
+		if isinstance(gsim_model, GMPEPMF):
 			gsim_names, gsim_weights = gsim_model.gmpe_names, gsim_model.weights
-		elif isinstance(gsim_model, (str, unicode)):
+		elif isinstance(gsim_model, basestring):
 			gsim_names, gsim_weights = [gsim_model], [1.]
 		if s == 0:
-			gsims_dict = {gsim_name: oqhazlib.gsim.get_available_gsims()[gsim_name]() for gsim_name in gsim_names}
+			gsims_dict = {gsim_name: oqhazlib.gsim.get_available_gsims()[gsim_name]()
+							for gsim_name in gsim_names}
 
 		tom = oqhazlib.tom.PoissonTOM(1)
 		for rupture in src.iter_ruptures(tom):
 			"""
 			if s in (225, 226):
-				print s, src.source_id
-				print len(rupture.surface.mesh)
-				print rupture.surface.mesh.lons
-				print rupture.surface.mesh.lats
-				print rupture.surface.mesh.depths
+				print(s, src.source_id)
+				print(len(rupture.surface.mesh))
+				print(rupture.surface.mesh.lons)
+				print(rupture.surface.mesh.lats)
+				print(rupture.surface.mesh.depths)
 				for site_model in pe_site_models[1:2]:
 					jb_dist = rupture.surface.get_joyner_boore_distance(site_model.mesh)
 				#for site_model in ne_site_models:
@@ -132,7 +150,8 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 					pe_mask = np.ones(len(pe_site_model))
 					if min_dist or max_dist:
 						## Filtering required
-						jb_dist = rupture.surface.get_joyner_boore_distance(pe_site_model.mesh)
+						jb_dist = rupture.surface.get_joyner_boore_distance(
+															pe_site_model.mesh)
 						if min_dist:
 							pe_mask *= (min_dist <= jb_dist)
 						if max_dist:
@@ -140,7 +159,8 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 					filtered_pe_site_model = pe_site_model.filter(pe_mask)
 					if filtered_pe_site_model:
 						filtered_pe_thresholds[gsim_name].append(pe_thresholds[p])
-						filtered_pe_site_models[gsim_name].append(filtered_pe_site_model)
+						filtered_pe_site_models[gsim_name].append(
+														filtered_pe_site_model)
 						if strict_intersection:
 							num_sites[gsim_name] += len(filtered_pe_site_model)
 						else:
@@ -151,7 +171,8 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 					ne_mask = np.ones(len(ne_site_model))
 					if min_dist or max_dist:
 						## Filtering required
-						jb_dist = rupture.surface.get_joyner_boore_distance(ne_site_model.mesh)
+						jb_dist = rupture.surface.get_joyner_boore_distance(
+															ne_site_model.mesh)
 						if min_dist:
 							ne_mask *= (min_dist <= jb_dist)
 						if max_dist:
@@ -159,36 +180,44 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 					filtered_ne_site_model = ne_site_model.filter(ne_mask)
 					if filtered_ne_site_model:
 						filtered_ne_thresholds[gsim_name].append(ne_thresholds[n])
-						filtered_ne_site_models[gsim_name].append(filtered_ne_site_model)
+						filtered_ne_site_models[gsim_name].append(
+														filtered_ne_site_model)
 						if strict_intersection:
 							num_sites[gsim_name] += len(filtered_ne_site_model)
 						else:
 							num_sites[gsim_name] += 1
 
-			filtered_gsim_names = [gsim_name for gsim_name in gsim_names if num_sites[gsim_name]]
-			filtered_gsim_weights = [float(gsim_weights[i]) for i in range(len(gsim_names)) if gsim_names[i] in filtered_gsim_names]
+			filtered_gsim_names = [gsim_name for gsim_name in gsim_names
+								if num_sites[gsim_name]]
+			filtered_gsim_weights = [float(gsim_weights[i]) for i in range(len(gsim_names))
+									if gsim_names[i] in filtered_gsim_names]
 			filtered_gsim_weights = np.array(filtered_gsim_weights)
 			filtered_gsim_weights /= np.sum(filtered_gsim_weights)
 
 			rupture_prob = 0
-			for gsim_name, gsim_weight in zip(filtered_gsim_names, filtered_gsim_weights):
+			for gsim_name, gsim_weight in zip(filtered_gsim_names,
+											filtered_gsim_weights):
 				gsim = gsims_dict[gsim_name]
 				pe_prob = 1
 
-				for (pe_threshold, pe_site_model) in zip(filtered_pe_thresholds[gsim_name], filtered_pe_site_models[gsim_name]):
+				for (pe_threshold, pe_site_model) in zip(filtered_pe_thresholds[gsim_name],
+												filtered_pe_site_models[gsim_name]):
 					sctx, rctx, dctx = gsim.make_contexts(pe_site_model, rupture)
-					pe_poes = gsim.get_poes(sctx, rctx, dctx, imt, pe_threshold, truncation_level)
+					pe_poes = gsim.get_poes(sctx, rctx, dctx, imt, pe_threshold,
+											truncation_level)
 					pe_poes = pe_poes[:,0]
-					#print pe_poes
+					#print(pe_poes)
 					if strict_intersection:
 						pe_prob *= np.prod(pe_poes)
 					else:
 						pe_prob *= np.mean(pe_poes)
 
 				ne_prob = 1
-				for (ne_threshold, ne_site_model) in zip(filtered_ne_thresholds[gsim_name], filtered_ne_site_models[gsim_name]):
+				for (ne_threshold, ne_site_model) in zip(filtered_ne_thresholds[gsim_name],
+													filtered_ne_site_models[gsim_name]):
 					sctx, rctx, dctx = gsim.make_contexts(ne_site_model, rupture)
-					ne_poes = gsim.get_poes(sctx, rctx, dctx, imt, ne_threshold, truncation_level)
+					ne_poes = gsim.get_poes(sctx, rctx, dctx, imt, ne_threshold,
+											truncation_level)
 					ne_poes = ne_poes[:,0]
 					if strict_intersection:
 						ne_prob *= np.prod(1 - ne_poes)
@@ -196,7 +225,7 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 						ne_prob *= np.mean(1 - ne_poes)
 
 				## Combine positive and negative evidence probabilities
-				#print pe_prob, ne_prob
+				#print(pe_prob, ne_prob)
 				total_prob = pe_prob * ne_prob
 
 				## Reduce to single-site probability
