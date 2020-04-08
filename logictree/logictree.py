@@ -13,7 +13,11 @@ import numpy as np
 import pprint
 from decimal import Decimal
 
-import openquake.engine.input.logictree as oqlt
+from .. import OQ_VERSION
+if OQ_VERSION >= '2.9.0':
+	import openquake.commonlib.logictree as oqlt
+else:
+	import openquake.engine.input.logictree as oqlt
 
 from lxml import etree
 from ..nrml import ns
