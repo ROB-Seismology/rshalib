@@ -12,6 +12,7 @@ if sys.version_info.major == 2:
 	PY2 = True
 else:
 	PY2 = False
+	basestring = str
 
 import numpy as np
 
@@ -527,7 +528,7 @@ def import_point_or_area_source_from_gis_record(
 	if not magnitude_scaling_relationship:
 		magnitude_scaling_relationship = import_param(source_rec, column_map,
 									'magnitude_scaling_relationship', str)
-	if isinstance(magnitude_scaling_relationship, (str, unicode)):
+	if isinstance(magnitude_scaling_relationship, basestring):
 		magnitude_scaling_relationship = getattr(oqhazlib.scalerel,
 											magnitude_scaling_relationship)()
 
@@ -885,7 +886,7 @@ def import_simple_fault_source_from_gis_record(
 	if not magnitude_scaling_relationship:
 		magnitude_scaling_relationship = import_param(source_rec, column_map,
 									'magnitude_scaling_relationship', str)
-	if isinstance(magnitude_scaling_relationship, (str, unicode)):
+	if isinstance(magnitude_scaling_relationship, basestring):
 		magnitude_scaling_relationship = getattr(oqhazlib.scalerel,
 											magnitude_scaling_relationship)()
 
@@ -913,7 +914,7 @@ def import_simple_fault_source_from_gis_record(
 		if "rake_distribution" in column_map:
 			rake_dist = import_distribution(source_rec, column_map, 'rake_distribution')
 			if rake_dist:
-				weights = map(float, rake_dist.weights)
+				weights = list(map(float, rake_dist.weights))
 				rake = mean_angle(rake_dist.values, weights=weights)
 		else:
 			rake = import_param(source_rec, column_map, 'rake', float)
