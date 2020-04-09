@@ -6,8 +6,11 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import os, sys
 import multiprocessing
+from functools import partial
+
 import numpy as np
-import openquake.hazardlib as oqhazlib
+
+from .. import (oqhazlib, OQ_VERSION)
 
 
 # TODO: use logging facilities instead of print statements
@@ -125,7 +128,7 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 	tom = psha_model.poisson_tom
 
 	total_sites = len(sites)
-	shape = (total_sites, len(imts), len(imts[imts.keys()[0]]))
+	shape = (total_sites, len(imts), len(imts[list(imts.keys())[0]]))
 	curves = np.ones(shape)
 
 	## Copied from openquake.hazardlib
@@ -318,7 +321,7 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 					lat_idx = lat_idxs[site_idx]
 					site_key = (site.location.longitude, site.location.latitude)
 					imtls = site_imtls[site_key]
-					imts = imtls.keys()
+					imts = list(imtls.keys())
 					sctx2, rctx2, dctx2 = gsim.make_contexts(SiteCollection([site]),
 															rupture)
 					for imt_idx, imt_tuple in enumerate(imts):
@@ -493,7 +496,11 @@ def calc_gmf_with_fixed_epsilon(
 	imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
 
 	if integration_distance:
-		rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(
+		if OQ_VERSION >= '2.9.0':
+			rupture_site_filter = partial(oqhazlib.calc.filters.filter_sites_by_distance_to_rupture,
+										integration_distance=integration_distance)
+		else:
+			rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(
 															integration_distance)
 		## Trim *_epsilons arrays to sites within integration_distance
 		jb_dist = rupture.surface.get_joyner_boore_distance(sites.mesh)
@@ -505,16 +512,23 @@ def calc_gmf_with_fixed_epsilon(
 		if inter_residual_epsilons is not None:
 			inter_residual_epsilons = inter_residual_epsilons[indices]
 	else:
-		rupture_site_filter = oqhazlib.calc.filters.rupture_site_noop_filter
-
-	ruptures_sites = list(rupture_site_filter([(rupture, sites)]))
-	if not ruptures_sites:
-		return np.zeros(len(sites))
+		rupture_site_filter = oqhazlib.calc.filters.source_site_noop_filter
 
 	total_sites = len(sites)
-	[(rupture, sites)] = ruptures_sites
 
-	sctx, rctx, dctx = gsim.make_contexts(sites, rupture)
+	if OQ_VERSION >= '2.9.0':
+		sites = rupture_site_filter(rupture, sites=sites)
+	else:
+		ruptures_sites = list(rupture_site_filter([(rupture, sites)]))
+		[(rupture, sites)] = ruptures_sites
+	if not sites:
+		return np.zeros(total_sites)
+
+	if OQ_VERSION >= '2.9.0':
+		ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim])
+		sctx, rctx, dctx = ctx_maker.make_contexts(sites, rupture)
+	else:
+		sctx, rctx, dctx = gsim.make_contexts(sites, rupture)
 
 	if truncation_level == 0:
 		mean, _stddevs = gsim.get_mean_and_stddevs(sctx, rctx, dctx, imt,
@@ -557,7 +571,15 @@ def calc_gmf_with_fixed_epsilon(
 			#mean + sign * np.sqrt(intra_residual**2 + inter_residual)**2)
 			mean + np.imag(np.sqrt(intra_residual**2 + inter_residual)**2))
 
-	gmf = sites.expand(gmf, total_sites, placeholder=0)
+	placeholder = 0.
+	if sites.indices is not None:
+		if OQ_VERSION >= '2.9.0':
+			_gmf = np.ones(total_sites) * placeholder
+			_gmf.put(sites.indices, gmf)
+			gmf = _gmf
+		else:
+			gmf = sites.expand(gmf, total_sites, placeholder=placeholder)
+
 	return gmf
 
 
@@ -609,15 +631,24 @@ def calc_random_gmf(
 	imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
 
 	if integration_distance:
-		rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(
+		if OQ_VERSION >= '2.9.0':
+			rupture_site_filter = partial(oqhazlib.calc.filters.filter_sites_by_distance_to_rupture,
+										integration_distance=integration_distance)
+		else:
+			rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(
 															integration_distance)
 	else:
-		rupture_site_filter = oqhazlib.calc.filters.rupture_site_noop_filter
+		rupture_site_filter = oqhazlib.calc.filters.source_site_noop_filter
 
 	try:
-		gmf_dict = ground_motion_fields(rupture, sites, [imt], gsim,
-			truncation_level, num_realizations, correlation_model,
-			rupture_site_filter)
+		if OQ_VERSION >= '2.9.0':
+			gmf_dict = ground_motion_fields(rupture, sites, [imt], gsim,
+										truncation_level, num_realizations,
+										correlation_model)
+		else:
+			gmf_dict = ground_motion_fields(rupture, sites, [imt], gsim,
+										truncation_level, num_realizations,
+										correlation_model, rupture_site_filter)
 
 		with shared_arr.get_lock(): # synchronize access
 			shared_gmf_matrix = np.frombuffer(shared_arr.get_obj()) # no data copying
