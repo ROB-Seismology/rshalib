@@ -211,7 +211,7 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		:param applyToTectonicRegionType:
 			See class constructor
 		"""
-		pmf = pmf_dict[pmf_dict.keys()[0]]
+		pmf = pmf_dict[list(pmf_dict.keys())[0]]
 		if isinstance(pmf, (GMPEPMF, SourceModelPMF)):
 			raise Exception("Not supported for this uncertainty type!")
 		elif isinstance(pmf, MmaxPMF):
