@@ -450,7 +450,7 @@ class SeismicSourceSystem(LogicTree):
 		## Loop over source models
 		for sm_name, src_unc_pmf_dict in unc_pmf_dict.items():
 			## Determine uncertainty type
-			first_pmf = src_unc_pmf_dict[src_unc_pmf_dict.keys()[0]]
+			first_pmf = src_unc_pmf_dict[list(src_unc_pmf_dict.keys())[0]]
 			if isinstance(first_pmf, MmaxPMF):
 				unc_type = "Mmax"
 			else:
@@ -481,7 +481,7 @@ class SeismicSourceSystem(LogicTree):
 					applyToBranches = []
 					applyToSources = []
 					branch_set_id = "None--None--%s" % (unc_type)
-					branching_level_nr = len(bl_branch_ids[bl_branch_ids.keys()[0]])
+					branching_level_nr = len(bl_branch_ids[list(bl_branch_ids.keys())[0]])
 					branch_set = LogicTreeBranchSet.from_pmf(branch_set_id,
 												src_unc_pmf_dict[None],
 												applyToBranches=applyToBranches,
@@ -638,7 +638,7 @@ class SeismicSourceSystem(LogicTree):
 				src_unc_pmf_dict = unc_pmf_dict[sm_name]
 
 				## Determine uncertainty type
-				first_pmf = src_unc_pmf_dict[src_unc_pmf_dict.keys()[0]]
+				first_pmf = src_unc_pmf_dict[list(src_unc_pmf_dict.keys())[0]]
 				if isinstance(first_pmf, MmaxPMF):
 					unc_type = "Mmax"
 				else:
