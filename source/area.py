@@ -10,7 +10,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 ## Note: Don't use np as abbreviation for nodalplane!!
 import numpy as np
 
-from .. import oqhazlib
+from .. import (oqhazlib, OQ_VERSION)
 
 from ..msr import get_oq_msr
 from ..mfd import (TruncatedGRMFD, EvenlyDiscretizedMFD)
@@ -103,7 +103,7 @@ class AreaSource(RuptureSource, oqhazlib.source.AreaSource):
 				hypocenter_distribution=hypocenter_distribution,
 				polygon=polygon,
 				area_discretization=area_discretization,
-				**oqver_args)
+				**oqver_kwargs)
 
 	def __repr__(self):
 		return '<AreaSource #%s>' % self.source_id
