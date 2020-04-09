@@ -16,7 +16,7 @@ from openquake.hazardlib.source import (PointSource, AreaSource, SimpleFaultSour
 __all__ = ['RuptureSource']
 
 
-class RuptureSource():
+class RuptureSource(object):
 	"""
 	Mixin class containing methods to explore rupture data
 	independent of source type.
