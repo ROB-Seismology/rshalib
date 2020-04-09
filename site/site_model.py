@@ -782,7 +782,8 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 
 	## Note: Not sure if it is safe to override __iter__ method of SiteCollection
 	def __iter__(self):
-		for i in range(len(self)):
+		indices = self.indices if self.indices is not None else np.arange(len(self))
+		for i in indices:
 			yield self.__getitem__(i)
 
 	if OQ_VERSION < '2.9.0':
