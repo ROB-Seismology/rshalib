@@ -128,7 +128,7 @@ class GroundMotionField(IntensityResult, HazardField):
 		:return:
 			float
 		"""
-		return self.get_intensities(intensity_unit).min()
+		return np.nanmin(self.get_intensities(intensity_unit))
 
 	def max(self, intensity_unit="g"):
 		"""
@@ -140,7 +140,7 @@ class GroundMotionField(IntensityResult, HazardField):
 		:return:
 			float
 		"""
-		return self.get_intensities(intensity_unit).max()
+		return np.nanmax(self.get_intensities(intensity_unit))
 
 	def mean(self, intensity_unit="g"):
 		"""
@@ -152,7 +152,7 @@ class GroundMotionField(IntensityResult, HazardField):
 		:return:
 			float
 		"""
-		return self.get_intensities(intensity_unit).mean()
+		return np.nanmean(self.get_intensities(intensity_unit))
 
 	def median(self, intensity_unit="g"):
 		"""
@@ -164,7 +164,7 @@ class GroundMotionField(IntensityResult, HazardField):
 		:return:
 			float
 		"""
-		return np.median(self.get_intensities(intensity_unit))
+		return np.nanmedian(self.get_intensities(intensity_unit))
 
 	def scoreatpercentile(self, perc, intensity_unit="g"):
 		"""
