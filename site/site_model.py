@@ -780,7 +780,10 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 		site = SoilSite(lon, lat, depth, soil_params, name)
 		return site
 
-	## Note: we don't override __iter__ method of SiteCollection
+	## Note: Not sure if it is safe to override __iter__ method of SiteCollection
+	def __iter__(self):
+		for i in range(len(self)):
+			yield self.__getitem__(i)
 
 	if OQ_VERSION < '2.9.0':
 		@property
