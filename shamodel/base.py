@@ -4,8 +4,10 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+from functools import partial
 
-from .. import oqhazlib
+from .. import (oqhazlib, OQ_VERSION)
+
 
 from ..site import GenericSiteModel, SoilSiteModel, REF_SOIL_PARAMS
 
@@ -85,10 +87,14 @@ class SHAModelBase(object):
 	@property
 	def rupture_site_filter(self):
 		if self.integration_distance:
-			return oqhazlib.calc.filters.rupture_site_distance_filter(
+			if OQ_VERSION >= '2.9.0':
+				return partial(oqhazlib.calc.filters.filter_sites_by_distance_to_rupture,
+								integration_distance=self.integration_distance)
+			else:
+				return oqhazlib.calc.filters.rupture_site_distance_filter(
 													self.integration_distance)
 		else:
-			return oqhazlib.calc.filters.rupture_site_noop_filter
+			return oqhazlib.calc.filters.source_site_noop_filter
 
 	def _construct_imt(self, im, period):
 		"""
@@ -134,7 +140,7 @@ class SHAModelBase(object):
 		"""
 		Return list of IMT families
 		"""
-		imts = self.imt_periods.keys()
+		imts = list(self.imt_periods.keys())
 		if "PGA" in imts and "SA" in imts:
 			imts.remove("PGA")
 		if "PGV" in imts and "SV" in imts:
