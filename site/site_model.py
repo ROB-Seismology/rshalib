@@ -727,6 +727,8 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 
 	def __init__(self, sites, name):
 		self.name = name
+		if OQ_VERSION >= '2.9.0':
+			self.kappa = np.array([getattr(site, 'kappa', np.nan) for site in sites])
 		super(SoilSiteModel, self).__init__(sites=sites)
 		self.site_names = [site.name for site in sites]
 
@@ -762,10 +764,10 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 		:return:
 			instance of :class:`SoilSite`
 		"""
-		lon = self.mesh.lons[index]
-		lat = self.mesh.lats[index]
+		lon = self.lons[index]
+		lat = self.lats[index]
 		## Note: depth requires patch in oqhazlib
-		depth = self.mesh.depths[index] if self.mesh.depths is not None else 0.
+		depth = self.depths[index] if self.depths is not None else 0.
 		vs30 = self.vs30[index]
 		vs30measured = self.vs30measured[index]
 		z1pt0 = self.z1pt0[index]
@@ -780,13 +782,18 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 
 	## Note: we don't override __iter__ method of SiteCollection
 
-	@property
-	def lons(self):
-		return self.mesh.lons
+	if OQ_VERSION < '2.9.0':
+		@property
+		def lons(self):
+			return self.mesh.lons
 
-	@property
-	def lats(self):
-		return self.mesh.lats
+		@property
+		def lats(self):
+			return self.mesh.lats
+
+		@property
+		def depths(self):
+			return self.mesh.depths
 
 	def get_region(self):
 		"""
@@ -871,8 +878,8 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 
 		for i in range(self.num_sites):
 			site_elem = etree.SubElement(soil_site_model_elem, ns.SITE)
-			site_elem.set(ns.LON, str(self.mesh.lons[i]))
-			site_elem.set(ns.LAT, str(self.mesh.lats[i]))
+			site_elem.set(ns.LON, str(self.lons[i]))
+			site_elem.set(ns.LAT, str(self.lats[i]))
 			site_elem.set(ns.VS30, str(self.vs30[i]))
 			site_elem.set(ns.VS30TYPE, xmlstr({True: 'measured', False: 'inferred'}[self.vs30measured[i]]))
 			site_elem.set(ns.Z1PT0, str(self.z1pt0[i]))
