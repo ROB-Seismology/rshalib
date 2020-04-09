@@ -712,9 +712,9 @@ class PSHAModel(PSHAModelBase):
 
 		## Create deaggregation matrices
 		num_sites = len(site_imtls.keys())
-		imtls = site_imtls[site_imtls.keys()[0]]
+		imtls = site_imtls[list(site_imtls.keys())[0]]
 		num_imts = len(imtls.keys())
-		imls = imtls[imtls.keys()[0]]
+		imls = imtls[list(imtls.keys())[0]]
 		num_imls = len(imls)
 
 		deagg_matrix_shape = (num_sites, num_imts, num_imls, len(mag_bins) - 1,
