@@ -69,12 +69,6 @@ if not reloading:
 else:
 	reload(poisson)
 
-## msr (no internal dependencies)
-if not reloading:
-	from . import msr
-else:
-	reload(msr)
-
 ## cav (no internal dependencies)
 if not reloading:
 	from . import cav
@@ -85,9 +79,17 @@ else:
 ## We import it only once, here at the top level
 if not reloading:
 	import openquake.hazardlib as oqhazlib
-else:
-	reload(oqhazlib)
+## Note: reloading oqhazlib in PY3 results in reloading of version in PYTHONPATH !
+#else:
+#	reload(oqhazlib)
 OQ_VERSION = oqhazlib.__version__
+print('OpenQuake version: %s' % OQ_VERSION)
+
+## msr (depends on oqhazlib)
+if not reloading:
+	from . import msr
+else:
+	reload(msr)
 
 ## calc (no internal dependencies)
 if not reloading:
