@@ -104,7 +104,7 @@ class OqhazlibGMPE(GMPE):
 					imt_periods['SA'] = [sa.period for sa in
 										sorted(self.gmpe.COEFFS_BC.sa_coeffs.keys())]
 				elif "adjusted" in name:
-					(vs30, kappa) = self.gmpe.COEFFS.keys()[0]
+					(vs30, kappa) = list(self.gmpe.COEFFS.keys())[0]
 					imt_periods['SA'] = [sa.period for sa in
 						sorted(self.gmpe.COEFFS[(vs30, kappa)].sa_coeffs.keys())]
 				else:
