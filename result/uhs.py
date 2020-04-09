@@ -969,7 +969,7 @@ class UHSFieldTree(HazardSpectrum, HazardField, HazardTree):
 						self.intensity_unit, self.imt, model_name=branch_name,
 						filespec=filespec, timespan=self.timespan,
 						return_period=self.return_period, damping=self.damping,
-						vs30s=vs30)
+						vs30s=self.vs30s)
 
 	#@property
 	#def num_branches(self):
