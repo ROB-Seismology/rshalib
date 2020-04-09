@@ -9,14 +9,15 @@ import numpy as np
 from scipy.constants import g
 import pylab
 
-from ... import oqhazlib
+from ... import (oqhazlib, OQ_VERSION)
 from openquake.hazardlib.imt import PGD, PGV, PGA, SA, MMI
 
 from .base import *
 
 
 
-__all__ = ['OqhazlibGMPE', 'AbrahamsonSilva2008', 'AkkarBommer2010',
+__all__ = ['get_oq_gsim', 'OqhazlibGMPE',
+			'AbrahamsonSilva2008', 'AkkarBommer2010',
 			'AkkarEtAl2013', 'Anbazhagan2013', 'Atkinson2015',
 			'AtkinsonBoore2006', 'AtkinsonBoore2006Prime',
 			'BindiEtAl2011', 'BooreAtkinson2008', 'BooreAtkinson2008Prime',
@@ -31,6 +32,24 @@ __all__ = ['OqhazlibGMPE', 'AbrahamsonSilva2008', 'AkkarBommer2010',
 
 
 IMT_DICT = {"PGD": PGD, "PGV": PGV, "PGA": PGA, "SA": SA, "MMI": MMI}
+
+
+def get_oq_gsim(gsim_name):
+	"""
+	Get OpenQuake ground-shaking intensity model
+
+	:param gsim_name:
+		str, name of gsim
+
+	:return:
+		instance of :class:`oqhazlib.gsim.GMPE`
+		or :class:`oqhazlib.gsim.IPE`
+	"""
+	gsim = oqhazlib.gsim.get_available_gsims().get(gsim_name)
+	if gsim:
+		return gsim()
+	else:
+		return None
 
 
 class OqhazlibGMPE(GMPE):
@@ -52,7 +71,7 @@ class OqhazlibGMPE(GMPE):
 		"""
 		"""
 		## get dict mapping gmpe names to classes
-		self.gmpe = oqhazlib.gsim.get_available_gsims()[name]
+		self.gmpe = get_oq_gsim(name)
 
 		## get imt periods
 		if not imt_periods:
@@ -124,7 +143,7 @@ class OqhazlibGMPE(GMPE):
 												kappa, mechanism, imt, T, damping)
 
 			## get mean and sigma
-			ln_mean, [ln_sigma] = self.gmpe().get_mean_and_stddevs(sctx, rctx,
+			ln_mean, [ln_sigma] = self.gmpe.get_mean_and_stddevs(sctx, rctx,
 													dctx, imt_object, ['Total'])
 
 			#if not distance_is_array:
@@ -165,6 +184,7 @@ class OqhazlibGMPE(GMPE):
 		usd, lsd = 0., depth*2
 		msr = PointMSR()
 
+		# TODO: include slip_direction??
 		rupture = Rupture.from_hypocenter(lon, lat, depth, mag, strike, dip, rake,
 											trt, rms, rar, usd, lsd, msr)
 
@@ -193,7 +213,11 @@ class OqhazlibGMPE(GMPE):
 		soil_site_model = sha_site_model.to_soil_site_model(ref_soil_params=ref_soil_params)
 
 		## Create contexts
-		sctx, rctx, dctx = self.gmpe().make_contexts(soil_site_model, rupture)
+		if OQ_VERSION >= '2.9.0':
+			ctx_maker = oqhazlib.gsim.base.ContextMaker([self.gmpe])
+			sctx, rctx, dctx = ctx_maker.make_contexts(soil_site_model, rupture)
+		else:
+			sctx, rctx, dctx = self.gmpe.make_contexts(soil_site_model, rupture)
 
 		"""
 		## set site context
