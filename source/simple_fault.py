@@ -10,7 +10,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 ## Note: Don't use np as abbreviation for nodalplane!!
 import numpy as np
 
-from .. import oqhazlib
+from .. import (oqhazlib, OQ_VERSION)
 
 from ..msr import get_oq_msr
 from ..mfd import *
@@ -102,7 +102,7 @@ class SimpleFaultSource(RuptureSource, oqhazlib.source.SimpleFaultSource):
 				fault_trace=fault_trace,
 				dip=dip,
 				rake=rake,
-				**oqver_args)
+				**oqver_kwargs)
 		self.slip_rate = slip_rate
 		self.bg_zone = bg_zone
 
