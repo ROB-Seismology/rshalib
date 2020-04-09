@@ -103,7 +103,7 @@ class PSHAModelBase(SHAModelBase):
 			self.min_intensities = None
 			self.max_intensities = None
 			if isinstance(self.intensities, dict):
-				key = self.intensities.keys()[0]
+				key = list(self.intensities.keys())[0]
 				self.num_intensities = len(self.intensities[key])
 			else:
 				self.num_intensities = len(self.intensities)
