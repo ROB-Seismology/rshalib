@@ -12,8 +12,9 @@ as well as to generate input files for OpenQuake.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import numpy as np
 
-from .. import oqhazlib
+from .. import (oqhazlib, OQ_VERSION)
 from ..geo import Point
 from .ref_soil_params import REF_SOIL_PARAMS
 
@@ -127,6 +128,8 @@ class SoilSite(oqhazlib.site.Site):
 	def __init__(self, longitude, latitude, depth=0., soil_params=REF_SOIL_PARAMS,
 				name=""):
 		location = Point(longitude, latitude, depth)
+		if OQ_VERSION >= '2.9.0':
+			self.kappa = soil_params.pop('kappa', np.nan)
 		super(SoilSite, self).__init__(location, **soil_params)
 		self.name = name
 
@@ -162,5 +165,3 @@ class SoilSite(oqhazlib.site.Site):
 			instance of :class:`GenericSite`
 		"""
 		return GenericSite(self.lon, self.lat, self.depth, self.name)
-
-
