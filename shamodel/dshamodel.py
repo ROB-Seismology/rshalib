@@ -7,7 +7,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import numpy as np
 
-from .. import oqhazlib
+from .. import (oqhazlib, OQ_VERSION)
 from openquake.hazardlib.imt import *
 
 from ..result import HazardMapSet, UHSField, UHSFieldTree
@@ -163,7 +163,12 @@ class DSHAModel(SHAModelBase):
 				total_rupture_probability = 0
 				for r, rup in enumerate(src.iter_ruptures(fake_tom)):
 					total_rupture_probability += rup.occurrence_rate
-					gmf_dict = ground_motion_fields(rup, soil_site_model, imt_list,
+					if OQ_VERSION >= '2.9.0':
+						gmf_dict = ground_motion_fields(rup, soil_site_model, imt_list,
+									gsim, self.truncation_level, num_realizations,
+									correlation_model)
+					else:
+						gmf_dict = ground_motion_fields(rup, soil_site_model, imt_list,
 									gsim, self.truncation_level, num_realizations,
 									correlation_model, self.rupture_site_filter)
 
@@ -223,6 +228,7 @@ class DSHAModel(SHAModelBase):
 		filespecs = ["" for i in range(num_realizations)]
 		weights = []
 		imt = self.get_imt_families()[0]
+		GMF = np.swapaxes(GMF, 0, 1)
 
 		return UHSFieldTree(branch_names, weights, sites, periods,
 							GMF, self.intensity_unit, imt,
@@ -397,6 +403,8 @@ class DSHAModel(SHAModelBase):
 		filespecs = ["" for i in range(num_realizations)]
 		weights = []
 		imt = self.get_imt_families()[0]
+
+		GMF = np.swapaxes(GMF, 0, 1)
 
 		return UHSFieldTree(branch_names, weights, sites, periods,
 							GMF, intensity_unit=self.intensity_unit, imt=imt,
