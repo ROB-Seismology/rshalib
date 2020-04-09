@@ -847,7 +847,7 @@ if __name__ == "__main__":
 	correlation_model = None
 	integration_distance = None
 
-	dhsa_model = DSHAModel(name, ruptures, gsim, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, truncation_level, realizations, correlation_model, integration_distance)
+	dhsa_model = RuptureDSHAModel(name, ruptures, gsim, sites, grid_outline, grid_spacing, soil_site_model, ref_soil_params, imt_periods, truncation_level, realizations, correlation_model, integration_distance)
 
 	hazard_map_sets = dhsa_model.run_hazardlib()
 	print(hazard_map_sets["PGA"].get_hazard_map(0))
