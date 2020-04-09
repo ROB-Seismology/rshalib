@@ -31,8 +31,8 @@ def get_oq_msr(msr_or_name):
 	if isinstance(msr_or_name, oqhazlib.scalerel.BaseMSR):
 		msr = msr_or_name
 	elif isinstance(msr_or_name, basestring):
-		if msr_or_name[-3:] != 'MSR':
-			msr_or_name += 'MSR'
+		#if msr_or_name[-3:] != 'MSR':
+		#	msr_or_name += 'MSR'
 		msr = getattr(oqhazlib.scalerel, msr_or_name)()
 
 	return msr
