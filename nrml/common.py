@@ -58,10 +58,10 @@ def xmlstr(s, encoding='latin1'):
 			s = s.replace(char, '')
 		if not isinstance(s, unicode):
 			s = s.decode(encoding)
-	if isinstance(s, unicode):
+	if PY2 and isinstance(s, unicode):
 		return s.encode('ascii', 'xmlcharrefreplace')
 	else:
-		return bytes(s)
+		return str(s)
 
 
 def create_nrml_root(xml_elem, encoding='latin1', **kwargs):
