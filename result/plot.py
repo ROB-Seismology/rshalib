@@ -159,7 +159,7 @@ def plot_hazard_curves(hc_list, labels=[], colors=[], linestyles=[], linewidths=
 	for hc in hc_list:
 		xvalues = hc.get_intensities(intensity_unit)
 		## Ignore zero curves
-		if not np.allclose(hc._hazard_values, 0):
+		if not np.allclose(hc._hazard_values.array, 0):
 			if yaxis == 'exceedance_rate':
 				yvalues = hc._hazard_values.to_exceedance_rates(timespan)
 			elif yaxis == 'return_period':
@@ -212,7 +212,7 @@ def plot_hazard_curves(hc_list, labels=[], colors=[], linestyles=[], linewidths=
 		xmin = ax.get_xlim()[0]
 		ymin = ax.get_ylim()[0]
 		for i, hc in enumerate(hc_list):
-			if not np.allclose(hc._hazard_values, 0):
+			if not np.allclose(hc._hazard_values.array, 0):
 				## Interpolate ground-motion corresponding to return period(s)
 				interpol_gm = hc.interpolate_return_periods(interpol_rp,
 															intensity_unit)
