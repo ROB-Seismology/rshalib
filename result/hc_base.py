@@ -305,7 +305,7 @@ class HazardSpectrum():
 		:return:
 			int, period index
 		"""
-		if isinstance(period_spec, int):
+		if isinstance(period_spec, (int, np.integer)):
 			period_index = period_spec
 		elif isinstance(period_spec, (float, np.floating)):
 			if len(self.periods) > 1:
