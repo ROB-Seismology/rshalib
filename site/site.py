@@ -129,6 +129,7 @@ class SoilSite(oqhazlib.site.Site):
 				name=""):
 		location = Point(longitude, latitude, depth)
 		if OQ_VERSION >= '2.9.0':
+			soil_params = soil_params.copy()
 			self.kappa = soil_params.pop('kappa', np.nan)
 		super(SoilSite, self).__init__(location, **soil_params)
 		self.name = name
