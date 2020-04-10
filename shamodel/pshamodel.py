@@ -21,7 +21,7 @@ from collections import OrderedDict
 
 import numpy as np
 
-from .. import oqhazlib
+from .. import (oqhazlib, OQ_VERSION)
 from openquake.hazardlib.imt import PGA, SA, PGV, PGD, MMI
 
 from ..calc import mp
@@ -80,7 +80,7 @@ class PSHAModel(PSHAModelBase):
 								max_intensities, num_intensities, return_periods,
 								time_span, truncation_level, integration_distance,
 								damping, intensity_unit)
-		self.source_model = source_model
+		self.set_source_model(source_model)
 		self.ground_motion_model = ground_motion_model
 
 	def __repr__(self):
@@ -99,6 +99,28 @@ class PSHAModel(PSHAModelBase):
 			return self.ground_motion_model.name
 		except:
 			return ""
+
+	def set_source_model(self, source_model):
+		"""
+		Set source model, and automatically set timespan property
+		of each source in the model
+
+		:param source_model:
+			instance of :class:`rshalib.source.SourceModel`
+		"""
+		self.source_model = source_model
+
+		## Override timespan property of each source
+		if self.time_span:
+			for source in self.source_model:
+				source.set_timespan(self.time_span)
+
+		if OQ_VERSION >= '2.9.0':
+			## Set same integration distance for each trt
+			integration_distance = {}
+			for trt in self.source_model.get_tectonic_region_types():
+				integration_distance[trt] = self.integration_distance
+			self.integration_distance = integration_distance
 
 	def calc_shcf(self, cav_min=0., combine_pga_and_sa=True):
 		"""
@@ -148,10 +170,20 @@ class PSHAModel(PSHAModelBase):
 		:return:
 			dict {imt (string) : poes (2-D numpy array of poes)}
 		"""
-		from openquake.hazardlib.calc import hazard_curves_poissonian
-
 		num_sites = len(self.get_soil_site_model())
-		hazard_curves = hazard_curves_poissonian(self.source_model,
+
+		if OQ_VERSION >= '2.9.0':
+			from openquake.hazardlib.calc.hazard_curve import calc_hazard_curves
+
+			ss_filter = self.source_site_filter(self.get_soil_site_model())
+			hazard_curves = calc_hazard_curves(self.source_model,
+										ss_filter, self._get_imtls(),
+										self._get_trt_gsim_dict(),
+										self.truncation_level)
+		else:
+			from openquake.hazardlib.calc import hazard_curves_poissonian
+
+			hazard_curves = hazard_curves_poissonian(self.source_model,
 								self.get_soil_site_model(),
 								self._get_imtls(), self.time_span,
 								self._get_trt_gsim_dict(), self.truncation_level,
@@ -162,11 +194,17 @@ class PSHAModel(PSHAModelBase):
 			if imt == "SA":
 				poes = np.zeros((num_sites, len(periods), self.num_intensities))
 				for k, period in enumerate(periods):
-					poes[:,k,:] = hazard_curves[eval(imt)(period, 5.)]
+					_imt = self._construct_imt(imt, period)
+					if OQ_VERSION >= '2.9.0':
+						_imt = str(_imt)
+					poes[:,k,:] = hazard_curves[_imt]
 				hazard_result[imt] = poes
 			else:
-				poes = hazard_curves[eval(imt)()].reshape(num_sites, 1,
-														self.num_intensities)
+				_imt = self._construct_imt(imt, 0)
+				if OQ_VERSION >= '2.9.0':
+					_imt = str(_imt)
+				poes = hazard_curves[_imt].reshape(num_sites, 1,
+													self.num_intensities)
 				hazard_result[imt] = poes
 		if (combine_pga_and_sa and "PGA" in self.imt_periods.keys()
 			and "SA" in self.imt_periods.keys()):
