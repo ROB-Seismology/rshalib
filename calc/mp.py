@@ -525,6 +525,7 @@ def calc_gmf_with_fixed_epsilon(
 		return np.zeros(total_sites)
 
 	if OQ_VERSION >= '2.9.0':
+		# TODO: Propagate kappa to site context!
 		ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim])
 		sctx, rctx, dctx = ctx_maker.make_contexts(sites, rupture)
 	else:
