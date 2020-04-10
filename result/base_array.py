@@ -258,7 +258,8 @@ class ProbabilityArray(HazardCurveArray):
 		Multiply exceedance probabilities with scalar or other
 		probability array
 		"""
-		assert np.isscalar(other) or isinstance(other, ProbabilityArray)
+		assert (np.isscalar(other) or other.shape == ()
+				or isinstance(other, ProbabilityArray))
 		#return ProbabilityArray(1 - np.exp(np.log(1 - self.array) * float(number)))
 		return ProbabilityArray(1 - (1 - self.array) ** other)
 
@@ -267,7 +268,8 @@ class ProbabilityArray(HazardCurveArray):
 		Divide exceedance probabilities by scalar or other
 		probability array
 		"""
-		assert np.isscalar(other) or isinstance(other, ProbabilityArray)
+		assert (np.isscalar(other) or other.shape == ()
+				or isinstance(other, ProbabilityArray))
 		#return ProbabilityArray(1 - np.exp(np.log(1 - self.array) / float(number)))
 		return self.__mul__(1./other)
 
@@ -678,7 +680,8 @@ class ProbabilityMatrix(DeaggMatrix):
 		Multiply exceedance probabilities with scalar or other
 		probability matrix
 		"""
-		assert np.isscalar(other) or isinstance(other, ProbabilityMatrix)
+		assert (np.isscalar(other) or other.shape == ()
+				or isinstance(other, ProbabilityMatrix))
 		#return ProbabilityMatrix(1 - np.exp(np.log(1 - self.matrix) * float(number)))
 		return ProbabilityMatrix(1 - (1 - self.matrix) ** other)
 
@@ -687,7 +690,8 @@ class ProbabilityMatrix(DeaggMatrix):
 		Divide exceedance probabilities with scalar or other
 		probability matrix
 		"""
-		assert np.isscalar(other) or isinstance(other, ProbabilityMatrix)
+		assert (np.isscalar(other) or other.shape == ()
+				or isinstance(other, ProbabilityMatrix))
 		#return ProbabilityMatrix(1 - np.exp(np.log(1 - self.matrix) / float(number)))
 		return self.__mul__(1./other)
 
