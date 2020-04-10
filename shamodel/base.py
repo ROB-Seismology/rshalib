@@ -79,7 +79,11 @@ class SHAModelBase(object):
 	@property
 	def source_site_filter(self):
 		if self.integration_distance:
-			return oqhazlib.calc.filters.source_site_distance_filter(
+			if OQ_VERSION >= '2.9.0':
+				return partial(oqhazlib.calc.filters.SourceFilter,
+								integration_distance=self.integration_distance)
+			else:
+				return oqhazlib.calc.filters.source_site_distance_filter(
 													self.integration_distance)
 		else:
 			return oqhazlib.calc.filters.source_site_noop_filter
