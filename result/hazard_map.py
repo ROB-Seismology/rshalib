@@ -73,6 +73,9 @@ class GroundMotionField(IntensityResult, HazardField):
 		IntensityResult.__init__(self, intensities=intensities,
 								intensity_unit=intensity_unit, imt=imt,
 								damping=damping)
+		#if np.isnan(self.intensities).any():
+		#	self.intensities = np.ma.array(self.intensities,
+		#									mask=np.isnan(self.intensities))
 		HazardField.__init__(self, sites)
 		self.model_name = model_name
 		self.filespec = filespec
