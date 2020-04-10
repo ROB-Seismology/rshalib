@@ -61,7 +61,21 @@ class CharacteristicFaultSource(RuptureSource, oqhazlib.source.CharacteristicFau
 		"""
 		Temporal occurrence model
 		"""
-		return oqhazlib.tom.PoissonTOM(self.timespan)
+		try:
+			return self.temporal_occurrence_model
+		except AttributeError:
+			return oqhazlib.tom.PoissonTOM(self.timespan)
+
+	def set_timespan(self, timespan):
+		"""
+		Modify timespan
+
+		:param timespan:
+			float, timespan for Poisson temporal occurrence model
+		"""
+		self.timespan = timespan
+		if OQ_VERSION >= '2.9.0':
+			self.tom.time_span = timespan
 
 	def create_xml_element(self, encoding='latin1'):
 		"""
