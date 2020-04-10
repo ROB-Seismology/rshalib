@@ -4,6 +4,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from decimal import Decimal
+from lxml import etree
 import numpy as np
 
 import openquake.hazardlib.calc.disagg as disagg
