@@ -192,11 +192,11 @@ class SourceModel():
 		src_list = []
 		if area_source_model_name:
 			#from ..rob import create_rob_source_model
-			from ..rob import read_rob_source_model
+			from ..rob import read_source_model
 			zone_catalogs = eq_catalog.split_into_zones(area_source_model_name,
 														verbose=False)
 			#source_model = create_rob_source_model(area_source_model_name, min_mag=2., verbose=False)
-			source_model = read_rob_source_model(area_source_model_name, min_mag=2.,
+			source_model = read_source_model(area_source_model_name, min_mag=2.,
 												verbose=False)
 			for zone_id in zone_catalogs.keys():
 				zone_catalog = zone_catalogs[zone_id]
