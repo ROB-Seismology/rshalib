@@ -13,10 +13,10 @@ from ..source import import_source_model_from_gis
 #decimal.getcontext().prec = 4
 
 
-__all__ = ['read_rob_source_model']
+__all__ = ['read_source_model']
 
 
-def read_rob_source_model(
+def read_source_model(
 	source_model_name,
 	column_map={},
 	source_ids=[],
