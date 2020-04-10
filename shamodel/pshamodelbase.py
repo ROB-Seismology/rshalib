@@ -22,7 +22,7 @@ from collections import OrderedDict
 
 import numpy as np
 
-import openquake.hazardlib as oqhazlib
+from .. import (oqhazlib, OQ_VERSION)
 from openquake.hazardlib.imt import PGA, SA, PGV, PGD, MMI
 
 from ..poisson import poisson_conv
@@ -327,6 +327,8 @@ class PSHAModelBase(SHAModelBase):
 		for im, periods in sorted(self.imt_periods.items()):
 			for k, period in enumerate(periods):
 				imt = self._construct_imt(im, period)
+				if OQ_VERSION >= '2.9.0':
+					imt = str(imt)
 				if self.intensities:
 					if isinstance(self.intensities, dict):
 						imtls[imt] = np.array(self.intensities[(im, period)])
