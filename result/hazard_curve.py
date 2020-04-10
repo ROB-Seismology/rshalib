@@ -18,13 +18,14 @@ except:
 ### imports
 import os, sys
 import re
+from lxml import etree
 
 import numpy as np
 import pylab
 from scipy.stats import scoreatpercentile
 
 from ..nrml import ns
-from ..nrml.common import create_nrml_root
+from ..nrml.common import create_nrml_root, xmlstr
 from ..utils import interpolate, logrange
 from ..pmf import NumericPMF
 
@@ -1619,9 +1620,9 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 
 		## Colors and linestyles
 		if colors in (None, []):
+			COLORS = pylab.rcParams['axes.prop_cycle'].by_key()['color']
+			nc = len(COLORS)
 			if len(sites) >= len(periods):
-				COLORS = pylab.rcParams['axes.prop_cycle'].by_key()['color']
-				nc = len(COLORS)
 				colors = [COLORS[i%nc:i%nc+1] * len(periods) for i in range(len(sites))]
 			else:
 				colors = [COLORS[i%nc:i%nc+1] * len(sites) for i in range(len(periods))]
@@ -1726,13 +1727,13 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			instance of :class:`etree.Element`
 		"""
 		shcf_elem = etree.Element(ns.SPECTRAL_HAZARD_CURVE_FIELD)
-		shcf_elem.set(ns.imt, self.imt)
+		shcf_elem.set(ns.IMT, xmlstr(self.imt, encoding=encoding))
 		shcf_elem.set(ns.INVESTIGATION_TIME, str(self.timespan))
 		if smlt_path:
-			shcf_elem.set(ns.SMLT_PATH, smlt_path)
+			shcf_elem.set(ns.SMLT_PATH, xmlstr(smlt_path, encoding=encoding))
 		if gmpelt_path:
-			shcf_elem.set(ns.GMPELT_PATH, gmpelt_path)
-		shcf_elem.set(ns.NAME, self.model_name)
+			shcf_elem.set(ns.GMPELT_PATH, xmlstr(gmpelt_path, encoding=encoding))
+		shcf_elem.set(ns.NAME, xmlstr(self.model_name, encoding=encoding))
 		for k, period in enumerate(self.periods):
 			# TODO: put following in HazardCurveField and HazardCurve !
 			hcf_elem = etree.SubElement(shcf_elem, ns.HAZARD_CURVE_FIELD)
@@ -1749,6 +1750,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 				position_elem.text = "%s %s" % (site[0], site[1])
 				poes_elem = etree.SubElement(hazard_curve_elem, ns.POES)
 				poes_elem.text = " ".join(map(str, self.poes[i,k,:]))
+
 		return shcf_elem
 
 	def write_nrml(self, filespec, smlt_path=None, gmpelt_path=None,
