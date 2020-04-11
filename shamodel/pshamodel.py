@@ -117,10 +117,11 @@ class PSHAModel(PSHAModelBase):
 
 		if OQ_VERSION >= '2.9.0':
 			## Set same integration distance for each trt
-			integration_distance = {}
-			for trt in self.source_model.get_tectonic_region_types():
-				integration_distance[trt] = self.integration_distance
-			self.integration_distance = integration_distance
+			#integration_distance = {}
+			#for trt in self.source_model.get_tectonic_region_types():
+			#	integration_distance[trt] = self.integration_distance
+			#self.integration_distance = integration_distance
+			pass
 
 	def calc_shcf(self, cav_min=0., combine_pga_and_sa=True):
 		"""
@@ -176,8 +177,9 @@ class PSHAModel(PSHAModelBase):
 			from openquake.hazardlib.calc.hazard_curve import calc_hazard_curves
 
 			ss_filter = self.source_site_filter(self.get_soil_site_model())
+			imtls = {str(imt): imls for (imt, imls) in self._get_imtls().items()}
 			hazard_curves = calc_hazard_curves(self.source_model,
-										ss_filter, self._get_imtls(),
+										ss_filter, self.imtls,
 										self._get_trt_gsim_dict(),
 										self.truncation_level)
 		else:
@@ -258,7 +260,7 @@ class PSHAModel(PSHAModelBase):
 			source_model = self.source_model.decompose_area_sources()
 			num_decomposed_sources = self.source_model.get_num_decomposed_sources()
 			cum_num_decomposed_sources = np.concatenate([[0],
-										np.add.accumulate(num_decomposed_sources)])
+										np.cumsum(num_decomposed_sources)])
 		else:
 			source_model = self.source_model
 
@@ -299,6 +301,7 @@ class PSHAModel(PSHAModelBase):
 		im_imls = self._get_im_imls(combine_pga_and_sa=combine_pga_and_sa)
 		for im, intensities in im_imls.items():
 			periods = self.imt_periods[im]
+			filespecs = [""]*len(periods)
 			## Determine period indexes in poes array
 			period_idxs = []
 			for T in periods:
@@ -311,7 +314,6 @@ class PSHAModel(PSHAModelBase):
 
 			if individual_sources:
 				src_shcf_dict = OrderedDict()
-				filespecs = [""]*len(periods)
 				for i, src in enumerate(self.source_model):
 					src_shcf_dict[src.source_id] = SpectralHazardCurveField(
 													poes[i][:,period_idxs,:],
@@ -790,7 +792,7 @@ class PSHAModel(PSHAModelBase):
 		if decompose_area_sources:
 			source_model = self.source_model.decompose_area_sources()
 			num_decomposed_sources = self.source_model.get_num_decomposed_sources()
-			cum_num_decomposed_sources = np.add.accumulate(num_decomposed_sources)
+			cum_num_decomposed_sources = np.cumsum(num_decomposed_sources)
 		else:
 			source_model = self.source_model
 
