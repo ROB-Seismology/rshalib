@@ -80,8 +80,11 @@ class SHAModelBase(object):
 	def source_site_filter(self):
 		if self.integration_distance:
 			if OQ_VERSION >= '2.9.0':
+				integration_distance = {}
+				for trt in self.source_model.get_tectonic_region_types():
+					integration_distance[trt] = self.integration_distance
 				return partial(oqhazlib.calc.filters.SourceFilter,
-								integration_distance=self.integration_distance)
+								integration_distance=integration_distance)
 			else:
 				return oqhazlib.calc.filters.source_site_distance_filter(
 													self.integration_distance)
