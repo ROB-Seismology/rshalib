@@ -121,38 +121,72 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 	"""
 	if verbose:
 		print(source.source_id)
+	## Hack because 'timespan' property of Source is not preserved in PY2...
+	if not hasattr(source, 'timespan'):
+		source.timespan = psha_model.time_span
 	sources = [source]
 	sites = psha_model.get_soil_site_model()
 	gsims = psha_model._get_trt_gsim_dict()
 	imts = psha_model._get_imtls()
-	tom = psha_model.poisson_tom
 
 	total_sites = len(sites)
 	shape = (total_sites, len(imts), len(imts[list(imts.keys())[0]]))
-	curves = np.ones(shape)
+	curves = np.ones(shape, dtype=np.float64)
 
 	## Copied from openquake.hazardlib
-	sources_sites = ((source, sites) for source in sources)
-	for source, s_sites in psha_model.source_site_filter(sources_sites):
+	if OQ_VERSION >= '2.9.0':
+		source_site_filter = psha_model.source_site_filter(sites)([source])
+	else:
+		sources_sites = ((source, sites) for source in sources)
+		source_site_filter = psha_model.source_site_filter(sources_sites)
+	for _, s_sites in source_site_filter:
+		if OQ_VERSION >= '2.9.0':
+			tom = None
+		else:
+			tom = psha_model.poisson_tom
 		try:
-			ruptures_sites = ((rupture, s_sites)
-							  for rupture in source.iter_ruptures(tom))
-			for rupture, r_sites in psha_model.rupture_site_filter(ruptures_sites):
-				prob = rupture.get_probability_one_or_more_occurrences()
-				gsim = gsims[rupture.tectonic_region_type]
-				sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
-				if cav_min > 0 and not hasattr(sctx, "vs30"):
-					## Set vs30 explicitly for GMPEs that do not require vs30
-					setattr(sctx, "vs30", getattr(r_sites, "vs30"))
-				for k, imt in enumerate(imts):
-					poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imts[imt],
-										 psha_model.truncation_level, cav_min=cav_min)
-					curves[:,k,:] *= r_sites.expand(
-						(1 - prob) ** poes, total_sites, placeholder=1
-					)
+			#ruptures_sites = ((rupture, s_sites)
+			#				  for rupture in source.iter_ruptures(tom))
+			#for rupture, r_sites in psha_model.rupture_site_filter(ruptures_sites):
+			for rupture in source.iter_ruptures(tom):
+				if OQ_VERSION >= '2.9.0':
+					r_sites = psha_model.rupture_site_filter(rupture, sites=s_sites)
+				else:
+					try:
+						[(_, r_sites)] = psha_model.rupture_site_filter([(rupture, s_sites)])
+					except:
+						r_sites = None
+				if r_sites is not None:
+					prob = rupture.get_probability_one_or_more_occurrences()
+					gsim = gsims[rupture.tectonic_region_type]
+					if OQ_VERSION >= '2.9.0':
+						ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim])
+						sctx, rctx, dctx = ctx_maker.make_contexts(r_sites, rupture)
+					else:
+						sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
+					if cav_min > 0 and not hasattr(sctx, "vs30"):
+						## Set vs30 explicitly for GMPEs that do not require vs30
+						setattr(sctx, "vs30", getattr(r_sites, "vs30"))
+					for k, imt in enumerate(imts):
+						if OQ_VERSION >= '2.9.0':
+							poes = gsim.get_poes(sctx, rctx, dctx, imt, imts[imt],
+											 psha_model.truncation_level)
+						else:
+							poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imts[imt],
+											 psha_model.truncation_level, cav_min=cav_min)
+
+						exceedances = (1 - prob) ** poes
+						if OQ_VERSION >= '2.9.0':
+							if r_sites.indices is not None:
+								curves[r_sites.indices,k,:] *= exceedances
+							else:
+								curves[:,k,:] *= exceedances
+						else:
+							curves[:,k,:] *= r_sites.expand(exceedances, total_sites,
+															placeholder=1)
 		except Exception as err:
 			msg = 'An error occurred with source id=%s. Error: %s'
-			msg %= (source.source_id, err.message)
+			msg %= (source.source_id, err)
 			raise RuntimeError(msg)
 	return curves
 
@@ -193,7 +227,7 @@ def calc_shcf_psha_model(psha_model, curve_name, curve_path, cav_min,
 										combine_pga_and_sa=combine_pga_and_sa)
 	except Exception as err:
 		msg = 'Warning: An error occurred with curve %s. Error: %s'
-		msg %= (curve_name, err.message)
+		msg %= (curve_name, err)
 		#raise RuntimeError(msg)
 		print(msg)
 		return 1
@@ -352,7 +386,7 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 
 	except Exception as err:
 		msg = 'Warning: An error occurred with source %s. Error: %s'
-		msg %= (source.source_id, err.message)
+		msg %= (source.source_id, err)
 		#raise RuntimeError(msg)
 		print(msg)
 		return 1
@@ -438,7 +472,7 @@ def deaggregate_psha_model(psha_model, curve_name, curve_path, deagg_sites,
 												coordinate_bin_width, dtype, verbose=False)
 	except Exception as err:
 		msg = 'Warning: An error occurred with curve %s. Error: %s'
-		msg %= (curve_path, err.message)
+		msg %= (curve_path, err)
 		#raise RuntimeError(msg)
 		print(msg)
 		return 1
@@ -659,7 +693,7 @@ def calc_random_gmf(
 
 	except Exception as err:
 		msg = 'Warning: An error occurred with field #%s. Error: %s'
-		msg %= (shared_arr_idx, err.message)
+		msg %= (shared_arr_idx, err)
 		#raise RuntimeError(msg)
 		print(msg)
 		return 1
