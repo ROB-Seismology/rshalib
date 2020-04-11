@@ -34,8 +34,9 @@ class RuptureSource(object):
 			(default: None)
 		"""
 		if tom:
-			timespan = self.timespan
-			self.timespan = tom.time_span
+			timespan = getattr(self, 'timespan')
+			if timespan:
+				self.timespan = tom.time_span
 
 		## OpenQuake version dependent arguments
 		oqver_args = []
@@ -44,7 +45,7 @@ class RuptureSource(object):
 		for rup in super(RuptureSource, self).iter_ruptures(*oqver_args):
 			yield rup
 
-		if tom:
+		if tom and hasattr(self, 'timespan'):
 			self.timespan = timespan
 
 	def get_ruptures_poisson(self, mag=None, strike=None, dip=None, rake=None,
