@@ -71,7 +71,7 @@ class OqhazlibGMPE(GMPE):
 		"""
 		"""
 		## get dict mapping gmpe names to classes
-		self.gmpe = get_oq_gsim(name)
+		self.gsim = get_oq_gsim(name)
 
 		## get imt periods
 		if not imt_periods:
@@ -98,18 +98,18 @@ class OqhazlibGMPE(GMPE):
 
 	def _get_imt_periods_from_oqhazlib_coeffs(self, name=""):
 		imt_periods = {}
-		for imt in self.gmpe.DEFINED_FOR_INTENSITY_MEASURE_TYPES:
+		for imt in self.gsim.DEFINED_FOR_INTENSITY_MEASURE_TYPES:
 			if imt == SA:
 				if name in ("AtkinsonBoore2006", "AtkinsonBoore2006Prime"):
 					imt_periods['SA'] = [sa.period for sa in
-										sorted(self.gmpe.COEFFS_BC.sa_coeffs.keys())]
+										sorted(self.gsim.COEFFS_BC.sa_coeffs.keys())]
 				elif "adjusted" in name:
-					(vs30, kappa) = list(self.gmpe.COEFFS.keys())[0]
+					(vs30, kappa) = list(self.gsim.COEFFS.keys())[0]
 					imt_periods['SA'] = [sa.period for sa in
-						sorted(self.gmpe.COEFFS[(vs30, kappa)].sa_coeffs.keys())]
+						sorted(self.gsim.COEFFS[(vs30, kappa)].sa_coeffs.keys())]
 				else:
 					imt_periods['SA'] = [sa.period for sa in
-										sorted(self.gmpe.COEFFS.sa_coeffs.keys())]
+										sorted(self.gsim.COEFFS.sa_coeffs.keys())]
 			else:
 				imt_periods[imt.__name__] = [0]
 		return imt_periods
@@ -143,7 +143,7 @@ class OqhazlibGMPE(GMPE):
 												kappa, mechanism, imt, T, damping)
 
 			## get mean and sigma
-			ln_mean, [ln_sigma] = self.gmpe.get_mean_and_stddevs(sctx, rctx,
+			ln_mean, [ln_sigma] = self.gsim.get_mean_and_stddevs(sctx, rctx,
 													dctx, imt_object, ['Total'])
 
 			#if not distance_is_array:
@@ -214,10 +214,10 @@ class OqhazlibGMPE(GMPE):
 
 		## Create contexts
 		if OQ_VERSION >= '2.9.0':
-			ctx_maker = oqhazlib.gsim.base.ContextMaker([self.gmpe])
+			ctx_maker = oqhazlib.gsim.base.ContextMaker([self.gsim])
 			sctx, rctx, dctx = ctx_maker.make_contexts(soil_site_model, rupture)
 		else:
-			sctx, rctx, dctx = self.gmpe.make_contexts(soil_site_model, rupture)
+			sctx, rctx, dctx = self.gsim.make_contexts(soil_site_model, rupture)
 
 		"""
 		## set site context
