@@ -74,7 +74,12 @@ class AreaSource(RuptureSource, oqhazlib.source.AreaSource):
 		float, timespan for Poisson temporal occurrence model.
 		Introduced in more recent versions of OpenQuake
 		(default: 1)
-"""
+	"""
+	## Modify __slots__ to preserve :prop:`timespan` after pickling/unpickling
+	## during multiprocessing
+	if OQ_VERSION < '2.9.0':
+		__slots__ = oqhazlib.source.AreaSource.__slots__ + ['timespan']
+
 	def __init__(self, source_id, name, tectonic_region_type, mfd,
 				rupture_mesh_spacing, magnitude_scaling_relationship,
 				rupture_aspect_ratio,

@@ -61,6 +61,12 @@ class ComplexFaultSource(RuptureSource, oqhazlib.source.ComplexFaultSource):
 		(default: 1)
 	"""
 	# TODO: add bg_zone parameter as for SimpleFaultSource
+
+	## Modify __slots__ to preserve :prop:`timespan` after pickling/unpickling
+	## during multiprocessing
+	if OQ_VERSION < '2.9.0':
+		__slots__ = oqhazlib.source.ComplexFaultSource.__slots__ + ['timespan']
+
 	def __init__(self, source_id, name, tectonic_region_type, mfd,
 				rupture_mesh_spacing, magnitude_scaling_relationship,
 				rupture_aspect_ratio, edges, rake, timespan=1):

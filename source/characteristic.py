@@ -38,6 +38,11 @@ class CharacteristicFaultSource(RuptureSource, oqhazlib.source.CharacteristicFau
 		Introduced in more recent versions of OpenQuake
 		(default: 1)
 	"""
+	## Modify __slots__ to preserve :prop:`timespan` after pickling/unpickling
+	## during multiprocessing
+	if OQ_VERSION < '2.9.0':
+		__slots__ = oqhazlib.source.CharacteristicFaultSource.__slots__ + ['timespan']
+
 	def __init__(self, source_id, name, tectonic_region_type, mfd, surface, rake,
 				timespan=1):
 		self.timespan = timespan
