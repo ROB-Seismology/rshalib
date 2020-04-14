@@ -49,7 +49,7 @@ class GroundMotionSystem(LogicTree):
 			bool, whether to label branches using short names or full
 			names of GMPEs (default: True)
 		"""
-		from ..gsim import gmpe as gmpe_module
+		from .. import gsim
 		for i, trt in enumerate(self.tectonic_region_types):
 			branchingLevelID = "bl%02d" % i
 			#branchSetID = "%s_bs01" % branchingLevelID
@@ -60,13 +60,15 @@ class GroundMotionSystem(LogicTree):
 			## Rename branch ID's:
 			for branch, gmpe_name in zip(branch_set.branches,
 										self.gmpe_system_def[trt].gmpe_names):
-				# TODO: consider avoiding dependency on rshalib gmpe module
 				try:
-					gmpe = getattr(gmpe_module, gmpe_name)()
+					gmpe = getattr(gsim, gmpe_name)()
 				except AttributeError:
-					pass
+					## OQ GMPEs that are not explicitly defined
+					## in rshalig.gsim.gmpe.oqhazlib_gmpe
+					gmpe = gsim.get_oq_gsim(gmpe_name)
 				else:
-					gmpe_name = {True: gmpe.short_name, False: gmpe.name}[self.use_short_names]
+					gmpe_name = {True: gmpe.short_name,
+								False: gmpe.name}[self.use_short_names]
 				branch.branch_id = "%s--%s" % (branchSetID, gmpe_name)
 			branching_level = LogicTreeBranchingLevel(branchingLevelID, [branch_set])
 			self.branching_levels.append(branching_level)
