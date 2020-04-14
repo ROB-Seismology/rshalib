@@ -17,6 +17,7 @@ from plotting.generic_mpl import (plot_xy, show_or_save_plot)
 
 from ..utils import interpolate
 from ..poisson import poisson_conv
+from .base_array import is_empty_array
 
 
 
@@ -785,6 +786,7 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		fig_filespec: full path to ouptut image. If not set, graph will be plotted on screen
 			(default: None)
 	"""
+	import matplotlib
 	from matplotlib import cm
 
 	Nmag, Ndist = len(magnitudes), len(distances)
@@ -796,7 +798,7 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 	fig = pylab.figure()
 	pylab.clf()
 
-	if eps_values not in (None, []) or fue_values not in (None, []):
+	if not is_empty_array(eps_values) or not is_empty_array(fue_values):
 		mr_rect = [0.1, 0.0, 0.5, 0.9]
 	else:
 		mr_rect = [0.1, 0.0, 0.85, 0.9]
@@ -859,7 +861,7 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 	ax1.set_title('By M,r')
 
 	## Plot deaggregation by epsilon
-	if eps_values not in (None, []):
+	if not is_empty_array(eps_values):
 		ax2 = fig.add_axes([0.575, 0.5, 0.4, 0.4], aspect='equal')
 		#eps_values = np.concatenate([[0.], eps_values])
 		#eps_values = eps_values[1:] - eps_values[:-1]
@@ -874,7 +876,7 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		ax2.set_title('By $\epsilon$')
 
 	## Plot deaggregation by source
-	if fue_values not in (None, []):
+	if not is_empty_array(fue_values):
 		num_sources = len(fue_values)
 		if not fue_labels:
 			fue_labels = range(1,num_sources+1)
@@ -891,6 +893,10 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 			fue_labels = [lbl for i, lbl in enumerate(fue_labels) if i in large_slice_indexes[0]]
 			fue_labels.append(small_slice_label)
 		cmap = cm.Accent
+		if isinstance(cmap, matplotlib.colors.ListedColormap):
+			## Different implementation in newer versions of matplotlib
+			cmap = matplotlib.colors.LinearSegmentedColormap.from_list('Accent',
+																	cmap.colors)
 		cdict = cmap._segmentdata
 		reds = [item[1] for item in cdict['red']]
 		greens = [item[1] for item in cdict['green']]
