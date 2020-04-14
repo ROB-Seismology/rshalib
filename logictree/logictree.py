@@ -8,6 +8,13 @@ to generate xml elements that can be used to build a NRML document
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+try:
+	## Python 2
+	basestring
+except:
+	## Python 3
+	basestring = str
+
 
 import numpy as np
 import pprint
@@ -291,7 +298,7 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 		for i, (weight, model) in enumerate(pmf.data):
 			if isinstance(pmf, SourceModelPMF):
 				## Models can be SourceModel objects or source model names
-				if not isinstance(model, (str, unicode)):
+				if not isinstance(model, basestring):
 					model = model.name
 				branch_id = model
 				## Add .xml extension if necessary
