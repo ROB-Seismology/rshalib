@@ -39,21 +39,35 @@ class PSHAModelTree(PSHAModelBase):
 	"""
 	Class representing a PSHA model logic tree.
 
+	:param name:
+		str, model name
 	:param source_model_lt:
-		:class:`LogicTree` object, defining source model logic tree.
-	:param ground_motion_models:
-		List of :class:`GroundMotionModel` objects.
-	:param soil_site_model:
-		SoilSiteModel object
-	:param lts_sampling_method:
-		str, defining sampling method for logic trees
-		(options: 'random' and 'enumerated')
-		(default: 'random').
-	:param num_lts_samples:
-		Integer, defining times to sample logic trees
+		instance of :class:`rshalib.logictree.SeismicSourceSystem`,
+		defining source model logic tree.
+	:param gmpe_lt:
+		instance of :class:`rshalib.logictree.GroundMotionSystem`,
+		defining ground-motionlogic tree.
+	:param root_folder:
+	:param site_model:
+	:param ref_soil_params:
+	:param imt_periods:
+	:param intensities:
+	:param min_intensities:
+	:param max_intensities:
+	:param num_intensities:
+	:param return_periods:
+	:param time_span:
+	:param truncation_level:
+	:param integration_distance:
+	:param damping:
+	:param intensity_unit:
+		see :class:`PSHAModelBase`
+	:param num_lt_samples:
+		int, defining times to sample logic trees
 		(default: 1).
-
-	See :class:`PSHAModelBase` for other arguments.
+	:param random_seed:
+		int, seed for random number generator
+		(default: 42)
 	"""
 	def __init__(self, name, source_model_lt, gmpe_lt, root_folder,
 				site_model, ref_soil_params=REF_SOIL_PARAMS,
