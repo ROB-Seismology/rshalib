@@ -738,8 +738,8 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 			self.dtype = _dtype
 			self.array = _ar
 			self.array.flags.writeable = False
-		#else:
-		#	self.kappa = np.array([getattr(site, 'kappa', np.nan) for site in sites])
+		else:
+			self.kappa = np.array([getattr(site, 'kappa', np.nan) for site in sites])
 		self.site_names = [site.name for site in sites]
 
 	@property
@@ -800,6 +800,18 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 		indices = self.indices if self.indices is not None else np.arange(len(self))
 		for i in indices:
 			yield self.__getitem__(i)
+
+	if OQ_VERSION >= '2.9.0':
+		def __getstate__(self):
+			"""
+			Override SiteCollection.__getstate__ method to preserve
+			:prop:`site_names` after pickling/unpickling during
+			multiprocessing
+			"""
+			d = super(SoilSiteModel, self).__getstate__()
+			d['site_names'] = self.site_names
+
+			return d
 
 	if OQ_VERSION < '2.9.0':
 		@property
