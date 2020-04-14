@@ -121,9 +121,7 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 	"""
 	if verbose:
 		print(source.source_id)
-	## Hack because 'timespan' property of Source is not preserved in PY2...
-	if not hasattr(source, 'timespan'):
-		source.timespan = psha_model.time_span
+
 	sources = [source]
 	sites = psha_model.get_soil_site_model()
 	gsims = psha_model._get_trt_gsim_dict()
@@ -156,34 +154,36 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 						[(_, r_sites)] = psha_model.rupture_site_filter([(rupture, s_sites)])
 					except:
 						r_sites = None
-				if r_sites is not None:
-					prob = rupture.get_probability_one_or_more_occurrences()
-					gsim = gsims[rupture.tectonic_region_type]
-					if OQ_VERSION >= '2.9.0':
-						ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim])
-						sctx, rctx, dctx = ctx_maker.make_contexts(r_sites, rupture)
-					else:
-						sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
-					if cav_min > 0 and not hasattr(sctx, "vs30"):
-						## Set vs30 explicitly for GMPEs that do not require vs30
-						setattr(sctx, "vs30", getattr(r_sites, "vs30"))
-					for k, imt in enumerate(imts):
-						if OQ_VERSION >= '2.9.0':
-							poes = gsim.get_poes(sctx, rctx, dctx, imt, imts[imt],
-											 psha_model.truncation_level)
-						else:
-							poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imts[imt],
-											 psha_model.truncation_level, cav_min=cav_min)
+				if r_sites is None:
+					continue
 
-						exceedances = (1 - prob) ** poes
-						if OQ_VERSION >= '2.9.0':
-							if r_sites.indices is not None:
-								curves[r_sites.indices,k,:] *= exceedances
-							else:
-								curves[:,k,:] *= exceedances
+				prob = rupture.get_probability_one_or_more_occurrences()
+				gsim = gsims[rupture.tectonic_region_type]
+				if OQ_VERSION >= '2.9.0':
+					ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim])
+					sctx, rctx, dctx = ctx_maker.make_contexts(r_sites, rupture)
+				else:
+					sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
+				if cav_min > 0 and not hasattr(sctx, "vs30"):
+					## Set vs30 explicitly for GMPEs that do not require vs30
+					setattr(sctx, "vs30", getattr(r_sites, "vs30"))
+				for k, imt in enumerate(imts):
+					if OQ_VERSION >= '2.9.0':
+						poes = gsim.get_poes(sctx, rctx, dctx, imt, imts[imt],
+										 psha_model.truncation_level)
+					else:
+						poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imts[imt],
+										 psha_model.truncation_level, cav_min=cav_min)
+
+					exceedances = (1 - prob) ** poes
+					if OQ_VERSION >= '2.9.0':
+						if r_sites.indices is not None:
+							curves[r_sites.indices,k,:] *= exceedances
 						else:
-							curves[:,k,:] *= r_sites.expand(exceedances, total_sites,
-															placeholder=1)
+							curves[:,k,:] *= exceedances
+					else:
+						curves[:,k,:] *= r_sites.expand(exceedances, total_sites,
+														placeholder=1)
 		except Exception as err:
 			msg = 'An error occurred with source id=%s. Error: %s'
 			msg %= (source.source_id, err)
@@ -271,10 +271,8 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 		mapping oqhazlib IMT objects to 1-D arrays of intensity measure
 		levels
 	:param deagg_site_model:
-		list with instances of :class:`SHASite` or instance of
-		:class:`SHASiteModel`for which deaggregation will be performed.
-		Note that instances of class:`SoilSite` will
-		not work with multiprocessing
+		instance of :class:`rshalib.site.SoilSiteModel`, sites for which
+		deaggregation will be performed.
 	:param deagg_imt_periods:
 		dictionary mapping instances of :class:`IMT` to lists of spectral
 		periods.
@@ -305,36 +303,63 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 		src_deagg_matrix = np.ones(deagg_matrix_shape[:-1], dtype=dtype)
 
 		## Perform deaggregation
-		tom = psha_model.poisson_tom
+		#tom = psha_model.poisson_tom
 		gsims = psha_model._get_trt_gsim_dict()
 		source_site_filter = psha_model.source_site_filter
 		rupture_site_filter = psha_model.rupture_site_filter
 
 		n_epsilons = len(eps_bins) - 1
 
-		sources = [source]
-		sources_sites = ((source, deagg_site_model) for source in sources)
-		for s, (source, s_sites) in \
-				enumerate(source_site_filter(sources_sites)):
+		if OQ_VERSION >= '2.9.0':
+			from scipy.stats import truncnorm
+			trunc_norm = truncnorm(-psha_model.truncation_level,
+									psha_model.truncation_level)
+
+		#sources = [source]
+		#sources_sites = ((source, deagg_site_model) for source in sources)
+		#for s, (source, s_sites) in \
+		#		enumerate(source_site_filter(sources_sites)):
+
+		if OQ_VERSION >= '2.9.0':
+			source_site_filter = source_site_filter(deagg_site_model)([source])
+		else:
+			sources_sites = [(source, deagg_site_model)]
+			source_site_filter = source_site_filter(sources_sites)
+		for _, s_sites in source_site_filter:
+			if OQ_VERSION >= '2.9.0':
+				tom = None
+			else:
+				tom = psha_model.poisson_tom
 
 			if verbose:
 				print(source.source_id)
 
-			tect_reg = source.tectonic_region_type
-			gsim = gsims[tect_reg]
+			trt = source.tectonic_region_type
+			gsim = gsims[trt]
 
-			ruptures_sites = ((rupture, s_sites)
-							  for rupture in source.iter_ruptures(tom))
-			for rupture, r_sites in rupture_site_filter(ruptures_sites):
+			#ruptures_sites = ((rupture, s_sites)
+			#				  for rupture in source.iter_ruptures(tom))
+			#for rupture, r_sites in rupture_site_filter(ruptures_sites):
+			for rupture in source.iter_ruptures(tom):
+				if OQ_VERSION >= '2.9.0':
+					r_sites = rupture_site_filter(rupture, sites=s_sites)
+				else:
+					try:
+						[(_, r_sites)] = rupture_site_filter([(rupture, s_sites)])
+					except:
+						r_sites = None
+				if r_sites is None:
+					continue
+
 				## Extract rupture parameters of interest
 				mag_idx = np.digitize([rupture.mag], mag_bins)[0] - 1
 
 				sitemesh = r_sites.mesh
-				sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
-				if hasattr(dctx, "rjb"):
-					jb_dists = getattr(dctx, "rjb")
-				else:
-					jb_dists = rupture.surface.get_joyner_boore_distance(sitemesh)
+				#sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
+				#if hasattr(dctx, "rjb"):
+				#	jb_dists = getattr(dctx, "rjb")
+				#else:
+				jb_dists = rupture.surface.get_joyner_boore_distance(sitemesh)
 				closest_points = rupture.surface.get_closest_points(sitemesh)
 				lons = [pt.longitude for pt in closest_points]
 				lats = [pt.latitude for pt in closest_points]
@@ -344,7 +369,8 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 				lat_idxs = np.digitize(lats, lat_bins) - 1
 
 				## Compute probability of one or more rupture occurrences
-				prob_one_or_more = rupture.get_probability_one_or_more_occurrences()
+				if OQ_VERSION < '2.9.0':
+					prob_one_or_more = rupture.get_probability_one_or_more_occurrences()
 
 				## compute conditional probability of exceeding iml given
 				## the current rupture, and different epsilon level, that is
@@ -356,20 +382,30 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 					site_key = (site.location.longitude, site.location.latitude)
 					imtls = site_imtls[site_key]
 					imts = list(imtls.keys())
-					sctx2, rctx2, dctx2 = gsim.make_contexts(SiteCollection([site]),
-															rupture)
+					site_col = SiteCollection([site])
+					if OQ_VERSION >= '2.9.0':
+						ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim])
+						sctx, rctx, dctx = ctx_maker.make_contexts(site_col,
+																	rupture)
+					else:
+						sctx, rctx, dctx = gsim.make_contexts(site_col, rupture)
+
 					for imt_idx, imt_tuple in enumerate(imts):
 						imls = imtls[imt_tuple]
 						## Reconstruct imt from tuple
 						imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
 						## In contrast to what is stated in the documentation,
 						## disaggregate_poe does handle more than one iml
-						poes_given_rup_eps = gsim.disaggregate_poe(sctx2, rctx2,
-									dctx2, imt, imls, psha_model.truncation_level,
+						if OQ_VERSION >= '2.9.0':
+							pone = gsim.disaggregate_pne(rupture, sctx, rctx,
+								dctx, imt, imls, trunc_norm, eps_bins)
+						else:
+							poes_given_rup_eps = gsim.disaggregate_poe(sctx, rctx,
+									dctx, imt, imls, psha_model.truncation_level,
 									n_epsilons)
 
-						## Probability of non-exceedance
-						pone = (1. - prob_one_or_more) ** poes_given_rup_eps
+							## Probability of non-exceedance
+							pone = (1. - prob_one_or_more) ** poes_given_rup_eps
 
 						try:
 							src_deagg_matrix[site_idx, imt_idx, :, mag_idx, dist_idx, lon_idx, lat_idx, :] *= pone
