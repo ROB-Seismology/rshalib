@@ -210,68 +210,19 @@ class OqhazlibGMPE(GMPE):
 			z2pt5 = 1.
 		ref_soil_params = {"vs30": vs30, "vs30measured": vs30measured,
 							"z1pt0": z1pt0, "z2pt5": z2pt5, "kappa": kappa}
-		soil_site_model = sha_site_model.to_soil_site_model(ref_soil_params=ref_soil_params)
+		soil_site_model = sha_site_model.to_soil_site_model(ref_soil_params)
 
 		## Create contexts
 		if OQ_VERSION >= '2.9.0':
 			ctx_maker = oqhazlib.gsim.base.ContextMaker([self.gsim])
-			sctx, rctx, dctx = ctx_maker.make_contexts(soil_site_model, rupture)
+			id_dict = {'default': self.dmax}
+			integration_distance = oqhazlib.calc.filters.IntegrationDistance(id_dict)
+			sctx, rctx, dctx = ctx_maker.make_contexts(soil_site_model, rupture,
+														integration_distance)
 		else:
 			sctx, rctx, dctx = self.gsim.make_contexts(soil_site_model, rupture)
 
-		"""
-		## set site context
-		sctx = oqhazlib.gsim.base.SitesContext()
-		if not vs30:
-			vs30 = 800.
-		if vs30:
-			sctx.vs30 = np.ones_like(d, dtype='d')
-			sctx.vs30 *= vs30
-		if vs30measured:
-			sctx.vs30measured = np.ones_like(d, dtype='d')
-			sctx.vs30measured *= vs30measured
-		if z1pt0:
-			sctx.z1pt0 = np.ones_like(d, dtype='d')
-			sctx.z1pt0 *= z1pt0
-		if z2pt5:
-			sctx.z2pt5 = np.ones_like(d, dtype='d')
-			sctx.z2pt5 *= z2pt5
-		if kappa:
-			sctx.kappa = np.ones_like(d, dtype='d')
-			sctx.kappa *= kappa
-
-		## set rupture context
-		rctx = oqhazlib.gsim.base.RuptureContext()
-		rctx.mag = M
-		#rctx.dip = None
-		rctx.rake = {'normal': -90., 'reverse': 90., 'strike-slip': 0.}[mechanism]
-		#rctx.ztor = None
-		rctx.hypo_depth = h
-		#rctx.width = None
-
-		## set distance context
-		dctx = oqhazlib.gsim.base.DistancesContext()
-		setattr(dctx, {'Hypocentral': 'rhypo', 'Epicentral': 'repi', 'Joyner-Boore': 'rjb', 'Rupture': 'rrup'}[self.distance_metric], d)
-		## For Chiou & Youngs (2008) GMPE, set rx negative to exclude hanging-wall effect
-
-		## TODO: implement other attributes of contexts
-		## One option would be to add (some of) these parameters to the __call__ function
-		if self.name in ("ChiouYoungs2008", "AbrahamsonSilva2008", "CampbellBozorgnia2008"):
-			## First 3 parameters are only needed for hanging-wall effect
-			setattr(dctx, "rx", np.ones_like(getattr(dctx, "rrup")) * -1)
-			setattr(dctx, "rjb", np.ones_like(getattr(dctx, "rrup")))
-			setattr(rctx, "dip", 90)
-			## This one is only for Abrahamson & Silva (2008)
-			setattr(rctx, "width", 20.)
-			## Other required parameters
-			setattr(rctx, "ztor", 5.)
-			## The following parameters probably only concern site effects
-			#setattr(sctx, "z1pt0", np.array([0.034]))
-			# TODO: check whether vs30measured should be a boolean
-			#setattr(sctx, "vs30measured", np.zeros_like(sctx.vs30, dtype=bool))
-		"""
-
-		## set imt
+		## Set imt
 		if imt == "SA":
 			imt_object = IMT_DICT[imt](T, damping)
 		else:
