@@ -56,12 +56,27 @@ class PSHAModel(PSHAModelBase):
 	"""
 	Class representing a single PSHA model.
 
+	:param name:
+		str, model name
 	:param source_model:
 		instance of :class:`SourceModel`
 	:param ground_motion_model:
 		instance of :class:`GroundMotionModel`
-
-	See :class:`PSHAModelBase` for other arguments.
+	:param root_folder:
+	:param site_model:
+	:param ref_soil_params:
+	:param imt_periods:
+	:param intensities:
+	:param min_intensities:
+	:param max_intensities:
+	:param num_intensities:
+	:param return_periods:
+	:param time_span:
+	:param truncation_level:
+	:param integration_distance:
+	:param damping:
+	:param intensity_unit:
+		see :class:`PSHAModelBase`
 	"""
 
 	def __init__(self, name, source_model, ground_motion_model, root_folder,
@@ -369,7 +384,10 @@ class PSHAModel(PSHAModelBase):
 		:return:
 			instance of :class:`DeaggregationSlice`
 		"""
-		from openquake.hazardlib.calc import disaggregation_poissonian
+		if OQ_VERSION >= '2.9.0':
+			from openquake.hazardlib.calc import disaggregation
+		else:
+			from openquake.hazardlib.calc import disaggregation_poissonian
 
 		if not n_epsilons:
 			n_epsilons = 2 * int(np.ceil(self.truncation_level))
@@ -378,18 +396,26 @@ class PSHAModel(PSHAModelBase):
 		if not isinstance(site, SoilSite):
 			site = site.to_soil_site(self.ref_soil_params)
 		#imt = self._get_imtls()
-		ssdf = self.source_site_distance_filter
-		rsdf = self.rupture_site_distance_filter
+		ssf = self.source_site_filter
+		rsf = self.rupture_site_filter
 
-		bin_edges, deagg_matrix = disaggregation_poissonian(self.source_model,
+		if OQ_VERSION >= '2.9.0':
+			print(n_epsilons, mag_bin_width, dist_bin_width, coord_bin_width)
+			bin_edges, deagg_matrix = disaggregation(self.source_model,
+								site, imt, iml,
+								self._get_trt_gsim_dict(),
+								self.truncation_level, n_epsilons, mag_bin_width,
+								dist_bin_width, coord_bin_width, ssf([site]))
+		else:
+			bin_edges, deagg_matrix = disaggregation_poissonian(self.source_model,
 								site, imt, iml,
 								self._get_trt_gsim_dict(), self.time_span,
 								self.truncation_level, n_epsilons, mag_bin_width,
-								dist_bin_width, coord_bin_width, ssdf, rsdf)
+								dist_bin_width, coord_bin_width, ssf, rsf)
 		deagg_matrix = ProbabilityMatrix(deagg_matrix)
 		#imt_name = str(imt).split('(')[0]
 		imtf = self.get_imt_families()[0]
-		if imt_name == "SA":
+		if imtf == "SA":
 			period = imt.period
 		else:
 			period = 0
@@ -437,7 +463,7 @@ class PSHAModel(PSHAModelBase):
 		all_sites = site_model.get_generic_sites()
 		deagg_soil_sites = [site for site in site_model.get_sites()
 							if (site.lon, site.lat) in site_imtls.keys()]
-		deagg_site_model = SoilSiteModel("", deagg_soil_sites)
+		deagg_site_model = SoilSiteModel(deagg_soil_sites, "")
 		for deagg_result in disaggregation_poissonian_multi(self.source_model,
 										deagg_site_model, site_imtls,
 										self._get_trt_gsim_dict(),
@@ -536,7 +562,7 @@ class PSHAModel(PSHAModelBase):
 					n_epsilons=None, coord_bin_width=1.0, dtype='d', verbose=False):
 		"""
 		Hybrid rshalib/oqhazlib deaggregation for multiple sites, multiple
-		imt's per site, and multiple iml's per iml, that is more speed- and
+		imt's per site, and multiple iml's per imt, that is more speed- and
 		memory-efficient than the standard deaggregation method in oqhazlib.
 		Note that deaggregation by tectonic region type is replaced with
 		deaggregation by source.
@@ -565,6 +591,7 @@ class PSHAModel(PSHAModelBase):
 			:class:`SpectralDeaggregationCurve`
 		"""
 		from openquake.hazardlib.site import SiteCollection
+		from ..site import SoilSiteModel
 
 		# TODO: determine site_imtls from self.return_periods (separate method)
 		if site_imtls in (None, {}):
@@ -574,6 +601,10 @@ class PSHAModel(PSHAModelBase):
 			n_epsilons = 2 * int(np.ceil(self.truncation_level))
 		if not mag_bin_width:
 			mag_bin_width = self.source_model[0].mfd.bin_width
+
+		if OQ_VERSION >= '2.9.0':
+			from scipy.stats import truncnorm
+			trunc_norm = truncnorm(-self.truncation_level, self.truncation_level)
 
 		## Determine bin edges first
 		bin_edges = self.get_deagg_bin_edges(mag_bin_width, dist_bin_width,
@@ -585,7 +616,7 @@ class PSHAModel(PSHAModelBase):
 		for site_key in site_imtls.keys():
 			deagg_matrix_dict[site_key] = {}
 			imtls = site_imtls[site_key]
-			imts = imtls.keys()
+			imts = list(imtls.keys())
 			num_imts = len(imts)
 			num_imls = len(imtls[imts[0]])
 
@@ -598,39 +629,63 @@ class PSHAModel(PSHAModelBase):
 			deagg_matrix_dict[site_key] = deagg_matrix
 
 		## Perform deaggregation
-		tom = self.poisson_tom
+		#tom = self.poisson_tom
 		gsims = self._get_trt_gsim_dict()
-		source_site_filter = self.source_site_filter
-		rupture_site_filter = self.rupture_site_filter
+		#source_site_filter = self.source_site_filter
+		#rupture_site_filter = self.rupture_site_filter
 
 		site_model = self.get_soil_site_model()
 		deagg_soil_sites = [site for site in site_model.get_sites()
 							if (site.lon, site.lat) in site_imtls.keys()]
-		deagg_site_model = SoilSiteModel("", deagg_soil_sites)
+		deagg_site_model = SoilSiteModel(deagg_soil_sites, "")
 
 		sources = self.source_model.sources
-		sources_sites = ((source, deagg_site_model) for source in sources)
-		for src_idx, (source, s_sites) in \
-				enumerate(source_site_filter(sources_sites)):
+
+		#sources_sites = ((source, deagg_site_model) for source in sources)
+		#for src_idx, (source, s_sites) in \
+		#		enumerate(source_site_filter(sources_sites)):
+
+		if OQ_VERSION >= '2.9.0':
+			source_site_filter = self.source_site_filter(deagg_site_model)(sources)
+		else:
+			sources_sites = ((source, deagg_site_model) for source in sources)
+			source_site_filter = self.source_site_filter(sources_sites)
+		for src_idx, (source, s_sites) in enumerate(source_site_filter):
+			if OQ_VERSION >= '2.9.0':
+				tom = None
+			else:
+				tom = self.poisson_tom
 
 			if verbose:
 				print(source.source_id)
 
-			tect_reg = source.tectonic_region_type
-			gsim = gsims[tect_reg]
+			trt = source.tectonic_region_type
+			gsim = gsims[trt]
 
-			ruptures_sites = ((rupture, s_sites)
-							  for rupture in source.iter_ruptures(tom))
-			for rupture, r_sites in rupture_site_filter(ruptures_sites):
+			#ruptures_sites = ((rupture, s_sites)
+			#				  for rupture in source.iter_ruptures(tom))
+			#for rupture, r_sites in rupture_site_filter(ruptures_sites):
+
+			for rupture in source.iter_ruptures(tom):
+				if OQ_VERSION >= '2.9.0':
+					r_sites = self.rupture_site_filter(rupture, sites=s_sites)
+				else:
+					try:
+						[(_, r_sites)] = self.rupture_site_filter([(rupture, s_sites)])
+					except:
+						r_sites = None
+				if r_sites is None:
+					continue
+
 				## Extract rupture parameters of interest
 				mag_idx = np.digitize([rupture.mag], mag_bins)[0] - 1
 
 				sitemesh = r_sites.mesh
-				sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
-				if hasattr(dctx, "rjb"):
-					jb_dists = getattr(dctx, "rjb")
-				else:
-					jb_dists = rupture.surface.get_joyner_boore_distance(sitemesh)
+				#sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
+				#if hasattr(dctx, "rjb"):
+				#	jb_dists = getattr(dctx, "rjb")
+				#else:
+				jb_dists = rupture.surface.get_joyner_boore_distance(sitemesh)
 				closest_points = rupture.surface.get_closest_points(sitemesh)
 				lons = [pt.longitude for pt in closest_points]
 				lats = [pt.latitude for pt in closest_points]
@@ -640,7 +695,8 @@ class PSHAModel(PSHAModelBase):
 				lat_idxs = np.digitize(lats, lat_bins) - 1
 
 				## Compute probability of one or more rupture occurrences
-				prob_one_or_more = rupture.get_probability_one_or_more_occurrences()
+				if OQ_VERSION < '2.9.0':
+					prob_one_or_more = rupture.get_probability_one_or_more_occurrences()
 
 				## compute conditional probability of exceeding iml given
 				## the current rupture, and different epsilon level, that is
@@ -652,17 +708,27 @@ class PSHAModel(PSHAModelBase):
 					site_key = (site.location.longitude, site.location.latitude)
 					imtls = site_imtls[site_key]
 					imts = imtls.keys()
-					sctx2, rctx2, dctx2 = gsim.make_contexts(SiteCollection([site]),
-															rupture)
+					site_col = SiteCollection([site])
+					if OQ_VERSION >= '2.9.0':
+						ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim])
+						sctx2, rctx2, dctx2 = ctx_maker.make_contexts(site_col,
+																	rupture)
+					else:
+						sctx2, rctx2, dctx2 = gsim.make_contexts(site_col,
+																rupture)
 					for imt_idx, imt in enumerate(imts):
 						imls = imtls[imt]
 						## In contrast to what is stated in the documentation,
 						## disaggregate_poe does handle more than one iml
-						poes_given_rup_eps = gsim.disaggregate_poe(sctx2, rctx2,
-							dctx2, imt, imls, self.truncation_level, n_epsilons)
+						if OQ_VERSION >= '2.9.0':
+							pone = gsim.disaggregate_pne(rupture, sctx2, rctx2,
+								dctx2, imt, imls, trunc_norm, eps_bins)
+						else:
+							poes_given_rup_eps = gsim.disaggregate_poe(sctx2, rctx2,
+								dctx2, imt, imls, self.truncation_level, n_epsilons)
 
-						## Probability of non-exceedance
-						pone = (1. - prob_one_or_more) ** poes_given_rup_eps
+							## Probability of non-exceedance
+							pone = (1. - prob_one_or_more) ** poes_given_rup_eps
 
 						try:
 							deagg_matrix_dict[site_key][imt_idx, :, mag_idx, dist_idx, lon_idx, lat_idx, :, src_idx] *= pone
@@ -760,7 +826,7 @@ class PSHAModel(PSHAModelBase):
 		deagg_matrix_shape = (num_sites, num_imts, num_imls, len(mag_bins) - 1,
 					len(dist_bins) - 1, len(lon_bins) - 1, len(lat_bins) - 1,
 					len(eps_bins) - 1, len(src_bins))
-		deagg_matrix_len = np.prod(deagg_matrix_shape)
+		deagg_matrix_len = int(np.prod(deagg_matrix_shape))
 
 		## Create shared-memory array, and expose it as a numpy array
 		shared_deagg_array = mp.multiprocessing.Array(dtype, deagg_matrix_len,
@@ -780,7 +846,7 @@ class PSHAModel(PSHAModelBase):
 				if np.allclose((site.lon, site.lat), (site_lon, site_lat), atol=1E-5):
 					deagg_soil_sites.append(site)
 					break
-		deagg_site_model = SoilSiteModel("", deagg_soil_sites)
+		deagg_site_model = SoilSiteModel(deagg_soil_sites, "")
 
 		## Convert imt's in site_imtls to tuples to avoid mangling up by mp
 		copy_of_site_imtls = OrderedDict()
