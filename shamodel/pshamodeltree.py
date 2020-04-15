@@ -1159,7 +1159,7 @@ class PSHAModelTree(PSHAModelBase):
 				max_mag = source_model.max_mag
 			if source_model.min_mag < min_mag:
 				min_mag = source_model.min_mag
-			west, east, south, north = source_model.get_bounding_box()
+			west, east, south, north = source_model.get_region()
 			west -= coord_bin_width
 			east += coord_bin_width
 			south -= coord_bin_width

@@ -537,7 +537,7 @@ class PSHAModel(PSHAModelBase):
 		)
 
 		## Note that ruptures may extend beyond source limits!
-		west, east, south, north = self.source_model.get_bounding_box()
+		west, east, south, north = self.source_model.get_region()
 		west -= coord_bin_width
 		east += coord_bin_width
 
