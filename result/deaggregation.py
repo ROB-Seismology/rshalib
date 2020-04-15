@@ -159,7 +159,7 @@ class DeaggregationSlice(IntensityResult, DeaggBase):
 								eps_values=eps_pmf, eps_bin_edges=eps_bin_edges,
 								fue_values=trt_pmf, fue_labels=trt_labels,
 								mr_style="2D", site_name=self.site.name,
-								struc_period=self.period, title_comment=title,
+								spectral_period=self.period, title_comment=title,
 								fig_filespec=fig_filespec)
 
 	def get_modal_eq_scenario(self):
