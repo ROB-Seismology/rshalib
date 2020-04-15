@@ -238,9 +238,9 @@ class SHAModelBase(object):
 		:return:
 			instance of :class:`openquake.hazardlib.gsim.GroundShakingIntensityModel
 		"""
-		from openquake.hazardlib.gsim import get_available_gsims
+		from ..gsim import get_oq_gsim
 
-		return get_available_gsims()[gsim_name]()
+		return get_oq_gsim(gsim_name)
 
 
 
