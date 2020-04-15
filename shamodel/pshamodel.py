@@ -186,17 +186,18 @@ class PSHAModel(PSHAModelBase):
 		:return:
 			dict {imt (string) : poes (2-D numpy array of poes)}
 		"""
-		num_sites = len(self.get_soil_site_model())
+		sites = self.get_soil_site_model()
+		num_sites = len(sites)
 
 		if OQ_VERSION >= '2.9.0':
 			from openquake.hazardlib.calc.hazard_curve import calc_hazard_curves
 
-			ss_filter = self.source_site_filter(self.get_soil_site_model())
+			ss_filter = self.source_site_filter(sites)
 			imtls = {str(imt): imls for (imt, imls) in self._get_imtls().items()}
 			hazard_curves = calc_hazard_curves(self.source_model,
-										ss_filter, imtls,
-										self._get_trt_gsim_dict(),
-										self.truncation_level)
+												ss_filter, imtls,
+												self._get_trt_gsim_dict(),
+												self.truncation_level)
 		else:
 			from openquake.hazardlib.calc import hazard_curves_poissonian
 
