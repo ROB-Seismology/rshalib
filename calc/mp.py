@@ -119,6 +119,8 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 	:return:
 		3-D numpy array [i,k,l] with probabilities of non-exceedance
 	"""
+	from ..gsim import make_gsim_contexts
+
 	if verbose:
 		print(source.source_id)
 
@@ -148,7 +150,8 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 			#for rupture, r_sites in psha_model.rupture_site_filter(ruptures_sites):
 			for rupture in source.iter_ruptures(tom):
 				if OQ_VERSION >= '2.9.0':
-					r_sites = psha_model.rupture_site_filter(rupture, sites=s_sites)
+					#r_sites = psha_model.rupture_site_filter(rupture, sites=s_sites)
+					r_sites = s_sites
 				else:
 					try:
 						[(_, r_sites)] = psha_model.rupture_site_filter([(rupture, s_sites)])
@@ -159,11 +162,13 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 
 				prob = rupture.get_probability_one_or_more_occurrences()
 				gsim = gsims[rupture.tectonic_region_type]
-				if OQ_VERSION >= '2.9.0':
-					ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim])
-					sctx, rctx, dctx = ctx_maker.make_contexts(r_sites, rupture)
-				else:
-					sctx, rctx, dctx = gsim.make_contexts(r_sites, rupture)
+				try:
+					sctx, rctx, dctx = make_gsim_contexts(gsim, r_sites, rupture,
+										max_distance=psha_model.integration_distance)
+				except:
+					## Rupture probably too far
+					continue
+
 				if cav_min > 0 and not hasattr(sctx, "vs30"):
 					## Set vs30 explicitly for GMPEs that do not require vs30
 					setattr(sctx, "vs30", getattr(r_sites, "vs30"))
@@ -177,8 +182,15 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 
 					exceedances = (1 - prob) ** poes
 					if OQ_VERSION >= '2.9.0':
-						if r_sites.indices is not None:
-							curves[r_sites.indices,k,:] *= exceedances
+						if OQ_VERSION >= '3.2.0':
+							if len(r_sites) != total_sites:
+								site_indices = r_sites.array['sids']
+							else:
+								site_indices = None
+						else:
+							site_indices = r_sites.indices
+						if site_indices is not None:
+							curves[site_indices,k,:] *= exceedances
 						else:
 							curves[:,k,:] *= exceedances
 					else:
