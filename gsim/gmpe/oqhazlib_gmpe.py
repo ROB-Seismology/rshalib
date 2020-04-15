@@ -16,7 +16,7 @@ from .base import *
 
 
 
-__all__ = ['get_oq_gsim', 'OqhazlibGMPE',
+__all__ = ['get_oq_gsim', 'make_gsim_contexts', 'OqhazlibGMPE',
 			'AbrahamsonSilva2008', 'AkkarBommer2010',
 			'AkkarEtAl2013', 'Anbazhagan2013', 'Atkinson2015',
 			'AtkinsonBoore2006', 'AtkinsonBoore2006Prime',
@@ -50,6 +50,51 @@ def get_oq_gsim(gsim_name):
 		return gsim()
 	else:
 		return None
+
+
+def make_gsim_contexts(gsim, sites, rupture, max_distance=None):
+	"""
+	Wrapper function to make contexts for a gsim,
+	which keeps changing all the time in OpenQuake...
+
+	:param gsim:
+		instance of :class:`oqhazlib.gsim.GroundShakingIntensityModel`
+	:param sites:
+		instance of :class:`oqhazlib.site.SiteCollection`
+	:param rupture:
+		instance of :class:`oqhazlib.source.[Base]Rupture`
+	:param max_distance:
+		float, maximum distance
+		Only taken into account in more recent versions of OpenQuake
+		(default: None)
+
+	:return:
+		(sctx, rctx, dctx) tuple
+		- sctx: site context
+		- rctx: rupture context (or rupture)
+		- dctx distance context
+	"""
+	if OQ_VERSION >= '2.9.0':
+		from openquake.hazardlib.calc.filters import IntegrationDistance
+
+		maximum_distance = None
+		if max_distance:
+			trt = 'default'
+			maximum_distance = {trt: [(rupture.mag, max_distance)]}
+			maximum_distance = IntegrationDistance(maximum_distance)
+
+		ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim],
+												maximum_distance=maximum_distance)
+
+		if OQ_VERSION >= '3.2.0':
+			sctx, dctx = ctx_maker.make_contexts(sites, rupture)
+			rctx = rupture
+		else:
+			sctx, rctx, dctx = ctx_maker.make_contexts(sites, rupture)
+	else:
+		sctx, rctx, dctx = gsim.make_contexts(sites, rupture)
+
+	return (sctx, rctx, dctx)
 
 
 class OqhazlibGMPE(GMPE):
@@ -213,14 +258,16 @@ class OqhazlibGMPE(GMPE):
 		soil_site_model = sha_site_model.to_soil_site_model(ref_soil_params)
 
 		## Create contexts
-		if OQ_VERSION >= '2.9.0':
-			ctx_maker = oqhazlib.gsim.base.ContextMaker([self.gsim])
-			id_dict = {'default': self.dmax}
-			integration_distance = oqhazlib.calc.filters.IntegrationDistance(id_dict)
-			sctx, rctx, dctx = ctx_maker.make_contexts(soil_site_model, rupture,
-														integration_distance)
-		else:
-			sctx, rctx, dctx = self.gsim.make_contexts(soil_site_model, rupture)
+		#if OQ_VERSION >= '2.9.0':
+		#	ctx_maker = oqhazlib.gsim.base.ContextMaker([self.gsim])
+		#	id_dict = {'default': self.dmax}
+		#	integration_distance = oqhazlib.calc.filters.IntegrationDistance(id_dict)
+		#	sctx, rctx, dctx = ctx_maker.make_contexts(soil_site_model, rupture,
+		#												integration_distance)
+		#else:
+		#	sctx, rctx, dctx = self.gsim.make_contexts(soil_site_model, rupture)
+
+		sctx, rctx, dctx = make_contexts(gsim, max_distance=self.dmax)
 
 		## Set imt
 		if imt == "SA":
