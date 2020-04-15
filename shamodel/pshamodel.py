@@ -194,7 +194,7 @@ class PSHAModel(PSHAModelBase):
 			ss_filter = self.source_site_filter(self.get_soil_site_model())
 			imtls = {str(imt): imls for (imt, imls) in self._get_imtls().items()}
 			hazard_curves = calc_hazard_curves(self.source_model,
-										ss_filter, self.imtls,
+										ss_filter, imtls,
 										self._get_trt_gsim_dict(),
 										self.truncation_level)
 		else:
