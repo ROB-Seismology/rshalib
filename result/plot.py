@@ -762,30 +762,58 @@ def plot_histogram(intensities, weights=None, fig_filespec=None, title="", bar_c
 	#pylab.clf()
 
 
-def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_values=None, eps_bin_edges=[1.0, 1.5, 2.0, 2.5, 3.0], fue_values=None, fue_labels=None, mr_style="2D", site_name="", struc_period=None, title_comment="", fig_filespec=None):
+def plot_deaggregation(mr_values, magnitudes, distances, return_period,
+						eps_values=None, eps_bin_edges=[1.0, 1.5, 2.0, 2.5, 3.0],
+						fue_values=None, fue_labels=None, mr_style="2D",
+						site_name="", spectral_period=None, title_comment="",
+						fig_filespec=None):
 	"""
 	Plot deaggregation results
-	Parameters:
-		mr_values: 2-D array [r, m] of exceedance rates binned by distance and magnitude
-		magnitudes: array of magnitude values (magnitude bin edges)
-		distances: array of distance values (distance bin edges)
-		return_period: return period for which deaggregation results are given
-			(mainly required to add information to plot title)
-		eps_values: array of exceedance rates by epsilon (default: None)
-		eps_bin_edges: list or array with epsilon bin edges
-			(default: [1.0, 1.5, 2.0, 2.5, 3.0])
-		fue_values: array of exceedance rates by source (default: None)
-		fue_labels: list of source names to be used as labels (default: None)
-		mr_style: plotting style for M,r deaggregation results, either "2D" or "3D"
-			(default: "2D")
-			Note: 3D style has some problems in current version (0.99.1.1) of matplotlib
-		site_name: name of site to be added to the plot title (default: "")
-		struc_period: structural period for which deaggregation results are given,
-			to be added to the plot title (default: None, will print "PGA")
-		title_comment: additional comment to be added to plot title (default: "")
-		fig_filespec: full path to ouptut image. If not set, graph will be plotted on screen
-			(default: None)
+
+	:param mr_values:
+		2-D array [r, m] of exceedance rates binned by distance and
+		magnitude
+	:param magnitudes:
+		array of magnitude values (magnitude bin edges)
+	:param distances:
+		array of distance values (distance bin edges)
+	:param return_period:
+		float, return period for which deaggregation results are given
+		(mainly required to add information to plot title)
+	:param eps_values:
+		array of exceedance rates by epsilon
+		(default: None)
+	:param eps_bin_edges:
+		list or array with epsilon bin edges
+		(default: [1.0, 1.5, 2.0, 2.5, 3.0])
+	:param fue_values:
+		array of exceedance rates by source
+		(default: None)
+	:param fue_labels:
+		list of source names to be used as labels
+		(default: None)
+	:param mr_style:
+		str, plotting style for M,r deaggregation results,
+		either "2D" or "3D"
+		Note: 3D style has some problems in current version (0.99.1.1)
+		of matplotlib
+		(default: "2D")
+	:param site_name:
+		str, name of site to be added to the plot title
+		(default: "")
+	:param spectral_period:
+		spectral period for which deaggregation results are given,
+		to be added to the plot title
+		(default: None, will print "PGA")
+	:param title_comment:
+		additional comment to be added to plot title
+		(default: "")
+	:param fig_filespec:
+		str, full path to ouptut image.
+		If not set, graph will be plotted on screen
+		(default: None)
 	"""
+	# TODO: reimplement using plotting.generic_mpl
 	import matplotlib
 	from matplotlib import cm
 
@@ -808,7 +836,6 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		ax1 = mpl_toolkits.mplot3d.Axes3D(fig, rect=mr_rect)
 
 		xpos, ypos = np.meshgrid(distances, magnitudes)
-		#print(mr_values.shape, xpos.shape)
 		xpos = xpos.flatten()
 		ypos = ypos.flatten()
 		zpos = np.zeros_like(xpos)
@@ -845,7 +872,8 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		#cmap = cm.jet
 		cmap.set_under('w', 1.0)
 		extent = [distances[0], distances[-1], magnitudes[0], magnitudes[-1]]
-		img = ax1.imshow(mr_values[::-1,:], vmin=0.1, cmap=cmap, interpolation="nearest", aspect="auto", extent=extent)
+		img = ax1.imshow(mr_values[::-1,:], vmin=0.1, cmap=cmap,
+						interpolation="nearest", aspect="auto", extent=extent)
 		xticks = [0, 50, 100, 150, 200, 250, 300]
 		ax1.set_xticks(xticks)
 		ax1.set_xticklabels(xticks)
@@ -872,7 +900,8 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		colors = []
 		for i in range(len(eps_values)):
 			colors.append(cmap(i/(len(eps_values)-1.)))
-		ax2.pie(eps_values, labels=eps_labels, autopct='%1.1f%%', shadow=False, colors=colors)
+		ax2.pie(eps_values, labels=eps_labels, autopct='%1.1f%%', shadow=False,
+				colors=colors)
 		ax2.set_title('By $\epsilon$')
 
 	## Plot deaggregation by source
@@ -881,16 +910,17 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 		if not fue_labels:
 			fue_labels = range(1,num_sources+1)
 		ax3 = fig.add_axes([0.575, 0.0, 0.4, 0.4], aspect='equal')
-		fue_values /= np.add.reduce(fue_values)
+		fue_values /= np.sum(fue_values)
 		large_slice_indexes = np.where(fue_values >= 0.01)
 		small_slice_indexes = np.where(fue_values < 0.01)
 		if len(small_slice_indexes[0]):
-			small_slice_contribution = np.add.reduce(fue_values[small_slice_indexes])
+			small_slice_contribution = np.sum(fue_values[small_slice_indexes])
 			fue_values = fue_values[large_slice_indexes]
 			fue_values = np.concatenate([fue_values, [small_slice_contribution]])
 			#small_slice_label = ",".join(["%s" % lbl for i, lbl in enumerate(fue_labels) if i in small_slice_indexes[0]])
 			small_slice_label = "Other"
-			fue_labels = [lbl for i, lbl in enumerate(fue_labels) if i in large_slice_indexes[0]]
+			fue_labels = [lbl for i, lbl in enumerate(fue_labels)
+							if i in large_slice_indexes[0]]
 			fue_labels.append(small_slice_label)
 		cmap = cm.Accent
 		if isinstance(cmap, matplotlib.colors.ListedColormap):
@@ -911,23 +941,25 @@ def plot_deaggregation(mr_values, magnitudes, distances, return_period, eps_valu
 			blues = interpolate(color_ar, blues, source_ar)
 		colors = np.asarray(list(zip(reds, greens, blues)))
 		colors = np.concatenate([colors[large_slice_indexes], np.ones((1,3), 'f')])
-		ax3.pie(fue_values, labels=fue_labels, autopct='%1.1f%%', shadow=False, colors=colors)
+		ax3.pie(fue_values, labels=fue_labels, autopct='%1.1f%%', shadow=False,
+				colors=colors)
 		ax3.set_title('By source')
 
 	## Finish plot
 	fig_title = 'Deaggregation results ('
 	if site_name:
 		fig_title += 'Site: %s, ' % site_name
-	if struc_period:
-		struc_period_name = "T=%.2f s" % struc_period
+	if spectral_period:
+		spectral_period_name = "T=%.2f s" % spectral_period
 	else:
-		struc_period_name = "PGA"
+		spectral_period_name = "PGA"
 	if title_comment:
 		fig_title = title_comment
 	else:
-		fig_title += ' %s, $T_R$=%d yr' % (struc_period_name, return_period)
+		fig_title += ' %s, $T_R$=%d yr' % (spectral_period_name, return_period)
 	fig.canvas.set_window_title('Deaggregation Results')
-	pylab.gcf().text(0.5, 0.95, fig_title, horizontalalignment='center', fontproperties=FontProperties(size=15))
+	pylab.gcf().text(0.5, 0.95, fig_title, horizontalalignment='center',
+					fontproperties=FontProperties(size=15))
 	if fig_filespec:
 		pylab.savefig(fig_filespec, dpi=300)
 	else:
