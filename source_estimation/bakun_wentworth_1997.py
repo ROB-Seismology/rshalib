@@ -74,11 +74,11 @@ def estimate_epicenter_location_and_magnitude_from_intensities(
 
 	## Construct site models
 	num_pe = pe_intensities
-	pe_site_model = SoilSiteModel("Positive evicence", pe_sites)
-	ind_pe_site_models = [SoilSiteModel("", [site]) for site in pe_sites]
+	pe_site_model = SoilSiteModel(pe_sites, "Positive evicence")
+	ind_pe_site_models = [SoilSiteModel([site], "") for site in pe_sites]
 	num_ne = len(ne_intensities)
 	if num_ne:
-		ne_site_model = SoilSiteModel("Negative evidence", ne_sites)
+		ne_site_model = SoilSiteModel(ne_sites, "Negative evidence")
 
 	## Initialize IPE
 	ipe = oqhazlib.gsim.get_available_gsims()[ipe_name]()
