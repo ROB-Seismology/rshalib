@@ -729,15 +729,16 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 		self.name = name
 		super(SoilSiteModel, self).__init__(sites=sites)
 		if OQ_VERSION >= '2.9.0':
-			_dtype = np.dtype(self.dtype.descr + [('kappa', np.float64)])
+			_dtype = np.dtype(self.array.dtype.descr + [('kappa', np.float64)])
 			_ar = np.zeros(self.array.shape, dtype=_dtype)
 			for field in self.array.dtype.names:
 				_ar[field] = self.array[field]
 				_ar['kappa'] = np.array([getattr(site, 'kappa', np.nan)
 										for site in sites])
-			self.dtype = _dtype
 			self.array = _ar
-			self.array.flags.writeable = False
+			if OQ_VERSION < '3.2.0':
+				self.dtype = _dtype
+				self.array.flags.writeable = False
 		else:
 			self.kappa = np.array([getattr(site, 'kappa', np.nan) for site in sites])
 		self.site_names = [site.name for site in sites]
