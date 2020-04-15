@@ -94,7 +94,10 @@ class SHAModelBase(object):
 	@property
 	def rupture_site_filter(self):
 		if self.integration_distance:
-			if OQ_VERSION >= '2.9.0':
+			if OQ_VERSION >= '3.2.0':
+				##
+				return lambda rupture, sites: sites
+			elif OQ_VERSION >= '2.9.0':
 				return partial(oqhazlib.calc.filters.filter_sites_by_distance_to_rupture,
 								integration_distance=self.integration_distance)
 			else:
