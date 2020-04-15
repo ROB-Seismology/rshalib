@@ -349,7 +349,7 @@ class AreaSource(RuptureSource, oqhazlib.source.AreaSource):
 		mesh = self.get_discretized_mesh()
 		return [(pt.longitude, pt.latitude) for pt in mesh]
 
-	def get_bounding_box(self):
+	def get_region(self):
 		"""
 		Determine rectangular bounding box
 

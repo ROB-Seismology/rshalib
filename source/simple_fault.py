@@ -221,7 +221,7 @@ class SimpleFaultSource(RuptureSource, oqhazlib.source.SimpleFaultSource):
 		"""
 		return self.fault_trace.lats
 
-	def get_bounding_box(self):
+	def get_region(self):
 		"""
 		Determine rectangular bounding box
 

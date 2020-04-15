@@ -409,7 +409,7 @@ class SourceModel():
 				fault.mfd.min_mag = min_mag
 				fault.mfd.max_mag = max_mag
 
-	def get_bounding_box(self):
+	def get_region(self):
 		"""
 		Determine rectangular bounding box of source model
 
@@ -417,7 +417,7 @@ class SourceModel():
 			(west, east, south, north) tuple
 		"""
 		# TODO: implement for complex fault sources as well
-		regions = [src.get_bounding_box() for src in self.sources]
+		regions = [src.get_region() for src in self.sources]
 		regions = np.array(regions)
 		w, _, s, _ = regions.min(axis=0)
 		_, e, _, n = regions.max(axis=0)
@@ -735,7 +735,7 @@ class SourceModel():
 
 		## Compute map limits
 		if not region:
-			region = self.get_bounding_box()
+			region = self.get_region()
 
 		map_layers = []
 

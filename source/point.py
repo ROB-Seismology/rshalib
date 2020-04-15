@@ -313,7 +313,7 @@ class PointSource(RuptureSource, oqhazlib.source.PointSource):
 		"""
 		return (self.location.longitude, self.location.latitude)
 
-	def get_bounding_box(self):
+	def get_region(self):
 		"""
 		Determine rectangular bounding box
 
