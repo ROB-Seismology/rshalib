@@ -381,8 +381,6 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 				label = gmpe_label + " (M=%.1f) $\pm %s \sigma$" % (M, epsilon)
 				labels.extend([label, '_nolegend_'])
 
-	pgm_period = min(Tmin, pgm_period)
-
 	if title is None:
 		title = "\nd=%.1f km, h=%d km" % (d, int(round(h)))
 	imt_label = (get_imt_label(imt, lang.lower())
