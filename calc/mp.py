@@ -7,6 +7,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import os, sys
 import multiprocessing
 from functools import partial
+import traceback
 
 import numpy as np
 
@@ -145,22 +146,21 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 		else:
 			tom = psha_model.poisson_tom
 		try:
-			#ruptures_sites = ((rupture, s_sites)
-			#				  for rupture in source.iter_ruptures(tom))
-			#for rupture, r_sites in psha_model.rupture_site_filter(ruptures_sites):
 			for rupture in source.iter_ruptures(tom):
+				poe_rup = rupture.get_probability_one_or_more_occurrences()
+
 				if OQ_VERSION >= '2.9.0':
-					#r_sites = psha_model.rupture_site_filter(rupture, sites=s_sites)
-					r_sites = s_sites
+					r_sites = psha_model.rupture_site_filter(rupture, sites=s_sites)
+					#r_sites = s_sites
 				else:
 					try:
-						[(_, r_sites)] = psha_model.rupture_site_filter([(rupture, s_sites)])
+						[(_, r_sites)] = psha_model.rupture_site_filter([(rupture,
+																		s_sites)])
 					except:
 						r_sites = None
 				if r_sites is None:
 					continue
 
-				prob = rupture.get_probability_one_or_more_occurrences()
 				gsim = gsims[rupture.tectonic_region_type]
 				try:
 					sctx, rctx, dctx = make_gsim_contexts(gsim, r_sites, rupture,
@@ -172,6 +172,7 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 				if cav_min > 0 and not hasattr(sctx, "vs30"):
 					## Set vs30 explicitly for GMPEs that do not require vs30
 					setattr(sctx, "vs30", getattr(r_sites, "vs30"))
+
 				for k, imt in enumerate(imts):
 					if OQ_VERSION >= '2.9.0':
 						poes = gsim.get_poes(sctx, rctx, dctx, imt, imts[imt],
@@ -180,13 +181,11 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 						poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imts[imt],
 										 psha_model.truncation_level, cav_min=cav_min)
 
-					exceedances = (1 - prob) ** poes
+					exceedances = (1 - poe_rup) ** poes
+
 					if OQ_VERSION >= '2.9.0':
-						if OQ_VERSION >= '3.2.0':
-							if len(r_sites) != total_sites:
-								site_indices = r_sites.array['sids']
-							else:
-								site_indices = None
+						if len(r_sites) == total_sites:
+							site_indices = None
 						else:
 							site_indices = r_sites.indices
 						if site_indices is not None:
@@ -196,10 +195,16 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 					else:
 						curves[:,k,:] *= r_sites.expand(exceedances, total_sites,
 														placeholder=1)
+
 		except Exception as err:
-			msg = 'An error occurred with source id=%s. Error: %s'
-			msg %= (source.source_id, err)
+			msg = 'Warning: An error occurred with source %s:\n%s'
+			msg %= (source.source_id, traceback.format_exc())
 			raise RuntimeError(msg)
+			#print(msg)
+			#return 1
+		else:
+			return 0
+
 	return curves
 
 
@@ -308,6 +313,7 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 	"""
 	# TODO: make param deagg_site_model in agreement with deaggregate_psha_model
 	from openquake.hazardlib.site import SiteCollection
+	from ..gsim import make_gsim_contexts
 
 	try:
 		## Initialize deaggregation matrix with ones representing
@@ -382,7 +388,7 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 
 				## Compute probability of one or more rupture occurrences
 				if OQ_VERSION < '2.9.0':
-					prob_one_or_more = rupture.get_probability_one_or_more_occurrences()
+					poe_rup = rupture.get_probability_one_or_more_occurrences()
 
 				## compute conditional probability of exceeding iml given
 				## the current rupture, and different epsilon level, that is
@@ -395,20 +401,24 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 					imtls = site_imtls[site_key]
 					imts = list(imtls.keys())
 					site_col = SiteCollection([site])
-					if OQ_VERSION >= '2.9.0':
-						ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim])
-						sctx, rctx, dctx = ctx_maker.make_contexts(site_col,
-																	rupture)
-					else:
-						sctx, rctx, dctx = gsim.make_contexts(site_col, rupture)
+
+					try:
+						sctx, rctx, dctx = make_gsim_contexts(gsim, site_col, rupture,
+											max_distance=psha_model.integration_distance)
+					except:
+						## Rupture probably too far
+						continue
 
 					for imt_idx, imt_tuple in enumerate(imts):
 						imls = imtls[imt_tuple]
 						## Reconstruct imt from tuple
-						imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
+						imt = getattr(oqhazlib.imt, imt_tuple[0])(*imt_tuple[1:])
 						## In contrast to what is stated in the documentation,
 						## disaggregate_poe does handle more than one iml
-						if OQ_VERSION >= '2.9.0':
+						if OQ_VERSION >= '3.2.0':
+							pone = gsim.disaggregate_pne(rupture, sctx, dctx,
+								imt, imls, trunc_norm, eps_bins)
+						elif OQ_VERSION >= '2.9.0':
 							pone = gsim.disaggregate_pne(rupture, sctx, rctx,
 								dctx, imt, imls, trunc_norm, eps_bins)
 						else:
@@ -417,7 +427,7 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 									n_epsilons)
 
 							## Probability of non-exceedance
-							pone = (1. - prob_one_or_more) ** poes_given_rup_eps
+							pone = (1. - poe_rup) ** poes_given_rup_eps
 
 						try:
 							src_deagg_matrix[site_idx, imt_idx, :, mag_idx, dist_idx, lon_idx, lat_idx, :] *= pone
@@ -433,11 +443,11 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 				shared_deagg_matrix[site_idx,:,:,:,:,:,:,:,src_idx] *= src_deagg_matrix[site_idx]
 
 	except Exception as err:
-		msg = 'Warning: An error occurred with source %s. Error: %s'
-		msg %= (source.source_id, err)
-		#raise RuntimeError(msg)
-		print(msg)
-		return 1
+		msg = 'Warning: An error occurred with source %s:\n%s'
+		msg %= (source.source_id, traceback.format_exc())
+		raise RuntimeError(msg)
+		#print(msg)
+		#return 1
 	else:
 		return 0
 
@@ -573,12 +583,16 @@ def calc_gmf_with_fixed_epsilon(
 		for all sites in the collection.
 	"""
 	from openquake.hazardlib.const import StdDev
+	from ..gsim import make_gsim_contexts
 
 	## Reconstruct imt from tuple
-	imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
+	imt = getattr(oqhazlib.imt, imt_tuple[0])(*imt_tuple[1:])
 
 	if integration_distance:
-		if OQ_VERSION >= '2.9.0':
+		if OQ_VERSION >= '3.2.0':
+			## No-op, filtering is handled in ContextMaker
+			rupture_site_filter = lambda rupture, sites: sites
+		elif OQ_VERSION >= '2.9.0':
 			rupture_site_filter = partial(oqhazlib.calc.filters.filter_sites_by_distance_to_rupture,
 										integration_distance=integration_distance)
 		else:
@@ -606,12 +620,12 @@ def calc_gmf_with_fixed_epsilon(
 	if not sites:
 		return np.zeros(total_sites)
 
-	if OQ_VERSION >= '2.9.0':
-		# TODO: Propagate kappa to site context!
-		ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim])
-		sctx, rctx, dctx = ctx_maker.make_contexts(sites, rupture)
-	else:
-		sctx, rctx, dctx = gsim.make_contexts(sites, rupture)
+	try:
+		sctx, rctx, dctx = make_gsim_contexts(gsim, sites, rupture,
+								max_distance=integration_distance)
+	except:
+		## Rupture probably too far
+		return np.zeros(total_sites)
 
 	if truncation_level == 0:
 		mean, _stddevs = gsim.get_mean_and_stddevs(sctx, rctx, dctx, imt,
@@ -658,7 +672,10 @@ def calc_gmf_with_fixed_epsilon(
 	if sites.indices is not None:
 		if OQ_VERSION >= '2.9.0':
 			_gmf = np.ones(total_sites) * placeholder
-			_gmf.put(sites.indices, gmf)
+			if OQ_VERSION >= '3.2.0':
+				_gmf.put(sctx.sids, gmf)
+			else:
+				_gmf.put(sites.indices, gmf)
 			gmf = _gmf
 		else:
 			gmf = sites.expand(gmf, total_sites, placeholder=placeholder)
@@ -711,15 +728,26 @@ def calc_random_gmf(
 		np.random.seed(seed=random_seed)
 
 	## Reconstruct imt from tuple
-	imt = getattr(oqhazlib.imt, imt_tuple[0])(imt_tuple[1], imt_tuple[2])
+	imt = getattr(oqhazlib.imt, imt_tuple[0])(*imt_tuple[1:])
 
 	if integration_distance:
-		if OQ_VERSION >= '2.9.0':
-			rupture_site_filter = partial(oqhazlib.calc.filters.filter_sites_by_distance_to_rupture,
-										integration_distance=integration_distance)
+		if OQ_VERSION >= '3.2.0':
+			from openquake.hazardlib.gsim.base import ContextMaker
+			from openquake.hazardlib.calc.filters import IntegrationDistance
+			trt = 'default'
+			maximum_distance = {trt: [(rupture.mag, integration_distance)]}
+			maximum_distance = IntegrationDistance(maximum_distance)
+			ctx_maker = ContextMaker([gsim], maximum_distance=maximum_distance)
+			sites, dctx = ctx_maker.filter(sites, rupture)
+			site_idxs = sites.array['sids']
+		elif OQ_VERSION >= '2.9.0':
+			sites = oqhazlib.calc.filters.filter_sites_by_distance_to_rupture(
+									rupture, integration_distance, sites)
+			site_idxs = sites.indices
 		else:
 			rupture_site_filter = oqhazlib.calc.filters.rupture_site_distance_filter(
 															integration_distance)
+			site_idxs = None
 	else:
 		rupture_site_filter = oqhazlib.calc.filters.source_site_noop_filter
 
@@ -737,14 +765,17 @@ def calc_random_gmf(
 			shared_gmf_matrix = np.frombuffer(shared_arr.get_obj()) # no data copying
 			shared_gmf_matrix = shared_gmf_matrix.reshape(shared_arr_shape)
 			r, g, k = shared_arr_idx
-			shared_gmf_matrix[r,g,:,:,k] = gmf_dict[imt]
+			if site_idxs is not None:
+				shared_gmf_matrix[r,g,site_idxs,:,k] = gmf_dict[imt]
+			else:
+				shared_gmf_matrix[r,g,:,:,k] = gmf_dict[imt]
 
 	except Exception as err:
-		msg = 'Warning: An error occurred with field #%s. Error: %s'
-		msg %= (shared_arr_idx, err)
-		#raise RuntimeError(msg)
-		print(msg)
-		return 1
+		msg = 'Warning: An error occurred with field #%s:\n%s'
+		msg %= (shared_arr_idx, traceback.format_exc())
+		raise RuntimeError(msg)
+		#print(msg)
+		#return 1
 	else:
 		return 0
 
