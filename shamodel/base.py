@@ -95,7 +95,7 @@ class SHAModelBase(object):
 	def rupture_site_filter(self):
 		if self.integration_distance:
 			if OQ_VERSION >= '3.2.0':
-				##
+				## Not used anymore
 				return lambda rupture, sites: sites
 			elif OQ_VERSION >= '2.9.0':
 				return partial(oqhazlib.calc.filters.filter_sites_by_distance_to_rupture,
@@ -105,6 +105,51 @@ class SHAModelBase(object):
 													self.integration_distance)
 		else:
 			return oqhazlib.calc.filters.source_site_noop_filter
+
+	def filter_sites_by_rupture(self, rupture, gsim=None, sites=None):
+		"""
+		Filter sites that are within integration distance of a rupture
+		Note that this works only for OpenQuake versions >= 2.9.0
+
+		:param rupture:
+			instance of :class:`oqhazlib.source.[Base]Rupture`
+		:param gsim:
+			instance of :class:`oqhazlib.gsim.GroundShakingIntensityModel`
+			Ignored for OpenQuake versions < 3.2.0, where Joyner-Boore
+			distance is always used
+			(default: None)
+		:param sites:
+			instance of :class:`rshalib.site.SoilSiteModel`
+			(default: None, will use :prop:`site_model`)
+
+		:return:
+			instance of :class:`rshalib.site.SoilSiteModel`
+		"""
+		if sites is None:
+			sites = self.get_soil_site_model()
+
+		if OQ_VERSION >= '3.2.0':
+			from openquake.hazardlib.gsim.base import ContextMaker
+			from openquake.hazardlib.calc.filters import IntegrationDistance
+
+			trt = 'default'
+			maximum_distance = {trt: [(rupture.mag, self.integration_distance)]}
+			maximum_distance = IntegrationDistance(maximum_distance)
+			if gsim is None:
+				gsim_list = []
+			else:
+				gsim_list = [gsim]
+			ctx_maker = ContextMaker(gsim_list, maximum_distance=maximum_distance)
+			sites, dctx = ctx_maker.filter(sites, rupture)
+
+		elif OQ_VERSION >= '2.9.0':
+			sites = oqhazlib.calc.filters.filter_sites_by_distance_to_rupture(
+									rupture, self.integration_distance, sites)
+
+		else:
+			pass
+
+		return sites
 
 	def _construct_imt(self, im, period):
 		"""
