@@ -1194,7 +1194,8 @@ class HazardCurveField(HazardResult, HazardField):
 		"""
 		tree = create_nrml_root(self, encoding=encoding)
 		if filespec:
-			fd = open(filespec, 'w')
+			## Note: open file in binary mode in PY3, as etree.tostring returns bytes
+			fd = open(filespec, 'wb')
 		else:
 			fd = sys.stdout
 		tree.write(fd, xml_declaration=True, encoding=encoding,
@@ -1771,7 +1772,8 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		tree = create_nrml_root(self, encoding=encoding, smlt_path=smlt_path,
 								gmpelt_path=gmpelt_path)
 		if filespec:
-			fd = open(filespec, 'w')
+			## Note: open file in binary mode in PY3, as etree.tostring returns bytes
+			fd = open(filespec, 'wb')
 		else:
 			fd = sys.stdout
 		tree.write(fd, xml_declaration=True, encoding=encoding,
@@ -3018,7 +3020,8 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 		"""
 		tree = create_nrml_root(self, encoding=encoding)
 		if filespec:
-			fd = open(filespec, "w")
+			## Note: open file in binary mode in PY3, as etree.tostring returns bytes
+			fd = open(filespec, "wb")
 		else:
 			fd = sys.stdout
 		tree.write(fd, xml_declaration=True, encoding=encoding,
