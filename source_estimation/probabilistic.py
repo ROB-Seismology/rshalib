@@ -16,6 +16,7 @@ import numpy as np
 
 from .. import oqhazlib
 from ..pmf import GMPEPMF
+from ..gsim import make_gsim_contexts
 
 
 
@@ -202,7 +203,7 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 
 				for (pe_threshold, pe_site_model) in zip(filtered_pe_thresholds[gsim_name],
 												filtered_pe_site_models[gsim_name]):
-					sctx, rctx, dctx = gsim.make_contexts(pe_site_model, rupture)
+					sctx, rctx, dctx = make_gsim_contexts(gsim, pe_site_model, rupture)
 					pe_poes = gsim.get_poes(sctx, rctx, dctx, imt, pe_threshold,
 											truncation_level)
 					pe_poes = pe_poes[:,0]
@@ -215,7 +216,7 @@ def calc_rupture_probability_from_ground_motion_thresholds(
 				ne_prob = 1
 				for (ne_threshold, ne_site_model) in zip(filtered_ne_thresholds[gsim_name],
 													filtered_ne_site_models[gsim_name]):
-					sctx, rctx, dctx = gsim.make_contexts(ne_site_model, rupture)
+					sctx, rctx, dctx = make_gsim_contexts(gsim, ne_site_model, rupture)
 					ne_poes = gsim.get_poes(sctx, rctx, dctx, imt, ne_threshold,
 											truncation_level)
 					ne_poes = ne_poes[:,0]
