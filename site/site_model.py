@@ -579,11 +579,14 @@ class GenericSiteModel(oqhazlib.geo.Mesh):
 		## OQ version dependent
 		## Note: it is also possible to use geo.geodetic.min_geodetic_distance
 		## but the call signature is also version dependent
-		if OQ_VERSION >= '2.9.0':
+		if OQ_VERSION >= '3.2.0':
+			from openquake.hazardlib.geo.geodetic import geodetic_distance
+			distances = geodetic_distance(self.lons.flat, self.lats.flat, lon, lat)
+			i = np.argmin(distances)
+		elif OQ_VERSION >= '2.9.0':
 			i = self._min_idx_dst(mesh)
 		else:
 			i = self._geodetic_min_distance(mesh, True)
-		i = np.argmin(distances)
 		if not flat_index:
 			i = np.unravel_index(i, self.shape)
 		return i
