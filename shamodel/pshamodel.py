@@ -593,6 +593,7 @@ class PSHAModel(PSHAModelBase):
 		"""
 		from openquake.hazardlib.site import SiteCollection
 		from ..site import SoilSiteModel
+		from ..gsim import make_gsim_contexts
 
 		# TODO: determine site_imtls from self.return_periods (separate method)
 		if site_imtls in (None, {}):
@@ -710,23 +711,27 @@ class PSHAModel(PSHAModelBase):
 					imtls = site_imtls[site_key]
 					imts = imtls.keys()
 					site_col = SiteCollection([site])
-					if OQ_VERSION >= '2.9.0':
-						ctx_maker = oqhazlib.gsim.base.ContextMaker([gsim])
-						sctx2, rctx2, dctx2 = ctx_maker.make_contexts(site_col,
-																	rupture)
-					else:
-						sctx2, rctx2, dctx2 = gsim.make_contexts(site_col,
-																rupture)
+
+					try:
+						sctx, rctx, dctx = make_gsim_contexts(gsim, site_col, rupture,
+											max_distance=self.integration_distance)
+					except:
+						## Rupture probably too far
+						continue
+
 					for imt_idx, imt in enumerate(imts):
 						imls = imtls[imt]
 						## In contrast to what is stated in the documentation,
 						## disaggregate_poe does handle more than one iml
-						if OQ_VERSION >= '2.9.0':
-							pone = gsim.disaggregate_pne(rupture, sctx2, rctx2,
-								dctx2, imt, imls, trunc_norm, eps_bins)
+						if OQ_VERSION >= '3.2.0':
+							pone = gsim.disaggregate_pne(rupture, sctx, dctx,
+								imt, imls, trunc_norm, eps_bins)
+						elif OQ_VERSION >= '2.9.0':
+							pone = gsim.disaggregate_pne(rupture, sctx, rctx,
+								dctx, imt, imls, trunc_norm, eps_bins)
 						else:
-							poes_given_rup_eps = gsim.disaggregate_poe(sctx2, rctx2,
-								dctx2, imt, imls, self.truncation_level, n_epsilons)
+							poes_given_rup_eps = gsim.disaggregate_poe(sctx, rctx,
+								dctx, imt, imls, self.truncation_level, n_epsilons)
 
 							## Probability of non-exceedance
 							pone = (1. - prob_one_or_more) ** poes_given_rup_eps
