@@ -802,6 +802,11 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 		for i in indices:
 			yield self.__getitem__(i)
 
+	if OQ_VERSION >= '3.2.0':
+		@property
+		def indices(self):
+			return self.array['sids']
+
 	if OQ_VERSION >= '2.9.0':
 		def __getstate__(self):
 			"""
