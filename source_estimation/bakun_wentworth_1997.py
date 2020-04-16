@@ -9,7 +9,7 @@ import numpy as np
 
 from .. import oqhazlib
 
-from ..gsim import InverseGSIM
+from ..gsim import InverseGSIM, make_gsim_contexts
 from ..site import SoilSiteModel
 
 
@@ -105,12 +105,12 @@ def estimate_epicenter_location_and_magnitude_from_intensities(
 				for i in range(len(num_pe)):
 					site_model = ind_pe_site_models[i]
 					mmi = pe_intensities[i]
-					sctx, rctx, dctx = ipe.make_contexts(site_model, rupture)
+					#sctx, rctx, dctx = ipe.make_contexts(site_model, rupture)
 					mag = inverse_ipe.find_mag_from_intensity([mmi], site_model,
 															rupture, mag_bounds)
 					mag_estimates.append(mag)
 				mag_estimates = np.array(mag_estimates)
-				sctx, rctx, dctx = ipe.make_contexts(pe_site_model, rupture)
+				sctx, rctx, dctx = make_gsim_contexts(ipe, pe_site_model, rupture)
 				distances = getattr(dctx, dist_metric)
 				weights = np.ones_like(mag_estimates) * 0.1
 				idxs = np.where(distances <= 150)
@@ -128,7 +128,7 @@ def estimate_epicenter_location_and_magnitude_from_intensities(
 
 				## Negative evidence
 				if num_ne:
-					sctx, rctx, dctx = ipe.make_contexts(ne_site_model, rupture)
+					sctx, rctx, dctx = make_gsim_contexts(ipe, ne_site_model, rupture)
 					mmi, [sigma] = ipe.get_mean_and_stddevs(sctx, rctx, dctx, imt,
 																[stddev_type])
 					if (mmi >= ne_intensities).any():
@@ -141,7 +141,7 @@ def estimate_epicenter_location_and_magnitude_from_intensities(
 				src_rms = []
 				## There should be multiple magnitudes in this case
 				for rupture in src.iter_ruptures(tom):
-					sctx, rctx, dctx = ipe.make_contexts(pe_site_model, rupture)
+					sctx, rctx, dctx = make_gsim_contexts(ipe, pe_site_model, rupture)
 					mmi, _ = ipe.get_mean_and_stddevs(sctx, rctx, dctx, imt,
 														[stddev_type])
 					distances = getattr(dctx, dist_metric)
@@ -159,7 +159,7 @@ def estimate_epicenter_location_and_magnitude_from_intensities(
 
 					## Negative evidence
 					if num_ne:
-						sctx, rctx, dctx = ipe.make_contexts(ne_site_model, rupture)
+						sctx, rctx, dctx = make_gsim_contexts(ipe, ne_site_model, rupture)
 						mmi, [sigma] = ipe.get_mean_and_stddevs(sctx, rctx, dctx,
 															imt, [stddev_type])
 						if (mmi < ne_intensities).all():
