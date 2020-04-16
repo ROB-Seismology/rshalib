@@ -258,15 +258,6 @@ class OqhazlibGMPE(GMPE):
 		soil_site_model = sha_site_model.to_soil_site_model(ref_soil_params)
 
 		## Create contexts
-		#if OQ_VERSION >= '2.9.0':
-		#	ctx_maker = oqhazlib.gsim.base.ContextMaker([self.gsim])
-		#	id_dict = {'default': self.dmax}
-		#	integration_distance = oqhazlib.calc.filters.IntegrationDistance(id_dict)
-		#	sctx, rctx, dctx = ctx_maker.make_contexts(soil_site_model, rupture,
-		#												integration_distance)
-		#else:
-		#	sctx, rctx, dctx = self.gsim.make_contexts(soil_site_model, rupture)
-
 		sctx, rctx, dctx = make_contexts(gsim, max_distance=self.dmax)
 
 		## Set imt
