@@ -258,7 +258,8 @@ class OqhazlibGMPE(GMPE):
 		soil_site_model = sha_site_model.to_soil_site_model(ref_soil_params)
 
 		## Create contexts
-		sctx, rctx, dctx = make_contexts(gsim, max_distance=self.dmax)
+		sctx, rctx, dctx = make_gsim_contexts(self.gsim, soil_site_model,
+												rupture, max_distance=self.dmax)
 
 		## Set imt
 		if imt == "SA":
