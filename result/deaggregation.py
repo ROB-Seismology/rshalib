@@ -1122,7 +1122,8 @@ class SpectralDeaggregationCurve(IntensityResult, DeaggBase):
 		import time
 		from lxml import etree
 		from ..nrml import ns
-		nrml_file = open(nrml_filespec, "w")
+		## Note: open file in binary mode in PY3, as etree.tostring returns bytes
+		nrml_file = open(nrml_filespec, "wb")
 		root = etree.Element("nrml", nsmap=ns.NSMAP)
 		sdc_elem = etree.SubElement(root, "spectralDeaggregationCurve")
 		if sourceModelTreePath:
