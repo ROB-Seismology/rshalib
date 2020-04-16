@@ -93,8 +93,9 @@ class Rupture(_base_class):
 		## OpenQuake version dependent keyword arguments
 		oqver_kwargs = {}
 		if OQ_VERSION >= '2.9.0':
-			oqver_kwargs = {'rupture_slip_direction': slip_direction}
-		rupture = cls(mag, rake, trt, hypocenter, surface,
-						source_typology=oqhazlib.source.PointSource, **oqver_kwargs)
+			oqver_kwargs['rupture_slip_direction'] = slip_direction
+		if OQ_VERSION < '3.2.0':
+			oqver_kwargs['source_typology'] = oqhazlib.source.PointSource
+		rupture = cls(mag, rake, trt, hypocenter, surface, **oqver_kwargs)
 
 		return rupture
