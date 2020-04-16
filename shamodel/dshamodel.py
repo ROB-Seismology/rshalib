@@ -164,10 +164,16 @@ class DSHAModel(SHAModelBase):
 				for r, rup in enumerate(src.iter_ruptures(fake_tom)):
 					total_rupture_probability += rup.occurrence_rate
 					if OQ_VERSION >= '2.9.0':
-						gmf_dict = ground_motion_fields(rup, soil_site_model, imt_list,
+						sites = self.filter_sites_by_rupture(rup, gsim, soil_site_model)
+						if len(sites) != len(soil_site_model):
+							site_idxs = sites.indices
+						else:
+							site_idxs = None
+						gmf_dict = ground_motion_fields(rup, sites, imt_list,
 									gsim, self.truncation_level, num_realizations,
 									correlation_model)
 					else:
+						site_idxs = None
 						gmf_dict = ground_motion_fields(rup, soil_site_model, imt_list,
 									gsim, self.truncation_level, num_realizations,
 									correlation_model, self.rupture_site_filter)
@@ -176,14 +182,16 @@ class DSHAModel(SHAModelBase):
 						k = imt_list.index(imt)
 						## Aggregate gmf's corresponding to different nodal planes
 						if np_aggregation == "avg":
-							gmpe_gmf[:,:,k] += (rup_gmf * rup.occurrence_rate)
+							gmpe_gmf[site_idxs,:,k] += (rup_gmf * rup.occurrence_rate)
 						elif np_aggregation == "min":
+							_rup_gmf = np.zeros((num_sites, len(imt_list)))
+							_rup_gmf[site_idxs] = rup_gmf
 							if r == 0:
-								gmpe_gmf[:,:,k] = rup_gmf
+								gmpe_gmf[:,:,k] = _rup_gmf
 							else:
-								gmpe_gmf[:,:,k] = np.minimum(gmpe_gmf[:,:,k], rup_gmf)
+								gmpe_gmf[:,:,k] = np.minimum(gmpe_gmf[:,:,k], _rup_gmf)
 						elif np_aggregation == "max":
-							gmpe_gmf[:,:,k] = np.maximum(gmpe_gmf[:,:,k], rup_gmf)
+							gmpe_gmf[site_idxs,:,k] = np.maximum(gmpe_gmf[site_idxs,:,k], rup_gmf)
 						else:
 							raise Exception("aggregation:%s not supported for nodal planes!"
 											% np_aggregation)
