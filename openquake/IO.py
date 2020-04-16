@@ -863,7 +863,8 @@ def write_disaggregation_slice(site, imt, period, iml, poe, timespan,
 		formatting
 		(default: False)
 	"""
-	with open(nrml_filespec, "w") as nrml_file:
+	## Note: open file in binary mode in PY3, as etree.tostring returns bytes
+	with open(nrml_filespec, "wb") as nrml_file:
 		root = etree.Element("nrml", nsmap=ns.NSMAP)
 		diss = etree.SubElement(root, "disaggMatrix")
 		if sourceModelTreePath:
