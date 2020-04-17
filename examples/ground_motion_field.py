@@ -3,6 +3,8 @@ Example to compute ground-motion field due to a local earthquake
 using rshalib
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 # TODO, to ensure operation on web server:
 # - Move source models to seismo-gis
 
@@ -53,22 +55,24 @@ if __name__ == "__main__":
 	#src.nodal_plane_distribution = npd
 
 	## Import GMPE logic tree
+	"""
 	version = 2015
 	site_conditions = "rock"
 	gmpe_system_def_lt = rshalib.rob.construct_gmpe_lt(version, site_conditions)
 	gmpe_system_def = gmpe_system_def_lt.gmpe_system_def
 	gmpe_spec = "GMPE logic tree (%s)" % site_conditions
+	"""
 
 	## Or define a single GMPE
-	"""
 	gmpe_system_def = {}
 	#gmpe_name = "RietbrockEtAl2013MD"
-	gmpe_name = "AtkinsonBoore2006Prime"
+	#gmpe_name = "AtkinsonBoore2006Prime"
 	#gmpe_name = "Atkinson2015"
+	gmpe_name = "AkkarEtAl2013"
 	gmpe_pmf = rshalib.pmf.GMPEPMF([gmpe_name], [1])
 	gmpe_system_def[trt] = gmpe_pmf
 	gmpe_spec = gmpe_name + " GMPE"
-	"""
+
 
 	## Compute ground_motion field for single IMT or UHS for single point
 	print("Computing ground-motion field...")
@@ -108,9 +112,11 @@ if __name__ == "__main__":
 						truncation_level=truncation_level,
 						integration_distance=integration_distance)
 
-		uhs_field = dsha_model.calc_gmf_fixed_epsilon_mp(num_cores=3,
-							stddev_type="total", np_aggregation=np_aggregation)
-		#[uhs_field] = dsha_model.calc_random_gmf_mp(num_cores=3, correlate_imt_uncertainties=True)
+		#uhs_field = dsha_model.calc_gmf_fixed_epsilon(
+		#uhs_field = dsha_model.calc_gmf_fixed_epsilon_mp(num_cores=3,
+		#					stddev_type="total", np_aggregation=np_aggregation)
+		#[uhs_field] = dsha_model.calc_random_gmf()
+		[uhs_field] = dsha_model.calc_random_gmf_mp(num_cores=3, correlate_imt_uncertainties=True)
 		num_sites = uhs_field.num_sites
 
 		## Plot map
@@ -127,7 +133,7 @@ if __name__ == "__main__":
 		site_style = lbm.PointStyle('.', size=1, line_width=0, line_color=None,
 									fill_color='k')
 
-		T = imt_periods.values()[0][0]
+		T = list(imt_periods.values())[0][0]
 		hm = uhs_field.get_hazard_map(period_spec=T)
 		map = hm.get_plot(graticule_interval=graticule_interval,
 						cmap="jet", norm=norm, contour_interval=contour_interval,
@@ -167,7 +173,7 @@ if __name__ == "__main__":
 
 			## Interpolate map value for each station
 			accs = hm.get_site_intensities(lons, lats, intensity_unit=intensity_unit)
-			imt = imt_periods.keys()[0]
+			imt = list(imt_periods.keys())[0]
 			for s, station in enumerate(stations):
 				acc = accs[s]
 				lon, lat = lons[s], lats[s]
