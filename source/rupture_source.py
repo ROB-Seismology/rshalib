@@ -239,7 +239,7 @@ class RuptureSource(object):
 		return plot_xy(datasets, markers=[marker], colors=cmap,
 						linestyles=None, linewidths=[0], **kwargs)
 
-	def plot_rupture_bounds_3d(self, ruptures, fill=False):
+	def plot_rupture_bounds_3d(self, ruptures, fill=False, fig_filespec=None):
 		"""
 		Plot rupture bounds in 3 dimensions.
 		Note that lon, lat coordinates are transformed to UTM coordinates
@@ -254,6 +254,7 @@ class RuptureSource(object):
 		import pylab
 		import mpl_toolkits.mplot3d.axes3d as p3
 		import mapping.geotools.coordtrans as coordtrans
+		from plotting.generic_mpl import show_or_save_plot
 
 		## Determine UTM zone and hemisphere
 		utm_spec = coordtrans.get_utm_spec(*self.get_centroid())
@@ -278,7 +279,16 @@ class RuptureSource(object):
 				ax.add_collection3d(tri)
 
 		## Plot source outline
-		if isinstance(self, PointSource):
+		if isinstance(self, SimpleFaultSource):
+			polygon = self.get_polygon()
+			src_longitudes = polygon.lons
+			src_latitudes = polygon.lats
+			src_depths = np.array([pt.depth for pt in polygon])
+		elif isinstance(self, AreaSource):
+			src_longitudes = self.polygon.lons
+			src_latitudes = self.polygon.lats
+			src_depths = np.zeros_like(src_longitudes)
+		elif isinstance(self, PointSource):
 			origin = (self.location.longitude, self.location.latitude)
 			src_longitudes, src_latitudes = [], []
 			dist = 10
@@ -289,15 +299,6 @@ class RuptureSource(object):
 				src_longitudes.append(lon)
 				src_latitudes.append(lat)
 			src_depths = np.zeros(num_azimuths)
-		elif isinstance(self, AreaSource):
-			src_longitudes = self.polygon.lons
-			src_latitudes = self.polygon.lats
-			src_depths = np.zeros_like(src_longitudes)
-		elif isinstance(self, SimpleFaultSource):
-			polygon = self.get_polygon()
-			src_longitudes = polygon.lons
-			src_latitudes = polygon.lats
-			src_depths = np.array([pt.depth for pt in polygon])
 
 		x, y = coordtrans.lonlat_to_utm(src_longitudes, src_latitudes,
 										utm_spec=utm_spec)
@@ -320,7 +321,8 @@ class RuptureSource(object):
 		ax.set_ylabel("Northing (km)")
 		ax.set_zlabel("Depth (km)")
 		pylab.title(self.name)
-		pylab.show()
+
+		return show_or_save_plot(fig, fig_filespec=fig_filespec)
 
 	def plot_rupture_map(self, mag, bounds=True, strike=None, dip=None, rake=None,
 						timespan=None):
