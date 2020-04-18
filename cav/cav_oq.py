@@ -82,7 +82,7 @@ def calc_ln_cav(ln_pga, mag, vs30):
 	sigma_ln_CAV1[:] = 0.1
 	idxs = np.where(ln_dur_uni <= LN_4)
 	sigma_ln_CAV1[idxs] = 0.37 - 0.09 * (ln_dur_uni[idxs] - LN_0_2)
-	sigma_ln_CAV1[ln_dur_uni < ln_0_2] = 0.37
+	sigma_ln_CAV1[ln_dur_uni < LN_0_2] = 0.37
 
 	sigma_ln_CAV = np.sqrt((C8 + 2 * C9 * ln_dur_uni)**2 * sigma_ln_dur_uni**2
 							+ sigma_ln_CAV1**2)
@@ -148,7 +148,7 @@ def calc_cav_exceedance_prob(ln_pga, mag, vs30, cav_min=0.16):
 		try:
 			from ..c_speedups import norm
 		except:
-			print("Failed importing norm speedup!")
+			#print("Failed importing norm speedup!")
 			from scipy.stats import norm
 		ln_pga = np.array(ln_pga)
 		vs30 = np.array(vs30)
