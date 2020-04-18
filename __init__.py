@@ -85,13 +85,19 @@ if not reloading:
 OQ_VERSION = oqhazlib.__version__
 print('OpenQuake version: %s' % OQ_VERSION)
 
+## imt (depends on oqhazlib)
+if not reloading:
+	from . import imt
+else:
+	reload(imt)
+
 ## msr (depends on oqhazlib)
 if not reloading:
 	from . import msr
 else:
 	reload(msr)
 
-## calc (no internal dependencies)
+## calc (depends on imt)
 if not reloading:
 	from . import calc
 else:
