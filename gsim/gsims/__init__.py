@@ -27,19 +27,18 @@ from openquake.hazardlib.gsim.base import (
 
 
 def get_available_gsims():
-    '''
-    Return an ordered dictionary with the available GSIM classes, keyed
-    by class name.
-    '''
-    gsims = {}
-    for fname in os.listdir(os.path.dirname(__file__)):
-        if fname.endswith('.py'):
-            modname, _ext = os.path.splitext(fname)
-            mod = importlib.import_module(
-                'openquake.hazardlib.gsim.' + modname)
-            for cls in mod.__dict__.itervalues():
-                if inspect.isclass(cls) and issubclass(
-                    cls, GroundShakingIntensityModel) and cls not in (
-                        GroundShakingIntensityModel, GMPE, IPE):
-                    gsims[cls.__name__] = cls
-    return OrderedDict((k, gsims[k]) for k in sorted(gsims))
+	'''
+	Return an ordered dictionary with the available GSIM classes, keyed
+	by class name.
+	'''
+	gsims = {}
+	for fname in os.listdir(os.path.dirname(__file__)):
+		if fname.endswith('.py'):
+			modname, _ext = os.path.splitext(fname)
+			mod = importlib.import_module('.' + modname, package=__name__)
+			for cls in mod.__dict__.values():
+				if inspect.isclass(cls) and issubclass(
+					cls, GroundShakingIntensityModel) and cls not in (
+						GroundShakingIntensityModel, GMPE, IPE):
+					gsims[cls.__name__] = cls
+	return OrderedDict((k, gsims[k]) for k in sorted(gsims))
