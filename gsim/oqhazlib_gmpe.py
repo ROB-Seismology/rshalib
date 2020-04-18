@@ -5,6 +5,12 @@ Interface with GMPEs defined in OpenQuake
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import sys, types
+if sys.version_info.major == 2:
+	PY2 = True
+else:
+	PY2 = False
+
 import numpy as np
 from scipy.constants import g
 import pylab
@@ -46,11 +52,21 @@ def get_oq_gsim(gsim_name):
 		or :class:`oqhazlib.gsim.IPE`
 	"""
 	from .gsims import get_available_gsims
+	from .oq_gsim_mixin import (make_contexts, get_poes_cav)
 
 	custom_gsims = get_available_gsims()
 	oq_gsims = oqhazlib.gsim.get_available_gsims()
 	gsim = custom_gsims.get(gsim_name, oq_gsims.get(gsim_name))
 	if gsim:
+		## Attach custom methods to GSIM
+		for func in (make_contexts, get_poes_cav):
+			meth_name = func.__name__
+			if not hasattr(gsim, meth_name):
+				if PY2:
+					meth = types.MethodType(func, None, gsim)
+				else:
+					meth = func
+				setattr(gsim, meth_name, meth)
 		return gsim()
 	else:
 		return None
