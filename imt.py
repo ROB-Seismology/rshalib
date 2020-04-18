@@ -10,7 +10,7 @@ from openquake.hazardlib.imt import *
 
 
 
-__all__ = list(oqhazlib.imt.__all__) + ['from_tuple']
+__all__ = ['from_tuple', 'SA', 'PGA', 'PGV', 'PGD']
 
 
 def from_tuple(imt_tuple):
@@ -23,7 +23,7 @@ def from_tuple(imt_tuple):
 		(imt string, float period, float damping)
 
 	:return:
-		instance of :class:`oqhazlib.imt._IMT`
+		instance of :class:`oqhazlib.imt.IMT`
 	"""
 	imt = getattr(oqhazlib.imt, imt_tuple[0])(*imt_tuple[1:])
 	return imt
