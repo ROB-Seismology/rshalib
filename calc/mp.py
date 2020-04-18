@@ -12,6 +12,7 @@ import traceback
 import numpy as np
 
 from .. import (oqhazlib, OQ_VERSION)
+from ..imt import from_tuple as imt_from_tuple
 
 
 # TODO: use logging facilities instead of print statements
@@ -412,7 +413,7 @@ def deaggregate_by_source(psha_model, source, src_idx, deagg_matrix_shape,
 					for imt_idx, imt_tuple in enumerate(imts):
 						imls = imtls[imt_tuple]
 						## Reconstruct imt from tuple
-						imt = getattr(oqhazlib.imt, imt_tuple[0])(*imt_tuple[1:])
+						imt = imt_from_tuple(imt_tuple)
 						## In contrast to what is stated in the documentation,
 						## disaggregate_poe does handle more than one iml
 						if OQ_VERSION >= '3.2.0':
@@ -586,7 +587,7 @@ def calc_gmf_with_fixed_epsilon(
 	from ..gsim import make_gsim_contexts
 
 	## Reconstruct imt from tuple
-	imt = getattr(oqhazlib.imt, imt_tuple[0])(*imt_tuple[1:])
+	imt = imt_from_tuple(imt_tuple)
 
 	if integration_distance:
 		if OQ_VERSION >= '3.2.0':
@@ -728,7 +729,7 @@ def calc_random_gmf(
 		np.random.seed(seed=random_seed)
 
 	## Reconstruct imt from tuple
-	imt = getattr(oqhazlib.imt, imt_tuple[0])(*imt_tuple[1:])
+	imt = imt_from_tuple(imt_tuple)
 
 	if integration_distance:
 		if OQ_VERSION >= '3.2.0':
