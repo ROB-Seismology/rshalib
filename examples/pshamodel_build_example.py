@@ -211,16 +211,16 @@ if __name__ == '__main__':
 	psha_model = create_psha_model("oqhazlib")
 	#print(psha_model._get_trt_gsim_dict())
 	start_time = time.time()
-	shcf_dict = psha_model.calc_shcf()
-	#shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=True, num_cores=3)
+	#shcf_dict = psha_model.calc_shcf()
+	shcf_dict = psha_model.calc_shcf_mp(decompose_area_sources=False, num_cores=3)
 	shcf = shcf_dict['PGA']
 	end_time = time.time()
 	print(end_time - start_time)
 	tree = rshalib.nrml.create_nrml_root(shcf)
 	from lxml import etree
 	print(etree.tostring(tree, pretty_print=True))
-	shcf.write_nrml(r"C:\Temp\shcf.xml")
-	#shcf.plot()
+	#shcf.write_nrml(r"C:\Temp\shcf.xml")
+	shcf.plot()
 	exit()
 
 

@@ -28,8 +28,8 @@ eps_correlation_model = "EUS"
 
 sctx, rctx, dctx, imt = gmpe._get_contexts_and_imt(M, d, h, vs30, kappa, mechanism, im, T, damping)
 
-rshalib_poes_cav = rshalib.cav.calc_CAV_exceedance_prob(imls, M, vs30[0], CAVmin=cav_min)
-oqhazlib_poes_cav = oqhazlib.gsim.cav.calc_CAV_exceedance_prob(np.log(imls), rctx.mag, list(sctx.vs30) * len(imls), cav_min=cav_min)
+rshalib_poes_cav = rshalib.cav.calc_cav_exceedance_prob(imls, M, vs30[0], cav_min=cav_min)
+oqhazlib_poes_cav = oqhazlib.gsim.cav.calc_cav_exceedance_prob(np.log(imls), rctx.mag, list(sctx.vs30) * len(imls), cav_min=cav_min)
 print rshalib_poes_cav
 print oqhazlib_poes_cav
 print np.allclose(rshalib_poes_cav, oqhazlib_poes_cav)

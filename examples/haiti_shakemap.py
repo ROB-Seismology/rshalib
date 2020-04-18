@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
 
 	## Fetch topography for hillshading only once
-	elevation_grid = lbm.WCSData("http://seishaz.oma.be:8080/geoserver/wcs", "nasa:etopo1", region=grid_outline)
+	#elevation_grid = lbm.WCSData("http://seishaz.oma.be:8080/geoserver/wcs", "nasa:etopo1", region=grid_outline)
 
 
 	## Compute ground_motion field
@@ -129,11 +129,13 @@ if __name__ == "__main__":
 				#map.legend_style = None
 
 				## Add topographic hillshading
+				"""
 				layer = map.get_layer_by_name("intensity_grid")
 				blend_mode = "soft"
 				hillshade_style = lbm.HillshadeStyle(45, 45, 1, blend_mode=blend_mode,
 														elevation_grid=elevation_grid)
 				layer.style.hillshade_style = hillshade_style
+				"""
 
 				fig_filespec = None
 				#fig_filename = "%s_%s_T=%ss.PNG" % (src_model.name, gmpe_name, T)

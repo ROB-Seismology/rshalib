@@ -67,7 +67,7 @@ lons, lats, depths, mags = [], [], [], []
 dsha_model = rshalib.shamodel.DSHAModel(dsha_model_name, lons, lats, depths, mags,
 										gmpe, grid_outline=grid_outline, grid_spacing=grid_spacing,
 										ref_soil_params=ref_soil_params, imts=imt_periods.keys(),
-										periods=imt_periods.values()[0], correlation_model=None,
+										periods=list(imt_periods.values())[0], correlation_model=None,
 										truncation_level=gmpe_truncation_level, maximum_distance=integration_distance)
 dsha_model.ruptures = ruptures
 
