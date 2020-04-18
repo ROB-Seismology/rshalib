@@ -190,7 +190,6 @@ class PSHAModel(PSHAModelBase):
 		num_sites = len(sites)
 
 		if OQ_VERSION >= '2.9.0':
-			# TODO: implement CAV filtering??
 			from openquake.hazardlib.calc.hazard_curve import calc_hazard_curves
 
 			ss_filter = self.source_site_filter(sites)
