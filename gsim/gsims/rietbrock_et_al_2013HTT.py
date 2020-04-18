@@ -22,9 +22,9 @@ import numpy as np
 
 from scipy.constants import g
 
-from openquake.hazardlib.gsim.rietbrock_et_al_2013 import RietbrockEtAl2013MD
 from openquake.hazardlib.gsim.base import CoeffsTable
 from openquake.hazardlib.imt import PGA, SA
+from .rietbrock_et_al_2013 import RietbrockEtAl2013MD
 
 
 class RietbrockEtAl2013MDHTT(RietbrockEtAl2013MD):
