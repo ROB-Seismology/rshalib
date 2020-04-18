@@ -42,15 +42,14 @@ class ResponseSpectrum(HazardSpectrum, IntensityResult, robspy.ResponseSpectrum)
 	def __init__(self, periods, intensities, intensity_unit, imt,
 				damping=0.05, model_name=""):
 		## Fix position of PGA with respect to spectrum if necessary
-		if len(periods) > 1:
-			if periods[0] == 0 and periods[1] > periods[2]:
-				print("Moving PGA to end of array")
-				periods = np.roll(periods, -1)
-				intensities = np.roll(intensities, -1)
-			elif periods[-1] == 0 and periods[0] < periods[1]:
-				print("Moving PGA to beginning of array")
-				periods = np.roll(periods, 1)
-				intensities = np.roll(intensities, 1)
+		if periods[0] == 0 and periods[1] > periods[2]:
+			print("Moving PGA to end of array")
+			periods = np.roll(periods, -1)
+			intensities = np.roll(intensities, -1)
+		elif periods[-1] == 0 and periods[0] < periods[1]:
+			print("Moving PGA to beginning of array")
+			periods = np.roll(periods, 1)
+			intensities = np.roll(intensities, 1)
 
 		HazardSpectrum.__init__(self, periods, period_axis=None)
 		IntensityResult.__init__(self, intensities, intensity_unit, imt,
