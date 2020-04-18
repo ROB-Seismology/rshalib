@@ -45,7 +45,11 @@ def get_oq_gsim(gsim_name):
 		instance of :class:`oqhazlib.gsim.GMPE`
 		or :class:`oqhazlib.gsim.IPE`
 	"""
-	gsim = oqhazlib.gsim.get_available_gsims().get(gsim_name)
+	from .gsims import get_available_gsims
+
+	custom_gsims = get_available_gsims()
+	oq_gsims = oqhazlib.gsim.get_available_gsims()
+	gsim = custom_gsims.get(gsim_name, oq_gsims.get(gsim_name))
 	if gsim:
 		return gsim()
 	else:
