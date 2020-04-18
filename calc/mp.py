@@ -175,12 +175,12 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 					setattr(sctx, "vs30", getattr(r_sites, "vs30"))
 
 				for k, imt in enumerate(imts):
-					if OQ_VERSION >= '2.9.0':
-						poes = gsim.get_poes(sctx, rctx, dctx, imt, imts[imt],
-										 psha_model.truncation_level)
-					else:
+					if cav_min > 0:
 						poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imts[imt],
-										 psha_model.truncation_level, cav_min=cav_min)
+										psha_model.truncation_level, cav_min=cav_min)
+					else:
+						poes = gsim.get_poes(sctx, rctx, dctx, imt, imts[imt],
+										psha_model.truncation_level)
 
 					exceedances = (1 - poe_rup) ** poes
 
