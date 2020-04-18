@@ -11,7 +11,7 @@ from matplotlib.font_manager import FontProperties
 
 from plotting.generic_mpl import plot_xy
 
-from ...utils import interpolate, logrange
+from ..utils import interpolate, logrange
 
 
 __all__ = ['plot_distance', 'plot_spectrum']
@@ -131,7 +131,7 @@ def plot_distance(gmpe_list, mags, dmin=None, dmax=None, distance_metric=None,
 	:return:
 		matplotlib Axes instances
 	"""
-	from .base import convert_distance_metric
+	from .gmpe import convert_distance_metric
 
 	COLORS = colors or pylab.rcParams['axes.prop_cycle'].by_key()['color']
 	LINESTYLES = linestyles or ("-", "--", ":", "-.")

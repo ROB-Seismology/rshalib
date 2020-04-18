@@ -8,7 +8,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import numpy as np
 from scipy.constants import g
 
-from .base import (GMPE, IMTUndefinedError)
+from ..gmpe import (GMPE, IMTUndefinedError)
 
 
 __all__ = ['Ambraseys1995DDGMPE']

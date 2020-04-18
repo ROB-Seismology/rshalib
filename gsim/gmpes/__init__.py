@@ -23,28 +23,7 @@ else:
 		pass
 
 
-## plot (no internal dependencies)
-if not reloading:
-	from . import plot
-else:
-	reload(plot)
-from .plot import *
-
-## base (depends on plot)
-if not reloading:
-	from . import base
-else:
-	reload(base)
-from .base import *
-
-## oqhazlib_gmpe (depends on base)
-if not reloading:
-	from . import oqhazlib_gmpe
-else:
-	reload(oqhazlib_gmpe)
-from .oqhazlib_gmpe import *
-
-## GMPEs (depend on base)
+## GMPEs
 if not reloading:
 	from . import akkarbommer2010
 else:

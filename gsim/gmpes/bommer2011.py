@@ -8,7 +8,6 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import numpy as np
 
-from .base import *
 from .akkarbommer2010 import AkkarBommer2010GMPE
 
 

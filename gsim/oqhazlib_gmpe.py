@@ -9,10 +9,10 @@ import numpy as np
 from scipy.constants import g
 import pylab
 
-from ... import (oqhazlib, OQ_VERSION)
+from .. import (oqhazlib, OQ_VERSION)
 from openquake.hazardlib.imt import PGD, PGV, PGA, SA, MMI
 
-from .base import *
+from .gmpe import *
 
 
 
@@ -234,7 +234,7 @@ class OqhazlibGMPE(GMPE):
 											trt, rms, rar, usd, lsd, msr)
 
 		## Create site collection
-		from ...site import GenericSiteModel
+		from ..site import GenericSiteModel
 
 		azimuth = 90
 		if self.distance_metric in ("Rupture", "rrup", "Hypocentral", "rhypo"):

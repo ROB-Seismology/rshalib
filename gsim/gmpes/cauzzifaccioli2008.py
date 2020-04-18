@@ -10,7 +10,7 @@ import numpy as np
 from scipy.constants import g
 
 from ...utils import interpolate
-from .base import *
+from ..gmpe import *
 
 
 __all__ = ['CauzziFaccioli2008GMPE']

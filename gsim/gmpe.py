@@ -13,7 +13,7 @@ import numpy as np
 
 #from openquake.hazardlib.imt import PGD, PGV, PGA, SA, MMI
 
-from ...utils import interpolate, logrange
+from ..utils import interpolate, logrange
 
 
 
@@ -683,7 +683,7 @@ class GMPE(object):
 		:return:
 			instance of :class:`rshalib.result.ResponseSpectrum`
 		"""
-		from ...result import ResponseSpectrum
+		from ..result import ResponseSpectrum
 
 		if periods in (None, []):
 			periods = self.imt_periods[imt]
@@ -961,7 +961,7 @@ class GMPE(object):
 		"""
 		from matplotlib.mlab import normpdf
 		from plotting.generic_mpl import plot_xy
-		from ...utils import logrange
+		from ..utils import logrange
 		from .plot import get_imt_label
 
 		if not isinstance(sigma_truncations, (list, tuple)):
