@@ -24,6 +24,11 @@ else:
 
 
 if not reloading:
+	from . import cav_oq
+else:
+	reload(cav_oq)
+
+if not reloading:
 	from . import cav_filtering
 else:
 	reload(cav_filtering)
