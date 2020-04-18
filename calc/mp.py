@@ -204,9 +204,7 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 			#print(msg)
 			#return 1
 		else:
-			return 0
-
-	return curves
+			return curves
 
 
 def calc_shcf_psha_model(psha_model, curve_name, curve_path, cav_min,
