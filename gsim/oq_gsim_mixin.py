@@ -128,9 +128,10 @@ def get_poes_cav(self, sctx, rctx, dctx, imt, imls, truncation_level,
 			try:
 				from ..c_speedups import norm
 			except:
-				#print("Failed importing truncnorm speedup!")
+				#print("Failed importing norm speedup!")
 				return _norm_sf(zvalues)
 			else:
+				#print("Successfully loaded norm speedup!")
 				return 1 - norm.cdf(zvalues)
 		else:
 			try:
@@ -138,7 +139,8 @@ def get_poes_cav(self, sctx, rctx, dctx, imt, imls, truncation_level,
 			except:
 				#print("Failed importing truncnorm speedup!")
 				from scipy.stats import truncnorm
-			#sa_exceedance_prob = _truncnorm_sf(truncation_level, zvalues)
+			#else:
+			#	print("Successfully loaded truncnorm speedup!")
 			sa_exceedance_prob = 1 - truncnorm.cdf(zvalues, -truncation_level,
 													truncation_level)
 			if cav_min == 0 or rctx.mag > cav_max_mag:
@@ -175,7 +177,7 @@ def get_poes_cav(self, sctx, rctx, dctx, imt, imls, truncation_level,
 					## Integrate explicitly over epsilon
 					for e in range(neps):
 						for d in range(nsites):
-							idxs = np.where(ln_pga_eps_pga_array[e][d] > ln_imls)
+							idxs = ln_pga_eps_pga_array[e][d] > ln_imls
 							joint_exceedance_probs[d][idxs] += \
 								(prob_eps_array[e] * cav_exceedance_prob[e, d])
 
