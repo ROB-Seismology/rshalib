@@ -461,7 +461,7 @@ class SpectralHazardCurve(HazardResult, HazardSpectrum):
 		see :class:`HazardCurve`
 	"""
 	def __init__(self, hazard_values, site, periods,
-				imt, intensities, intensity_unit,
+				intensities, intensity_unit, imt,
 				model_name='', filespec=None,
 				timespan=50, damping=0.05, variances=None):
 
@@ -1013,7 +1013,7 @@ class HazardCurveField(HazardResult, HazardField):
 		except:
 			raise IndexError("Site index %s out of range" % site_index)
 
-		site_name = self.site_names[site_index]
+		#site_name = self.site_names[site_index]
 		intensities = self.intensities
 		hazard_values = self._hazard_values[site_index]
 		if self.variances is not None:
@@ -1423,7 +1423,7 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 		except:
 			raise IndexError("Site index %s out of range" % site_index)
 
-		site_name = self.site_names[site_index]
+		#site_name = self.site_names[site_index]
 		filespec = self.filespecs[0]
 		intensities = self.intensities
 		hazard_values = self._hazard_values[site_index]
@@ -1460,8 +1460,8 @@ class SpectralHazardCurveField(HazardResult, HazardField, HazardSpectrum):
 			site = self.sites[site_index]
 		except:
 			raise IndexError("Site index %s out of range" % site_index)
-		else:
-			site_name = self.site_names[site_index]
+		#else:
+		#	site_name = self.site_names[site_index]
 
 		period_index = self.period_index(period_spec)
 		try:
@@ -2148,8 +2148,8 @@ class SpectralHazardCurveFieldTree(HazardTree, HazardField, HazardSpectrum):
 			site = self.sites[site_index]
 		except:
 			raise IndexError("Site index %s out of range" % site_index)
-		else:
-			site_name = self.site_names[site_index]
+		#else:
+		#	site_name = self.site_names[site_index]
 
 		branch_index = self.branch_index(branch_spec)
 		try:
