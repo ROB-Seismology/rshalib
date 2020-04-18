@@ -25,6 +25,10 @@ from openquake.hazardlib import const
 from openquake.hazardlib.imt import PGA, PGV, SA
 
 
+# Both horizontal components independently.
+const.IMC.BOTH_HORIZONTAL = 'Both horizontal'
+
+
 class BergeThierry2003(GMPE):
     """
     Implements GMPE developed by Berge-Thierry et al.
