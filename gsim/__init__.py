@@ -63,3 +63,8 @@ if not reloading:
 else:
 	reload(gmpes)
 from .gmpes import *
+
+if not reloading:
+	from . import gsims
+else:
+	reload(gsims)
