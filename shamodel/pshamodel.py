@@ -190,8 +190,11 @@ class PSHAModel(PSHAModelBase):
 		num_sites = len(sites)
 
 		if OQ_VERSION >= '2.9.0':
-			# TODO: implement CAV filtering??
 			from openquake.hazardlib.calc.hazard_curve import calc_hazard_curves
+
+			if cav_min > 0:
+				raise Exception('CAV filtering not implemented, '
+								'use calc_shcf_mp method instead.')
 
 			ss_filter = self.source_site_filter(sites)
 			imtls = {str(imt): imls for (imt, imls) in self._get_imtls().items()}
