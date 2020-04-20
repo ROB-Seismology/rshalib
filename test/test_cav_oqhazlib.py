@@ -86,8 +86,8 @@ if __name__ == '__main__':
 
 
 	### Ground-motion model
-	ground_motion_model = rshalib.gsim.GroundMotionModel('SCR_AkB2010',
-														{trt: 'AkkarBommer2010'})
+	ground_motion_model = rshalib.gsim.GroundMotionModel('SCR_Ak2013',
+														{trt: 'AkkarEtAl2013'})
 	#ground_motion_model = rshalib.gsim.GroundMotionModel('SCR_F2010', {trt: 'FaccioliEtAl2010'})
 
 
