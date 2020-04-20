@@ -7,6 +7,20 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import numpy as np
 
 
+## Try importing truncnorm speedup
+try:
+	from ..c_speedups import (norm, truncnorm)
+	from ..c_speedups.norm import sf as _norm_sf
+except:
+	print("Failed importing truncnorm speedup!")
+	from scipy.stats import truncnorm
+	from scipy.special import ndtr
+	from openquake.hazardlib.gsim.base import _truncnorm_sf
+	_norm_sf = lambda zvalues: ndtr(-zvalues)
+else:
+	_truncnorm_sf = lambda tl, zvalues: truncnorm.sf(zvalues, -tl, tl)
+	print("Successfully imported truncnorm speedup!")
+
 
 __all__ = ['make_contexts', 'get_poes_cav']
 
@@ -125,24 +139,10 @@ def get_poes_cav(self, sctx, rctx, dctx, imt, imls, truncation_level,
 			if cav_min > 0:
 				raise Exception('CAV filtering not supported '
 								'if truncation level is None')
-			try:
-				from ..c_speedups import norm
-			except:
-				#print("Failed importing norm speedup!")
-				return _norm_sf(zvalues)
-			else:
-				#print("Successfully loaded norm speedup!")
-				return 1 - norm.cdf(zvalues)
+			return _norm_sf(zvalues)
+
 		else:
-			try:
-				from ..c_speedups import truncnorm
-			except:
-				#print("Failed importing truncnorm speedup!")
-				from scipy.stats import truncnorm
-			#else:
-			#	print("Successfully loaded truncnorm speedup!")
-			sa_exceedance_prob = 1 - truncnorm.cdf(zvalues, -truncation_level,
-													truncation_level)
+			sa_exceedance_prob = _truncnorm_sf(truncation_level, zvalues)
 			if cav_min == 0 or rctx.mag > cav_max_mag:
 				return sa_exceedance_prob
 			else:
@@ -208,8 +208,8 @@ def get_poes_cav(self, sctx, rctx, dctx, imt, imls, truncation_level,
 							eps_sa_dot = ((ln_imls - ln_sa_given_pga[d])
 											/ sigma_ln_sa_given_pga[d])
 							## Eq. 4-2
-							prob_sa_given_pga = 1 - truncnorm.cdf(eps_sa_dot,
-											-truncation_level, truncation_level)
+							prob_sa_given_pga = _truncnorm_sf(truncation_level,
+															eps_sa_dot)
 
 							joint_exceedance_probs[d] += \
 								(prob_eps_array[e] * cav_exceedance_prob[e, d]
