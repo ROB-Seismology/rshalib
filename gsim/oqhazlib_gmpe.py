@@ -43,6 +43,8 @@ IMT_DICT = {"PGD": PGD, "PGV": PGV, "PGA": PGA, "SA": SA, "MMI": MMI}
 def get_oq_gsim(gsim_name):
 	"""
 	Get OpenQuake ground-shaking intensity model
+	Note: GSIMs included in OpenQuake distribution take precedence
+	over custom GSIMs with the same name
 
 	:param gsim_name:
 		str, name of gsim
@@ -56,7 +58,7 @@ def get_oq_gsim(gsim_name):
 
 	custom_gsims = get_available_gsims()
 	oq_gsims = oqhazlib.gsim.get_available_gsims()
-	gsim = custom_gsims.get(gsim_name, oq_gsims.get(gsim_name))
+	gsim = oq_gsims.get(gsim_name, custom_gsims.get(gsim_name))
 	if gsim:
 		## Attach custom methods to GSIM
 		for func in (make_contexts, get_poes_cav):
