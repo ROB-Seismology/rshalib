@@ -220,8 +220,9 @@ class AtkinsonBoore2006Prime(BooreAtkinson2008):
         soft_soil_idxs = sites.vs30 <= 760.0
         soft_soil_sites = SitesContext()
         setattr(soft_soil_sites, 'vs30', sites.vs30[soft_soil_idxs])
-        sal = self._get_site_amplification_linear(soft_soil_sites, C) * log_e
-        sanl = self._get_site_amplification_non_linear(soft_soil_sites, pga_bc[soft_soil_idxs], C) * log_e
+        sal = log_e * self._get_site_amplification_linear(soft_soil_sites.vs30, C)
+        sanl = log_e * self._get_site_amplification_non_linear(soft_soil_sites.vs30,
+                                                            pga_bc[soft_soil_idxs], C)
 
         mean_bc[soft_soil_idxs] += (sal + sanl)
 
