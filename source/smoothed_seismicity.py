@@ -5,10 +5,16 @@ Smoothed seismicity model from which a source model can be made.
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 
+import sys
+if sys.version[1] == '3':
+	basestring = str
+
 import numpy as np
 import ogr
 
-from scipy.stats import norm
+import scipy.stats
+
+from mapping.geotools.geodetic import (spherical_distance, meshed_spherical_distance)
 
 from ..geo import Point
 from ..mfd import EvenlyDiscretizedMFD
@@ -21,8 +27,318 @@ from .source_model import SourceModel
 __all__ = ['SmoothedSeismicity']
 
 
+class MeshGrid(object):
+	"""
+	"""
+	def __init__(self, lons, lats):
+		assert lons.shape == lats.shape
+		assert len(lons.shape) == 2
+		self.lons = lons
+		self.lats = lats
+
+	@property
+	def shape(self):
+		return self.lons.shape
+
+	@classmethod
+	def from_gridspec(cls, grid_outline, grid_spacing):
+		"""
+		"""
+		lonmin, lonmax, latmin, latmax = grid_outline
+
+		if isinstance(grid_spacing, (int, float)):
+			grid_spacing = (grid_spacing, grid_spacing)
+		elif isinstance(grid_spacing, basestring):
+			assert grid_spacing.endswith("km")
+			grid_spacing = float(grid_spacing[:-2])
+			center_lat = np.mean([latmin, latmax])
+			dlat = grid_spacing / 111.
+			## Approximate longitude spacing
+			dlon = grid_spacing / (111. * np.cos(np.radians(center_lat)))
+			grid_spacing = (dlon, dlat)
+
+		dlon, dlat = grid_spacing
+		lons = np.arange(lonmin, lonmax+dlon/10., dlon)
+		lats = np.arange(latmin, latmax+dlat/10., dlat)
+		## In case of kilometric spacing, center grid nodes
+		lons += (lonmax - lons[-1]) / 2.
+		lats += (latmax - lats[-1]) / 2.
+		grid_lons, grid_lats = np.meshgrid(lons, lats)
+
+		return cls(grid_lons, grid_lats)
+
+
 class SmoothedSeismicity(object):
 	"""
+	Smoothed Seismicity over a rectangular geographic grid
+
+	:param grid_outline:
+		(lonmin, lonmax, latmin, latmax) tuple
+	:param grid_spacing:
+		int or float, lon/lat spacing
+		or tuple of ints or floats, lon and lat spacing
+		or string ending in 'km', spacing in km
+	:param eq_catalog:
+		instance of :class:`eqcatalog.EQCatalog`, earthquake catalog
+		for the region
+	:param completeness:
+		instance of :class:`eqcatalog.Completeness`, defining catalog
+		completeness
+	:param Mtype:
+		str, magnitude type: "ML", "MS" or "MW"
+		(default: "MW")
+	:param Mrelation:
+		{str: str} dict, mapping name of magnitude conversion relation
+		to magnitude type ("MW", "MS" or "ML")
+		(default: {}, will use default Mrelation of catalog for Mtype)
+	:param mag_bin_width:
+		float, magnitude bin width
+		(default: 0.1)
+	:param min_mag:
+		float, minimum magnitude for smoothing
+		(default: None, will use minimum completeness magnitude
+	:param bandwidth:
+		positive float, smoothing bandwidth (in km)
+		(interpreted as minimum smoothing bandwidth
+		if :param:`nth_neighbour` is > zero)
+		or function returning bandwidth depending on earthquake magnitude
+		(default: 15)
+	:param nth_neighbour:
+		positive integer, distance n-th closest earthquake as bandwidth
+		(default: 0)
+	:param kernel_shape:
+		str, name of distribution supported by scipy.stats, defining
+		shape of smoothing kernel
+		e.g., 'norm', 'uniform'
+		(default: 'norm')
+	"""
+	def __init__(self, grid_outline, grid_spacing,
+				eq_catalog, completeness, Mtype='MW', Mrelation={},
+				mag_bin_width=0.1, min_mag=None,
+				bandwidth=15., nth_neighbour=0, kernel_shape='norm'):
+		self.eq_catalog = eq_catalog
+		self.grid_outline = grid_outline
+		self.grid_spacing = grid_spacing
+		self.completeness = completeness
+		self.Mtype = Mtype
+		self.Mrelation = Mrelation
+		self.mag_bin_width = mag_bin_width
+		self.set_min_mag(min_mag or self.completeness.min_mag)
+		self.bandwidth = bandwidth
+		self.nth_neighbour = nth_neighbour
+		self.kernel_shape = kernel_shape
+
+		self.init_grid()
+		self.init_kernel()
+
+	def init_grid(self):
+		"""
+		"""
+		#from ..site import GenericSiteModel
+
+		#self.grid = GenericSiteModel.from_grid_spec(self.grid_outline, self.grid_spacing)
+		self.grid = MeshGrid.from_gridspec(self.grid_outline, self.grid_spacing)
+
+	def set_grid_spacing(self, grid_spacing):
+		"""
+		"""
+		self.grid_spacing = grid_spacing
+		self.init_grid()
+
+	@property
+	def grid_lons(self):
+		return self.grid.lons.flatten()
+
+	@property
+	def grid_lats(self):
+		return self.grid.lats.flatten()
+
+	def init_earthquakes(self):
+		"""
+		"""
+		subcatalog = self.eq_catalog.subselect(Mmin=self.min_mag, Mtype=self.Mtype,
+												Mrelation=self.Mrelation)
+		eq_lons = subcatalog.lons
+		eq_lats = subcatalog.lats
+		eq_mags = subcatalog.get_magnitudes(Mtype=self.Mtype,
+											Mrelation=self.Mrelation)
+		nan_idxs = np.isnan(eq_lons) | np.isnan(eq_mags)
+		self.eq_lons = eq_lons[~nan_idxs]
+		self.eq_lats = eq_lats[~nan_idxs]
+		self.eq_mags = eq_mags[~nan_idxs]
+
+	def set_min_mag(self, min_mag):
+		"""
+		"""
+		assert min_mag >= self.completeness.min_mag
+		self.min_mag = min_mag
+		self.init_earthquakes()
+
+	def calc_inter_eq_distances(self):
+		"""
+		"""
+		distances = meshed_spherical_distance(self.eq_lons, self.eq_lats,
+											self.eq_lons, self.eq_lats)
+		distances /= 1000
+		return distances
+
+	def calc_eq_grid_distances(self):
+		"""
+		"""
+		distances = meshed_spherical_distance(self.eq_lons, self.eq_lats,
+											self.grid_lons, self.grid_lats)
+		distances /= 1000
+		return distances
+
+	def get_bandwidths(self):
+		"""
+		"""
+		# TODO: magnitude-dependent bandwith?
+		if not self.nth_neighbour:
+			if callable(self.bandwidth):
+				return np.asarray(self.bandwidth(self.eq_mags))
+			else:
+				return np.array([self.bandwidth])
+		else:
+			assert np.isscalar(self.bandwidth)
+			distances = self.calc_inter_eq_distances()
+			distances.sort(axis=0)
+			distances = distances[self.nth_neighbour]
+			distances = np.maximum(self.bandwidth, distances)
+			return distances
+
+	def init_kernel(self):
+		"""
+		"""
+		kernel_func = getattr(scipy.stats, self.kernel_shape)
+		bandwidths = self.get_bandwidths()[np.newaxis].T
+		self.kernel = kernel_func(0, bandwidths)
+
+	def set_nth_neighbour(self, value):
+		self.nth_neighbour = value
+		self.init_kernel()
+
+	def get_grid_center(self):
+		"""
+		"""
+		lonmin, lonmax, latmin, latmax = self.grid_outline
+		center_lon = np.mean([lonmin, lonmax])
+		center_lat = np.mean([latmin, latmax])
+		return (center_lon, center_lat)
+
+	def calc_norm_factor(self):
+		"""
+		Compute factor to normalize earthquake densities as the sum
+		of the densities obtained in all grid nodes for an earthquake
+		situated at the center of the grid
+		"""
+		center_lon, center_lat = self.get_grid_center()
+		distances = spherical_distance(center_lon, center_lat,
+										self.grid_lons, self.grid_lats)
+		distances /= 1000.
+		weights = self.kernel.pdf(distances)
+		return 1. / np.sum(weights, axis=1)
+
+	def calc_grid_densities(self, min_mag=None, max_mag=None):
+		"""
+		"""
+		min_mag = min_mag or self.min_mag
+		assert min_mag >= self.min_mag
+		max_mag = max_mag or self.eq_mags.max() + self.mag_bin_width
+		assert max_mag > min_mag
+
+		norm_factor = self.calc_norm_factor()[np.newaxis].T
+		distances = self.calc_eq_grid_distances()
+		densities = self.kernel.pdf(distances)
+		densities *= norm_factor
+
+		idxs = (self.eq_mags >= min_mag) & (self.eq_mags < max_mag)
+		return np.sum(densities[idxs], axis=0)
+
+	def calc_total_eq_densities(self, min_mag=None, max_mag=None):
+		"""
+		This is to check that total density of each earthquake does not
+		exceed 1
+		"""
+		min_mag = min_mag or self.min_mag
+		assert min_mag >= self.min_mag
+		max_mag = max_mag or self.eq_mags.max() + self.mag_bin_width
+		assert max_mag > min_mag
+
+		norm_factor = self.calc_norm_factor()[np.newaxis].T
+		distances = self.calc_eq_grid_distances()
+		densities = self.kernel.pdf(distances)
+		densities *= norm_factor
+
+		idxs = (self.eq_mags >= min_mag) & (self.eq_mags < max_mag)
+		return np.sum(densities[idxs], axis=1)
+
+	def plot_grid_densities(self, min_mag=None, max_mag=None, **kwargs):
+		"""
+		"""
+		from plotting.generic_mpl import plot_grid
+
+		densities = self.calc_grid_densities(min_mag=min_mag, max_mag=max_mag)
+		densities = densities.reshape(self.grid.shape)
+
+		return plot_grid(densities, self.grid.lons, self.grid.lats, **kwargs)
+
+	def get_mag_bins(self, min_mag=None, max_mag=None):
+		"""
+		"""
+		from ..utils import seq
+
+		min_mag = min_mag or self.min_mag
+		max_mag = max_mag or self.eq_mags.max() + self.mag_bin_width
+		return seq(min_mag, max_mag, self.mag_bin_width)
+
+	def calc_occurrence_rates(self, end_date, min_mag=None):
+		"""
+		"""
+		min_mag = min_mag or self.min_mag
+		mag_bins = self.get_mag_bins(min_mag)
+
+		densities = np.zeros((len(mag_bins), len(self.grid_lons)))
+		for i, mag_bin in enumerate(mag_bins):
+			densities[i] = self.calc_grid_densities(mag_bin, mag_bin + self.mag_bin_width)
+		time_spans = self.completeness.get_completeness_timespans(mag_bins, end_date)
+		occurrence_rates = densities / time_spans[np.newaxis].T
+
+		return occurrence_rates
+
+	def calc_mfds(self, end_date, min_mag=None):
+		"""
+		"""
+		occurrence_rates = self.calc_occurrence_rates(end_date, min_mag=min_mag)
+		mag_bins = self.get_mag_bins(min_mag=min_mag)
+		num_grid_cells = occurrence_rates.shape[1]
+		mfd_list = []
+		for i in range(num_grid_cells):
+			mfd = EvenlyDiscretizedMFD(mag_bins[0] + self.mag_bin_width / 2.,
+									self.mag_bin_width, occurrence_rates[:,i],
+									Mtype=self.Mtype)
+			mfd_list.append(mfd)
+
+		return mfd_list
+
+	def calc_total_mfd(self, end_date, min_mag=None):
+		"""
+		"""
+		occurrence_rates = self.calc_occurrence_rates(end_date, min_mag=min_mag)
+		occurrence_rates = occurrence_rates.sum(axis=1)
+		mag_bins = self.get_mag_bins(min_mag=min_mag)
+		mfd = EvenlyDiscretizedMFD(mag_bins[0] + self.mag_bin_width / 2.,
+									self.mag_bin_width, occurrence_rates,
+									Mtype=self.Mtype)
+
+		return mfd
+
+
+class LegacySmoothedSeismicity(object):
+	"""
+	Older implementation by Bart Vleminckx.
+	Left here for illustration
+
 	:param e_lons:
 		1d np.array of floats, lons of earthquakes
 	:param e_lats:
@@ -41,12 +357,14 @@ class SmoothedSeismicity(object):
 		positve float, width of magnitude bins
 	:param bandwidth:
 		positive float, bandwidth of smoothing (in km)
+		or minimum bandwidth if :param:`number` is > zero
 	:param number:
 		positive integer, distance n-th closest earthquake as bandwidth
+		(default: 0)
 	"""
 	def __init__(self, e_lons, e_lats, e_mags, s_lons, s_lats,
 				completeness, end_date,
-				bin_width, bandwidth, number=None):
+				bin_width, bandwidth, number=0):
 		"""
 		"""
 		self.e_lons = e_lons
@@ -116,8 +434,14 @@ class SmoothedSeismicity(object):
 		else:
 			rv = norm(0, self._get_bandwidths()[np.newaxis].T)
 			weights = rv.pdf(distances)
+
 		e_sums = weights.sum(axis=1)
 		weights /= e_sums[np.newaxis].T
+		## Normalize weights such that each earthquake contributes 1 in total?
+		## But: earthquakes that are too far away should contribute less...
+		#e_sums = weights.sum(axis=0)
+		#e_sums = np.minimum(e_sums, rv.pdf(0))
+		#weights /= e_sums
 		min_mag = self.completeness.min_mag
 		max_mag = self.e_mags.max()
 		mag_bins = self._get_mag_bins(min_mag, max_mag)
