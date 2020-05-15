@@ -542,7 +542,7 @@ class GenericSiteModel(oqhazlib.geo.Mesh):
 
 	@property
 	def mesh(self):
-		return ohazlib.geo.Mesh(lons=self.lons, lats=self.lats)
+		return oqhazlib.geo.Mesh(lons=self.lons, lats=self.lats)
 
 	def get_spherical_distances(self, lon, lat):
 		"""
