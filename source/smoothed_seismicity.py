@@ -70,7 +70,7 @@ class MeshGrid(object):
 
 class SmoothedSeismicity(object):
 	"""
-	Smoothed Seismicity over a rectangular geographic grid
+	Smoothed seismicity over a rectangular geographic grid
 
 	:param grid_outline:
 		(lonmin, lonmax, latmin, latmax) tuple
@@ -133,14 +133,23 @@ class SmoothedSeismicity(object):
 
 	def init_grid(self):
 		"""
-		"""
-		#from ..site import GenericSiteModel
+		Initialize grid from outline and spacing
 
-		#self.grid = GenericSiteModel.from_grid_spec(self.grid_outline, self.grid_spacing)
+		:return:
+			None, sets :prop:`grid`
+		"""
 		self.grid = MeshGrid.from_gridspec(self.grid_outline, self.grid_spacing)
 
 	def set_grid_spacing(self, grid_spacing):
 		"""
+		Change grid spacing to new value
+
+		:param grid_spacing:
+			see :meth:`__init__`
+
+		:return:
+			None, :prop:`grid_spacing` and :prop:`grid` are modified
+			in place
 		"""
 		self.grid_spacing = grid_spacing
 		self.init_grid()
@@ -155,6 +164,11 @@ class SmoothedSeismicity(object):
 
 	def init_earthquakes(self):
 		"""
+		Initialize earthquakes depending on :prop:`min_mag`
+
+		:return:
+			None, :prop:`eq_lons`, :prop:`eq_lats` and :prop:`eq_mags`
+			are set
 		"""
 		subcatalog = self.eq_catalog.subselect(Mmin=self.min_mag, Mtype=self.Mtype,
 												Mrelation=self.Mrelation)
@@ -169,6 +183,14 @@ class SmoothedSeismicity(object):
 
 	def set_min_mag(self, min_mag):
 		"""
+		Change minimum magnitude
+
+		:param min_mag:
+			float, minimum magnitude considered for smoothing
+
+		:return:
+			None, :prop:`min_mag`, :prop:`eq_lons`, :prop:`eq_lats`
+			and :prop:`eq_mags` are modified in place
 		"""
 		assert min_mag >= self.completeness.min_mag
 		self.min_mag = min_mag
@@ -176,6 +198,11 @@ class SmoothedSeismicity(object):
 
 	def calc_inter_eq_distances(self):
 		"""
+		Compute distances between each earthquake and each other
+		earthquake
+
+		:return:
+			2-D [num_eq, num_eq] float array, distances (in km)
 		"""
 		distances = meshed_spherical_distance(self.eq_lons, self.eq_lats,
 											self.eq_lons, self.eq_lats)
@@ -184,6 +211,10 @@ class SmoothedSeismicity(object):
 
 	def calc_eq_grid_distances(self):
 		"""
+		Compute distances between each earthquake and each grid node
+
+		:return:
+			2-D [num_eq, num_grid_nodes] float array, distances in km
 		"""
 		distances = meshed_spherical_distance(self.eq_lons, self.eq_lats,
 											self.grid_lons, self.grid_lats)
@@ -192,6 +223,12 @@ class SmoothedSeismicity(object):
 
 	def get_bandwidths(self):
 		"""
+		Define smoothing bandwidths
+
+		:return:
+			1-D float array, with length either 1 (single value)
+			or equal to the number of earthquakes (different value
+			for each earthquake)
 		"""
 		# TODO: magnitude-dependent bandwith?
 		if not self.nth_neighbour:
