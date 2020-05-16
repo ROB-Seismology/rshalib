@@ -17,7 +17,7 @@ import scipy.stats
 from mapping.geotools.geodetic import (spherical_distance, meshed_spherical_distance)
 
 from ..geo import Point
-from ..mfd import EvenlyDiscretizedMFD
+from ..mfd import (EvenlyDiscretizedMFD, TruncatedGRMFD)
 from .point import PointSource
 from .source_model import SourceModel
 
@@ -116,19 +116,24 @@ class SmoothedSeismicity(object):
 				eq_catalog, completeness, Mtype='MW', Mrelation={},
 				mag_bin_width=0.1, min_mag=None,
 				bandwidth=15., nth_neighbour=0, kernel_shape='norm'):
-		self.eq_catalog = eq_catalog
 		self.grid_outline = grid_outline
 		self.grid_spacing = grid_spacing
+		self.eq_catalog = eq_catalog
 		self.completeness = completeness
 		self.Mtype = Mtype
 		self.Mrelation = Mrelation
 		self.mag_bin_width = mag_bin_width
-		self.set_min_mag(min_mag or self.completeness.min_mag)
 		self.bandwidth = bandwidth
 		self.nth_neighbour = nth_neighbour
 		self.kernel_shape = kernel_shape
 
+		## Set up grid
 		self.init_grid()
+		## Initialize catalog
+		self.init_catalog()
+		## Set minimum magnitude and initialize earthquakes
+		self.set_min_mag(min_mag or self.completeness.min_mag)
+		## Initialize smoothing kernel
 		self.init_kernel()
 
 	def init_grid(self):
@@ -161,6 +166,16 @@ class SmoothedSeismicity(object):
 	@property
 	def grid_lats(self):
 		return self.grid.lats.flatten()
+
+	def init_eq_catalog(self):
+		"""
+		Initialize earthquake catalog by applying completeness constraint
+
+		:return:
+			None, :prop:`eq_catalog` is modified in place
+		"""
+		self.eq_catalog = self.eq_catalog.subselect_completeness(self.completeness,
+										Mtype=self.Mtype, Mrelation=self.Mrelation)
 
 	def init_earthquakes(self):
 		"""
@@ -230,7 +245,6 @@ class SmoothedSeismicity(object):
 			or equal to the number of earthquakes (different value
 			for each earthquake)
 		"""
-		# TODO: magnitude-dependent bandwith?
 		if not self.nth_neighbour:
 			if callable(self.bandwidth):
 				return np.asarray(self.bandwidth(self.eq_mags))
@@ -246,17 +260,35 @@ class SmoothedSeismicity(object):
 
 	def init_kernel(self):
 		"""
+		Initialize smoothing kernel based on bandwidths and kernel shape
+
+		:return:
+			None, :prop:`kernel` is set
 		"""
 		kernel_func = getattr(scipy.stats, self.kernel_shape)
 		bandwidths = self.get_bandwidths()[np.newaxis].T
 		self.kernel = kernel_func(0, bandwidths)
 
 	def set_nth_neighbour(self, value):
+		"""
+		Change nth neighbour setting. This will reinitialize the
+		smoothing kernel
+
+		:param value:
+			int, new value for :prop:`nth_neighbour`
+
+		:return:
+			None, :prop:`nth_neighbour` and :prop:`kernel` are modified
+		"""
 		self.nth_neighbour = value
 		self.init_kernel()
 
 	def get_grid_center(self):
 		"""
+		Get coordinates of center of grid
+
+		:return:
+			(lon, lat) tuple of floats
 		"""
 		lonmin, lonmax, latmin, latmax = self.grid_outline
 		center_lon = np.mean([lonmin, lonmax])
@@ -267,7 +299,19 @@ class SmoothedSeismicity(object):
 		"""
 		Compute factor to normalize earthquake densities as the sum
 		of the densities obtained in all grid nodes for an earthquake
-		situated at the center of the grid
+		situated at the center of the grid.
+
+		This should ensure that:
+		- earthquakes that are well inside the grid should have a
+		total probability of 1 over all gird nodes
+		- earthquakes that are close to the edges of the grid (either
+		inside or outside) should have a total probability less than 1
+		- earthquakes that are far away from the grid should have
+		a total probability close to 0
+
+		:return:
+			1-D float array, with length corresponding to number of
+			earthquakes
 		"""
 		center_lon, center_lat = self.get_grid_center()
 		distances = spherical_distance(center_lon, center_lat,
@@ -276,8 +320,20 @@ class SmoothedSeismicity(object):
 		weights = self.kernel.pdf(distances)
 		return 1. / np.sum(weights, axis=1)
 
-	def calc_grid_densities(self, min_mag=None, max_mag=None):
+	def calc_densities(self, min_mag=None, max_mag=None):
 		"""
+		Compute probability density of each earthquake at each grid node
+		in a particular magnitude range
+
+		:param min_mag:
+			float, minimum magnitude to compute density for
+			(default: None, will use :prop:`min_mag`)
+		:param max_mag:
+			float, maximum magnitude to compute density for
+			(default: None, will use largest magnitude in catalog)
+
+		:return:
+			2-D [num grid_nodes, num earthquakes] float array
 		"""
 		min_mag = min_mag or self.min_mag
 		assert min_mag >= self.min_mag
@@ -290,25 +346,37 @@ class SmoothedSeismicity(object):
 		densities *= norm_factor
 
 		idxs = (self.eq_mags >= min_mag) & (self.eq_mags < max_mag)
-		return np.sum(densities[idxs], axis=0)
+		return densities[idxs]
+
+	def calc_grid_densities(self, min_mag=None, max_mag=None):
+		"""
+		Compute total density due to all earthquakes in each grid node
+
+		:param min_mag:
+		:param max_mag:
+			see :meth:`calc_densities`
+
+		:return:
+			1-D float array
+		"""
+		densities = self.calc_densities(min_mag=min_mag, max_mag=max_mag)
+		return np.sum(densities, axis=0)
 
 	def calc_total_eq_densities(self, min_mag=None, max_mag=None):
 		"""
-		This is to check that total density of each earthquake does not
-		exceed 1
+		Compute total density in the grid for each earthquake.
+		This is to mainly useful to check that the total density of each
+		earthquake does not exceed 1
+
+		:param min_mag:
+		:param max_mag:
+			see :meth:`calc_densities`
+
+		:return:
+			1-D float array
 		"""
-		min_mag = min_mag or self.min_mag
-		assert min_mag >= self.min_mag
-		max_mag = max_mag or self.eq_mags.max() + self.mag_bin_width
-		assert max_mag > min_mag
-
-		norm_factor = self.calc_norm_factor()[np.newaxis].T
-		distances = self.calc_eq_grid_distances()
-		densities = self.kernel.pdf(distances)
-		densities *= norm_factor
-
-		idxs = (self.eq_mags >= min_mag) & (self.eq_mags < max_mag)
-		return np.sum(densities[idxs], axis=1)
+		densities = self.calc_densities(min_mag=min_mag, max_mag=max_mag)
+		return np.sum(densities, axis=1)
 
 	def plot_grid_densities(self, min_mag=None, max_mag=None, **kwargs):
 		"""
@@ -320,8 +388,112 @@ class SmoothedSeismicity(object):
 
 		return plot_grid(densities, self.grid.lons, self.grid.lats, **kwargs)
 
-	def get_mag_bins(self, min_mag=None, max_mag=None):
+	def calc_moment_densities(self, min_mag=None, max_mag=None, unit='N.m'):
 		"""
+		Compute moment density for each earthquake at each grid node
+
+		:param min_mag:
+		:param max_mag:
+			see :meth:`calc_densities`
+		:param unit:
+			str, moment unit, either 'dyn.cm' or 'N.m'
+			(default: 'N.m')
+
+		:return:
+			2-D [num grid_nodes, num earthquakes] float array
+		"""
+		from eqcatalog.moment import mag_to_moment
+
+		densities = self.calc_densities(min_mag=min_mag, max_mag=max_mag)
+		eq_mags = self.eq_mags[(self.eq_mags >= min_mag) & (self.eq_mags < max_mag)]
+		eq_moments = mag_to_moment(eq_mags, unit=unit)
+		eq_moments = eq_moments[np.newaxis].T
+
+		return densities * eq_moments
+
+	def calc_grid_moment_densities(self, min_mag=None, max_mag=None, unit='N.m'):
+		"""
+		Compute moment density in each grid node due to all earthquakes.
+		Note that this does not correspond to the total moment that would
+		have been released during the entire duration of the catalog,
+		if completeness for the considered magnitude interval is not
+		uniform.
+
+		:param min_mag:
+		:param max_mag:
+		:param unit:
+			see :meth:`calc_moment_densities`
+
+		:return:
+			1-D float array
+		"""
+		moment_densities = self.calc_moment_densities(min_mag=min_mag,
+													max_mag=max_mag, unit=unit)
+		return np.sum(grid_moments, axis=0)
+
+	def calc_grid_moment_rates(self, end_date=None, min_mag=None, max_mag=None,
+								unit='N.m'):
+		"""
+		Compute moment rate in each grid node.
+		Note that this does take into account possibly non-uniform
+		completeness for the considered magnitude interval
+
+		:param end_date:
+			datetime.date object or int, end date or end year of the
+			catalog
+			(default: None, will use end date of :prop:`eq_catalog`
+		:param min_mag:
+		:param max_mag:
+		:param unit:
+			see :meth:`calc_moment_densities`
+
+		:return:
+			1-D float array
+		"""
+		end_date = end_date or self.eq_catalog.end_date
+		moment_densities = self.calc_moment_densities(min_mag=min_mag,
+													max_mag=max_mag, unit=unit)
+		eq_mags = self.eq_mags[(self.eq_mags >= min_mag) & (self.eq_mags < max_mag)]
+		time_spans = self.completeness.get_completeness_timespans(eq_mags, end_date)
+		time_spans = time_spans[np.newaxis].T
+		moment_rate_densities = moment_densities / time_spans
+
+		return np.sum(moment_rate_densities, axis=0)
+
+	def extrapolate_grid_moments(self, end_date=None, min_mag=None, max_mag=None,
+								unit='N.m'):
+		"""
+		Compute total (extrapolated) seismic moment in each grid node
+		since the beginning of the catalog, assuming activity has been
+		constant
+
+		:param end_date:
+		:param min_mag:
+		:param max_mag:
+		:param unit:
+			see :meth:`calc_grid_moment_rates`
+		"""
+		end_date = end_date or self.eq_catalog.end_date
+		max_mag = max_mag or self.eq_mags.max() + self.mag_bin_width
+
+		moment_rates = self.calc_grid_moment_rates(end_date, min_mag=min_mag,
+													max_mag=max_mag, unit=unit)
+		[time_span] = self.completeness.get_completeness_timespans([max_mag],
+																	end_date)
+
+		return moment_rates * time_span
+
+	def get_mfd_bins(self, min_mag=None, max_mag=None):
+		"""
+		Get magnitude bins for magnitude-frequency distribution (MFD)
+
+		:param min_mag:
+			float, minimum magnitude to use for MFD
+		:param max_mag:
+			float, maximum magnitude to use for MFD
+
+		:return:
+			1-D float array
 		"""
 		from ..utils import seq
 
@@ -329,28 +501,80 @@ class SmoothedSeismicity(object):
 		max_mag = max_mag or self.eq_mags.max() + self.mag_bin_width
 		return seq(min_mag, max_mag, self.mag_bin_width)
 
-	def calc_occurrence_rates(self, end_date, min_mag=None):
+	def calc_grid_occurrence_rates(self, end_date=None, min_mag=None, max_mag=None):
 		"""
-		"""
-		min_mag = min_mag or self.min_mag
-		mag_bins = self.get_mag_bins(min_mag)
+		Compute cumulative annual occurrence rates for a particular
+		magnitude range in each grid node
 
-		densities = np.zeros((len(mag_bins), len(self.grid_lons)))
+		:param end_date:
+			datetime.date object or int, end date or end year of the
+			catalog
+			(default: None, will use end date of :prop:`eq_catalog`
+		:param min_mag:
+		:param max_mag:
+			see :meth:`calc_densities`
+
+		:return:
+			1-D float array
+		"""
+		end_date = end_date or self.eq_catalog.end_date
+		min_mag = min_mag or self.min_mag
+		max_mag = max_mag or self.eq_mags.max() + self.mag_bin_width
+
+		densities = self.calc_densities(min_mag=min_mag, max_mag=max_mag)
+		eq_mags = self.eq_mags[(self.eq_mags >= min_mag) & (self.eq_mags < max_mag)]
+		time_spans = self.completeness.get_completeness_timespans(eq_mags, end_date)
+		time_spans = time_spans[np.newaxis].T
+
+		#[time_span] = self.completeness.get_completeness_timespans([min_mag], end_date)
+		#return densities / time_span
+
+		occurrence_rates = densities / time_spans
+
+		return np.sum(occurrence_rates, axis=0)
+
+	def calc_mfd_occurrence_rates(self, end_date=None, min_mag=None, max_mag=None):
+		"""
+		Compute annual occurrence rates for each magnitude bin of the MFD
+		in each grid node
+
+		:param end_date:
+			see :meth:`calc_grid_occurrence_rates`
+		:param min_mag:
+		:param max_mag:
+			see :meth:`get_mfd_bins`
+
+		:return:
+			2-D [num mag bins, num grid nodes] float array
+		"""
+		mag_bins = self.get_mfd_bins(min_mag, max_mag)
+
+		occ_rates = np.zeros((len(mag_bins), len(self.grid_lons)))
 		for i, mag_bin in enumerate(mag_bins):
-			densities[i] = self.calc_grid_densities(mag_bin, mag_bin + self.mag_bin_width)
-		time_spans = self.completeness.get_completeness_timespans(mag_bins, end_date)
-		occurrence_rates = densities / time_spans[np.newaxis].T
+			occ_rates[i] = self.calc_grid_occurrence_rates(end_date, mag_bin,
+													mag_bin + self.mag_bin_width)
 
 		return occurrence_rates
 
-	def calc_mfds(self, end_date, min_mag=None):
+	def calc_discretized_mfds(self, end_date=None, min_mag=None, max_mag=None):
 		"""
+		Compute discretized MFD in each grid node
+
+		:param end_date:
+		:param min_mag:
+		:param max_mag:
+			see :meth:`calc_mfd_occurrence_rates`
+
+		:return:
+			list with instances of :class:`EvenlyDiscretizedMFD`
 		"""
-		occurrence_rates = self.calc_occurrence_rates(end_date, min_mag=min_mag)
-		mag_bins = self.get_mag_bins(min_mag=min_mag)
-		num_grid_cells = occurrence_rates.shape[1]
+		occurrence_rates = self.calc_mfd_occurrence_rates(end_date, min_mag=min_mag,
+														max_mag=max_mag)
+		mag_bins = self.get_mag_bins(min_mag, max_mag)
+		num_grid_nodes = occurrence_rates.shape[1]
+
 		mfd_list = []
-		for i in range(num_grid_cells):
+		for i in range(num_grid_nodes):
 			mfd = EvenlyDiscretizedMFD(mag_bins[0] + self.mag_bin_width / 2.,
 									self.mag_bin_width, occurrence_rates[:,i],
 									Mtype=self.Mtype)
@@ -358,17 +582,67 @@ class SmoothedSeismicity(object):
 
 		return mfd_list
 
-	def calc_total_mfd(self, end_date, min_mag=None):
+	def calc_total_discretized_mfd(self, end_date, min_mag=None, max_mag=None):
 		"""
+		Compute total discretized MFD for the entire grid
+
+		:param end_date:
+		:param min_mag:
+		:param max_mag:
+			see :meth:`calc_mfd_occurrence_rates`
+
+		:return:
+			instance of :class:`EvenlyDiscretizedMFD`
 		"""
-		occurrence_rates = self.calc_occurrence_rates(end_date, min_mag=min_mag)
+		occurrence_rates = self.calc_mfd_occurrence_rates(end_date, min_mag=min_mag,
+														max_mag=max_mag)
 		occurrence_rates = occurrence_rates.sum(axis=1)
-		mag_bins = self.get_mag_bins(min_mag=min_mag)
+		mag_bins = self.get_mag_bins(min_mag=min_mag, max_mag=max_mag)
 		mfd = EvenlyDiscretizedMFD(mag_bins[0] + self.mag_bin_width / 2.,
 									self.mag_bin_width, occurrence_rates,
 									Mtype=self.Mtype)
 
 		return mfd
+
+	def calc_gr_mfds(self, b_value, end_date=None, min_mag=None, max_mag=None):
+		"""
+		Compute Gutenberg-Richter MFD in each grid node based on the
+		cumulative occurrence rates for the given magnitude range
+		and the given b-value
+
+		:param b_value:
+			float, uniform b-value
+			or 1D array, b-values for each grid node
+		:param end_date:
+		:param min_mag:
+		:param max_mag:
+			see :meth:`calc_grid_occurrence_rates`
+
+		:return:
+			list with instances of :class:`TruncatedGRMFD`
+		"""
+		min_mag = min_mag or self.min_mag
+		max_mag = max_mag or self.eq_mags.max() + self.mag_bin_width
+
+		cumul_rates = self.calc_grid_occurrence_rates(end_date, min_mag=min_mag,
+														max_mag=max_mag)
+		num_grid_nodes = len(cumul_rates)
+
+		if np.isscalar(b_value):
+			b_values = np.array([b_value] * num_grid_nodes)
+		else:
+			assert len(b_value) == num_grid_nodes
+			b_values = np.asarray(b_value)
+
+		a_values = np.log10(cumul_rates) + b_values * min_mag
+
+		mfd_list = []
+		for i in range(num_grid_nodes):
+			mfd = TruncatedGRMFD(min_mag, max_mag, self.mag_bin_width,
+								a_values[i], b_values[i], Mtype=self.Mtype)
+			mfd_list.append(mfd)
+
+		return mfd_list
 
 
 class LegacySmoothedSeismicity(object):
