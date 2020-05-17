@@ -136,6 +136,9 @@ class SmoothedSeismicity(object):
 		## Initialize smoothing kernel
 		self.init_kernel()
 
+		## Property containing earthquake-grid distances
+		self._eq_grid_distances = None
+
 	def init_grid(self):
 		"""
 		Initialize grid from outline and spacing
@@ -226,14 +229,21 @@ class SmoothedSeismicity(object):
 
 	def calc_eq_grid_distances(self):
 		"""
-		Compute distances between each earthquake and each grid node
+		Compute distances between each earthquake and each grid node,
+		if necessary, 	and set :prop:`_eq_grid_distances`
 
 		:return:
 			2-D [num_eq, num_grid_nodes] float array, distances in km
 		"""
-		distances = meshed_spherical_distance(self.eq_lons, self.eq_lats,
-											self.grid_lons, self.grid_lats)
-		distances /= 1000
+		if (self._eq_grid_distances is None
+			or self._eq_grid_distances.shape[2] != len(self.eq_lons)):
+			distances = meshed_spherical_distance(self.eq_lons, self.eq_lats,
+												self.grid_lons, self.grid_lats)
+			distances /= 1000
+			self._eq_grid_distances = distances
+		else:
+			distances = self._eq_grid_distances
+
 		return distances
 
 	def get_bandwidths(self):
