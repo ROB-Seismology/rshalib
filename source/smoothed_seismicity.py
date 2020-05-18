@@ -641,7 +641,8 @@ class SmoothedSeismicity(object):
 
 	def get_folium_map(self, quantity, min_mag=None, max_mag=None,
 						cmap='jet', opacity=0.7, pixelated=False,
-						vmin=None, vmax=None, **kwargs):
+						vmin=None, vmax=None, bgmap='OpenStreetMap',
+						**kwargs):
 		"""
 		Generate folium map
 
@@ -655,6 +656,9 @@ class SmoothedSeismicity(object):
 		:param vmax:
 		:kwargs:
 			see :meth:`to_folium_layer`
+		:param bgmap:
+			str, background tile map
+			(default: 'OpenStreetMap')
 
 		:return:
 			instance of :class:`folium.Map`
@@ -666,7 +670,7 @@ class SmoothedSeismicity(object):
 							pixelated=pixelated, vmin=vmin, vmax=vmax,
 							**kwargs)
 
-		map = folium.Map(tiles='OpenStreetMap', control_scale=True)
+		map = folium.Map(tiles=bgmap, control_scale=True)
 		lonmin, lonmax, latmin, latmax = self.grid_outline
 		bounds = [(latmin, lonmin), (latmax, lonmax)]
 
