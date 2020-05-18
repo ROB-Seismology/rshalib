@@ -293,6 +293,20 @@ class SmoothedSeismicity(object):
 		self.nth_neighbour = value
 		self.init_kernel()
 
+	def set_bandwidth(self, bandwidth):
+		"""
+		Change smoothing bandwidth. This will reinitialize the
+		smoothing kernel
+
+		:param bandwidth:
+			float, new value for :prop:`bandwidth`
+
+		:return:
+			None, :prop:`bandwidth` and :prop:`kernel` are modified
+		"""
+		self.bandwidth = bandwidth
+		self.init_kernel()
+
 	def get_grid_center(self):
 		"""
 		Get coordinates of center of grid
@@ -432,18 +446,237 @@ class SmoothedSeismicity(object):
 		densities = self.calc_densities(min_mag=min_mag, max_mag=max_mag)
 		return np.sum(densities, axis=1)
 
-	def plot_grid_densities(self, min_mag=None, max_mag=None, **kwargs):
+	def get_grid_values(self, quantity, min_mag=None, max_mag=None, **kwargs):
 		"""
+		Compute gridded values for a particular quantity, and return
+		them as a 2-D array
+
+		:param quantity:
+			str, name of quantity to compute: 'density', 'occurrence_rate',
+			'a_value', 'moment_density', 'moment_rate' or 'moment'
+		:param min_mag:
+			float, minimum magnitude to compute quantity for
+			(default: None, will use :prop:`min_mag`)
+		:param max_mag:
+			float, maximum magnitude to compute quantity for
+			(default: None, will use largest magnitude in catalog)
+		:kwargs:
+			additional keyword-arguments for calc_grid_* functions:
+			'end_date', 'b_value', 'unit'
+
+		:return:
+			2-D float array
+		"""
+		min_mag, max_mag = self._parse_min_max_mag(min_mag, max_mag)
+
+		if quantity == 'density':
+			values = self.calc_grid_densities(min_mag=min_mag, max_mag=max_mag)
+		elif quantity == 'occurrence_rate':
+			end_date = kwargs.pop('end_date', self.eq_catalog.end_date)
+			values = self.calc_grid_occurrence_rates(end_date=end_date,
+												min_mag=min_mag, max_mag=max_mag)
+		elif quantity == 'moment_density':
+			unit = kwargs.pop('unit', 'N.m')
+			values = self.calc_grid_moment_densities(min_mag=min_mag,
+													max_mag=max_mag, unit=unit)
+		elif quantity == 'moment_rate':
+			end_date = kwargs.pop('end_date', self.eq_catalog.end_date)
+			unit = kwargs.pop('unit', 'N.m')
+			values = self.calc_grid_moment_rates(end_date=end_date, min_mag=min_mag,
+												max_mag=max_mag, unit=unit)
+		elif quantity == 'moment':
+			end_date = kwargs.pop('end_date', self.eq_catalog.end_date)
+			unit = kwargs.pop('unit', 'N.m')
+			values = self.extrapolate_grid_moments(end_date=end_date, min_mag=min_mag,
+													max_mag=max_mag, unit=unit)
+		elif quantity == 'a_value':
+			end_date = kwargs.pop('end_date', self.eq_catalog.end_date)
+			b_value = kwargs.pop('b_value')
+			values = self.calc_grid_a_values(b_value, end_date=end_date,
+											min_mag=min_mag, max_mag=max_mag)
+
+		values = values.reshape(self.grid.shape)
+
+		return values
+
+	def plot_grid(self, quantity, min_mag=None, max_mag=None, **kwargs):
+		"""
+		Plot grid for a particular quantity
+
+		:param quantity:
+		:param min_mag:
+		:param max_mag:
+			see :meth:`get_grid_values`
+		:kwargs:
+			additional keyword-arguments for calc_grid_* functions
+			('end_date', 'b_value', 'unit') or to pass to
+			:func:`generic_mpl.plot_grid`
+
+		:return:
+			matplotlib axes instance
 		"""
 		from plotting.generic_mpl import plot_grid
 
-		densities = self.calc_grid_densities(min_mag=min_mag, max_mag=max_mag)
-		densities = densities.reshape(self.grid.shape)
+		min_mag, max_mag = self._parse_min_max_mag(min_mag, max_mag)
 
-		xmin, xmax, ymin, ymax = kwargs.pop('region', self.grid_outline)
+		values = self.get_grid_values(quantity, min_mag=min_mag, max_mag=max_mag,
+									**kwargs)
+		kwargs.pop('end_date', None)
+		kwargs.pop('b_value', None)
+		unit = kwargs.pop('unit', 'N.m')
 
-		return plot_grid(densities, self.grid.lons, self.grid.lats,
-						xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, **kwargs)
+		if quantity == 'density':
+			cbar_title = kwargs.pop('cbar_title', 'Earthquake density')
+		elif quantity == 'occurrence_rate':
+			cbar_title = kwargs.pop('cbar_title', 'Annual frequency')
+		elif quantity == 'moment_density':
+			cbar_title = kwargs.pop('cbar_title', 'Moment density (%s)' % unit)
+		elif quantity == 'moment_rate':
+			cbar_title = kwargs.pop('cbar_title', 'Moment rate (%s/yr)' % unit)
+		elif quantity == 'moment':
+			cbar_title = kwargs.pop('cbar_title', 'Extrapolated moment (%s)' % unit)
+		elif quantity == 'a_value':
+			cbar_title = kwargs.pop('cbar_title', 'GR a value')
+
+		cbar_title += (' (M=%.1f - %.1f)' % (min_mag, max_mag))
+
+		region = kwargs.pop('region', self.grid_outline)
+		xmin = kwargs.pop('xmin', region[0])
+		xmax = kwargs.pop('xmax', region[1])
+		ymin = kwargs.pop('ymin', region[2])
+		ymax = kwargs.pop('ymax', region[3])
+
+		return plot_grid(values, self.grid.lons, self.grid.lats,
+						xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
+						cbar_title=cbar_title, **kwargs)
+
+	def to_folium_layer(self, quantity, min_mag=None, max_mag=None,
+						cmap='jet', opacity=0.7, pixelated=False,
+						vmin=None, vmax=None, **kwargs):
+		"""
+		Generate folium map layer
+
+		:param quantity:
+			str, name of quantity to compute: 'density', 'occurrence_rate',
+			'a_value', 'moment_density', 'moment_rate' or 'moment'
+		:param min_mag:
+			float, minimum magnitude to compute quantity for
+			(default: None, will use :prop:`min_mag`)
+		:param max_mag:
+			float, maximum magnitude to compute quantity for
+			(default: None, will use largest magnitude in catalog)
+		:param cmap:
+			str, name of matplotlib or branca colormap
+			(default: 'jet')
+		:param opacity:
+			float in the range 0-1, grid opacity
+			(default: 0.7)
+		:param pixelated:
+			bool, whether or not color should be uniform in each
+			grid cell
+			(default: False)
+		:param vmin:
+			float, value corresponding to first color in colormap
+			(default: None)
+		:param vmax:
+			float, value corresponding to last color in colormap
+			(default: None)
+		:kwargs:
+			additional keyword-arguments for calc_grid_* functions:
+			'end_date', 'b_value', 'unit'
+
+		:return:
+			(image_overlay, colormap) tuple of elements, which can
+			be added to a folium map
+		"""
+		from matplotlib.cm import get_cmap
+		from matplotlib.colors import rgb2hex, hex2color
+		import branca.colormap as cm
+		import folium
+
+		values = self.get_grid_values(quantity, min_mag=min_mag, max_mag=max_mag,
+									**kwargs)
+		unit = kwargs.get('unit', 'N.m')
+
+		if quantity == 'density':
+			title = 'Earthquake density'
+		elif quantity == 'occurrence_rate':
+			title = 'Annual frequency'
+		elif quantity == 'moment_density':
+			title = 'Moment density (%s)' % unit
+		elif quantity == 'moment_rate':
+			title = 'Moment rate (%s/yr)' % unit
+		elif quantity == 'moment':
+			title = 'Extrapolated moment (%s)' % unit
+		elif quantity == 'a_value':
+			title = 'GR a value'
+
+		lonmin, lonmax, latmin, latmax = self.grid_outline
+		bounds = [(latmin, lonmin), (latmax, lonmax)]
+
+		if isinstance(cmap, basestring):
+			try:
+				cmap = get_cmap(cmap)
+			except:
+				cmap = getattr(cm.linear, cmap)
+				colorfunc = lambda val: hex2color(cmap(val))
+			else:
+				colorfunc = cmap
+				dc = 1. / cmap.N / 2.
+				colors = cmap(np.linspace(dc, 1-dc, cmap.N))
+				hex_colors = [rgb2hex(color) for color in colors]
+				cmap = cm.LinearColormap(colors=hex_colors)
+
+		vmin = vmin or values.min()
+		vmax = vmax or values.max()
+		cmap = cmap.scale(vmin, vmax)
+		cmap.caption = title
+
+		layer = folium.raster_layers.ImageOverlay(values, bounds, origin='lower',
+												opacity=opacity, pixelated=pixelated,
+												colormap=colorfunc, mercator_project=True,
+												name=title)
+
+		return (layer, cmap)
+
+	def get_folium_map(self, quantity, min_mag=None, max_mag=None,
+						cmap='jet', opacity=0.7, pixelated=False,
+						vmin=None, vmax=None, **kwargs):
+		"""
+		Generate folium map
+
+		:param quantity:
+		:param min_mag:
+		:param max_mag:
+		:param cmap:
+		:param opacity:
+		:param pixelated:
+		:param vmin:
+		:param vmax:
+		:kwargs:
+			see :meth:`to_folium_layer`
+
+		:return:
+			instance of :class:`folium.Map`
+		"""
+		import folium
+
+		layer, cmap = self.to_folium_layer(quantity, min_mag=min_mag,
+							max_mag=max_mag, cmap=cmap, opacity=opacity,
+							pixelated=pixelated, vmin=vmin, vmax=vmax,
+							**kwargs)
+
+		map = folium.Map(tiles='OpenStreetMap', control_scale=True)
+		lonmin, lonmax, latmin, latmax = self.grid_outline
+		bounds = [(latmin, lonmin), (latmax, lonmax)]
+
+		layer.add_to(map)
+		cmap.add_to(map)
+
+		map.fit_bounds(bounds)
+		folium.LayerControl().add_to(map)
+
+		return map
 
 	def calc_moment_densities(self, min_mag=None, max_mag=None, unit='N.m'):
 		"""
@@ -666,7 +899,7 @@ class SmoothedSeismicity(object):
 
 		return mfd
 
-	def calc_a_values(self, b_value, end_date=None, min_mag=None, max_mag=None):
+	def calc_grid_a_values(self, b_value, end_date=None, min_mag=None, max_mag=None):
 		"""
 		Compute a values based on the cumulative occurrence rates
 		for the given magnitude range and the given b-value(s)
@@ -715,8 +948,8 @@ class SmoothedSeismicity(object):
 		"""
 		min_mag, max_mag = self._parse_min_max_mag(min_mag, max_mag)
 
-		a_values = self.calc_a_values(b_value, end_date=end_date,
-									min_mag=min_mag, max_mag=max_mag)
+		a_values = self.calc_grid_a_values(b_value, end_date=end_date,
+											min_mag=min_mag, max_mag=max_mag)
 
 		num_grid_nodes = len(a_values)
 
