@@ -217,6 +217,7 @@ def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 	mag_bin_edges = mfd.get_magnitude_bin_edges()
 	Mmin, Mmax = mag_bin_edges[0], mag_bin_edges[-1] + mfd.bin_width
 	cumul_rates = mfd.get_cumulative_rates()
+	cumul_rates = cumul_rates[cumul_rates > 0]
 	fmax, fmin = cumul_rates[0], cumul_rates[-1]
 	for mfd in mfd_list[1:]:
 		mag_bin_edges = mfd.get_magnitude_bin_edges()
@@ -226,6 +227,7 @@ def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 		if _Mmax > Mmax:
 			Mmax = _Mmax
 		cumul_rates = mfd.get_cumulative_rates()
+		cumul_rates = cumul_rates[cumul_rates > 0]
 		_fmax, _fmin = cumul_rates[0], cumul_rates[-1]
 		if _fmin < fmin:
 			fmin = _fmin
