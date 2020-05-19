@@ -16,12 +16,7 @@ import scipy.stats
 
 from mapping.geotools.geodetic import (spherical_distance, meshed_spherical_distance)
 
-from ..geo import Point
 from ..mfd import (EvenlyDiscretizedMFD, TruncatedGRMFD)
-from .point import PointSource
-from .source_model import SourceModel
-
-# TODO: to be completed
 
 
 __all__ = ['SmoothedSeismicity']
@@ -619,7 +614,7 @@ class SmoothedSeismicity(object):
 
 		return occ_rates
 
-	def calc_discretized_mfds(self, end_date=None, min_mag=None, max_mag=None):
+	def calc_incremental_mfds(self, end_date=None, min_mag=None, max_mag=None):
 		"""
 		Compute discretized MFD in each grid node
 
@@ -645,7 +640,7 @@ class SmoothedSeismicity(object):
 
 		return mfd_list
 
-	def calc_total_discretized_mfd(self, end_date=None, min_mag=None, max_mag=None):
+	def calc_total_incremental_mfd(self, end_date=None, min_mag=None, max_mag=None):
 		"""
 		Compute total discretized MFD for the entire grid
 
@@ -765,6 +760,137 @@ class SmoothedSeismicity(object):
 			mfd = sum_mfds(mfd_list)
 
 		return mfd
+
+	def to_source_model(self, mfd_type, end_date=None, min_mag=None, max_mag=None,
+						area_src_model=None, b_value=None, tectonic_region_type='',
+						rupture_mesh_spacing=2.5, magnitude_scaling_relationship='WC1994',
+						rupture_aspect_ratio=1., upper_seismogenic_depth=0.,
+						lower_seismogenic_depth=25., nodal_plane_distribution=None,
+						hypocenter_distribution=None, timespan=1.):
+		"""
+		Generate point-source model from smoothed seismicity grid
+
+		:param mfd_type:
+			str, type of MFD to calculate for each grid node:
+			'gr' (Gutenberg-Richter) or 'incremental' (EvenlyDiscretized)
+		:param end_date:
+		:param min_mag:
+		:param max_mag:
+			end date, minimum and maximum magnitude to compute MFDs
+			see :meth:`calc_gr_mfds` or :meth:`calc_incremental_mfds`
+		:param area_src_model:
+			instance of :class:`rshalib.source.SourceModel`
+			background area source model to use to derive b-value
+			(if :param:`mfd_type` == 'gr') and point-source
+			properties. If not specified or if source model does not
+			cover the entire grid, all individual properties need to be
+			specified
+			(default: None)
+		:param b_value:
+			float, uniform b-value for grid nodes not covered by any
+			source in :param:`area_src_model`.
+			Only needed if :param:`mfd_type` == 'gr'
+			(default: None)
+		:param tectonic_region_type:
+			str, uniform tectonic region type
+			(default: '')
+		:param rupture_mesh_spacing:
+			float, uniform rupture mesh spacing
+			(default: 2.5)
+		:param magnitude_scaling_relationship:
+			str or object, uniform magnitude scaling relationship
+			(default: 'WC1994')
+		:param rupture_aspect_ratio:
+			float, uniform rupture aspect ratio
+			(default: 1.)
+		:param upper_seismogenic_depth:
+			float, uniform upper seismogenic depth
+			(default: 0.)
+		:param lower_seismogenic_depth:
+			float, uniform lower seismogenic depth
+			(default: 25.)
+		:param nodal_plane_distribution:
+			instance of :class:`rshalib.pmf.NodalPlaneDistribution`
+			(default: None)
+		:param hypocenter_distribution:
+			instance of :class:`rshalib.pmf.HypocenterDistribution`
+		:param timespan:
+			float, uniform timespan for Poisson temporal occurrence model
+			(default: 1.)
+
+		:return:
+			instance of :class:`rshalib.source.SourceModel`
+		"""
+		from mapping.geotools.pt_in_polygon import filter_points_by_polygon
+		from ..geo import Point
+		from .point import PointSource
+		from .source_model import SourceModel
+
+		num_grid_nodes = len(self.grid_lons)
+
+		## Create dummy source for grid nodes that are not inside an area source
+		dummy_mfd = type(str('DummyMFD'), (), {})()
+		dummy_mfd.b_val = b_value
+		dummy_src = type(str('DummySource'), (), {})()
+		dummy_src.mfd = dummy_mfd
+		dummy_src.tectonic_region_type = tectonic_region_type
+		dummy_src.rupture_mesh_spacing = rupture_mesh_spacing
+		dummy_src.magnitude_scaling_relationship = magnitude_scaling_relationship
+		dummy_src.rupture_aspect_ratio = rupture_aspect_ratio
+		dummy_src.upper_seismogenic_depth = upper_seismogenic_depth
+		dummy_src.lower_seismogenic_depth = lower_seismogenic_depth
+		dummy_src.nodal_plane_distribution = nodal_plane_distribution
+		dummy_src.hypocenter_distribution = hypocenter_distribution
+		dummy_src.timespan = timespan
+
+		## Determine to which area source each grid node belongs
+		node_src_dict = {}
+		if area_src_model:
+			for source in area_src_model.get_area_sources():
+				idxs_inside, _ = filter_points_by_polygon(self.grid_lons,
+														self.grid_lats, source)
+				for idx in idxs_inside:
+					node_src_dict[idx] = source
+
+		## Compute MFDs
+		if mfd_type == 'gr':
+			b_values = [node_src_dict.get(i, dummy_src).mfd.b_val
+						for i in range(num_grid_nodes)]
+			mfd_list = self.calc_gr_mfds(b_values, end_date=end_date,
+										min_mag=min_mag, max_mag=max_mag)
+		elif mfd_type == 'incremental':
+			mfd_list = self.calc_incremental_mfds(end_date=end_date,
+												min_mag=min_mag, max_mag=max_mag)
+		else:
+			raise Exception('MFD type %s not supported!' % mfd_type)
+
+		## Create point sources
+		point_sources = []
+		grid_lons, grid_lats = self.grid_lons, self.grid_lats
+		for i in range(num_grid_nodes):
+			lon, lat = grid_lons[i], grid_lats[i]
+			name = '(%s, %s)' % (lon, lat)
+			point = Point(lon, lat)
+			mfd = mfd_list[i]
+			bg_source = node_src_dict.get(i, dummy_src)
+			trt = bg_source.tectonic_region_type
+			rms = bg_source.rupture_mesh_spacing
+			msr = bg_source.magnitude_scaling_relationship
+			rar = bg_source.rupture_aspect_ratio
+			usd = bg_source.upper_seismogenic_depth
+			lsd = bg_source.lower_seismogenic_depth
+			npd = bg_source.nodal_plane_distribution
+			hdd = bg_source.hypocenter_distribution
+			pt_src = PointSource(i, name, trt, mfd, rms, msr,
+								rar, usd, lsd, point, npd, hdd)
+			point_sources.append(pt_src)
+
+		if area_src_model:
+			src_model_name = area_src_model.name + ' (smoothed)'
+		else:
+			src_model_name = 'Smoothed Seismicity'
+
+		return SourceModel(src_model_name, point_sources)
 
 	def get_grid_values(self, quantity, min_mag=None, max_mag=None, **kwargs):
 		"""
@@ -1163,6 +1289,10 @@ class LegacySmoothedSeismicity(object):
 		:returns:
 			instance of :class:`rshalib.source.SourceModel`
 		"""
+		from ..geo import Point
+		from .point import PointSource
+		from .source_model import SourceModel
+
 		point_sources = []
 		for i in np.ndindex(self.values.shape[1:2]):
 			lon = self.s_lons[i]
