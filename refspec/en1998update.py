@@ -690,7 +690,8 @@ def construct_acceleration_rs(Salpha_rp, Sbeta_rp,
 
 	model_name = "EN1998 horizontal acceleration response spectrum (site category %s)"
 	model_name %= site_category
-	return ResponseSpectrum(model_name, periods, "SA", Se, intensity_unit="ms2")
+	return ResponseSpectrum(periods, Se, intensity_unit="ms2", imt="SA",
+							model_name=model_name)
 
 
 def calc_long_period_site_amplification_factor(VsH):
@@ -769,7 +770,8 @@ def construct_displacement_rs(Salpha_rp, Sbeta_rp, site_category, periods, **kwa
 
 	model_name = "EN1998 displacement response spectrum (site category %s)"
 	model_name %= site_category
-	return ResponseSpectrum(model_name, periods, "SA", SDe, intensity_unit="m")
+	return ResponseSpectrum(periods, SDe, intensity_unit="m", imt="SA",
+							model_name=model_name)
 
 
 def calc_design_pga(Salpha, FA=2.5):
