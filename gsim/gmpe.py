@@ -1351,7 +1351,7 @@ def adjust_host_to_target(imt, periods, gm, M, d, host_vs30, host_kappa,
 		Float array, adjusted ground motions
 	"""
 	import pyrvt
-	from ..siteresponse import get_host_to_target_tf
+	from robspy.siteresponse import get_host_to_target_tf
 
 	if imt != "SA":
 		raise Exception("Host-to-target adjustment not supported for %s!" % imt)
