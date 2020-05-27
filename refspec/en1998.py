@@ -1,45 +1,19 @@
 """
-Reference spectra (RG1.60, Eurocode 8)
+Eurocode 8 reference spectra
 """
+
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import numpy as np
 
 from ..result import ResponseSpectrum
 
 
-def get_refspec_RG160(ag, damping=5):
-	"""
-	Horizontal design response spectra according to
-	US Atomic EnergyCommission Regulatory Guide 1.60
-
-	:param ag:
-		float, design ground acceleration (in g)
-	:param damping:
-		float, percent of critical damping (0.5, 2, 5, 7 or 10)
-		Other damping values should be linearly interpolated (TO DO)
-		(default: 5)
-
-	:return:
-		instance of :class:`rshalib.result.ResponseSpectrum`
-	"""
-	freqs = np.array([0.1, 0.25, 2.5, 9.0, 33.0, 50.0, np.inf])
-	if damping == 0.5:
-		values = np.array([1.75E-02,0.09999585,0.853846,0.7,0.14,0.14,0.14])
-	elif damping == 2.0:
-		values = np.array([1.34E-02,0.07989231,0.6060013,0.5,0.14,0.14,0.14])
-	elif damping == 5.0:
-		values = np.array([1.08E-02,0.06502016,0.46,0.376,0.14,0.14,0.14])
-	elif damping == 7.0:
-		values = np.array([0.01,0.05955598,0.3903749,0.3250497,0.14,0.14,0.14])
-	elif damping == 10.0:
-		values = np.array([0.01,0.0551229,0.324121,0.2726523,0.14,0.14,0.14])
-	values *= (ag / 0.14)
-
-	periods = 1.0 / freqs
-	return ResponseSpectrum("RG1.60", periods, "SA", values, intensity_unit="g")
+__all__ = ['get_ec8_rs']
 
 
-def get_refspec_EC8(ag, ground_type, resp_type, orientation="horizontal", damping=5):
+def get_ec8_rs(ag, ground_type, resp_type, orientation="horizontal",
+					damping=5):
 	"""
 	Reference horizontal elastic response spectrum according to Eurocode 8
 	(if deep geology is not accounted for)
@@ -58,7 +32,8 @@ def get_refspec_EC8(ag, ground_type, resp_type, orientation="horizontal", dampin
 		str, either "horizontal" or "vertical", orientation of spectrum
 		(default: "horizontal")
 	:param damping:
-		float, viscous damping, in % (default: 5)
+		float, viscous damping, in %
+		(default: 5)
 
 	:return:
 		instance of :class:`rshalib.result.ResponseSpectrum`
@@ -82,7 +57,6 @@ def get_refspec_EC8(ag, ground_type, resp_type, orientation="horizontal", dampin
 		elif orientation == "vertical":
 			vh_ratio = 0.45
 			TB, TC, TD = 0.05, 0.15, 1.
-
 
 	eta = np.sqrt(10.0 / (5 + damping))
 
@@ -116,7 +90,9 @@ def get_refspec_EC8(ag, ground_type, resp_type, orientation="horizontal", dampin
 		model_name = "EC8 - class %s, type %d" % (ground_type, resp_type)
 	else:
 		model_name = "EC8 type %d, vertical" % resp_type
-	return ResponseSpectrum(model_name, periods, "SA", values, intensity_unit="g")
+
+	return ResponseSpectrum(periods, values, intensity_unit="g", imt="SA",
+							model_name=model_name)
 
 
 
