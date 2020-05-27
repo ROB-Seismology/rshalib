@@ -23,6 +23,7 @@ if __name__ == "__main__":
 	from collections import OrderedDict
 	import numpy as np
 	import eqcatalog
+	import robspy
 	import hazard.rshalib as rshalib
 
 
@@ -223,7 +224,7 @@ if __name__ == "__main__":
 
 		## Read transfer function
 		ctfs_file = r"E:\Home\_kris\Projects\2015 - Belgoprocess\Results\TF\CTF_ModelB_MC.csv"
-		ctfs = rshalib.siteresponse.read_TF_transfer1D(ctfs_file)
+		ctfs = robspy.siteresponse.read_ctf(ctfs_file)
 		tf = ctfs.percentile(50)
 
 		## Separate computation for each GMPE in the logic tree
