@@ -1,30 +1,41 @@
-#
-# Empty file necessary for python to recognise directory as package
-#
+"""
+Reference spectra (RG1.60, Eurocode 8, ...)
+"""
 
-import tf
-reload(tf)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from tf import (TransferFunction, ComplexTransferFunction, ComplexTransferFunctionSet,
-				plot_TF_magnitude, read_TF_transfer1D, read_TF_EERA_csv, read_TF_SITE_AMP)
 
-import generic_rock
-reload(generic_rock)
 
-from generic_rock import (Za, calc_generic_Vs_anchors, calc_generic_Vs_profile,
-							build_generic_rock_profile, get_host_to_target_tf)
+## Reloading mechanism
+try:
+	reloading
+except NameError:
+	## Module is imported for the first time
+	reloading = False
+else:
+	## Module is reloaded
+	reloading = True
+	try:
+		## Python 3
+		from importlib import reload
+	except ImportError:
+		## Python 2
+		pass
 
-import transfer1D
-reload(transfer1D)
 
-from transfer1D import (ElasticLayer, ElasticLayerModel, ElasticContinuousModel,
-						reflectivity, randomized_reflectivity, randomized_reflectivity_mp,
-						transfer1D, parse_layer_model, nrattle, roll)
+if not reloading:
+	from . import rg160
+else:
+	reload(rg160)
+from .rg160 import *
 
-import refspec
-reload(refspec)
+if not reloading:
+	from . import en1998
+else:
+	reload(en1998)
+from .en1998 import *
 
-from refspec import (get_refspec_RG160, get_refspec_EC8)
-
-import en1998update
-reload(en1998update)
+if not reloading:
+	from . import en1998update
+else:
+	reload(en1998update)
