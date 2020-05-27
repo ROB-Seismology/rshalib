@@ -469,7 +469,7 @@ def download_all_hazard_maps(out_folder):
 				time.sleep(5)
 
 
-def convert_shp_to_geotiff(shp_file):
+def convert_shp_to_geotiff(shp_file, target_folder=None):
 	"""
 	"""
 	import mapping.layeredbasemap as lbm
@@ -494,8 +494,46 @@ def convert_shp_to_geotiff(shp_file):
 		mesh_values[lat_idx, lon_idx] = pt_data.values[i]
 
 	grid = lbm.MeshGridData(mesh_lons, mesh_lats, mesh_values, unit='g')
+
 	out_file = os.path.splitext(shp_file)[0] + '.TIF'
+	if target_folder:
+		out_filename = os.path.split(out_file)[-1]
+		out_file = os.path.join(target_folder, out_filename)
+
 	grid.export_gdal('GTiff', out_file)
+
+
+def convert_all_shp_to_geotiff(root_folder):
+	"""
+	"""
+	import zipfile
+
+	shp_folder = os.path.join(root_folder, 'SHP')
+	geotiff_folder = os.path.join(root_folder, 'GEOTIFF')
+
+	for filename in os.listdir(shp_folder)[1:]:
+		basename, ext = os.path.splitext(filename)
+		if ext.upper() == '.ZIP':
+			print(basename)
+			## Unzip
+			filespec = os.path.join(shp_folder, filename)
+			with zipfile.ZipFile(filespec, "r") as zipf:
+				orig_filenames = [item.filename for item in zipf.infolist()]
+				zipf.extractall(shp_folder)
+
+			## Rename
+			for orig_fn in orig_filenames:
+				target_fn = filename + os.path.splitext(orig_fn)[-1]
+				orig_fs = os.path.join(shp_folder, orig_fn)
+				target_fs = os.path.join(shp_folder, target_fn)
+				#print("%s --> %s" % (orig_fs, target_fs))
+				os.rename(orig_fs, target_fs)
+
+			## Convert
+			shp_fn = filename + '.shp'
+			shp_fs = os.path.join(shp_folder, shp_fn)
+			convert_shp_to_geotiff(shp_fs, geotiff_folder)
+
 
 
 def get_hazard_curve():
@@ -572,19 +610,21 @@ if __name__ == "__main__":
 
 	"""
 
-	lon, lat = 4, 51
-	print(get_map_models(lon, lat, verbose=True))
-	print(get_map_imts(68, verbose=True))
-	print(get_map_poes(68, 'SA[0.10s]', verbose=True))
-	print(get_map_soil_classes(68, 'SA[0.10s]', 0.1, 50, verbose=True))
-	print(get_map_aggregation_types(68, 'SA[0.10s]', 0.1, 50, 'rock_vs30_800ms-1', verbose=True))
-	print(get_map_wms_id(68, 'SA[0.10s]', 0.1, 50, 'rock_vs30_800ms-1', 'arithmetic', 0.5, verbose=True))
+	#lon, lat = 4, 51
+	#print(get_map_models(lon, lat, verbose=True))
+	#print(get_map_imts(68, verbose=True))
+	#print(get_map_poes(68, 'SA[0.10s]', verbose=True))
+	#print(get_map_soil_classes(68, 'SA[0.10s]', 0.1, 50, verbose=True))
+	#print(get_map_aggregation_types(68, 'SA[0.10s]', 0.1, 50, 'rock_vs30_800ms-1', verbose=True))
+	#print(get_map_wms_id(68, 'SA[0.10s]', 0.1, 50, 'rock_vs30_800ms-1', 'arithmetic', 0.5, verbose=True))
 
 	#out_folder = "C:\\Temp\\efehr"
-	out_folder = "D:\\seismo-gis\\collections\\SHARE_ESHM13\\HazardMaps\\SHP"
-	download_all_hazard_maps(out_folder)
+	#out_folder = "D:\\seismo-gis\\collections\\SHARE_ESHM13\\HazardMaps\\SHP"
+	#download_all_hazard_maps(out_folder)
 	#download_hazard_map(out_folder, format='SHP')
 	#convert_shp_to_geotiff('C:\\Temp\\efehr\\hmap491.shp')
+	out_folder = "D:\\seismo-gis\\collections\\SHARE_ESHM13\\HazardMaps"
+	convert_all_shp_to_geotiff(out_folder)
 	exit()
 
 	#region = (2,7,49.25,51.75)
