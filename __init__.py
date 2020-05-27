@@ -151,26 +151,23 @@ if not reloading:
 else:
 	reload(result)
 
+## refspec (depends on result)
+if not reloading:
+	from . import refspec
+else:
+	reload(refspec)
+
 ## gsim (depends on utils, cav, source, result)
 if not reloading:
 	from . import gsim
 else:
 	reload(gsim)
 
-
 ## source_estimation (depnds on gsim, site, pmf)
 if not reloading:
 	from . import source_estimation
 else:
 	reload(source_estimation)
-
-"""
-## siteresponse (depends on calc, utils, result)
-if not reloading:
-	from . import siteresponse
-else:
-	reload(siteresponse)
-"""
 
 ## crisis (depends on mfd, result, source)
 if not reloading:
