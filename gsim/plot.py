@@ -249,7 +249,7 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 	:param gmpe_list:
 		list of GMPE objects.
 	:param mags:
-		lsit of floats, magnitudes to plot
+		list of floats, magnitudes to plot
 	:param d:
 		float, distance in km.
 	:param h:
@@ -360,11 +360,13 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 			linestyles.append(linestyle)
 			linewidths.append(LINEWIDTHS[0])
 
-			gmpe_label = LABELS[i] or gmpe.name
-			if gmpe.is_rake_dependent():
-				gmpe_label += " - %s" % mechanism
-			label = gmpe_label + " (M=%.1f)" % M
-			labels.append(label)
+			gmpe_label = LABELS[i]
+			if not gmpe_label:
+				gmpe_label = gmpe.name
+				if gmpe.is_rake_dependent():
+					gmpe_label += " - %s" % mechanism
+				gmpe_label += " (M=%.1f)" % M
+			labels.append(gmpe_label)
 
 			if epsilon:
 				linewidth = LINEWIDTHS[1]
@@ -378,7 +380,7 @@ def plot_spectrum(gmpe_list, mags, d, h=0, imt="SA",
 					colors.append(color)
 					linestyles.append(linestyle)
 					linewidths.append(linewidth)
-				label = gmpe_label + " (M=%.1f) $\pm %s \sigma$" % (M, epsilon)
+				label = gmpe_label + " $\pm %s \sigma$" % epsilon
 				labels.extend([label, '_nolegend_'])
 
 	if title is None:
