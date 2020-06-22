@@ -323,8 +323,7 @@ def plot_trellis_spectrum(gmpe_list, mag_list, distance_list, h=0.,
 		if key in kwargs:
 			save_kwargs[key] = kwargs.pop(key)
 	kwargs.pop('ax', None)
-	kwargs['linewidths'] = linewidths
-	kwargs['linestyles'] = [linestyle]
+	linestyles = [linestyle]
 
 	fig = create_multi_plot(num_rows, num_cols, col_titles=col_titles,
 							row_titles=row_titles, **mpl_kwargs)
@@ -356,6 +355,7 @@ def plot_trellis_spectrum(gmpe_list, mag_list, distance_list, h=0.,
 						kappa=kappa, mechanism=mechanism, damping=damping,
 						include_pgm=include_pgm, pgm_period=pgm_period,
 						pgm_marker=pgm_marker, plot_freq=plot_freq,
+						linewidths=linewidths, linestyles=linestyles,
 						labels=labels, xscaling=xscaling, yscaling=yscaling,
 						xgrid=xgrid, ygrid=ygrid, fig_filespec='wait',
 						ax=ax, **kwargs)
