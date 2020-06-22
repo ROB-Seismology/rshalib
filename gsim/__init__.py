@@ -68,3 +68,10 @@ if not reloading:
 	from . import gsims
 else:
 	reload(gsims)
+
+## trellis_plot (depends on plot, gmpe, oqhazlib_gmpe, gmpes)
+if not reloading:
+	from . import trellis_plot
+else:
+	reload(trellis_plot)
+from .trellis_plot import *
