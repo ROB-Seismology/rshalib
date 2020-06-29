@@ -314,6 +314,29 @@ class SmoothedSeismicity(object):
 		center_lat = np.mean([latmin, latmax])
 		return (center_lon, center_lat)
 
+	def get_lonlat_index(self, lon, lat, flat=True):
+		"""
+		Determine index of grid node closest to given longitude and latitude
+
+		:param lon:
+			float, longitude
+		:param lat:
+			float, latitude
+		:param flat:
+			bool, whether index should be in flattened array (True)
+			or in 2D array (False)
+
+		:return:
+			(idx0, idx1) tuple of ints (if :param:`flat` is false)
+			or int (if :param:`flat` is True)
+		"""
+		lon_idx = np.argmin(np.abs(self.grid.lons[0] - lon))
+		lat_idx = np.argmin(np.abs(self.grid.lats[:,0] - lat))
+		if not flat:
+			return (lat_idx, lon_idx)
+		else:
+			return np.ravel_multi_index((lat_idx, lon_idx), self.grid.shape)
+
 	def calc_norm_factor(self):
 		"""
 		Compute factor to normalize earthquake densities as the sum
