@@ -129,7 +129,8 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 
 	@property
 	def alpha(self):
-		return np.log(10) * self.a_val
+		#return np.log(10) * self.a_val
+		alpha = np.log(self.beta * np.exp(a * np.log(10)))
 
 	def copy(self):
 		"""
@@ -608,9 +609,10 @@ def alphabetalambda(a, b, M=0):
 	:return:
 		(alpha, beta, lambda) tuple
 	"""
-	alpha = a * np.log(10)
+	aln10 = a * np.log(10)
 	beta = b * np.log(10)
-	lambda0 = np.exp(alpha - beta*M)
+	alpha = np.log(beta * np.exp(aln10))
+	lambda0 = np.exp(aln10 - beta*M)
 	# This is identical
 	# lambda0 = 10**(a - b*M)
 	return (alpha, beta, lambda0)
