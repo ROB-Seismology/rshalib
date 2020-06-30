@@ -307,7 +307,7 @@ class EvenlyDiscretizedMFD(oqhazlib.mfd.EvenlyDiscretizedMFD, MFD):
 			instance of :class:`TruncatedGRMFD`
 		"""
 		from eqcatalog.calcGR import calcGR_Weichert, calcGR_LSQ
-		from .truncated_gr import TruncatedGRMFD
+		from .truncated_gr import (TruncatedGRMFD, get_a_separation)
 
 		magnitudes = self.get_magnitude_bin_edges()
 		if Mmax is None:
