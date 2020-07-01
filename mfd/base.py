@@ -31,7 +31,9 @@ class MFD(object):
 		:return:
 			numpy float array
 		"""
-		return np.array(list(zip(*self.get_annual_occurrence_rates()))[0])
+		min_mag = self.get_min_mag_center()
+		return min_mag + np.arange(len(self)) * self.bin_width
+		#return np.array(list(zip(*self.get_annual_occurrence_rates()))[0])
 
 	def get_magnitude_bin_edges(self):
 		"""
@@ -41,6 +43,14 @@ class MFD(object):
 			numpy float array
 		"""
 		return self.get_magnitude_bin_centers() - self.bin_width / 2
+	
+	@property
+	def center_magnitudes(self):
+		return self.get_magnitude_bin_centers()
+	
+	@property
+	def edge_magnitudes(self):
+		return self.get_magnitude_bin_edges()
 
 	def get_magnitude_index(self, M):
 		"""
@@ -61,7 +71,7 @@ class MFD(object):
 		:return:
 			numpy float array
 		"""
-		return np.add.accumulate(self.occurrence_rates[::-1])[::-1]
+		return np.cumsum(self.occurrence_rates[::-1])[::-1]
 
 	def is_magnitude_compatible(self, M):
 		"""
