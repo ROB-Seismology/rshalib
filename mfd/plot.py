@@ -19,6 +19,7 @@ import pylab
 from plotting.generic_mpl import (plot_xy, show_or_save_plot)
 
 from .truncated_gr import TruncatedGRMFD
+from .natlog_truncated_gr import NatLogTruncatedGRMFD
 from .evenly_discretized import EvenlyDiscretizedMFD
 
 
@@ -93,15 +94,16 @@ def plot_mfds(mfd_list, labels=[], colors=[], styles=[], lw_or_ms=[],
 	if len(discrete) == 1:
 		discrete *= len(mfd_list)
 	if len(discrete) == 0:
-		discrete = [not isinstance(mfd, TruncatedGRMFD) for mfd in mfd_list]
+		discrete = [not isinstance(mfd, (TruncatedGRMFD, NatLogTruncatedGRMFD))
+					for mfd in mfd_list]
 
 	if isinstance(cumul_or_inc, basestring):
 		cumul_or_inc = [cumul_or_inc]
 	if len(cumul_or_inc) == 1:
 		cumul_or_inc *= len(mfd_list)
 	if len(cumul_or_inc) == 0:
-		cumul_or_inc = ['cumul' if isinstance(mfd, TruncatedGRMFD) else 'both'
-						for mfd in mfd_list]
+		cumul_or_inc = ['cumul' if isinstance(mfd, (TruncatedGRMFD, NatLogTruncatedGRMFD))
+						else 'both' for mfd in mfd_list]
 
 	datasets, labels, colors, marker_edge_colors = [], [], [], []
 	linestyles, linewidths, markers, marker_sizes = [], [], [], []
