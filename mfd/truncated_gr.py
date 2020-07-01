@@ -59,11 +59,13 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		See :meth:`_get_min_mag_and_num_bins`.
 	"""
 	def __init__(self, min_mag, max_mag, bin_width, a_val, b_val,
-				a_sigma=0, b_sigma=0, Mtype="MW"):
+				a_sigma=0, b_sigma=0, cov=np.mat(np.zeros((2, 2))), Mtype="MW"):
 		oqhazlib.mfd.TruncatedGRMFD.__init__(self, min_mag, max_mag, bin_width,
 											a_val, b_val)
-		self.a_sigma = a_sigma
-		self.b_sigma = b_sigma
+		self.cov = cov
+		if a_sigma and b_sigma:
+			self.cov[0,0] = a_sigma**2
+			self.cov[1,1] = b_sigma**2
 		self.Mtype = Mtype
 
 	def __repr__(self):
@@ -132,6 +134,14 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		#return np.log(10) * self.a_val
 		alpha = np.log(self.beta * np.exp(a * np.log(10)))
 
+	@property
+	def a_sigma(self):
+		return np.sqrt(self.cov[0,0])
+
+	@property
+	def b_sigma(self):
+		return np.sqrt(self.cov[1,1])
+
 	def copy(self):
 		"""
 		Return a copy of the MFD
@@ -159,17 +169,6 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		"""
 		return self.min_mag + self.bin_width / 2
 
-	def get_center_magnitudes(self):
-		"""
-		Return array with center magnitudes of each bin
-
-		:return:
-			ndarray, magnitudes
-		"""
-		magnitudes = np.arange(self.get_min_mag_center(), self.max_mag,
-								self.bin_width)
-		return magnitudes
-
 	def set_min_mag(self, min_mag):
 		"""
 		Set minimum magnitude
@@ -195,6 +194,18 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 				/ (10**(-1*b*min_mag) - 10**(-1*b*max_mag))))
 		## Note: the following is identical
 		#return np.add.accumulate(self.occurrence_rates[::-1])[::-1]
+
+	def get_pdf(self):
+		"""
+		Probability density function for magnitude bin centers
+		"""
+		beta = self.beta
+		mags = self.get_magnitude_bin_centers()
+		Mmin, Mmax = self.min_mag, self.max_mag
+		nom = beta * 10**(-self.b_val * (mags - Mmin))
+		denom = 1 - 10**(-self.b_val * (Mmax - Mmin))
+
+		return nom / denom
 
 	def get_N0_sigma(self):
 		"""
