@@ -40,6 +40,13 @@ else:
 	reload(truncated_gr)
 from .truncated_gr import *
 
+## depends on base, truncated_gr
+if not reloading:
+	from . import natlog_truncated_gr
+else:
+	reload(natlog_truncated_gr)
+from .natlog_truncated_gr import *
+
 ## depends on evenly_discretized
 if not reloading:
 	from . import characteristic
