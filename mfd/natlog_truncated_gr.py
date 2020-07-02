@@ -23,6 +23,38 @@ __all__ = ['NatLogTruncatedGRMFD']
 
 class NatLogTruncatedGRMFD(MFD):
 	"""
+	Truncated Gutenberg-Richter MFD in terms of the natural logarithm
+
+	:param min_mag:
+		The lowest possible magnitude for this MFD. The first bin in the
+		:meth:`result histogram <get_annual_occurrence_rates>` will be
+		aligned to make its left border match this value.
+	:param max_mag:
+		The highest possible magnitude. The same as for ``min_mag``: the
+		last bin in the histogram will correspond to the magnitude value
+		equal to ``max_mag - bin_width / 2``.
+	:param bin_width:
+		A positive float value -- the width of a single histogram bin.
+	:param a_val:
+		float, the cumulative ``a`` value (``10 ** a`` is the number
+		of earthquakes per year with magnitude greater than or equal to 0)
+	:param b_val:
+		float, Gutenberg-Richter ``b`` value -- the decay rate
+		of exponential distribution. It describes the relative size
+		distribution of earthquakes: a higher ``b`` value indicates a
+		relatively larger proportion of small events and vice versa.
+	:param a_sigma:
+		float, standard deviation of the a value
+		(default: 0).
+	:param b_sigma:
+		float, standard deviation of the b value
+		(default: 0).
+	:param cov:
+		2D matrix [2,2], covariance matrix
+		(default: np.mat(np.zeros((2, 2))))
+	:param Mtype:
+		str, magnitude type, either "MW" or "MS"
+		(default: "MW")
 	"""
 	def __init__(self, min_mag, max_mag, bin_width, alpha, beta,
 				cov=np.mat(np.zeros((2, 2))), Mtype='MW'):
@@ -113,7 +145,7 @@ class NatLogTruncatedGRMFD(MFD):
 		Return left edge of minimum magnitude bin
 
 		:return:
-			Float
+			float
 		"""
 		return self.min_mag
 
@@ -122,7 +154,7 @@ class NatLogTruncatedGRMFD(MFD):
 		Return center value of minimum magnitude bin
 
 		:return:
-			Float
+			float
 		"""
 		return self.min_mag + self.bin_width / 2
 
@@ -137,10 +169,15 @@ class NatLogTruncatedGRMFD(MFD):
 
 	def get_incremental_rates(self):
 		"""
+		Compute annual occurrence rates for each magnitude bin
+
+		:return:
+			1D array
 		"""
 		mags = self.get_magnitude_bin_centers()
+		inc_cumul_ratio = 2 * np.sinh(self.beta * self.bin_width / 2.)
 		rates = (np.exp(self.alpha - self.beta * mags)
-				* 2 * np.sinh(self.beta * self.bin_width / 2.) / self.beta)
+				* inc_cumul_ratio / self.beta)
 		return rates
 
 	@property
@@ -149,6 +186,10 @@ class NatLogTruncatedGRMFD(MFD):
 
 	def get_annual_occurrence_rates(self):
 		"""
+		Calculate and return the annual occurrence rates histogram.
+
+		:return:
+			list of (mag, occurrence_rate) tuples
 		"""
 		mags = self.get_magnitude_bin_centers()
 		rates = self.get_incremental_rates()
@@ -156,7 +197,10 @@ class NatLogTruncatedGRMFD(MFD):
 
 	def get_lambda0(self):
 		"""
-		Cumulative frequency above lower magnitude
+		Compute cumulative frequency above lower magnitude
+
+		:return:
+			float
 		"""
 		## Eq. 3 in Stromeyer & Gruenthal (2015)
 		beta = self.beta
@@ -167,6 +211,10 @@ class NatLogTruncatedGRMFD(MFD):
 
 	def get_cumulative_rates(self):
 		"""
+		Compute cumulative annual occurrence rates
+
+		:return:
+			1D array
 		"""
 		mags = self.get_magnitude_bin_edges()
 		Mmin, Mmax = self.min_mag, self.max_mag
@@ -178,6 +226,10 @@ class NatLogTruncatedGRMFD(MFD):
 
 	def get_pdf(self):
 		"""
+		Compute probability density function for magnitude bin centers
+
+		:return:
+			1D array
 		"""
 		beta = self.beta
 		mags = self.get_magnitude_bin_centers()
@@ -188,14 +240,24 @@ class NatLogTruncatedGRMFD(MFD):
 
 	def to_truncated_gr_mfd(self):
 		"""
+		Convert to truncated Gutenberg-Richter MFD, base log10
+
+		:return:
+			instance of :class:`TrucatedGRMFD`
 		"""
 		return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width,
 							self.a_val, self.b_val,
 							#cov=self.cov*np.log(10),
 							Mtype=self.Mtype)
 
-	def construct_mfd_at_epsilon(self, epsilon):
+	def construct_mfd_bound_at_epsilon(self, epsilon):
 		"""
+		Construct MFD bounding activity rates at given epsilon value
+
+		:param epsilon:
+			float, epsilon value (number of standard deviations
+			above/below the mean
+
 		:return:
 			instance of :class:`EvenlyDiscretizedMFD`
 		"""
@@ -206,8 +268,30 @@ class NatLogTruncatedGRMFD(MFD):
 										precise=True, log10=False)
 		return mfd
 
-	def get_uncertainty_pmf(self, num_discretizations=5, Mmax_pmf=None):
+	def construct_uncertainty_pmf(self, num_discretizations, Mmax_pmf=None):
 		"""
+		Construct a probability mass function of MFDs optimally sampling
+		the uncertainty on the activity rates represented by the
+		covariance matrix
+
+		Note that this is not entirely correct, because the GR parameters
+		estimated using :func:`estimate_gr_params` depend on Mmax
+		(empty bins beyond bin with largest observed magnitude),
+		but this dependency is only slight and could be ignored.
+
+		:param num_discretizations:
+			int, number of sampling points of the uncertainty,
+			either 1, 3, 4 or 5
+		:param Mmax_pmf
+			float, maximum magnitude of the MFD (right edge of last bin)
+			or instance of :class:`rshalib.pmf.MmaxPMF`, probability
+			mass function of Mmax values
+
+		:return:
+			(mfd_list, weights) tuple
+			- mfd_list: list with instances of
+			  :class:`rshalib.mfd.EvenlyDiscretizedMFD`
+			- weights: 1D array
 		"""
 		from eqcatalog.calcGR_MLE import construct_mfd_pmf
 
