@@ -47,6 +47,9 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 	:param b_sigma:
 		float, standard deviation of the b value
 		(default: 0).
+	:param cov:
+		2D matrix [2,2], covariance matrix
+		(default: np.mat(np.zeros((2, 2))))
 	:param Mtype:
 		str, magnitude type, either "MW" or "MS"
 		(default: "MW")
@@ -57,6 +60,9 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		anyway so that both are divisible by ``bin_width`` just before
 		converting a function to a histogram.
 		See :meth:`_get_min_mag_and_num_bins`.
+
+		If a_sigma and b_sigma are specified, they are squared to
+		variances and stored in the diagonal of the covariance matrix
 	"""
 	def __init__(self, min_mag, max_mag, bin_width, a_val, b_val,
 				a_sigma=0, b_sigma=0, cov=np.mat(np.zeros((2, 2))), Mtype="MW"):
@@ -132,7 +138,7 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 	@property
 	def alpha(self):
 		#return np.log(10) * self.a_val
-		alpha = np.log(self.beta * np.exp(a * np.log(10)))
+		return np.log(self.beta * np.exp(self.a_val * np.log(10)))
 
 	@property
 	def a_sigma(self):
@@ -197,7 +203,10 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 
 	def get_pdf(self):
 		"""
-		Probability density function for magnitude bin centers
+		Compute probability density function for magnitude bin centers
+
+		:return:
+			1D array
 		"""
 		beta = self.beta
 		mags = self.get_magnitude_bin_centers()
@@ -385,6 +394,59 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 			bin_width = self.bin_width
 		return TruncatedGRMFD(min_mag, max_mag, bin_width, self.a_val,
 							self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
+
+	def construct_mfd_bound_at_epsilon(self, epsilon):
+		"""
+		Construct MFD bounding activity rates at given epsilon value
+
+		:param epsilon:
+			float, epsilon value (number of standard deviations
+			above/below the mean
+
+		:return:
+			instance of :class:`EvenlyDiscretizedMFD`
+		"""
+		from eqcatalog.calcGR_MLE import construct_mfd_at_epsilon
+
+		mfd = construct_mfd_at_epsilon(self.a_val, self.b_val, self.cov, epsilon,
+										self.min_mag, self.max_mag, self.bin_width,
+										precise=True, log10=True)
+		return mfd
+
+	def construct_uncertainty_pmf(self, num_discretizations, Mmax_pmf=None):
+		"""
+		Construct a probability mass function of MFDs optimally sampling
+		the uncertainty on the activity rates represented by the
+		covariance matrix
+
+		Note that this is not entirely correct, because the GR parameters
+		estimated using :func:`estimate_gr_params` depend on Mmax
+		(empty bins beyond bin with largest observed magnitude),
+		but this dependency is only slight and could be ignored.
+
+		:param num_discretizations:
+			int, number of sampling points of the uncertainty,
+			either 1, 3, 4 or 5
+		:param Mmax_pmf
+			float, maximum magnitude of the MFD (right edge of last bin)
+			or instance of :class:`rshalib.pmf.MmaxPMF`, probability
+			mass function of Mmax values
+
+		:return:
+			(mfd_list, weights) tuple
+			- mfd_list: list with instances of
+			  :class:`rshalib.mfd.EvenlyDiscretizedMFD`
+			- weights: 1D array
+		"""
+		from eqcatalog.calcGR_MLE import construct_mfd_pmf
+
+		if Mmax_pmf is None:
+			Mmax_pmf = self.max_mag
+		mfds, weights = construct_mfd_pmf(self.a_val, self.b_val, self.cov,
+										self.min_mag, Mmax_pmf, self.bin_width,
+										num_discretizations, precise=True,
+										log10=True)
+		return (mfds, weights)
 
 	def get_mfd_from_b_val(self, b_val):
 		"""
@@ -656,5 +718,25 @@ def get_a_separation(b, dM):
 		float, b value
 	:param dM:
 		float, magnitude bin width
+
+	:return:
+		float
 	"""
 	return b * dM - np.log10(10**(b*dM) - 1)
+
+def get_inc_cumul_ratio(b, dM):
+	"""
+	Compute ratio between incremental and cumulative a values
+
+	(assuming truncated Gutenberg-Richter MFD)
+
+	:param b:
+		float, b value
+	:param dM:
+		float, magnitude bin width
+
+	:return:
+		float
+	"""
+	beta = b * np.log(10)
+	return 2 * np.sinh(beta * dM / 2.)
