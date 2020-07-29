@@ -43,11 +43,11 @@ class MFD(object):
 			numpy float array
 		"""
 		return self.get_magnitude_bin_centers() - self.bin_width / 2
-	
+
 	@property
 	def center_magnitudes(self):
 		return self.get_magnitude_bin_centers()
-	
+
 	@property
 	def edge_magnitudes(self):
 		return self.get_magnitude_bin_edges()
@@ -394,13 +394,15 @@ def sum_mfds(mfd_list, weights=[]):
 			N0sum = np.sum(N0 * weights)
 			a = np.log10(N0sum)
 			## Error propagation, see http://chemwiki.ucdavis.edu/Analytical_Chemistry/Quantifying_Nature/Significant_Digits/Propagation_of_Error
-			Nsum_sigma = np.sum([mfd.get_N0_sigma() * w
-								for (mfd, w) in zip(mfd_list, weights)])
+			Nsum_sigma = np.sqrt(np.sum([(mfd.get_N0_sigma() * w)**2
+								for (mfd, w) in zip(mfd_list, weights)]))
 			a_sigma = 0.434 * (Nsum_sigma / N0sum)
 			b_sigma = np.mean([mfd.b_sigma for mfd in mfd_list])
+			## Note: covariances will be lost!
+			cov = np.mat(np.zeros((2, 2)))
 			mfd = mfd_list[0]
 			return TruncatedGRMFD(mfd.min_mag, mfd.max_mag, mfd.bin_width, a,
-									mfd.b_val, a_sigma, b_sigma, mfd.Mtype)
+									mfd.b_val, a_sigma, b_sigma, cov, Mtype=mfd.Mtype)
 		else:
 			## TruncatedGR's can be summed after conversion to EvenlyDiscretized
 			pass
