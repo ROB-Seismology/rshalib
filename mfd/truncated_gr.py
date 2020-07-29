@@ -84,10 +84,13 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		if isinstance(other, (int, float)):
 			N0 = 10**self.a_val
 			a_val = np.log10(N0 / float(other))
-			## a_sigma does not change
-			a_sigma = self.a_sigma
+			## a_sigma does not change (verified by propagation from N),
+			## hence cov does not change
+			#a_sigma = self.a_sigma
+			a_sigma = b_sigma = None
 			return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width,
-							a_val, self.b_val, a_sigma, self.b_sigma, self.Mtype)
+							a_val, self.b_val, a_sigma, b_sigma, self.cov,
+							self.Mtype)
 		else:
 			raise TypeError("Divisor must be integer or float")
 
@@ -95,10 +98,13 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		if isinstance(other, (int, float)):
 			N0 = 10**self.a_val
 			a_val = np.log10(N0 * float(other))
-			## a_sigma does not change
-			a_sigma = self.a_sigma
+			## a_sigma does not change (verified by propagation from N),
+			## hence cov does not change
+			#a_sigma = self.a_sigma
+			a_sigma = b_sigma = None
 			return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width,
-							a_val, self.b_val, a_sigma, self.b_sigma, self.Mtype)
+							a_val, self.b_val, a_sigma, b_sigma, self.cov,
+							self.Mtype)
 		else:
 			raise TypeError("Multiplier must be integer or float")
 
@@ -114,14 +120,18 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 				and self.max_mag == other.max_mag
 				and self.b_val == other.b_val
 				and self.Mtype == other.Mtype):
+
 				## Note: bin width does not have to be the same here
 				N0 = 10 ** self.a_val - 10 ** other.a_val
 				a_val = np.log10(N0)
 				## Error propagation, see http://chemwiki.ucdavis.edu/Analytical_Chemistry/Quantifying_Nature/Significant_Digits/Propagation_of_Error
-				a_sigma = 0.434 * ((self.get_N0_sigma() + other.get_N0_sigma()) / N0)
+				N0_sigma = np.sqrt((self.get_N0_sigma()**2 + other.get_N0_sigma()**2)
+				a_sigma = 0.434 * (N0_sigma / N0)
 				b_sigma = np.mean(self.b_sigma, other.b_sigma)
+				cov = np.mat(np.zeros((2, 2)))
 				return TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width,
-								a_val, self.b_val, a_sigma, b_sigma, self.Mtype)
+								a_val, self.b_val, a_sigma, b_sigma, cov, self.Mtype)
+
 		elif isinstance(other, MFD):
 			return self.to_evenly_discretized_mfd().__sub__(other)
 		else:
@@ -243,9 +253,10 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		N0 = 10**self.a_val
 		avalues = np.log10(weights * N0)
 		## a_sigma does not change
-		a_sigma = self.a_sigma
+		#a_sigma = self.a_sigma
+		a_sigma = b_sigma = None
 		return [TruncatedGRMFD(self.min_mag, self.max_mag, self.bin_width, aw,
-							self.b_val, a_sigma, self.b_sigma, self.Mtype)
+							self.b_val, a_sigma, b_sigma, self.cov, self.Mtype)
 							for aw in avalues]
 
 	def split(self, M):
@@ -261,10 +272,11 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 		if not self.is_magnitude_compatible(M):
 			raise Exception("Magnitude value not compatible!")
 		elif self.get_min_mag_edge() < M < self.max_mag:
+			a_sigma = b_sigma = None
 			mfd1 = TruncatedGRMFD(self.min_mag, M, self.bin_width, self.a_val,
-							self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
+							self.b_val, a_sigma, b_sigma, self.cov, self.Mtype)
 			mfd2 = TruncatedGRMFD(M, self.max_mag, self.bin_width, self.a_val,
-							self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
+							self.b_val, a_sigma, b_sigma, self.cov, self.Mtype)
 			return [mfd1, mfd2]
 		else:
 			raise Exception("Split magnitude not in valid range!")
@@ -392,8 +404,9 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 			max_mag = self.max_mag
 		if bin_width is None:
 			bin_width = self.bin_width
+		a_sigma = b_sigma = None
 		return TruncatedGRMFD(min_mag, max_mag, bin_width, self.a_val,
-							self.b_val, self.a_sigma, self.b_sigma, self.Mtype)
+							self.b_val, a_sigma, b_sigma, self.cov, self.Mtype)
 
 	def construct_mfd_bound_at_epsilon(self, epsilon):
 		"""
