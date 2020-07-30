@@ -125,7 +125,7 @@ class TruncatedGRMFD(oqhazlib.mfd.TruncatedGRMFD, MFD):
 				N0 = 10 ** self.a_val - 10 ** other.a_val
 				a_val = np.log10(N0)
 				## Error propagation, see http://chemwiki.ucdavis.edu/Analytical_Chemistry/Quantifying_Nature/Significant_Digits/Propagation_of_Error
-				N0_sigma = np.sqrt((self.get_N0_sigma()**2 + other.get_N0_sigma()**2)
+				N0_sigma = np.sqrt(self.get_N0_sigma()**2 + other.get_N0_sigma()**2)
 				a_sigma = 0.434 * (N0_sigma / N0)
 				b_sigma = np.mean(self.b_sigma, other.b_sigma)
 				cov = np.mat(np.zeros((2, 2)))
