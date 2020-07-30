@@ -6,7 +6,12 @@ Poisson model
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import numpy as np
-from scipy.special import factorial
+
+try:
+	from scipy.special import factorial
+except ImportError:
+	## Older scipy versions
+	from scipy.misc import factorial
 
 
 __all__ = ['PoissonTau', 'PoissonT', 'poisson_conv']
