@@ -6,6 +6,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import os, sys
 import multiprocessing
+import logging
 from functools import partial
 import traceback
 
@@ -74,6 +75,18 @@ def run_parallel(func, job_arg_list, num_processes, shared_arr=None, verbose=Tru
 	return result
 
 
+def proc_wrapper(func, *args, **kwargs):
+	"""
+	Print exception because multiprocessing lib doesn't return them right.
+	See https://stackoverflow.com/questions/6728236/exception-thrown-in-multiprocessing-pool-not-detected
+	"""
+	try:
+		return func(*args, **kwargs)
+	except Exception as e:
+		logging.exception(e)
+		raise
+
+
 def mp_func_wrapper(func_args_tuple):
 	"""
 	Wrapper function to be used with multiprocessing pool.map
@@ -89,7 +102,8 @@ def mp_func_wrapper(func_args_tuple):
 		return value of :param:`func`
 	"""
 	func, args = func_args_tuple
-	return func(*args)
+	#return func(*args)
+	return proc_wrapper(func, *args)
 
 
 def init_shared_arr(shared_arr_):
