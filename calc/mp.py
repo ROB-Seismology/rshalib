@@ -217,8 +217,8 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 			raise RuntimeError(msg)
 			#print(msg)
 			#return 1
-		else:
-			return curves
+		#else:
+		return curves
 
 
 def calc_shcf_psha_model(psha_model, curve_name, curve_path, cav_min,
