@@ -144,9 +144,10 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 	sites = psha_model.get_soil_site_model()
 	gsims = psha_model._get_trt_gsim_dict()
 	imtls = psha_model._get_imtls()
+	imts = list(imtls.keys())
 
 	total_sites = len(sites)
-	shape = (total_sites, len(imts), len(imts[list(imts.keys())[0]]))
+	shape = (total_sites, len(imts), len(imtls[imts[0]]))
 	curves = np.ones(shape, dtype=np.float64)
 
 	## Copied from openquake.hazardlib
@@ -188,7 +189,7 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 					## Set vs30 explicitly for GMPEs that do not require vs30
 					setattr(sctx, "vs30", getattr(r_sites, "vs30"))
 
-				for k, imt in enumerate(imtls.keys()):
+				for k, imt in enumerate(imts):
 					if cav_min > 0:
 						poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imtls[imt],
 										psha_model.truncation_level, cav_min=cav_min)
