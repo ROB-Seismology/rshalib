@@ -143,7 +143,7 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 	sources = [source]
 	sites = psha_model.get_soil_site_model()
 	gsims = psha_model._get_trt_gsim_dict()
-	imts = psha_model._get_imtls()
+	imtls = psha_model._get_imtls()
 
 	total_sites = len(sites)
 	shape = (total_sites, len(imts), len(imts[list(imts.keys())[0]]))
@@ -188,12 +188,12 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 					## Set vs30 explicitly for GMPEs that do not require vs30
 					setattr(sctx, "vs30", getattr(r_sites, "vs30"))
 
-				for k, imt in enumerate(imts):
+				for k, imt in enumerate(imtls.keys()):
 					if cav_min > 0:
-						poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imts[imt],
+						poes = gsim.get_poes_cav(sctx, rctx, dctx, imt, imtls[imt],
 										psha_model.truncation_level, cav_min=cav_min)
 					else:
-						poes = gsim.get_poes(sctx, rctx, dctx, imt, imts[imt],
+						poes = gsim.get_poes(sctx, rctx, dctx, imt, imtls[imt],
 										psha_model.truncation_level)
 
 					exceedances = (1 - poe_rup) ** poes
@@ -217,8 +217,8 @@ def calc_shcf_by_source(psha_model, source, cav_min, verbose):
 			raise RuntimeError(msg)
 			#print(msg)
 			#return 1
-		#else:
-		return curves
+
+	return curves
 
 
 def calc_shcf_psha_model(psha_model, curve_name, curve_path, cav_min,
