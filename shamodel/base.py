@@ -163,7 +163,7 @@ class SHAModelBase(object):
 		:return:
 			instance of :class:`IMT`
 		"""
-		if im in ("PGA", "PGV", "PGD"):
+		if im in ("PGA", "PGV", "PGD", "MMI"):
 			imt = getattr(oqhazlib.imt, im)()
 		else:
 			imt = getattr(oqhazlib.imt, im)(period, damping=self.damping*100)
@@ -212,6 +212,7 @@ class SHAModelBase(object):
 			str, one of 'acceleration', 'velocity' or 'displacement'
 		"""
 		imts = self.imt_periods.keys()
+		response_type = ''
 		if 'PGA' in imts or 'SA' in imts:
 			response_type = 'acceleration'
 		elif 'PGV' in imts or 'SV' in imts:
@@ -229,6 +230,7 @@ class SHAModelBase(object):
 		"""
 		# TODO: not sure if it is cm or m for velocity / displacement
 		response_type = self.get_response_type()
+		intensity_unit = ''
 		if response_type[:3] == 'acc':
 			intensity_unit = 'g'
 		elif response_type[:3] == 'vel':
