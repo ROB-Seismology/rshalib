@@ -262,10 +262,13 @@ class OqhazlibGMPE(GMPE):
 		if self.distance_metric in ("Rupture", "rrup", "Hypocentral", "rhypo"):
 			## Convert hypocentral/rupture distance to epicentral/joyner-boore distance
 			d = np.sqrt(np.asarray(d)**2 - depth**2)
-			d[np.isnan(d)] = 0
+			if not np.isscalar(d):
+				d[np.isnan(d)] = 0
 		else:
 			d = np.asarray(d)
 		lons, lats = oqhazlib.geo.geodetic.point_at(lon, lat, azimuth, d)
+		if np.isscalar(d):
+			lons, lats = np.array([lons]), np.array([lats])
 		depths = np.zeros_like(lons)
 		sha_site_model = GenericSiteModel(lons=lons, lats=lats, depths=depths)
 
