@@ -802,8 +802,10 @@ class SimpleFaultSource(RuptureSource, oqhazlib.source.SimpleFaultSource):
 			(default: False)
 
 		:return:
-			instance of :class:`CharacteristicSource`
+			instance of :class:`rshalib.source.CharacteristicFaultSource`
 		"""
+		from .characteristic import CharacteristicFaultSource
+
 		surface = oqhazlib.geo.surface.SimpleFaultSurface.from_fault_data(
 			self.fault_trace, self.upper_seismogenic_depth,
 			self.lower_seismogenic_depth, self.dip, self.rupture_mesh_spacing)
