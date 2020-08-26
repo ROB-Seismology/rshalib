@@ -192,7 +192,8 @@ class CharacteristicFaultSource(RuptureSource, oqhazlib.source.CharacteristicFau
 		mfd_copy = self.mfd
 		max_mag, max_mag_rate = self.mfd.get_annual_occurrence_rates()[-1]
 		self.mfd = EvenlyDiscretizedMFD(max_mag, self.mfd.bin_width, [max_mag_rate])
-		rup = list(self.iter_ruptures(timespan))[0]
+		tom = oqhazlib.tom.PoissonTOM(timespan or self.timespan)
+		rup = list(self.iter_ruptures(tom))[0]
 		## Restore original MFD
 		self.mfd = mfd_copy
 		return rup
