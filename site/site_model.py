@@ -861,7 +861,7 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 		:return:
 			instance of :class:`SoilSiteModel`
 		"""
-		return sha_site_model.to_soil_site_model(ref_soil_params=soil_params, name=name)
+		return site_model.to_soil_site_model(ref_soil_params=soil_params, name=name)
 
 	@classmethod
 	def from_polygon(cls, polygon, spacing, depth=None,
@@ -884,7 +884,7 @@ class SoilSiteModel(oqhazlib.site.SiteCollection):
 			instance of :class:`SoilSiteModel`
 		"""
 		site_model = GenericSiteModel.from_polygon(polygon, spacing, depth=depth)
-		return self.from_generic_site_model(site_model, soil_params=soil_params,
+		return cls.from_generic_site_model(site_model, soil_params=soil_params,
 											name=name)
 
 	def get_sites(self):
