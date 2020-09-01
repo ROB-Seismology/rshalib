@@ -128,7 +128,7 @@ class InverseGSIM():
 			or None if no solution is found
 		"""
 		from scipy.optimize import minimize_scalar
-		from .gmpe import make_gsim_contexts
+		from .oqhazlib_gmpe import make_gsim_contexts
 
 		sctx, rctx, dctx = make_gsim_contexts(self.gsim, site_model, rupture)
 		minimize_func = partial(self.get_prediction_mse,
