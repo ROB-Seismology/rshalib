@@ -19,7 +19,84 @@ from mapping.geotools.geodetic import (spherical_distance, meshed_spherical_dist
 from ..mfd import (EvenlyDiscretizedMFD, TruncatedGRMFD)
 
 
-__all__ = ['SmoothedSeismicity']
+__all__ = ['SmoothedSeismicity', 'VereJonesKernel', 'AdaptiveBandwidth']
+
+
+class SmoothingKernel(object):
+	def __init__(self, bandwidths):
+		self.bandwidths = bandwidths
+
+
+class VereJonesKernel(SmoothingKernel):
+	"""
+	Isotropic power-law kernel proposed by Vere-Jones (1992)
+
+	:param bandwidths:
+		1-D float array, with length either 1 (single value)
+		or equal to the number of earthquakes (different value
+		for each earthquake)
+	:param power:
+		float, power-law index. Recommended values for this parameter
+		are between 1.5 and 2, corresponding to a cubic or quadratic
+		decay of the probability density function with distance
+	"""
+	def __init__(self, bandwidths, power=2.):
+		super(VereJonesKernel, self).__init__(bandwidths)
+		self.power = power
+
+	def __call__(self, bandwidths):
+		"""
+		Spawn new instance with given bandwidths
+
+		:param bandwidths:
+			1-D float array, with length either 1 (single value)
+			or equal to the number of earthquakes (different value
+			for each earthquake)
+
+		:return:
+			instance of :class:`VereJonesKernel`
+		"""
+		return self.__class__(bandwidths, power=self.power)
+
+	def pdf(self, distances):
+		"""
+		Compute probability density as a function of distance
+		"""
+		H2 = self.bandwidths**2
+		pow = self.power
+		return ((pow - 1) / (np.pi * H2)) * (1 + (distances**2 / H2))**-pow
+
+
+class AdaptiveBandwidthFunc(object):
+	"""
+	Adaptive bandwidth function, growing exponentially with magnitude,
+	possibly truncated to a maximum value
+
+	:param c1:
+		float, c1 parameter
+	:param c2:
+		float, c2 parameter
+	:param max:
+		float, truncation value
+		(default: np.inf = untruncated)
+	"""
+	def __init__(self, c1, c2, max=np.inf):
+		self.c1 = c1
+		self.c2 = c2
+		self.max = max
+
+	def __call__(self, mags):
+		"""
+		Compute magnitude-dependent bandwidths
+
+		:param mags:
+			1D array, earthquake magnitudes
+
+		:return:
+			1D array, bandwidths (in km)
+		"""
+		c1, c2 = self.c1, self.c2
+		return np.minimum(max, c1 * np.exp(c2 * mags))
 
 
 class MeshGrid(object):
@@ -105,6 +182,7 @@ class SmoothedSeismicity(object):
 	:param kernel_shape:
 		str, name of distribution supported by scipy.stats, defining
 		shape of smoothing kernel, e.g., 'norm', 'uniform'
+		or instance of :class:`SmoothingKernel`
 		(default: 'norm')
 	"""
 	def __init__(self, grid_outline, grid_spacing,
@@ -270,9 +348,12 @@ class SmoothedSeismicity(object):
 		:return:
 			None, :prop:`kernel` is set
 		"""
-		kernel_func = getattr(scipy.stats, self.kernel_shape)
 		bandwidths = self.get_bandwidths()[np.newaxis].T
-		self.kernel = kernel_func(0, bandwidths)
+		if isinstance(self.kernel_shape, SmoothingKernel):
+			self.kernel = self.kernel_shape(bandwidths)
+		else:
+			kernel_func = getattr(scipy.stats, self.kernel_shape)
+			self.kernel = kernel_func(0, bandwidths)
 
 	def set_nth_neighbour(self, value):
 		"""
@@ -1397,4 +1478,3 @@ def haversine(lon1, lat1, lon2, lat2, earth_radius=6371.227):
 													  np.sqrt(1 - aval))).T
 		i += 1
 	return distances
-
