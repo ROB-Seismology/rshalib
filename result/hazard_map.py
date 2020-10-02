@@ -709,7 +709,8 @@ class GroundMotionField(IntensityResult, HazardField):
 		grid_style = lbm.GridStyle(color_map_theme=color_map_theme,
 									color_gradient=color_gradient,
 									line_style=contour_line_style,
-									contour_levels=contour_levels)
+									contour_levels=contour_levels,
+									label_format=label_format)
 		grid_data = lbm.MeshGridData(grid_lons, grid_lats, intensity_grid)
 		layer = lbm.MapLayer(grid_data, grid_style, name="intensity_grid")
 
