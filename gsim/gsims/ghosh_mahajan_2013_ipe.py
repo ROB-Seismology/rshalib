@@ -22,9 +22,10 @@ Module exports :class:'GhoshMahajan2013'
 from __future__ import division
 import numpy as np
 
-from openquake.hazardlib.gsim.base import IPE, CoeffsTable
+from openquake.hazardlib.gsim.base import CoeffsTable
 from openquake.hazardlib import const
 from openquake.hazardlib.imt import MMI
+from . import IPE
 
 
 class GhoshMahajan2013(IPE):

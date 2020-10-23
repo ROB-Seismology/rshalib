@@ -21,9 +21,9 @@ from __future__ import division
 
 import numpy as np
 
-from openquake.hazardlib.gsim.base import IPE
 from openquake.hazardlib import const
 from openquake.hazardlib.imt import MMI
+from . import IPE
 
 
 class AtkinsonWald2007(IPE):
