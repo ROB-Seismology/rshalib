@@ -42,7 +42,7 @@ class AtkinsonBoore2006Prime(BooreAtkinson2008):
     Volume 96, No. 6, pages 2181-2205), including a variable stress drop.
     Implements modifications developed by Gail M. Atkinson and David M. Boore
     and published as "Modifications to Existing Ground-Motion Prediction
-    Equations in Light of New Data" (2001, Bulleting of the Seismological
+    Equations in Light of New Data" (2011, Bulleting of the Seismological
     Society of America, Volume 101, pages 1121-1135).
     This class extends the BooreAtkinson2008 because it uses the same soil
     amplification function. Note that in the paper, the reported soil
