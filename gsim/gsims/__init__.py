@@ -22,8 +22,14 @@ import os
 import inspect
 import importlib
 from collections import OrderedDict
-from openquake.hazardlib.gsim.base import (
-    GMPE, IPE, GroundShakingIntensityModel)
+
+from ... import OQ_VERSION
+
+from openquake.hazardlib.gsim.base import (GMPE, GroundShakingIntensityModel)
+if OQ_VERSION < '3.9.0':
+	from openquake.hazardlib.gsim.base import IPE
+else:
+	IPE = GMPE
 
 
 def get_available_gsims():
