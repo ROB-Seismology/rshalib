@@ -256,6 +256,8 @@ class SourceModel():
 		"""
 		Make sure there are no duplicate source ID's
 		"""
+		from ..nrml import NRMLError
+
 		source_ids = []
 		for source in self.sources:
 			if not source.source_id in source_ids:
@@ -343,7 +345,7 @@ class SourceModel():
 		if not trt:
 			return self.sources
 		else:
-			return [source for source in self.sources if src.tectonic_region_type == trt]
+			return [src for src in self.sources if src.tectonic_region_type == trt]
 
 	def get_sources_by_type(self, source_type):
 		"""
@@ -802,6 +804,97 @@ class SourceModel():
 								graticule_style=graticule_style,
 								legend_style=legend_style, ax=ax, **kwargs)
 		return map
+
+	def to_folium_layer(self, area_stroke_color='blue', area_stroke_width=3,
+						 area_stroke_opacity=1., area_fill_color=None,
+						 area_fill_opacity=0.5, fault_geom_type='both',
+						 fault_trace_color='red', fault_trace_width=3,
+						 fault_trace_opacity=1, fault_plane_stroke_color='red',
+						 fault_plane_stroke_width=1,
+						 fault_plane_stroke_opacity=1.,
+						 fault_plane_fill_color='orange',
+						 fault_plane_fill_opacity=0.5,
+						 show_tooltips=False, show_popups=True):
+		"""
+		Construct folium layer for source model
+
+		:param area_stroke_color:
+			str, line color for area sources
+			(default: 'blue')
+		:param area_stroke_width:
+			float, line width for area sources
+			(default: 3)
+		:param area_stroke_opacity:
+			float, line opacity for area sources
+			(default: 1.)
+		:param area_fill_color:
+			str, fill color for area sources
+			(default: None)
+		:param area_fill_opacity:
+			float, fill opacity for area sources
+			(default: 0.5)
+		:param fault_trace_stroke_color:
+			str, line color for fault traces
+			(default: 'red')
+		:param fault_trace_stroke_width:
+			float, line color for fault traces
+			(default: 3)
+		:param fault_trace_stroke_opacity:
+			float, line opacity for fault traces
+			(default: 1.)
+		:param fault_plane_stroke_color:
+			str, line color for fault planes
+			(default: 'red')
+		:param fault_plane_stroke_width:
+			float, line color for fault planes
+			(default: 1)
+		:param fault_plane_stroke_opacity:
+			float, line opacity for fault planes
+			(default: 1.)
+		:param fault_plane_fill_color:
+			str, fill color for fault planes
+			(default: 'orange')
+		:param fault_plane_fill_opacity:
+			float, fill opacity for fault planes
+			(default: 0.5)
+		:param show_tooltips:
+			bool, whether or not to show tooltips
+			(default: False)
+		:param show_popups:
+			bool, whether or not to show popups
+			(default: True)
+
+		:return:
+			instance of :class:`folium.FeatureGroup`
+		"""
+		from folium import FeatureGroup
+
+		layer = FeatureGroup(name=self.name, overlay=True, control=True, show=True)
+		for area in self.get_area_sources():
+			pg = area.to_folium_poly(stroke_color=area_stroke_color,
+									  stroke_width=area_stroke_width,
+									  stroke_opacity=area_stroke_opacity,
+									  fill_color=area_fill_color,
+									  fill_opacity=area_fill_opacity,
+									  show_tooltip=show_tooltips,
+									  show_popup=show_popups)
+			pg.add_to(layer)
+
+		for flt in self.get_simple_fault_sources():
+			pg = flt.to_folium_poly(geom_type=fault_geom_type,
+								   trace_stroke_color=fault_trace_color,
+								   trace_stroke_width=fault_trace_width,
+								   trace_stroke_opacity=fault_trace_opacity,
+								   plane_stroke_color=fault_plane_stroke_color,
+								   plane_stroke_width=fault_plane_stroke_width,
+								   plane_stroke_opacity=fault_plane_stroke_opacity,
+								   plane_fill_color=fault_plane_fill_color,
+								   plane_fill_opacity=fault_plane_fill_opacity,
+								   show_tooltip=show_tooltips,
+								   show_popup=show_popups)
+			pg.add_to(layer)
+
+		return layer
 
 	@classmethod
 	def from_nrml_file(cls, nrml_filespec, rupture_mesh_spacing, area_discretization):
