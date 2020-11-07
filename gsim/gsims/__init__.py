@@ -26,7 +26,8 @@ from collections import OrderedDict
 from ... import OQ_VERSION
 
 from openquake.hazardlib.gsim.base import (GMPE, GroundShakingIntensityModel)
-if OQ_VERSION < '3.9.0':
+oq_version_nrs = tuple(map(int, OQ_VERSION.split('.')))
+if oq_version_nrs < (3, 9, 0):
 	from openquake.hazardlib.gsim.base import IPE
 else:
 	IPE = GMPE
