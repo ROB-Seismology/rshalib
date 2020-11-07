@@ -28,7 +28,7 @@ else:
 
 from lxml import etree
 from ..nrml import ns
-from ..nrml.common import (xmlstr, create_nrml_root, ENUM_OQ_UNCERTAINTYTYPES)
+from ..nrml.common import (xmlstr, create_nrml_root, ENUM_OQ_UNCERTAINTYTYPES, NRMLError)
 from ..pmf import *
 
 
@@ -323,7 +323,8 @@ class LogicTreeBranchSet(oqlt.BranchSet):
 
 		:param source_model:
 			instance of :class:`rshalib.source.SourceModel`
-		:return:
+
+		:return:
 			dict mapping source IDs to lists with instances of
 			:class:`rshalib.pmf.PMF`
 		"""

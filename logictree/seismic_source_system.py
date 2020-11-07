@@ -17,6 +17,7 @@ import numpy as np
 
 
 from .logictree import *
+from ..nrml import NRMLError
 from ..pmf import SourceModelPMF, MmaxPMF, MFDPMF, get_uniform_weights
 from ..source import SourceModel
 
