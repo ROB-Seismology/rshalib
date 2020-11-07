@@ -635,7 +635,7 @@ def import_point_or_area_source_from_gis_record(
 											'hypo_bin_width', float)
 			num_bins = max(1, (max_hypo_depth - min_hypo_depth) / hypo_bin_width + 1)
 			hypo_depths, weights = get_normal_distribution(min_hypo_depth, max_hypo_depth,
-														num_bins=num_bins)
+														num_bins=int(num_bins))
 			hypocentral_distribution = HypocentralDepthDistribution(hypo_depths, weights)
 
 	## Compare hypocentral distribution with upper/lower seismogenic depth
