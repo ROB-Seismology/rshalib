@@ -1116,6 +1116,96 @@ class SimpleFaultSource(RuptureSource, oqhazlib.source.SimpleFaultSource):
 
 		return geom
 
+	def to_folium_poly(self, geom_type='both',
+						trace_stroke_color='red', trace_stroke_width=3,
+						trace_stroke_opacity=1., plane_stroke_color='red',
+						plane_stroke_width=1, plane_stroke_opacity=1.,
+						plane_fill_color='orange', plane_fill_opacity=0.5,
+						show_tooltip=False, show_popup=True):
+		"""
+		Convert to folium polygon
+
+		:param geom_type:
+			str, geometry type, either 'line', 'polygon' or 'both'
+			(default: 'both')
+		:param trace_stroke_color:
+			str, line color for fault trace
+			(default: 'red')
+		:param trace_stroke_width:
+			float, line width for fault trace
+			(default: 3)
+		:param trace_stroke_opacity:
+			float, line opacity for fault trace
+			(default: 1.)
+		:param plane_stroke_color:
+			str, line color for (projected) fault plane
+			(default: 'red')
+		:param plane_stroke_width:
+			float, line width for fault plane
+			(default: 1)
+		:param plane_stroke_opacity:
+			float, line opacity for fault plane
+			(default: 1.)
+		:param plane_fill_color:
+			str, fill color for fault plane
+			(default: 'orange')
+		:param plane_fill_opacity:
+			float, fill opacity for fault plane
+			(default: 1.)
+		:param show_tooltip:
+			bool, whether or not to show tooltip
+			(default: False)
+		:param show_popup:
+			bool, whether or not to show popup
+			(default: True)
+
+		:return:
+			instance of :class:`folium.Polygon`, :class;:`folium.PolyLine`
+			or :class:`folium.FeatureGroup`
+		"""
+		import folium
+
+		tooltip = popup = None
+		if show_tooltip:
+			tooltip = '%s - %s' % (self.source_id, self.name)
+		if show_popup:
+			popup = '%s - %s' % (self.source_id, self.name)
+
+		if geom_type in ('line', 'both'):
+			stroke = False if trace_stroke_color is None else True
+			locations = list(zip(self.latitudes, self.longitudes))
+			polyline = folium.PolyLine(locations, stroke=stroke,
+											  color=trace_stroke_color,
+											  weight=trace_stroke_width,
+											  opacity=trace_stroke_opacity,
+											  tooltip=tooltip, popup=popup)
+
+		if geom_type in ('polygon', 'both'):
+			stroke = False if plane_stroke_color is None else True
+			fill = False if plane_fill_color is None else True
+			pg = self.get_polygon()
+			locations = list(zip(pg.lats, pg.lons))
+
+			polygon = folium.Polygon(locations, stroke=stroke,
+										color=plane_stroke_color,
+									   weight=plane_stroke_width,
+									   opacity=plane_stroke_opacity,
+									   fill=fill, fill_color=plane_fill_color,
+									   fill_opacity=plane_fill_opacity,
+									   tooltip=tooltip, popup=popup)
+		if geom_type == 'both':
+			fg = folium.FeatureGroup(control=False)
+			polygon.add_to(fg)
+			polyline.add_to(fg)
+			feature = fg
+		elif geom_type == 'line':
+			feature = polyline
+		else:
+			feature = polygon
+
+		return feature
+
+
 # TODO: need common base class for SimpleFaultSource and CharacteristicFaultSource
 
 
