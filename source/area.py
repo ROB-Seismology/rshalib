@@ -458,6 +458,56 @@ class AreaSource(RuptureSource, oqhazlib.source.AreaSource):
 			setattr(pg, attr, getattr(self, attr))
 		return pg
 
+	def to_folium_poly(self, stroke_color='black', stroke_width=3, stroke_opacity=1.,
+					 fill_color=None, fill_opacity=0.5, show_tooltip=False,
+					 show_popup=True):
+		"""
+		Convert to folium polygon
+
+		:param stroke_color:
+			str, line color
+			(default: 'black')
+		:param stroke_width:
+			float, line width
+			(default: 3)
+		:param stroke_opacity:
+			float, line opacity
+			(default: 1.)
+		:param fill_color:
+			str, fill color
+			(default: None)
+		:param fill_opacity:
+			float, fill opacity
+			(default: 0.5)
+		:param show_tooltip:
+			bool, whether or not to show tooltip
+			(default: False)
+		:param show_popup:
+			bool, whether or not to show popup
+			(default: True)
+
+		:return:
+			instance of :class:`folium.Polygon`
+		"""
+		import folium
+
+		stroke = False if stroke_color is None else True
+		fill = False if fill_color is None else True
+		tooltip = popup = None
+		if show_tooltip:
+			tooltip = '%s - %s' % (self.source_id, self.name)
+		if show_popup:
+			popup = '%s - %s' % (self.source_id, self.name)
+
+		locations = list(zip(self.latitudes, self.longitudes))
+
+		polygon = folium.Polygon(locations, stroke=stroke, color=stroke_color,
+								   weight=stroke_width, opacity=stroke_opacity,
+								   fill=fill, fill_color=fill_color,
+								   fill_opacity=fill_opacity,
+								   tooltip=tooltip, popup=popup)
+		return polygon
+
 	def contains_sites(self, sites):
 		"""
 		Determine whether given sites are located in this area source
@@ -471,7 +521,7 @@ class AreaSource(RuptureSource, oqhazlib.source.AreaSource):
 		"""
 		from ..site import SoilSiteModel
 		if isinstance(sites, SoilSiteModel):
-			mesh = site_model.mesh
+			mesh = sites.mesh
 		else:
 			lons = np.array([site.longitude for site in sites])
 			lats = np.array([site.latitude for site in sites])
