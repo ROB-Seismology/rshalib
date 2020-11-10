@@ -73,16 +73,20 @@ class AdaptiveBandwidthFunc(object):
 	possibly truncated to a maximum value
 
 	:param c1:
-		float, c1 parameter
+		float, c1 parameter (e.g., 0.0041, cf. Molina et al., 2001)
 	:param c2:
-		float, c2 parameter
+		float, c2 parameter (e.g., 1.58, cf. Molina et al., 2001)
+	:param min:
+		float, lower truncation value
+		(default: 0.)
 	:param max:
-		float, truncation value
+		float, upper truncation value
 		(default: np.inf = untruncated)
 	"""
-	def __init__(self, c1, c2, max=np.inf):
+	def __init__(self, c1, c2, min=0., max=np.inf):
 		self.c1 = c1
 		self.c2 = c2
+		self.min = min
 		self.max = max
 
 	def __call__(self, mags):
@@ -96,7 +100,7 @@ class AdaptiveBandwidthFunc(object):
 			1D array, bandwidths (in km)
 		"""
 		c1, c2 = self.c1, self.c2
-		return np.minimum(max, c1 * np.exp(c2 * mags))
+		return np.maximum(self.min, np.minimum(self.max, c1 * np.exp(c2 * mags)))
 
 
 class MeshGrid(object):
@@ -798,7 +802,8 @@ class SmoothedSeismicity(object):
 
 		return a_values
 
-	def calc_gr_mfds(self, b_value, end_date=None, min_mag=None, max_mag=None):
+	def calc_gr_mfds(self, b_value, end_date=None, min_mag=None, max_mag=None,
+					  method='extrapolate_a'):
 		"""
 		Compute Gutenberg-Richter MFD in each grid node based on the
 		cumulative occurrence rates for the given magnitude range
@@ -809,28 +814,76 @@ class SmoothedSeismicity(object):
 		:param min_mag:
 		:param max_mag:
 			see :meth:`calc_a_values`
+		:param method:
+			str, GR calculation method
+			- 'extrapolate_a': simple extrapolation of a-values,
+			  requires :param:`b-balue` to be set
+			- 'fit_incremental_single': MLE fit GR to incremental MFD in each node
+			  separately (different b-values),
+			  :param:`b-balue` is ignored
+			- 'fit_incremental_multi': MLE fit GR to incremental MFD in each node
+			  simultaneously (common b-value),
+			  :param:`b-balue` is ignored
 
 		:return:
 			list with instances of :class:`TruncatedGRMFD`
+			or :class:`NatLogTruncatedGRMFD`
 		"""
 		min_mag, max_mag = self._parse_min_max_mag(min_mag, max_mag)
 
-		a_values = self.calc_grid_a_values(b_value, end_date=end_date,
-											min_mag=min_mag, max_mag=max_mag)
+		if method == 'extrapolate_a':
+			a_values = self.calc_grid_a_values(b_value, end_date=end_date,
+												min_mag=min_mag, max_mag=max_mag)
 
-		num_grid_nodes = len(a_values)
+			num_grid_nodes = len(a_values)
 
-		if np.isscalar(b_value):
-			b_values = np.array([b_value] * num_grid_nodes)
-		else:
-			assert len(b_value) == num_grid_nodes
-			b_values = np.asarray(b_value)
+			if np.isscalar(b_value):
+				b_values = np.array([b_value] * num_grid_nodes)
+			else:
+				assert len(b_value) == num_grid_nodes
+				b_values = np.asarray(b_value)
 
-		mfd_list = []
-		for i in range(num_grid_nodes):
-			mfd = TruncatedGRMFD(min_mag, max_mag, self.mag_bin_width,
-								a_values[i], b_values[i], Mtype=self.Mtype)
-			mfd_list.append(mfd)
+
+			mfd_list = []
+			for i in range(num_grid_nodes):
+				mfd = TruncatedGRMFD(min_mag, max_mag, self.mag_bin_width,
+										a_values[i], b_values[i], Mtype=self.Mtype)
+				mfd_list.append(mfd)
+
+		elif method[:15] == 'fit_incremental':
+			from ..mfd import NatLogTruncatedGRMFD
+
+			imfd_list = self.calc_incremental_mfds(end_date=end_date,
+														min_mag=min_mag, max_mag=max_mag)
+
+			Mi = self.get_mfd_bins(min_mag, max_mag)
+			dMi = self.mag_bin_width
+			num_bins = len(Mi)
+			num_grid_nodes = len(imfd_list)
+			nij = np.zeros((num_grid_nodes, num_bins))
+			for i, imfd in enumerate(imfd_list):
+				nij[i] = imfd.get_num_earthquakes(self.completeness, end_date)
+			if method == 'fit_incremental_multi':
+				from eqcatalog.calcGR_MLE import estimate_gr_params_multi
+				alphas, beta, covs = estimate_gr_params_multi(nij, Mi, dMi,
+															self.completeness,
+															end_date, precise=False)
+				betas = [beta] * num_grid_nodes
+			elif method == 'fit_incremental_single':
+				from eqcatalog.calcGR_MLE import estimate_gr_params
+				alphas, betas, covs = [], [], []
+				for ni in nij:
+					alpha, beta, cov = estimate_gr_params(ni, Mi, dMi, self.completeness,
+																	end_date, precise=False)
+					alphas.append(alpha)
+					betas.append(beta)
+					covs.append(cov)
+
+			mfd_list = []
+			for i in range(num_grid_nodes):
+				mfd = NatLogTruncatedGRMFD(min_mag, max_mag, self.mag_bin_width,
+										alphas[i], betas[i], cov=covs[i], Mtype=self.Mtype)
+				mfd_list.append(mfd)
 
 		return mfd_list
 
