@@ -84,6 +84,8 @@ if not reloading:
 #	reload(oqhazlib)
 OQ_VERSION = oqhazlib.__version__
 print('OpenQuake version: %s' % OQ_VERSION)
+## Remove possible extension (e.g., '3.8.1-git88da833')
+OQ_VERSION = OQ_VERSION.split('-')[0]
 
 ## imt (depends on oqhazlib)
 if not reloading:
