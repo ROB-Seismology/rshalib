@@ -6,7 +6,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 
 import sys
-if sys.version[1] == '3':
+if sys.version[0] == '3':
 	basestring = str
 
 import numpy as np
@@ -19,7 +19,7 @@ from mapping.geotools.geodetic import (spherical_distance, meshed_spherical_dist
 from ..mfd import (EvenlyDiscretizedMFD, TruncatedGRMFD)
 
 
-__all__ = ['SmoothedSeismicity', 'VereJonesKernel', 'AdaptiveBandwidth']
+__all__ = ['SmoothedSeismicity', 'VereJonesKernel', 'AdaptiveBandwidthFunc']
 
 
 class SmoothingKernel(object):
@@ -1323,6 +1323,8 @@ class LegacySmoothedSeismicity(object):
 	def _smooth(self):
 		"""
 		"""
+		from scipy.stats import norm
+
 		distances = haversine(
 			self.e_lons, self.e_lats,
 			self.s_lons, self.s_lats,
