@@ -803,7 +803,7 @@ class SmoothedSeismicity(object):
 		return a_values
 
 	def calc_gr_mfds(self, b_value, end_date=None, min_mag=None, max_mag=None,
-					  method='extrapolate_a'):
+					  method='extrapolate_a', prior_weight=0.5):
 		"""
 		Compute Gutenberg-Richter MFD in each grid node based on the
 		cumulative occurrence rates for the given magnitude range
@@ -813,17 +813,21 @@ class SmoothedSeismicity(object):
 		:param end_date:
 		:param min_mag:
 		:param max_mag:
-			see :meth:`calc_a_values`
+			see :meth:`calc_grid_a_values`
 		:param method:
 			str, GR calculation method
 			- 'extrapolate_a': simple extrapolation of a-values,
 			  requires :param:`b-balue` to be set
-			- 'fit_incremental_single': MLE fit GR to incremental MFD in each node
-			  separately (different b-values),
-			  :param:`b-balue` is ignored
 			- 'fit_incremental_multi': MLE fit GR to incremental MFD in each node
 			  simultaneously (common b-value),
 			  :param:`b-balue` is ignored
+			- 'fit_incremental_single': MLE fit GR to incremental MFD in each node
+			  separately (different b-values),
+			  if :param:`b-balue` is set, it is used as prior value(s), combined
+			  with :param:`prior_weight`
+		:param prior_weight:
+			float, weight for prior b-value(s) in fit_incremental_single method
+			(default: 0.5)
 
 		:return:
 			list with instances of :class:`TruncatedGRMFD`
@@ -872,9 +876,19 @@ class SmoothedSeismicity(object):
 			elif method == 'fit_incremental_single':
 				from eqcatalog.calcGR_MLE import estimate_gr_params
 				alphas, betas, covs = [], [], []
-				for ni in nij:
+				for i, ni in enumerate(nij):
+					if not b_value:
+						prior_b = 1.
+						prior_weight = 0
+					else:
+						if np.isscalar(b_value):
+							prior_b = b_value
+						else:
+							prior_b = b_value[i]
 					alpha, beta, cov = estimate_gr_params(ni, Mi, dMi, self.completeness,
-																	end_date, precise=False)
+																	end_date, prior_b=prior_b,
+																	prior_weight=prior_weight,
+																	precise=False)
 					alphas.append(alpha)
 					betas.append(beta)
 					covs.append(cov)
@@ -888,7 +902,7 @@ class SmoothedSeismicity(object):
 		return mfd_list
 
 	def calc_total_gr_mfd(self, b_value, end_date=None, min_mag=None,
-						max_mag=None):
+								max_mag=None, method='extrapolate_a', prior_weight=0.5):
 		"""
 		Compute total Gutenberg-Richter MFD for the entire grid
 
@@ -896,12 +910,14 @@ class SmoothedSeismicity(object):
 		:param end_date:
 		:param min_mag:
 		:param max_mag:
+		:param method:
+		:param prior_weight:
 			see :meth:`calc_gr_mfds`
 
 		:return:
 			instance of :class:`TruncatedGRMFD`
 		"""
-		if np.isscalar(b_value):
+		if method == 'extrapolate_a' and np.isscalar(b_value):
 			min_mag, max_mag = self._parse_min_max_mag(min_mag, max_mag)
 			cumul_rates = self.calc_grid_occurrence_rates(end_date,
 											min_mag=min_mag, max_mag=max_mag)
@@ -913,13 +929,15 @@ class SmoothedSeismicity(object):
 		else:
 			from ..mfd import sum_mfds
 			mfd_list = self.calc_gr_mfds(b_value, end_date=end_date,
-										min_mag=min_mag, max_mag=max_mag)
+										min_mag=min_mag, max_mag=max_mag,
+										method=method, prior_weight=prior_weight)
 			mfd = sum_mfds(mfd_list)
 
 		return mfd
 
 	def to_source_model(self, mfd_type, end_date=None, min_mag=None, max_mag=None,
-						area_src_model=None, b_value=None, tectonic_region_type='',
+						b_value=None, gr_method='extrapolate_a', prior_weight=0.5,
+						area_src_model=None, tectonic_region_type='',
 						rupture_mesh_spacing=2.5, magnitude_scaling_relationship='WC1994',
 						rupture_aspect_ratio=1., upper_seismogenic_depth=0.,
 						lower_seismogenic_depth=25., nodal_plane_distribution=None,
@@ -1010,14 +1028,51 @@ class SmoothedSeismicity(object):
 					node_src_dict[idx] = source
 
 		## Compute MFDs
-		if mfd_type == 'gr':
-			b_values = [node_src_dict.get(i, dummy_src).mfd.b_val
-						for i in range(num_grid_nodes)]
-			mfd_list = self.calc_gr_mfds(b_values, end_date=end_date,
-										min_mag=min_mag, max_mag=max_mag)
-		elif mfd_type == 'incremental':
+		if mfd_type == 'incremental':
 			mfd_list = self.calc_incremental_mfds(end_date=end_date,
 												min_mag=min_mag, max_mag=max_mag)
+		elif mfd_type == 'gr':
+			if gr_method in ('extrapolate_a', 'fit_incremental_single'):
+				b_values = [node_src_dict.get(i, dummy_src).mfd.b_val
+							for i in range(num_grid_nodes)]
+				mfd_list = self.calc_gr_mfds(b_values, end_date=end_date,
+											min_mag=min_mag, max_mag=max_mag,
+											method=gr_method, prior_weight=prior_weight)
+			elif gr_method == 'fit_incremental_multi':
+				## Joint MFD fitting of all nodes in each area source
+				from eqcatalog.calcGR_MLE import estimate_gr_params_multi
+				from ..mfd import NatLogTruncatedGRMFD
+
+				node_mfd_dict = {}
+				end_date = end_date or self.eq_catalog.end_date
+				imfd_list = self.calc_incremental_mfds(end_date=end_date,
+															min_mag=min_mag, max_mag=max_mag)
+				Mi = self.get_mfd_bins(min_mag, max_mag)
+				dMi = self.mag_bin_width
+				num_bins = len(Mi)
+
+				for source in set(list(node_src_dict.values()) + [None]):
+					if source is None:
+						## Nodes outside source model
+						node_idxs = [idx for idx in range(num_grid_nodes)
+										if not idx in node_src_dict]
+					else:
+						node_idxs = [key for (key, val) in node_src_dict.items()
+										if val is source]
+					num_source_nodes = len(node_idxs)
+					nij = np.zeros((num_source_nodes, num_bins))
+					for i, idx in enumerate(node_idxs):
+						imfd = imfd_list[idx]
+						nij[i] = imfd.get_num_earthquakes(self.completeness, end_date)
+					alphas, beta, covs = estimate_gr_params_multi(nij, Mi, dMi,
+																self.completeness,
+																end_date, precise=False)
+					for i, idx in enumerate(node_idxs):
+						mfd = NatLogTruncatedGRMFD(min_mag, max_mag, dMi, alphas[i],
+													beta, cov=covs[i], Mtype=self.Mtype)
+						node_mfd_dict[idx] = mfd
+
+				mfd_list = [node_mfd_dict[idx] for idx in range(num_grid_nodes)]
 		else:
 			raise Exception('MFD type %s not supported!' % mfd_type)
 
