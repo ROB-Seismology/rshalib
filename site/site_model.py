@@ -586,7 +586,7 @@ class GenericSiteModel(oqhazlib.geo.Mesh):
 		elif OQ_VERSION >= '2.9.0':
 			i = self._min_idx_dst(mesh)
 		else:
-			i = self._geodetic_min_distance(mesh, True)
+			[i] = self._geodetic_min_distance(mesh, True)
 		if not flat_index:
 			i = np.unravel_index(i, self.shape)
 		return i
