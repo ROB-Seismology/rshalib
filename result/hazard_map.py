@@ -1020,7 +1020,7 @@ class HazardMapSet(HazardResult, HazardField):
 				model_name="", filespecs=[],
 				timespan=50, poes=None, return_periods=None,
 				damping=0.05, vs30s=None):
-		if not return_periods in (None, []):
+		if not (return_periods is None or len(return_periods) == 0):
 			hazard_values = ExceedanceRateArray(1./as_array(return_periods))
 		elif poes:
 			hazard_values = ProbabilityArray(as_array(poes))
