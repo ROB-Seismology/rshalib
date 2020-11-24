@@ -353,6 +353,17 @@ class EvenlyDiscretizedMFD(oqhazlib.mfd.EvenlyDiscretizedMFD, MFD):
 		Mmax = mag_bin_centers[np.array(self.occurrence_rates) > 0][-1]
 		return Mmax
 
+	def rstrip(self):
+		"""
+		Strip trailing zero occurrence rates, to speed up subsequent hazard
+		calculations
+
+		:return:
+			None, :prop:`occurrence_rates` is modified in place
+		"""
+		idx = np.where(np.asarray(self.occurrence_rates) > 0)[0][-1] + 1
+		self.occurrence_rates = self.occurrence_rates[:idx]
+
 	def get_bayesian_mmax_pdf(self, prior_model="CEUS_COMP", Mmax_obs=None,
 							n=None, Mmin_n=4.5, b_val=None, bin_width=None,
 							truncation=(5.5, 8.25), completeness=None,
