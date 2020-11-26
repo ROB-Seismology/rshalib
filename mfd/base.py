@@ -366,6 +366,7 @@ def sum_mfds(mfd_list, weights=[]):
 		Weights will be normalized!
 	"""
 	from .truncated_gr import TruncatedGRMFD
+	from .natlog_truncated_gr import NatLogTruncatedGRMFD
 	from .evenly_discretized import EvenlyDiscretizedMFD
 
 	if weights in ([], None):
@@ -384,7 +385,8 @@ def sum_mfds(mfd_list, weights=[]):
 
 	## If all MFD's are TruncatedGR, and have same min_mag, max_mag, and b_val
 	## return TruncatedGR, else return EvenlyDiscretized
-	is_truncated = np.array([isinstance(mfd, TruncatedGRMFD) for mfd in mfd_list])
+	is_truncated = np.array([isinstance(mfd, (TruncatedGRMFD, NatLogTruncatedGRMFD))
+									for mfd in mfd_list])
 	if is_truncated.all():
 		all_bvals = set([mfd.b_val for mfd in mfd_list])
 		if len(all_min_mags) == len(all_max_mags) == len(all_bvals) == 1:
@@ -399,6 +401,7 @@ def sum_mfds(mfd_list, weights=[]):
 			a_sigma = 0.434 * (Nsum_sigma / N0sum)
 			b_sigma = np.mean([mfd.b_sigma for mfd in mfd_list])
 			## Note: covariances will be lost!
+			# TODO:check for better solution
 			cov = np.mat(np.zeros((2, 2)))
 			mfd = mfd_list[0]
 			return TruncatedGRMFD(mfd.min_mag, mfd.max_mag, mfd.bin_width, a,
