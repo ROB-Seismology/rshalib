@@ -1246,6 +1246,7 @@ class SmoothedSeismicity(object):
 		point_sources = []
 		grid_lons, grid_lats = self.grid_lons, self.grid_lats
 		for i in range(num_grid_nodes):
+			source_id = 'PT%04d' % i
 			lon, lat = grid_lons[i], grid_lats[i]
 			name = '(%s, %s)' % (lon, lat)
 			point = Point(lon, lat)
@@ -1259,7 +1260,7 @@ class SmoothedSeismicity(object):
 			lsd = bg_source.lower_seismogenic_depth
 			npd = bg_source.nodal_plane_distribution
 			hdd = bg_source.hypocenter_distribution
-			pt_src = PointSource(i, name, trt, mfd, rms, msr,
+			pt_src = PointSource(source_id, name, trt, mfd, rms, msr,
 								rar, usd, lsd, point, npd, hdd)
 			point_sources.append(pt_src)
 
