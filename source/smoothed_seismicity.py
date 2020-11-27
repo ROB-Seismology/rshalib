@@ -19,12 +19,27 @@ from mapping.geotools.geodetic import (spherical_distance, meshed_spherical_dist
 from ..mfd import (EvenlyDiscretizedMFD, TruncatedGRMFD)
 
 
-__all__ = ['SmoothedSeismicity', 'VereJonesKernel', 'AdaptiveBandwidthFunc']
+__all__ = ['SmoothedSeismicity', 'VereJonesKernel', 'PowerlawKernel',
+			'AdaptiveBandwidthFunc']
 
 
 class SmoothingKernel(object):
 	def __init__(self, bandwidths):
 		self.bandwidths = bandwidths
+
+	def __call__(self, bandwidths):
+		"""
+		Spawn new instance with given bandwidths
+
+		:param bandwidths:
+			1-D float array, with length either 1 (single value)
+			or equal to the number of earthquakes (different value
+			for each earthquake)
+
+		:return:
+			instance of :class:`VereJonesKernel`
+		"""
+		return self.__class__(bandwidths)
 
 
 class VereJonesKernel(SmoothingKernel):
@@ -67,6 +82,33 @@ class VereJonesKernel(SmoothingKernel):
 		return ((pow - 1) / (np.pi * H2)) * (1 + (distances**2 / H2))**-pow
 
 
+class PowerlawKernel(SmoothingKernel):
+	"""
+	Isotropic adaptive power-law kernel (Helmstetter et al., 2007)
+	Also used in Hiemer et al. (2014)
+
+	:param bandwidths:
+		1-D float array, with length either 1 (single value)
+		or equal to the number of earthquakes (different value
+		for each earthquake)
+	:param power:
+		float, power-law exponent.
+		Hiemer et al. (2014) and Hochstetter et al. (2007) use a value of 1.5,
+		ESHM20 used 1.66637
+		(default: 1.5)
+	"""
+	def __init__(self, bandwidths, power=1.5):
+		super(PowerlawKernel, self).__init__(bandwidths)
+		self.power = power
+
+	def pdf(self, distances):
+		"""
+		Compute probability density as a function of distance
+		"""
+		H2 = self.bandwidths**2
+		return 1 / (distances**2 + H2)**self.power
+
+
 class AdaptiveBandwidthFunc(object):
 	"""
 	Adaptive bandwidth function, growing exponentially with magnitude,
@@ -77,10 +119,10 @@ class AdaptiveBandwidthFunc(object):
 	:param c2:
 		float, c2 parameter (e.g., 1.58, cf. Molina et al., 2001)
 	:param min:
-		float, lower truncation value
+		float, lower truncation value (in km)
 		(default: 0.)
 	:param max:
-		float, upper truncation value
+		float, upper truncation value (in km)
 		(default: np.inf = untruncated)
 	"""
 	def __init__(self, c1, c2, min=0., max=np.inf):
@@ -198,8 +240,16 @@ class SmoothedSeismicity(object):
 		float, magnitude bin width
 		(default: 0.1)
 	:param min_mag:
-		float, minimum magnitude for smoothing
+		float, minimum magnitude for smoothing.
+		This has implications for calculation of smoothing distances if
+		:param:`nth_neighbour`: is set!
+		In SHARE and ESHM20, a value of 4.5 was used.
 		(default: None, will use minimum completeness magnitude
+	:param kernel_shape:
+		str, name of distribution supported by scipy.stats, defining
+		shape of smoothing kernel, e.g., 'norm', 'uniform'
+		or instance of :class:`SmoothingKernel`
+		(default: 'norm')
 	:param bandwidth:
 		positive float, smoothing bandwidth (in km)
 		(interpreted as minimum smoothing bandwidth
@@ -208,18 +258,14 @@ class SmoothedSeismicity(object):
 		(default: 15)
 	:param nth_neighbour:
 		positive integer, n-th closest earthquake to take distance
-		as bandwidth
+		as spatially adaptive bandwidth
 		(default: 0)
-	:param kernel_shape:
-		str, name of distribution supported by scipy.stats, defining
-		shape of smoothing kernel, e.g., 'norm', 'uniform'
-		or instance of :class:`SmoothingKernel`
-		(default: 'norm')
 	"""
 	def __init__(self, grid_outline, grid_spacing,
 				eq_catalog, completeness, Mtype='MW', Mrelation={},
 				mag_bin_width=0.1, min_mag=None,
-				bandwidth=15., nth_neighbour=0, kernel_shape='norm'):
+				kernel_shape='norm', bandwidth=15., nth_neighbour=0,
+				max_smoothing_distance=np.inf):
 		self.grid_outline = grid_outline
 		self.grid_spacing = grid_spacing
 		self.eq_catalog = eq_catalog
@@ -227,9 +273,11 @@ class SmoothedSeismicity(object):
 		self.Mtype = Mtype
 		self.Mrelation = Mrelation
 		self.mag_bin_width = mag_bin_width
+		self.kernel_shape = kernel_shape
 		self.bandwidth = bandwidth
 		self.nth_neighbour = nth_neighbour
-		self.kernel_shape = kernel_shape
+		self.min_smoothing_distance = bandwidth
+		self.max_smoothing_distance = max_smoothing_distance
 
 		## Set up grid
 		self.init_grid()
@@ -242,6 +290,9 @@ class SmoothedSeismicity(object):
 
 		## Property containing earthquake-grid distances
 		self._eq_grid_distances = None
+
+	def __len__(self):
+		return len(self.grid_lons)
 
 	def init_grid(self):
 		"""
@@ -298,8 +349,8 @@ class SmoothedSeismicity(object):
 		Initialize earthquakes depending on :prop:`min_mag`
 
 		:return:
-			None, :prop:`eq_lons`, :prop:`eq_lats` and :prop:`eq_mags`
-			are set
+			None, :prop:`eq_lons`, :prop:`eq_lats`, :prop:`eq_mags` and
+			:prop:`eq_datetimes` are set
 		"""
 		subcatalog = self.eq_catalog.subselect(Mmin=self.min_mag, Mtype=self.Mtype,
 												Mrelation=self.Mrelation)
@@ -317,7 +368,7 @@ class SmoothedSeismicity(object):
 	def set_min_mag(self, min_mag):
 		"""
 		Change minimum magnitude.
-		This will re-initialize the smoothing kernel.
+		This will reinitialize the smoothing kernel.
 
 		:param min_mag:
 			float, minimum magnitude considered for smoothing
@@ -347,7 +398,7 @@ class SmoothedSeismicity(object):
 	def calc_eq_grid_distances(self):
 		"""
 		Compute distances between each earthquake and each grid node,
-		if necessary, 	and set :prop:`_eq_grid_distances`
+		if necessary, and set :prop:`_eq_grid_distances`
 
 		:return:
 			2-D [num_eq, num_grid_nodes] float array, distances in km
@@ -378,11 +429,25 @@ class SmoothedSeismicity(object):
 			else:
 				return np.array([self.bandwidth])
 		else:
+			## Note: should distance to nth neighbour be computed using all
+			## earthquakes within the completeness limits or using only
+			## earthquakes with magnitude >= min_mag (of each bin!)?
+			## The latter would imply that smoothing distance for earthquakes
+			## with a particular magnitude would not change if the completeness
+			## of the catalogue is improved (i.e., lower magnitudes added),
+			## which may be more correct...
+			## On the other hand, if using the latter, a problem occurs for
+			## the highest magnitudes, which don't have as many neighbours
+			## (the absolute highest magnitude has none)!
+			## Another thought: distance to nth neighbour could be different
+			## depending on completeness of different magnitude intervals...
 			assert np.isscalar(self.bandwidth)
 			distances = self.calc_inter_eq_distances()
 			distances.sort(axis=0)
-			distances = distances[self.nth_neighbour]
-			distances = np.maximum(self.bandwidth, distances)
+			nth_neighbour = min(self.nth_neighbour, len(self.eq_lons)-1)
+			distances = distances[nth_neighbour]
+			distances = np.maximum(self.min_smoothing_distance, distances)
+			distances = np.minimum(self.max_smoothing_distance, distances)
 			#print(distances.max())
 			return distances
 
@@ -467,11 +532,13 @@ class SmoothedSeismicity(object):
 		"""
 		Compute factor to normalize earthquake densities as the sum
 		of the densities obtained in all grid nodes for an earthquake
-		situated at the center of the grid.
+		situated at the center of the grid. In theory, it should normalize
+		to unity over an infinite area.
+		This normalization factor depends on the bandwidth(s).
 
 		This should ensure that:
 		- earthquakes that are well inside the grid should have a
-		total probability of 1 over all gird nodes
+		total probability of 1 over all grid nodes
 		- earthquakes that are close to the edges of the grid (either
 		inside or outside) should have a total probability less than 1
 		- earthquakes that are far away from the grid should have
@@ -517,7 +584,8 @@ class SmoothedSeismicity(object):
 		:return:
 			float
 		"""
-		max_mag = max_mag or self.eq_mags.max() + self.mag_bin_width
+		dM = self.mag_bin_width
+		max_mag = max_mag or np.ceil(self.eq_mags.max()/dM) * dM
 		assert max_mag > self.min_mag
 		return max_mag
 
@@ -764,39 +832,12 @@ class SmoothedSeismicity(object):
 
 			occurrence_rates = densities / time_spans
 
+			## Note: in Hiemer et al. (2014) and Helmstetter et al. (2007),
+			## occurrence rates are corrected for spatial (not temporal!)
+			## variations of the completeness magnitude (Mc > min_mag) in each cell
+			#occurrence_rates *= 10**(b_value * (Mc - self.min_mag))
+
 			return np.sum(occurrence_rates, axis=0)
-		else:
-			return np.zeros(len(self.grid_lons))
-
-	def calc_grid_predicted_rates(self, b_value, end_date=None,
-											min_mag=None, norm_by_area=False):
-		"""
-		following Hiemer et al. (2014)
-
-		Note that all magnitudes are treated identically
-		"""
-		end_date = end_date or self.eq_catalog.end_date
-		min_mag = self._parse_min_mag(min_mag)
-		self.set_min_mag(min_mag)
-
-		densities = self.calc_eq_densities(min_mag=min_mag, max_mag=None,
-													norm_by_area=norm_by_area)
-		eq_mags = self.eq_mags
-		#idxs = eq_mags >= min_mag
-		eq_mags = eq_mags
-		eq_datetimes = self.eq_datetimes
-		if len(eq_datetimes):
-			time_spans = self.completeness.get_completeness_timespans(eq_mags, end_date)
-			time_spans = time_spans[np.newaxis].T
-
-			Mc = np.array([self.completeness.get_completeness_magnitude(dt)
-								for dt in eq_datetimes])
-			Mc = Mc[np.newaxis].T
-
-			occurrence_rates = densities / time_spans
-			predicted_rates = occurrence_rates * 10**(Mc - min_mag)
-
-			return np.sum(predicted_rates, axis=0)
 		else:
 			return np.zeros(len(self.grid_lons))
 
@@ -871,26 +912,24 @@ class SmoothedSeismicity(object):
 
 		return mfd
 
-	def calc_grid_a_values(self, b_value, end_date=None, min_mag=None, max_mag=None):
+	def calc_grid_a_values(self, b_value, end_date=None, min_mag=None):
 		"""
 		Compute a values based on the cumulative occurrence rates
-		for the given magnitude range and the given b-value(s)
+		for the given minimum magnitude and the given b-value(s)
 
 		:param b_value:
 			float, uniform b-value
 			or 1D array, b-values for each grid node
 		:param end_date:
 		:param min_mag:
-		:param max_mag:
 			see :meth:`calc_grid_occurrence_rates`
 
 		:return:
 			1D float array
 		"""
-		min_mag, max_mag = self._parse_min_max_mag(min_mag, max_mag)
+		min_mag = self._parse_min_mag(min_mag)
 
-		cumul_rates = self.calc_grid_occurrence_rates(end_date, min_mag=min_mag,
-														max_mag=max_mag)
+		cumul_rates = self.calc_grid_occurrence_rates(end_date, min_mag=min_mag)
 		num_grid_nodes = len(cumul_rates)
 
 		if np.isscalar(b_value):
@@ -918,7 +957,7 @@ class SmoothedSeismicity(object):
 		:param method:
 			str, GR calculation method
 			- 'extrapolate_a': simple extrapolation of a-values,
-			  requires :param:`b-balue` to be set
+			  requires :param:`b-balue` to be set, :param:`max_mag` is ignored
 			- 'fit_incremental_multi': MLE fit GR to incremental MFD in each node
 			  simultaneously (common b-value),
 			  :param:`b-balue` is ignored
@@ -938,7 +977,7 @@ class SmoothedSeismicity(object):
 
 		if method == 'extrapolate_a':
 			a_values = self.calc_grid_a_values(b_value, end_date=end_date,
-												min_mag=min_mag, max_mag=max_mag)
+														min_mag=min_mag)
 
 			num_grid_nodes = len(a_values)
 
@@ -947,7 +986,6 @@ class SmoothedSeismicity(object):
 			else:
 				assert len(b_value) == num_grid_nodes
 				b_values = np.asarray(b_value)
-
 
 			mfd_list = []
 			for i in range(num_grid_nodes):
@@ -961,8 +999,8 @@ class SmoothedSeismicity(object):
 			imfd_list = self.calc_incremental_mfds(end_date=end_date,
 														min_mag=min_mag, max_mag=max_mag)
 
-			Mi = self.get_mfd_bins(min_mag, max_mag)
 			dMi = self.mag_bin_width
+			Mi = self.get_mfd_bins(min_mag, max_mag) + dMi / 2.
 			num_bins = len(Mi)
 			num_grid_nodes = len(imfd_list)
 			nij = np.zeros((num_grid_nodes, num_bins))
@@ -1021,11 +1059,11 @@ class SmoothedSeismicity(object):
 		if method == 'extrapolate_a' and np.isscalar(b_value):
 			min_mag, max_mag = self._parse_min_max_mag(min_mag, max_mag)
 			cumul_rates = self.calc_grid_occurrence_rates(end_date,
-											min_mag=min_mag, max_mag=max_mag)
+											min_mag=min_mag, max_mag=None)
 			cumul_rate = np.sum(cumul_rates)
 			a_value = np.log10(cumul_rate) + b_value * min_mag
 			mfd = TruncatedGRMFD(min_mag, max_mag, self.mag_bin_width,
-								a_value, b_value, Mtype=self.Mtype)
+									a_value, b_value, Mtype=self.Mtype)
 
 		else:
 			from ..mfd import sum_mfds
@@ -1048,12 +1086,25 @@ class SmoothedSeismicity(object):
 
 		:param mfd_type:
 			str, type of MFD to calculate for each grid node:
-			'gr' (Gutenberg-Richter) or 'incremental' (EvenlyDiscretized)
+			'gr' (Gutenberg-Richter), 'incremental' (EvenlyDiscretized)
+			or 'incremental+gr' (= incremental + GR from Mmax_obs onward)
 		:param end_date:
 		:param min_mag:
 		:param max_mag:
 			end date, minimum and maximum magnitude to compute MFDs
 			see :meth:`calc_gr_mfds` or :meth:`calc_incremental_mfds`
+		:param b_value:
+			float, uniform b-value for grid nodes not covered by any
+			source in :param:`area_src_model`.
+			Only needed if :param:`mfd_type` is 'gr' or 'incremental+gr'
+			(default: None)
+		:param gr_method:
+			str, GR calculation method (see :meth:`calc_gr_mfds`)
+			Only needed if :param:`mfd_type` is 'gr' or 'incremental+gr'
+			(default: 'extrapolate_a')
+		:param prior_weight:
+			float, weight for prior b-value(s) in fit_incremental_single gr_method
+			(default: 0.5)
 		:param area_src_model:
 			instance of :class:`rshalib.source.SourceModel`
 			background area source model to use to derive b-value
@@ -1061,11 +1112,6 @@ class SmoothedSeismicity(object):
 			properties. If not specified or if source model does not
 			cover the entire grid, all individual properties need to be
 			specified
-			(default: None)
-		:param b_value:
-			float, uniform b-value for grid nodes not covered by any
-			source in :param:`area_src_model`.
-			Only needed if :param:`mfd_type` == 'gr'
 			(default: None)
 		:param tectonic_region_type:
 			str, uniform tectonic region type
@@ -1129,10 +1175,17 @@ class SmoothedSeismicity(object):
 					node_src_dict[idx] = source
 
 		## Compute MFDs
-		if mfd_type == 'incremental':
+		if mfd_type in ('incremental', 'incremental+gr'):
 			mfd_list = self.calc_incremental_mfds(end_date=end_date,
 												min_mag=min_mag, max_mag=max_mag)
-		elif mfd_type == 'gr':
+			if mfd_type == 'incremental':
+				## Remove trailing zeros to speed up hazard computations
+				for mfd in mfd_list:
+					mfd.rstrip()
+			else:
+				imfd_list = mfd_list
+
+		if mfd_type in ('gr', 'incremental+gr'):
 			if gr_method in ('extrapolate_a', 'fit_incremental_single'):
 				b_values = [node_src_dict.get(i, dummy_src).mfd.b_val
 							for i in range(num_grid_nodes)]
@@ -1174,7 +1227,19 @@ class SmoothedSeismicity(object):
 						node_mfd_dict[idx] = mfd
 
 				mfd_list = [node_mfd_dict[idx] for idx in range(num_grid_nodes)]
-		else:
+
+			if mfd_type == 'incremental+gr':
+				## Incremental (observed), extended with Gutenberg-Richter fit
+				## for magnitudes above Mmax_obs
+				mmax_obs = self._parse_max_mag(None)
+				for idx in range(num_grid_nodes):
+					imfd = imfd_list[idx]
+					tmfd = mfd_list[idx]
+					tmfd.min_mag = mmax_obs
+					mfd_list[idx] = imfd + tmfd
+		try:
+			mfd_list
+		except:
 			raise Exception('MFD type %s not supported!' % mfd_type)
 
 		## Create point sources
@@ -1213,7 +1278,7 @@ class SmoothedSeismicity(object):
 
 		:param quantity:
 			str, name of quantity to compute: 'density', 'occurrence_rate',
-			'predicted_rate', 'a_value', 'moment_density', 'moment_rate' or 'moment'
+			'a_value', 'moment_density', 'moment_rate' or 'moment'
 		:param min_mag:
 			float, minimum magnitude to compute quantity for
 			(default: None, will use :prop:`min_mag`)
@@ -1241,11 +1306,6 @@ class SmoothedSeismicity(object):
 			values = self.calc_grid_occurrence_rates(end_date=end_date,
 												min_mag=min_mag, max_mag=max_mag,
 												norm_by_area=norm_by_area)
-		elif quantity == 'predicted_rate':
-			b_value = kwargs.pop('b_value')
-			end_date = kwargs.pop('end_date', self.eq_catalog.end_date)
-			values = self.calc_grid_predicted_rates(b_value, end_date=end_date,
-												min_mag=min_mag, norm_by_area=norm_by_area)
 		elif quantity == 'moment_density':
 			unit = kwargs.pop('unit', 'N.m')
 			values = self.calc_grid_moment_densities(min_mag=min_mag,
@@ -1267,7 +1327,7 @@ class SmoothedSeismicity(object):
 			end_date = kwargs.pop('end_date', self.eq_catalog.end_date)
 			b_value = kwargs.pop('b_value')
 			values = self.calc_grid_a_values(b_value, end_date=end_date,
-											min_mag=min_mag, max_mag=max_mag)
+											min_mag=min_mag)
 
 		values = values.reshape(self.grid.shape)
 
@@ -1305,8 +1365,6 @@ class SmoothedSeismicity(object):
 			cbar_title = kwargs.pop('cbar_title', 'Earthquake density')
 		elif quantity == 'occurrence_rate':
 			cbar_title = kwargs.pop('cbar_title', 'Annual frequency')
-		elif quantity == 'predicted_rate':
-			cbar_title = kwargs.pop('cbar_title', 'Annual frequency')
 		elif quantity == 'moment_density':
 			cbar_title = kwargs.pop('cbar_title', 'Moment density (%s)' % unit)
 		elif quantity == 'moment_rate':
@@ -1337,7 +1395,7 @@ class SmoothedSeismicity(object):
 
 		:param quantity:
 			str, name of quantity to compute: 'density', 'occurrence_rate',
-			'predicted_rate', 'a_value', 'moment_density', 'moment_rate' or 'moment'
+			'a_value', 'moment_density', 'moment_rate' or 'moment'
 		:param min_mag:
 			float, minimum magnitude to compute quantity for
 			(default: None, will use :prop:`min_mag`)
@@ -1384,8 +1442,6 @@ class SmoothedSeismicity(object):
 		if quantity == 'density':
 			title = 'Earthquake density'
 		elif quantity == 'occurrence_rate':
-			title = 'Annual frequency'
-		elif quantity == 'predicted_rate':
 			title = 'Annual frequency'
 		elif quantity == 'moment_density':
 			title = 'Moment density (%s)' % unit
