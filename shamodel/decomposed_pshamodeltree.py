@@ -173,11 +173,9 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 
 		## Non-area sources:
 		## multiprocessing is applied to PSHA models not containing area sources
-		psha_models = list(self.iter_psha_models("non_area"))
-
 		## Create list with arguments for each job
 		job_args = []
-		for psha_model in psha_models:
+		for psha_model in self.iter_psha_models("non_area"):
 			if verbose:
 				print(psha_model.name)
 			curve_name_parts = psha_model.source_model.name.split('--')
