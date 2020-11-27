@@ -452,6 +452,9 @@ def split_mfd_fault_bg(aValue, bValue, Mmin, Mmin_fault, Mmax, bin_width=0.1):
 		fault source. mfd_bg is an instance of oqhazlib.mfd.EvenlyDiscretizedMFD
 		and mfd_fault is an instance of oqhazlib.mfd.TruncatedGRMFD
 	"""
+	from .truncated_gr import TruncatedGRMFD
+	from .evenly_discretized import EvenlyDiscretizedMFD
+
 	## Construct summed MFD
 	mfd_summed = TruncatedGRMFD(Mmin, Mmax, bin_width, aValue, bValue)
 	## Note: get_annual_occurrence_rates() returns non-cumulative rates !
@@ -516,6 +519,9 @@ def divide_mfd_fault_bg(aValue, bValue, Mmin, Mmin_fault, Mmax_fault, Mmax, bin_
 		fault source. mfd_bg and mfd_fault are instances of
 		oqhazlib.mfd.EvenlyDiscretizedMFD
 	"""
+	from .truncated_gr import TruncatedGRMFD
+	from .evenly_discretized import EvenlyDiscretizedMFD
+
 	## Construct summed MFD
 	mfd_summed = TruncatedGRMFD(Mmin, Mmax, bin_width, aValue, bValue)
 	hist = mfd_summed.get_annual_occurrence_rates()
@@ -580,6 +586,8 @@ def divide_mfd_faults(aValue, bValue, Mmin, Mmax_catalog, Mmax_faults, Mmax_rate
 		list of oqhazlib MFD objects (instances of instances of
 		oqhazlib.mfd.EvenlyDiscretizedMFD) for each fault
 	"""
+	from .evenly_discretized import EvenlyDiscretizedMFD
+
 	mfd_list = []
 	for weight, Mmax, Mmax_rate in zip(weights, Mmax_faults, Mmax_rates):
 		a = aValue + np.log10(weight)
