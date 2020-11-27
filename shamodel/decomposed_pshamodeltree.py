@@ -176,8 +176,8 @@ class DecomposedPSHAModelTree(PSHAModelTree):
 		## Create list with arguments for each job
 		job_args = []
 		for psha_model in self.iter_psha_models("non_area"):
-			if verbose:
-				print(psha_model.name)
+			#if verbose:
+			#	print(psha_model.name)
 			curve_name_parts = psha_model.source_model.name.split('--')
 			source_model_name = curve_name_parts[0]
 			curve_name = '--'.join(curve_name_parts[2:])
