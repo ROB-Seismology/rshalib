@@ -396,12 +396,16 @@ def sum_mfds(mfd_list, weights=[]):
 			N0sum = np.sum(N0 * weights)
 			a = np.log10(N0sum)
 			## Error propagation, see http://chemwiki.ucdavis.edu/Analytical_Chemistry/Quantifying_Nature/Significant_Digits/Propagation_of_Error
-			Nsum_sigma = np.sqrt(np.sum([(mfd.get_N0_sigma() * w)**2
-								for (mfd, w) in zip(mfd_list, weights)]))
-			a_sigma = 0.434 * (Nsum_sigma / N0sum)
-			b_sigma = np.mean([mfd.b_sigma for mfd in mfd_list])
-			## Note: covariances will be lost!
-			# TODO:check for better solution
+			if isinstance(mfd, TruncatedGRMFD):
+				Nsum_sigma = np.sqrt(np.sum([(mfd.get_N0_sigma() * w)**2
+									for (mfd, w) in zip(mfd_list, weights)]))
+				a_sigma = 0.434 * (Nsum_sigma / N0sum)
+				b_sigma = np.mean([mfd.b_sigma for mfd in mfd_list])
+				## Note: covariances will be lost!
+				# TODO:check for better solution
+			else:
+				# TODO
+				a_sigma, b_sigma = None, None
 			cov = np.mat(np.zeros((2, 2)))
 			mfd = mfd_list[0]
 			return TruncatedGRMFD(mfd.min_mag, mfd.max_mag, mfd.bin_width, a,
