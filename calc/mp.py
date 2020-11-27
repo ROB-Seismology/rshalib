@@ -251,7 +251,8 @@ def calc_shcf_psha_model(psha_model, curve_name, curve_path, cav_min,
 	"""
 	## Run
 	if verbose:
-		print("Starting hazard-curve calculation of curve %s..." % curve_name)
+		print("%s: starting calculation of hazard curve %s..."
+				% (psha_model.name, curve_name))
 
 	try:
 		im_shcf_dict = psha_model.calc_shcf(cav_min=cav_min,
