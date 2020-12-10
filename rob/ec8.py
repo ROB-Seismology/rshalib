@@ -5,11 +5,13 @@ Read EC8 information from GIS files
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import os
-import platform
-if platform.uname()[0] == "Windows":
-	GIS_root = "D:\\GIS-data"
+
+try:
+	from mapping.seismogis import SeismoGisCatalog as SEISMOGIS
+except ImportError:
+	SEISMOGIS = None
 else:
-	GIS_root = os.path.join(os.environ["HOME"], "gis-data")
+	SEISMOGIS.load_collections()
 
 from mapping.geotools.read_gis import read_gis_file
 
@@ -22,17 +24,19 @@ def read_ec8_information():
 	"""
 	:return:
 		village_ec8_PGA_dict: dict, mapping village names to tuple of
-		EC8 zone (int) and reference PGA (float)
+		EC8 zone (int) and reference PGA in g (float)
 	"""
-	village_filespec = os.path.join(GIS_root, 'Belgium',
-									'Bel_main_village_points.TAB')
+	[ds] = SEISMOGIS.find_datasets('Bel_main_village_points', 'Bel_administrative_ROB')
+	village_filespec = ds.get_gis_filespec()
 	village_records = read_gis_file(village_filespec)
-	ec8_filespec = os.path.join(GIS_root, 'KSB-ORB', 'EC8_2002-2011.TAB')
+	
+	[ds] = SEISMOGIS.find_datasets('EC8_2002-2011', 'ROB_SHA')
+	ec8_filespec = ds.get_gis_filespec()
 	ec8_records = read_gis_file(ec8_filespec, encoding=None)
 
 	village_ID_dict = {}
 	for rec in village_records:
-		village_ID_dict[rec['Name']] = rec['Village_number']
+		village_ID_dict[rec['Name']] = rec['ID_ROB']
 	ID_ec8_dict = {}
 	for rec in ec8_records:
 		ID_ec8_dict[rec['CommuneID']] = rec['EC8_2011_Zone']
