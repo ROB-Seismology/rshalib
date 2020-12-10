@@ -13,7 +13,7 @@ __all__ = ['get_ec8_rs']
 
 
 def get_ec8_rs(agr, ground_type, resp_type, orientation="horizontal",
-					importance_class=2, damping=5):
+					importance_class=2, damping=5, periods=None):
 	"""
 	Reference horizontal elastic response spectrum according to Eurocode 8
 	(if deep geology is not accounted for)
@@ -37,6 +37,11 @@ def get_ec8_rs(agr, ground_type, resp_type, orientation="horizontal",
 	:param damping:
 		float, viscous damping, in %
 		(default: 5)
+	:param periods:
+		list or 1D array, spectral periods for which to compute response
+		Note: if specified, TB, TC and TD will be added if necessary!
+		(default: None, will use period range T = 0.04 - 4 s with spacing
+		of 0.02 s + PGA)
 
 	:return:
 		instance of :class:`rshalib.result.ResponseSpectrum`
@@ -66,7 +71,11 @@ def get_ec8_rs(agr, ground_type, resp_type, orientation="horizontal",
 
 	eta = np.sqrt(10.0 / (5 + damping))
 
-	periods = np.concatenate([[0.0], np.arange(0.04, 4.02, 0.02)])
+	if periods is None:
+		periods = np.concatenate([[0.0], np.arange(0.04, 4.02, 0.02)])
+	else:
+		periods = np.sort(np.unique(list(periods) + [TB,TC,TD]))
+	periods = periods[periods <= 4.]
 	values = np.zeros(len(periods), 'd')
 
 	if orientation == "horizontal":
